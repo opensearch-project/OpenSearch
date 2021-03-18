@@ -48,7 +48,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.MetadataTests.assertLeafs;
 import static org.elasticsearch.cluster.metadata.MetadataTests.assertMultiField;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
 

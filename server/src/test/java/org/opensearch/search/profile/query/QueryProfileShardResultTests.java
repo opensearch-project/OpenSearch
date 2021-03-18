@@ -33,7 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class QueryProfileShardResultTests extends OpenSearchTestCase {
 

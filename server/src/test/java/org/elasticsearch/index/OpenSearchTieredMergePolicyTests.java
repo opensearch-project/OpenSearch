@@ -25,7 +25,7 @@ import org.opensearch.test.OpenSearchTestCase;
 public class OpenSearchTieredMergePolicyTests extends OpenSearchTestCase {
 
     public void testDefaults() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
+        OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
         assertEquals(
                 new TieredMergePolicy().getMaxMergedSegmentMB(),
                 policy.regularMergePolicy.getMaxMergedSegmentMB(), 0d);
@@ -33,45 +33,45 @@ public class OpenSearchTieredMergePolicyTests extends OpenSearchTestCase {
     }
 
     public void testSetMaxMergedSegmentMB() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
+        OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
         policy.setMaxMergedSegmentMB(10 * 1024);
         assertEquals(10 * 1024, policy.regularMergePolicy.getMaxMergedSegmentMB(), 0d);
         assertEquals(Long.MAX_VALUE / 1024.0 / 1024.0, policy.forcedMergePolicy.getMaxMergedSegmentMB(), 0d);
     }
 
     public void testSetForceMergeDeletesPctAllowed() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
+        OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
         policy.setForceMergeDeletesPctAllowed(42);
         assertEquals(42, policy.forcedMergePolicy.getForceMergeDeletesPctAllowed(), 0);
     }
 
     public void testSetFloorSegmentMB() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
+        OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
         policy.setFloorSegmentMB(42);
         assertEquals(42, policy.regularMergePolicy.getFloorSegmentMB(), 0);
         assertEquals(42, policy.forcedMergePolicy.getFloorSegmentMB(), 0);
     }
 
     public void testSetMaxMergeAtOnce() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
+        OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
         policy.setMaxMergeAtOnce(42);
         assertEquals(42, policy.regularMergePolicy.getMaxMergeAtOnce());
     }
 
     public void testSetMaxMergeAtOnceExplicit() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
+        OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
         policy.setMaxMergeAtOnceExplicit(42);
         assertEquals(42, policy.forcedMergePolicy.getMaxMergeAtOnceExplicit());
     }
 
     public void testSetSegmentsPerTier() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
+        OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
         policy.setSegmentsPerTier(42);
         assertEquals(42, policy.regularMergePolicy.getSegmentsPerTier(), 0);
     }
 
     public void testSetDeletesPctAllowed() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
+        OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
         policy.setDeletesPctAllowed(42);
         assertEquals(42, policy.regularMergePolicy.getDeletesPctAllowed(), 0);
     }

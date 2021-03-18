@@ -50,7 +50,7 @@ public class ListenableFutureTests extends OpenSearchTestCase {
         AtomicInteger notifications = new AtomicInteger(0);
         final int numberOfListeners = scaledRandomIntBetween(1, 12);
         for (int i = 0; i < numberOfListeners; i++) {
-            future.addListener(ActionListener.wrap(notifications::incrementAndGet), EsExecutors.newDirectExecutorService(), threadContext);
+            future.addListener(ActionListener.wrap(notifications::incrementAndGet), OpenSearchExecutors.newDirectExecutorService(), threadContext);
         }
 
         future.onResponse("");
@@ -67,7 +67,7 @@ public class ListenableFutureTests extends OpenSearchTestCase {
             future.addListener(ActionListener.wrap(s -> fail("this should never be called"), e -> {
                 assertEquals(exception, e);
                 notifications.incrementAndGet();
-            }), EsExecutors.newDirectExecutorService(), threadContext);
+            }), OpenSearchExecutors.newDirectExecutorService(), threadContext);
         }
 
         future.onFailure(exception);
@@ -79,8 +79,8 @@ public class ListenableFutureTests extends OpenSearchTestCase {
         final int numberOfThreads = scaledRandomIntBetween(2, 32);
         final int completingThread = randomIntBetween(0, numberOfThreads - 1);
         final ListenableFuture<String> future = new ListenableFuture<>();
-        executorService = EsExecutors.newFixed("testConcurrentListenerRegistrationAndCompletion", numberOfThreads, 1000,
-            EsExecutors.daemonThreadFactory("listener"), threadContext);
+        executorService = OpenSearchExecutors.newFixed("testConcurrentListenerRegistrationAndCompletion", numberOfThreads, 1000,
+            OpenSearchExecutors.daemonThreadFactory("listener"), threadContext);
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         final CountDownLatch listenersLatch = new CountDownLatch(numberOfThreads - 1);
         final AtomicInteger numResponses = new AtomicInteger(0);

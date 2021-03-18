@@ -29,8 +29,8 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class QueryStringWithAnalyzersIT extends OpenSearchIntegTestCase {
     @Override

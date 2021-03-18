@@ -26,7 +26,7 @@ import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory.Ex
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 public abstract class AbstractTermsTestCase extends OpenSearchIntegTestCase {
 

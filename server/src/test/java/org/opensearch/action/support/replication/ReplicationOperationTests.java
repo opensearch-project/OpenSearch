@@ -40,7 +40,7 @@ import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
@@ -203,7 +203,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
                 if (randomBoolean()) {
                     cause = new CircuitBreakingException("broken", CircuitBreaker.Durability.PERMANENT);
                 } else {
-                    cause = new EsRejectedExecutionException("rejected");
+                    cause = new OpenSearchRejectedExecutionException("rejected");
                 }
                 exception = new RemoteTransportException("remote", cause);
             } else {

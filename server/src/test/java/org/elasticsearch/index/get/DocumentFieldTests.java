@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class DocumentFieldTests extends OpenSearchTestCase {
 

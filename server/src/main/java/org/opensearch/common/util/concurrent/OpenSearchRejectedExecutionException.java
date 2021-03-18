@@ -21,20 +21,20 @@ package org.opensearch.common.util.concurrent;
 
 import java.util.concurrent.RejectedExecutionException;
 
-public class EsRejectedExecutionException extends RejectedExecutionException {
+public class OpenSearchRejectedExecutionException extends RejectedExecutionException {
 
     private final boolean isExecutorShutdown;
 
-    public EsRejectedExecutionException(String message, boolean isExecutorShutdown) {
+    public OpenSearchRejectedExecutionException(String message, boolean isExecutorShutdown) {
         super(message);
         this.isExecutorShutdown = isExecutorShutdown;
     }
 
-    public EsRejectedExecutionException(String message) {
+    public OpenSearchRejectedExecutionException(String message) {
         this(message, false);
     }
 
-    public EsRejectedExecutionException() {
+    public OpenSearchRejectedExecutionException() {
         this(null, false);
     }
 

@@ -733,7 +733,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(56, org.opensearch.common.settings.SettingsException.class);
         ids.put(57, org.opensearch.indices.IndexTemplateMissingException.class);
         ids.put(58, org.opensearch.transport.SendRequestTransportException.class);
-        ids.put(59, null); // was EsRejectedExecutionException, which is no longer an instance of OpenSearchException
+        ids.put(59, null); // was OpenSearchRejectedExecutionException, which is no longer an instance of OpenSearchException
         ids.put(60, null); // EarlyTerminationException was removed in 6.0
         ids.put(61, null); // RoutingValidationException was removed in 5.0
         ids.put(62, org.opensearch.common.io.stream.NotSerializableExceptionWrapper.class);

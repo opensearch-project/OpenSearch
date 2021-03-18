@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
- * Tests for EsExecutors and its components like EsAbortPolicy.
+ * Tests for OpenSearchExecutors and its components like OpenSearchAbortPolicy.
  */
 public class OpenSearchExecutorsTests extends OpenSearchTestCase {
 
@@ -52,7 +52,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
 
     public void testFixedForcedExecution() throws Exception {
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext);
+                OpenSearchExecutors.newFixed(getName(), 1, 1, OpenSearchExecutors.daemonThreadFactory("test"), threadContext);
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -115,7 +115,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
 
     public void testFixedRejected() throws Exception {
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext);
+                OpenSearchExecutors.newFixed(getName(), 1, 1, OpenSearchExecutors.daemonThreadFactory("test"), threadContext);
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -152,7 +152,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
                 }
             });
             fail("should be rejected...");
-        } catch (EsRejectedExecutionException e) {
+        } catch (OpenSearchRejectedExecutionException e) {
             // all is well
         }
 
@@ -174,8 +174,8 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         final CyclicBarrier barrier = new CyclicBarrier(max + 1);
 
         ThreadPoolExecutor pool =
-                EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), randomTimeUnit(),
-                    EsExecutors.daemonThreadFactory("test"), threadContext);
+                OpenSearchExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), randomTimeUnit(),
+                    OpenSearchExecutors.daemonThreadFactory("test"), threadContext);
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -209,8 +209,8 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         final CyclicBarrier barrier = new CyclicBarrier(max + 1);
 
         final ThreadPoolExecutor pool =
-                EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), TimeUnit.MILLISECONDS,
-                    EsExecutors.daemonThreadFactory("test"), threadContext);
+                OpenSearchExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), TimeUnit.MILLISECONDS,
+                    OpenSearchExecutors.daemonThreadFactory("test"), threadContext);
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -248,7 +248,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         int actions = queue + pool;
         final CountDownLatch latch = new CountDownLatch(1);
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+                OpenSearchExecutors.newFixed(getName(), pool, queue, OpenSearchExecutors.daemonThreadFactory("dummy"), threadContext);
         try {
             for (int i = 0; i < actions; i++) {
                 executor.execute(new Runnable() {
@@ -275,7 +275,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
                     }
                 });
                 fail("Didn't get a rejection when we expected one.");
-            } catch (EsRejectedExecutionException e) {
+            } catch (OpenSearchRejectedExecutionException e) {
                 assertFalse("Thread pool registering as terminated when it isn't", e.isExecutorShutdown());
                 String message = e.getMessage();
                 assertThat(message, containsString("of dummy runnable"));
@@ -315,7 +315,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
                 }
             });
             fail("Didn't get a rejection when we expected one.");
-        } catch (EsRejectedExecutionException e) {
+        } catch (OpenSearchRejectedExecutionException e) {
             assertTrue("Thread pool not registering as terminated when it is", e.isExecutorShutdown());
             String message = e.getMessage();
             assertThat(message, containsString("of dummy runnable"));
@@ -338,7 +338,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         final Integer one = Integer.valueOf(1);
         threadContext.putTransient("foo", one);
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+                OpenSearchExecutors.newFixed(getName(), pool, queue, OpenSearchExecutors.daemonThreadFactory("dummy"), threadContext);
         try {
             executor.execute(() -> {
                 try {
@@ -369,7 +369,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch executed = new CountDownLatch(1);
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+                OpenSearchExecutors.newFixed(getName(), pool, queue, OpenSearchExecutors.daemonThreadFactory("dummy"), threadContext);
         try {
             Runnable r = () -> {
                 latch.countDown();
@@ -391,11 +391,11 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
     }
 
     public void testNodeProcessorsBound() {
-        runProcessorsBoundTest(EsExecutors.NODE_PROCESSORS_SETTING);
+        runProcessorsBoundTest(OpenSearchExecutors.NODE_PROCESSORS_SETTING);
     }
 
     public void testProcessorsBound() {
-        runProcessorsBoundTest(EsExecutors.PROCESSORS_SETTING);
+        runProcessorsBoundTest(OpenSearchExecutors.PROCESSORS_SETTING);
     }
 
     private void runProcessorsBoundTest(final Setting<Integer> processorsSetting) {

@@ -47,7 +47,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
@@ -432,7 +432,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             return customQueryCache;
         });
         threadPool.shutdown(); // causes index service creation to fail
-        expectThrows(EsRejectedExecutionException.class, () -> newIndexService(module));
+        expectThrows(OpenSearchRejectedExecutionException.class, () -> newIndexService(module));
         assertThat(liveQueryCaches, empty());
     }
 
@@ -476,7 +476,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             singletonMap("test", analysisProvider), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
         IndexModule module = createIndexModule(indexSettings, analysisRegistry);
         threadPool.shutdown(); // causes index service creation to fail
-        expectThrows(EsRejectedExecutionException.class, () -> newIndexService(module));
+        expectThrows(OpenSearchRejectedExecutionException.class, () -> newIndexService(module));
         assertThat(openAnalyzers, empty());
     }
 

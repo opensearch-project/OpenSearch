@@ -151,7 +151,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Name: fake_plugin",
                 "Description: fake desc",
                 "Version: 1.0",
-                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "OpenSearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Extended Plugins: []",
@@ -173,7 +173,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Name: fake_plugin1",
                 "Description: fake desc 1",
                 "Version: 1.0",
-                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "OpenSearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: true",
                 "Extended Plugins: []",
@@ -196,7 +196,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Name: fake_plugin1",
                 "Description: fake desc 1",
                 "Version: 1.0",
-                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "OpenSearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Extended Plugins: []",
@@ -206,7 +206,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Name: fake_plugin2",
                 "Description: fake desc 2",
                 "Version: 1.0",
-                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "OpenSearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Extended Plugins: []",
@@ -258,7 +258,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
         buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
 
         MockTerminal terminal = listPlugins(home);
-        String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0 but version " + Version.CURRENT + " is required";
+        String message = "plugin [fake_plugin1] was built for OpenSearch version 1.0 but version " + Version.CURRENT + " is required";
         assertEquals("fake_plugin1\nfake_plugin2\n", terminal.getOutput());
         assertEquals("WARNING: " + message + "\n", terminal.getErrorOutput());
 

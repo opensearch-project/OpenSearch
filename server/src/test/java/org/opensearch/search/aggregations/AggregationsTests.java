@@ -84,7 +84,7 @@ import org.opensearch.search.aggregations.pipeline.InternalDerivativeTests;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.InternalMultiBucketAggregationTestCase;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.After;
 import org.junit.Before;
 
@@ -257,7 +257,7 @@ public class AggregationsTests extends OpenSearchTestCase {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             Aggregations parsedAggregations = Aggregations.fromXContent(parser);
             BytesReference parsedBytes = XContentHelper.toXContent(parsedAggregations, xContentType, randomBoolean());
-            ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+            OpenSearchAssertions.assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
         }
     }
 

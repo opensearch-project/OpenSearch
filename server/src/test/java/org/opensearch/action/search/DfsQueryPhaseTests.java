@@ -29,7 +29,7 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchPhaseResult;
@@ -92,7 +92,7 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(OpenSearchExecutors.newDirectExecutorService(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
             results.length(), exc -> {});
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
@@ -151,7 +151,7 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(OpenSearchExecutors.newDirectExecutorService(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
             results.length(), exc -> {});
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
@@ -212,7 +212,7 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(OpenSearchExecutors.newDirectExecutorService(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
             results.length(), exc -> {});
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,

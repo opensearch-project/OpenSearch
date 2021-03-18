@@ -31,7 +31,7 @@ import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 
 /**
- * Extends Lucene's BaseDirectoryTestCase with ES test behavior.
+ * Extends Lucene's BaseDirectoryTestCase with OpenSearch test behavior.
  */
 @Listeners({
   ReproduceInfoPrinter.class
@@ -39,7 +39,7 @@ import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-public abstract class EsBaseDirectoryTestCase extends BaseDirectoryTestCase {
+public abstract class OpenSearchBaseDirectoryTestCase extends BaseDirectoryTestCase {
     static {
         try {
             Class.forName("org.opensearch.test.OpenSearchTestCase");

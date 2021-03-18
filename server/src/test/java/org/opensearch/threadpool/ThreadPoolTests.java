@@ -21,7 +21,7 @@ package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -100,7 +100,7 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         assertThat(factorialForked(1, threadPool.generic()), equalTo(1));
         assertThat(factorialForked(10, threadPool.generic()), equalTo(3628800));
         assertThat(expectThrows(AssertionError.class,
-            () -> factorialForked(between(2, 10), EsExecutors.newDirectExecutorService())).getMessage(),
+            () -> factorialForked(between(2, 10), OpenSearchExecutors.newDirectExecutorService())).getMessage(),
             equalTo("org.opensearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
         terminate(threadPool);
     }

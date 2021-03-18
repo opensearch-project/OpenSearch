@@ -44,9 +44,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-public class EsExecutors {
+public class OpenSearchExecutors {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EsExecutors.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(OpenSearchExecutors.class);
 
     /**
      * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
@@ -119,7 +119,7 @@ public class EsExecutors {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
         return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
-            queue, threadFactory, new EsAbortPolicy(), contextHolder);
+            queue, threadFactory, new OpenSearchAbortPolicy(), contextHolder);
     }
 
     /**
@@ -142,7 +142,7 @@ public class EsExecutors {
                 new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), initialQueueCapacity);
         return new QueueResizingEsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
                 queue, minQueueSize, maxQueueSize, TimedRunnable::new, frameSize, targetedResponseTime, threadFactory,
-                new EsAbortPolicy(), contextHolder);
+                new OpenSearchAbortPolicy(), contextHolder);
     }
 
     /**
@@ -189,7 +189,7 @@ public class EsExecutors {
 
     private static final class DirectExecutorService extends AbstractExecutorService {
 
-        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        @SuppressForbidden(reason = "properly rethrowing errors, see OpenSearchExecutors.rethrowErrors")
         DirectExecutorService() {
             super();
         }
@@ -292,7 +292,7 @@ public class EsExecutors {
     /**
      * Cannot instantiate.
      */
-    private EsExecutors() {
+    private OpenSearchExecutors() {
     }
 
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {

@@ -48,8 +48,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 1000, fastWrapper(),
-                        measureWindow, TimeValue.timeValueMillis(1), EsExecutors.daemonThreadFactory("queuetest"),
-                        new EsAbortPolicy(), context);
+                        measureWindow, TimeValue.timeValueMillis(1), OpenSearchExecutors.daemonThreadFactory("queuetest"),
+                        new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -79,8 +79,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 3000, fastWrapper(),
-                        measureWindow, TimeValue.timeValueMillis(1), EsExecutors.daemonThreadFactory("queuetest"),
-                        new EsAbortPolicy(), context);
+                        measureWindow, TimeValue.timeValueMillis(1), OpenSearchExecutors.daemonThreadFactory("queuetest"),
+                        new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -107,7 +107,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 3000, slowWrapper(), measureWindow, TimeValue.timeValueMillis(1),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+                        OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -135,7 +135,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, min, 100000, slowWrapper(), measureWindow, TimeValue.timeValueMillis(1),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+                        OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -164,7 +164,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, max, fastWrapper(), measureWindow, TimeValue.timeValueMillis(1),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+                        OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -189,7 +189,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", 1, 1, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 200, fastWrapper(), 10, TimeValue.timeValueMillis(1),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+                        OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -230,7 +230,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
             new QueueResizingEsThreadPoolExecutor(
                 "test-threadpool", 1, 1, 1000,
                 TimeUnit.MILLISECONDS, queue, 10, 200, exceptionalWrapper(), 10, TimeValue.timeValueMillis(1),
-                EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+                OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 

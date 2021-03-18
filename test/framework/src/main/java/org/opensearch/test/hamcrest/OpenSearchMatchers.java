@@ -27,7 +27,7 @@ import org.hamcrest.core.CombinableMatcher;
 
 import java.util.function.Function;
 
-public class ElasticsearchMatchers {
+public class OpenSearchMatchers {
 
     public static class SearchHitHasIdMatcher extends TypeSafeMatcher<SearchHit> {
         private String id;

@@ -42,7 +42,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import static org.opensearch.index.rankeval.EvaluationMetric.filterUnratedDocuments;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RankEvalRequestIT extends OpenSearchIntegTestCase {

@@ -23,7 +23,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler.Cancellable;
@@ -252,7 +252,7 @@ public class ScheduleWithFixedDelayTests extends OpenSearchTestCase {
             @Override
             public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
                 if (command instanceof ReschedulingRunnable) {
-                    ((ReschedulingRunnable) command).onRejection(new EsRejectedExecutionException());
+                    ((ReschedulingRunnable) command).onRejection(new OpenSearchRejectedExecutionException());
                 } else {
                     fail("this should only be called with a rescheduling runnable in this test");
                 }

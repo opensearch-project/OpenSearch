@@ -47,10 +47,10 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
             BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {
-        this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new EsAbortPolicy(), contextHolder);
+        this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new OpenSearchAbortPolicy(), contextHolder);
     }
 
-    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+    @SuppressForbidden(reason = "properly rethrowing errors, see OpenSearchExecutors.rethrowErrors")
     EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
             BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
             ThreadContext contextHolder) {
@@ -82,7 +82,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         command = wrapRunnable(command);
         try {
             super.execute(command);
-        } catch (EsRejectedExecutionException ex) {
+        } catch (OpenSearchRejectedExecutionException ex) {
             if (command instanceof AbstractRunnable) {
                 // If we are an abstract runnable we can handle the rejection
                 // directly and don't need to rethrow it.
@@ -101,7 +101,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
-        EsExecutors.rethrowErrors(unwrap(r));
+        OpenSearchExecutors.rethrowErrors(unwrap(r));
         assert assertDefaultContext(r);
     }
 

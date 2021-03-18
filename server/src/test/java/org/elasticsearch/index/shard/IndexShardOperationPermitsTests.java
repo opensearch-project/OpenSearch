@@ -23,7 +23,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
@@ -165,10 +165,10 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
                 assertNotNull(future.get(1, TimeUnit.MINUTES));
             } catch (ExecutionException e) {
                 if (closeAfterBlocking) {
-                    assertThat(e.getCause(), either(instanceOf(DummyException.class)).or(instanceOf(EsRejectedExecutionException.class))
+                    assertThat(e.getCause(), either(instanceOf(DummyException.class)).or(instanceOf(OpenSearchRejectedExecutionException.class))
                         .or(instanceOf(IndexShardClosedException.class)));
                 } else {
-                    assertThat(e.getCause(), either(instanceOf(DummyException.class)).or(instanceOf(EsRejectedExecutionException.class)));
+                    assertThat(e.getCause(), either(instanceOf(DummyException.class)).or(instanceOf(OpenSearchRejectedExecutionException.class)));
                 }
             }
         }

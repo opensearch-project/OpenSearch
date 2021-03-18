@@ -41,7 +41,7 @@ import org.opensearch.search.aggregations.pipeline.SimpleValue;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -54,8 +54,8 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -143,7 +143,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     }
 
     public void testDateMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
+        OpenSearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1")
@@ -173,7 +173,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     }
 
     public void testDateObjectMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
+        OpenSearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1")
@@ -203,7 +203,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     }
 
     public void testMultiValueMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc",
+        OpenSearchAssertions.assertAcked(prepareCreate("test").addMapping("doc",
                 "double0", "type=double",
                 "double1", "type=double",
                 "double2", "type=double"));
@@ -307,7 +307,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     }
 
     public void testInvalidDateMethodCall() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double", "type=double"));
+        OpenSearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double", "type=double"));
         ensureGreen("test");
         indexRandom(true, client().prepareIndex("test", "doc", "1").setSource("double", "178000000.0"));
         try {
@@ -322,13 +322,13 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     }
 
     public void testSparseField() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "x", "type=long", "y", "type=long"));
+        OpenSearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "x", "type=long", "y", "type=long"));
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1").setSource("id", 1, "x", 4),
                 client().prepareIndex("test", "doc","2").setSource("id", 2, "y", 2));
         SearchResponse rsp = buildRequest("doc['x'] + 1").get();
-        ElasticsearchAssertions.assertSearchResponse(rsp);
+        OpenSearchAssertions.assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
         assertEquals(2, rsp.getHits().getTotalHits().value);
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);

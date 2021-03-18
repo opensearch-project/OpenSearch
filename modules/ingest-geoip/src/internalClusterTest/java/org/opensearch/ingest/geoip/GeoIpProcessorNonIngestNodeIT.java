@@ -47,7 +47,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.test.NodeRoles.nonIngestNode;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoIpProcessorNonIngestNodeIT extends OpenSearchIntegTestCase {

@@ -39,7 +39,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class SyncedFlushSingleNodeTests extends OpenSearchSingleNodeTestCase {
 

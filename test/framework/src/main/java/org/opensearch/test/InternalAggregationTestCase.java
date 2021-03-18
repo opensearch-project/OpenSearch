@@ -152,7 +152,7 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -579,7 +579,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             assertEquals(aggregation.getType(), agg.getType());
 
             BytesReference parsedBytes = toXContent(agg, xContentType, params, humanReadable);
-            ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+            OpenSearchAssertions.assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
 
             return (P) agg;
         }

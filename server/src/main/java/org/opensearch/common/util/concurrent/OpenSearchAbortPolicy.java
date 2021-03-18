@@ -24,7 +24,7 @@ import org.opensearch.common.metrics.CounterMetric;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 
-public class EsAbortPolicy implements XRejectedExecutionHandler {
+public class OpenSearchAbortPolicy implements XRejectedExecutionHandler {
     private final CounterMetric rejected = new CounterMetric();
 
     @Override
@@ -45,7 +45,7 @@ public class EsAbortPolicy implements XRejectedExecutionHandler {
             }
         }
         rejected.inc();
-        throw new EsRejectedExecutionException("rejected execution of " + r + " on " + executor, executor.isShutdown());
+        throw new OpenSearchRejectedExecutionException("rejected execution of " + r + " on " + executor, executor.isShutdown());
     }
 
     @Override

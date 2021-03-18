@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class AggregationProfileShardResultTests extends OpenSearchTestCase {
 

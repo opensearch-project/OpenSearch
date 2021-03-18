@@ -79,7 +79,7 @@ public class SearchPhaseExecutionException extends OpenSearchException {
     @Override
     public RestStatus status() {
         if (shardFailures.length == 0) {
-            // if no successful shards, the failure can be due to EsRejectedExecutionException during fetch phase
+            // if no successful shards, the failure can be due to OpenSearchRejectedExecutionException during fetch phase
             // on coordinator node. so get the status from cause instead of returning SERVICE_UNAVAILABLE blindly
             return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : ExceptionsHelper.status(getCause());
         }

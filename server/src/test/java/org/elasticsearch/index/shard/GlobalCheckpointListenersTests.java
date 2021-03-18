@@ -24,7 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Assertions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.elasticsearch.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
@@ -78,7 +78,7 @@ public class GlobalCheckpointListenersTests extends OpenSearchTestCase {
 
     private final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
     private final ScheduledThreadPoolExecutor scheduler =
-            new Scheduler.SafeScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(Settings.EMPTY, "scheduler"));
+            new Scheduler.SafeScheduledThreadPoolExecutor(1, OpenSearchExecutors.daemonThreadFactory(Settings.EMPTY, "scheduler"));
 
     @After
     public void shutdownScheduler() {

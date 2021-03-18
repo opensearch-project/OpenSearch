@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import static org.opensearch.index.reindex.ReindexTestCase.matcher;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class ReindexSingleNodeTests extends OpenSearchSingleNodeTestCase {
     @Override

@@ -18,7 +18,7 @@
  */
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Mock single threaded {@link PrioritizedEsThreadPoolExecutor} based on {@link DeterministicTaskQueue},
- * simulating the behaviour of an executor returned by {@link EsExecutors#newSinglePrioritizing}.
+ * simulating the behaviour of an executor returned by {@link OpenSearchExecutors#newSinglePrioritizing}.
  */
 public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecutor {
 

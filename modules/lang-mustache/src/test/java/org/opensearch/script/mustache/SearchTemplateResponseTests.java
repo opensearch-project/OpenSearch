@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class SearchTemplateResponseTests extends AbstractXContentTestCase<SearchTemplateResponse> {
 

@@ -55,8 +55,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFileExists;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 

@@ -21,7 +21,7 @@ package org.elasticsearch.index;
 
 import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -78,12 +78,12 @@ public class IndexingPressureTests extends OpenSearchTestCase {
              Releasable primary = indexingPressure.markPrimaryOperationStarted(1024 * 3, false);
              Releasable replica = indexingPressure.markReplicaOperationStarted(1024 * 3, false)) {
             if (randomBoolean()) {
-                expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1024 * 2, false));
+                expectThrows(OpenSearchRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1024 * 2, false));
                 IndexingPressureStats stats = indexingPressure.stats();
                 assertEquals(1, stats.getCoordinatingRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
             } else {
-                expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markPrimaryOperationStarted(1024 * 2, false));
+                expectThrows(OpenSearchRejectedExecutionException.class, () -> indexingPressure.markPrimaryOperationStarted(1024 * 2, false));
                 IndexingPressureStats stats = indexingPressure.stats();
                 assertEquals(1, stats.getPrimaryRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -116,7 +116,7 @@ public class IndexingPressureTests extends OpenSearchTestCase {
             Releasable replica2 = indexingPressure.markReplicaOperationStarted(1024 * 11, false);
             assertEquals(1024 * 14, indexingPressure.stats().getCurrentReplicaBytes());
             // Replica will be rejected once we cross 15KB
-            expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markReplicaOperationStarted(1024 * 2, false));
+            expectThrows(OpenSearchRejectedExecutionException.class, () -> indexingPressure.markReplicaOperationStarted(1024 * 2, false));
             IndexingPressureStats stats = indexingPressure.stats();
             assertEquals(1, stats.getReplicaRejections());
             assertEquals(1024 * 14, stats.getCurrentReplicaBytes());
@@ -134,7 +134,7 @@ public class IndexingPressureTests extends OpenSearchTestCase {
 
     public void testForceExecutionOnCoordinating() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1024 * 11, false));
+        expectThrows(OpenSearchRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1024 * 11, false));
         try (Releasable ignore = indexingPressure.markCoordinatingOperationStarted(1024 * 11, true)) {
             assertEquals(1024 * 11, indexingPressure.stats().getCurrentCoordinatingBytes());
         }

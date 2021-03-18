@@ -22,7 +22,6 @@ package org.elasticsearch.test;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.set.Sets;
 import org.hamcrest.Matcher;
-import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -38,7 +37,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Various test for {@link AbstractQueryTestCase}
+ * Various test for {@link org.opensearch.test.AbstractQueryTestCase}
  */
 public class AbstractQueryTestCaseTests extends OpenSearchTestCase {
 

@@ -30,7 +30,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.http.HttpInfo;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
@@ -225,7 +225,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
 
     /**
      * Blocks the named executor by getting its only thread running a task blocked on a CyclicBarrier and fills the queue with a noop task.
-     * So requests to use this queue should get {@link EsRejectedExecutionException}s.
+     * So requests to use this queue should get {@link OpenSearchRejectedExecutionException}s.
      */
     private CyclicBarrier blockExecutor(String name, String node) throws Exception {
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, node);

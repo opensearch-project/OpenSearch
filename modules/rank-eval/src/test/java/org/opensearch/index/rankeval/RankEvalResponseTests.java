@@ -59,7 +59,7 @@ import static java.util.Collections.singleton;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.TestSearchContext.SHARD_TARGET;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RankEvalResponseTests extends OpenSearchTestCase {

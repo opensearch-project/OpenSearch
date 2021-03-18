@@ -35,7 +35,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.repositories.RepositoryMissingException;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -43,7 +43,7 @@ import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.Set;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
@@ -144,7 +144,7 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             AcknowledgedResponse response =
                 client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{"*"})).actionGet();
-            ElasticsearchAssertions.assertAcked(response);
+            OpenSearchAssertions.assertAcked(response);
         }
     }
 
@@ -157,7 +157,7 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             try {
                 // include wiping hidden indices!
-                ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete(indices)
+                OpenSearchAssertions.assertAcked(client().admin().indices().prepareDelete(indices)
                     .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)));
             } catch (IndexNotFoundException e) {
                 // ignore
@@ -171,7 +171,7 @@ public abstract class TestCluster implements Closeable {
                         concreteIndices.add(indexMetadata.getIndex().getName());
                     }
                     if (!concreteIndices.isEmpty()) {
-                        ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
+                        OpenSearchAssertions.assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
                     }
                 }
             }
