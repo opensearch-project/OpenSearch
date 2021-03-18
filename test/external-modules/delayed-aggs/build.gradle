@@ -17,7 +17,7 @@
  * under the License.
  */
 
-esplugin {
+opensearchplugin {
   description 'A test module that allows to delay aggregations on shards with a configurable time'
   classname 'org.opensearch.search.aggregations.DelayedShardAggregationPlugin'
 }

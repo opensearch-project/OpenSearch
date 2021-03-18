@@ -21,7 +21,7 @@ import org.opensearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'opensearch.validate-rest-spec'
 apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
+opensearchplugin {
   description 'An easy, safe and fast scripting language for OpenSearch'
   classname 'org.opensearch.painless.PainlessPlugin'
 }

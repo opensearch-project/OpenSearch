@@ -126,7 +126,7 @@ class NodeInfo {
         baseDir = new File(project.buildDir, "cluster/${prefix} node${nodeNum}")
         pidFile = new File(baseDir, 'opensearch.pid')
         this.nodeVersion = Version.fromString(nodeVersion)
-        this.isBwcNode = this.nodeVersion.before(VersionProperties.opensearch)
+        this.isBwcNode = this.nodeVersion.before(VersionProperties.getOpenSearch())
         homeDir = new File(baseDir, "opensearch-${nodeVersion}")
         pathConf = new File(homeDir, 'config')
         if (config.dataDir != null) {

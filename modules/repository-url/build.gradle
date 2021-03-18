@@ -25,7 +25,7 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 
-esplugin {
+opensearchplugin {
   description 'Module for URL repository'
   classname 'org.opensearch.plugin.repository.url.URLRepositoryPlugin'
 }
