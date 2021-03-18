@@ -11,11 +11,11 @@ A filtering aggregation used to limit any sub aggregations' processing to a samp
 * Reducing the running cost of aggregations that can produce useful results using only samples e.g. `significant_terms`
  
 
-// TODO: Replace the examples for OpenSearch
+// TODO(OpenSearch): Replace with a better example
 Example:
 
 A query on StackOverflow data for the popular term `javascript` OR the rarer term
-`kibana` will match many documents - most of them missing the word Kibana. To focus
+`opensearch-dashboards` will match many documents - most of them missing the words OpenSearch Dashboards. To focus
 the `significant_terms` aggregation on top-scoring documents that are more likely to match 
 the most interesting parts of our query we use a sample.
 
@@ -25,7 +25,7 @@ POST /stackoverflow/_search?size=0
 {
   "query": {
     "query_string": {
-      "query": "tags:kibana OR tags:javascript"
+      "query": "tags:opensearch\\-dashboards OR tags:javascript"
     }
   },
   "aggs": {
@@ -37,7 +37,7 @@ POST /stackoverflow/_search?size=0
         "keywords": {
           "significant_terms": {
             "field": "tags",
-            "exclude": [ "kibana", "javascript" ]
+            "exclude": [ "opensearch-dashboards", "javascript" ]
           }
         }
       }
@@ -61,13 +61,13 @@ Response:
         "bg_count": 650,
         "buckets": [
           {
-            "key": "elasticsearch",
+            "key": "opensearch",
             "doc_count": 150,
             "score": 1.078125,
             "bg_count": 200
           },
           {
-            "key": "logstash",
+            "key": "opensource",
             "doc_count": 50,
             "score": 0.5625,
             "bg_count": 50
@@ -85,7 +85,7 @@ therefore limited rather than unbounded.
 
 
 Without the `sampler` aggregation the request query considers the full "long tail" of low-quality matches and therefore identifies
-less significant terms such as `jquery` and `angular` rather than focusing on the more insightful Kibana-related terms.
+less significant terms such as `jquery` and `angular` rather than focusing on the more insightful OpenSearch-Dashboards-related terms.
 
 
 [source,console]
@@ -94,7 +94,7 @@ POST /stackoverflow/_search?size=0
 {
   "query": {
     "query_string": {
-      "query": "tags:kibana OR tags:javascript"
+      "query": "tags:opensearch\\-dashboards OR tags:javascript"
     }
   },
   "aggs": {
@@ -102,7 +102,7 @@ POST /stackoverflow/_search?size=0
       "significant_terms": {
         "field": "tags",
         "size": 3,
-        "exclude": [ "kibana", "javascript" ]
+        "exclude": [ "opensearch-dashboards", "javascript" ]
       }
     }
   }
@@ -134,7 +134,7 @@ Response:
           "bg_count": 200
         },
         {
-          "key": "logstash",
+          "key": "opensource",
           "doc_count": 50,
           "score": 0.0069,
           "bg_count": 50

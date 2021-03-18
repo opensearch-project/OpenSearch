@@ -24,11 +24,11 @@ number of documents collected on any one shard which share a common value. The d
 The aggregation will throw an error if the choice of `field` or `script` produces multiple values for a single document (de-duplication using multi-valued fields is not supported due to efficiency concerns).
 
 
-// TODO: Replace the examples for OpenSearch
+// TODO(OpenSearch): Replace with a better example
 Example:
 
-We might want to see which tags are strongly associated with `#elasticsearch` on StackOverflow
-forum posts but ignoring the effects of some prolific users with a tendency to misspell #Kibana as #Cabana.
+We might want to see which tags are strongly associated with `#opensearch` on StackOverflow
+forum posts but ignoring the effects of some prolific users with a tendency to misspell #opensearch-dashboards as #dashboards.
 
 [source,console]
 --------------------------------------------------
@@ -36,7 +36,7 @@ POST /stackoverflow/_search?size=0
 {
   "query": {
     "query_string": {
-      "query": "tags:elasticsearch"
+      "query": "tags:opensearch"
     }
   },
   "aggs": {
@@ -49,7 +49,7 @@ POST /stackoverflow/_search?size=0
         "keywords": {
           "significant_terms": {
             "field": "tags",
-            "exclude": [ "elasticsearch" ]
+            "exclude": [ "opensearch" ]
           }
         }
       }
@@ -73,7 +73,7 @@ Response:
         "bg_count": 650,
         "buckets": [
           {
-            "key": "kibana",
+            "key": "opensearch-dashboards",
             "doc_count": 150,
             "score": 2.213,
             "bg_count": 200
@@ -101,7 +101,7 @@ POST /stackoverflow/_search?size=0
 {
   "query": {
     "query_string": {
-      "query": "tags:kibana"
+      "query": "tags:opensearch\\-dashboards"
     }
   },
   "aggs": {
@@ -118,7 +118,7 @@ POST /stackoverflow/_search?size=0
         "keywords": {
           "significant_terms": {
             "field": "tags",
-            "exclude": [ "kibana" ]
+            "exclude": [ "opensearch-dashboards" ]
           }
         }
       }
@@ -142,13 +142,13 @@ Response:
         "bg_count": 650,
         "buckets": [
           {
-            "key": "logstash",
+            "key": "opensource",
             "doc_count": 3,
             "score": 2.213,
             "bg_count": 50
           },
           {
-            "key": "elasticsearch",
+            "key": "opensearch",
             "doc_count": 3,
             "score": 1.34,
             "bg_count": 200
