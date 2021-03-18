@@ -27,7 +27,6 @@ import org.opensearch.gradle.Architecture
 
 apply plugin:'opensearch.internal-distribution-download'
 
-
 opensearch_distributions {
   local {
     type = 'archive'
