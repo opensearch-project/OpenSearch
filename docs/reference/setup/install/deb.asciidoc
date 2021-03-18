@@ -8,7 +8,7 @@ Elasticsearch on any Debian-based system such as Debian and Ubuntu.
 include::license.asciidoc[]
 
 The latest stable version of Elasticsearch can be found on the
-link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
+link:/downloads/opensearch[Download OpenSearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
 NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
@@ -151,8 +151,8 @@ The Debian package for Elasticsearch v{version} can be downloaded from the websi
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.opensearch.org/downloads/elasticsearch/elasticsearch-{version}-amd64.deb
-wget https://artifacts.opensearch.org/downloads/elasticsearch/elasticsearch-{version}-amd64.deb.sha512
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-amd64.deb
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-amd64.deb.sha512
 shasum -a 512 -c opensearch-{version}-amd64.deb.sha512 <1>
 sudo dpkg -i opensearch-{version}-amd64.deb
 --------------------------------------------
@@ -161,7 +161,7 @@ sudo dpkg -i opensearch-{version}-amd64.deb
 
 Alternatively, you can download the following package, which contains only
 features that are available under the Apache 2.0 license:
-https://artifacts.opensearch.org/downloads/elasticsearch/elasticsearch-oss-{version}-amd64.deb
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-oss-{version}-amd64.deb
 
 endif::[]
 
