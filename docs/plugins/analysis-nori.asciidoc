@@ -77,7 +77,7 @@ custom compound nouns is controlled by the `decompound_mode` setting.
 
 
 As a demonstration of how the user dictionary can be used, save the following
-dictionary to `$ES_HOME/config/userdict_ko.txt`:
+dictionary to `$OPENSEARCH_HOME/config/userdict_ko.txt`:
 
 [source,txt]
 -----------------------

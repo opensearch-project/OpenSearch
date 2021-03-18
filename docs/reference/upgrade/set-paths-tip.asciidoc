@@ -6,7 +6,7 @@ directory contains the {es} `config`, `data`, and `logs` directories.
 
 We recommend moving these directories out of the {es} directory
 so that there is no chance of deleting them when you upgrade {es}.
-To specify the new locations, use the `ES_PATH_CONF` environment
+To specify the new locations, use the `OPENSEARCH_PATH_CONF` environment
 variable and the `path.data` and `path.logs` settings. For more information,
 see <<important-settings,Important {es} configuration>>.
 

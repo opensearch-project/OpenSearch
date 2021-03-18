@@ -34,8 +34,8 @@ features that are available under the Apache 2.0 license:
 https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-windows-x86_64.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
-+opensearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal
-window, `cd` to the `%ES_HOME%` directory, for instance:
++opensearch-{version}+, which we will refer to as `%OPENSEARCH_HOME%`. In a terminal
+window, `cd` to the `%OPENSEARCH_HOME%` directory, for instance:
 
 ["source","sh",subs="attributes"]
 ----------------------------
@@ -50,7 +50,7 @@ include::zip-windows-start.asciidoc[]
 [[windows-configuring]]
 ==== Configuring Elasticsearch on the command line
 
-Elasticsearch loads its configuration from the `%ES_HOME%\config\opensearch.yml`
+Elasticsearch loads its configuration from the `%OPENSEARCH_HOME%\config\opensearch.yml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -156,26 +156,26 @@ The Elasticsearch service can be configured prior to installation by setting the
 
 `SERVICE_LOG_DIR`::
 
-    Service log directory, defaults to `%ES_HOME%\logs`. Note that this does
+    Service log directory, defaults to `%OPENSEARCH_HOME%\logs`. Note that this does
     not control the path for the Elasticsearch logs; the path for these is set
     via the setting `path.logs` in the `opensearch.yml` configuration file,
     or on the command line.
 
-`ES_PATH_CONF`::
+`OPENSEARCH_PATH_CONF`::
 
     Configuration file directory (which needs to include `opensearch.yml`,
     `jvm.options`, and `log4j2.properties` files), defaults to
-    `%ES_HOME%\config`.
+    `%OPENSEARCH_HOME%\config`.
 
-`ES_JAVA_OPTS`::
+`OPENSEARCH_JAVA_OPTS`::
 
     Any additional JVM system properties you may want to apply.
 
-`ES_START_TYPE`::
+`OPENSEARCH_START_TYPE`::
 
     Startup mode for the service.  Can be either `auto` or `manual` (default).
 
-`ES_STOP_TIMEOUT` ::
+`OPENSEARCH_STOP_TIMEOUT` ::
 
   The timeout in seconds that procrun waits for service to exit gracefully.  Defaults to `0`.
 
@@ -193,7 +193,7 @@ by Elasticsearch when it is running. This private temporary directory is
 configured as a sub-directory of the private temporary directory for the user
 running the installation. If the service will run under a different user, you
 can configure the location of the temporary directory that the service should
-use by setting the environment variable `ES_TMPDIR` to the preferred location
+use by setting the environment variable `OPENSEARCH_TMPDIR` to the preferred location
 before you execute the service installation.
 
 Using the Manager GUI::
@@ -208,12 +208,12 @@ Most changes (like JVM settings) made through the manager GUI will require a res
 ==== Directory layout of `.zip` archive
 
 The `.zip` package is entirely self-contained. All files and directories are,
-by default, contained within `%ES_HOME%` -- the directory created when
+by default, contained within `%OPENSEARCH_HOME%` -- the directory created when
 unpacking the archive.
 
 This is very convenient because you don't have to create any directories to
 start using Elasticsearch, and uninstalling Elasticsearch is as easy as
-removing the `%ES_HOME%` directory.  However, it is advisable to change the
+removing the `%OPENSEARCH_HOME%` directory.  However, it is advisable to change the
 default locations of the config directory, the data directory, and the logs
 directory so that you do not delete important data later on.
 
@@ -222,35 +222,35 @@ directory so that you do not delete important data later on.
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `%ES_HOME%`
+  | Elasticsearch home directory or `%OPENSEARCH_HOME%`
  d| Directory created by unpacking the archive
   |
 
 | bin
   | Binary scripts including `opensearch` to start a node
     and `opensearch-plugin` to install plugins
-  | %ES_HOME%\bin
+  | %OPENSEARCH_HOME%\bin
  d|
 
 | conf
   | Configuration files including `opensearch.yml`
-  | %ES_HOME%\config
-  | <<config-files-location,ES_PATH_CONF>>
+  | %OPENSEARCH_HOME%\config
+  | <<config-files-location,OPENSEARCH_PATH_CONF>>
 
 | data
   | The location of the data files of each index / shard allocated
     on the node. Can hold multiple locations.
-  | %ES_HOME%\data
+  | %OPENSEARCH_HOME%\data
   | path.data
 
 | logs
   | Log files location.
-  | %ES_HOME%\logs
+  | %OPENSEARCH_HOME%\logs
   | path.logs
 
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
-  | %ES_HOME%\plugins
+  | %OPENSEARCH_HOME%\plugins
   |
 
 | repo

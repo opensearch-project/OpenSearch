@@ -95,7 +95,7 @@ in the `opensearch.yml` file:
 discovery.seed_providers: file
 ----------------------------------------------------------------
 
-Then create a file at `$ES_PATH_CONF/unicast_hosts.txt` in the format described
+Then create a file at `$OPENSEARCH_PATH_CONF/unicast_hosts.txt` in the format described
 below. Any time a change is made to the `unicast_hosts.txt` file the new
 changes will be picked up by {es} and the new hosts list will be used.
 

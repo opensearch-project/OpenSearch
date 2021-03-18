@@ -25,7 +25,7 @@ Logging with the JVM Unified Logging Framework].
 ==== Examples
 
 Change the default GC log output location to `/opt/my-app/gc.log` by
-  creating `$ES_HOME/config/jvm.options.d/gc.options` with some sample
+  creating `$OPENSEARCH_HOME/config/jvm.options.d/gc.options` with some sample
   options:
 
 [source,shell]
@@ -42,11 +42,11 @@ Change the default GC log output location to `/opt/my-app/gc.log` by
 
 Configure an {es} <<docker,Docker container>> to send GC debug logs to
   standard error (`stderr`). This lets the container orchestrator
-  handle the output. If using the `ES_JAVA_OPTS` environment variable,
+  handle the output. If using the `OPENSEARCH_JAVA_OPTS` environment variable,
   specify:
 
 [source,sh]
 ----
 MY_OPTS="-Xlog:disable -Xlog:all=warning:stderr:utctime,level,tags -Xlog:gc=debug:stderr:utctime"
-docker run -e ES_JAVA_OPTS="$MY_OPTS" # etc
+docker run -e OPENSEARCH_JAVA_OPTS="$MY_OPTS" # etc
 ----

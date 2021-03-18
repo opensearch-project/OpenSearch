@@ -6,7 +6,7 @@ By default, {es} binds to loopback addresses only such as `127.0.0.1`
 and `[::1]`. This binding is sufficient to run a single development node on a
 server.
 
-TIP: more than one node can be started from the same `$ES_HOME`
+TIP: more than one node can be started from the same `$OPENSEARCH_HOME`
 location on a single node. This setup can be useful for testing {es}'s
 ability to form clusters, but it is not a configuration recommended for
 production.

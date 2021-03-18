@@ -138,9 +138,9 @@ for a more detailed explanation.
 To add icu tokenizer rules, set the `rule_files` settings, which should contain a comma-separated list of
 `code:rulefile` pairs in the following format:
 https://unicode.org/iso15924/iso15924-codes.html[four-letter ISO 15924 script code],
-followed by a colon, then a rule file name. Rule files are placed `ES_HOME/config` directory.
+followed by a colon, then a rule file name. Rule files are placed `OPENSEARCH_HOME/config` directory.
 
-As a demonstration of how the rule files can be used, save the following user file to `$ES_HOME/config/KeywordTokenizer.rbbi`:
+As a demonstration of how the rule files can be used, save the following user file to `$OPENSEARCH_HOME/config/KeywordTokenizer.rbbi`:
 
 [source,text]
 -----------------------

@@ -33,7 +33,7 @@ and data directory are stored in the following locations.
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `$ES_HOME`
+  | Elasticsearch home directory or `$OPENSEARCH_HOME`
   | /usr/local/var/homebrew/linked/opensearch-full
  d|
 
@@ -46,7 +46,7 @@ and data directory are stored in the following locations.
 | conf
   | Configuration files including `opensearch.yml`
   | /usr/local/etc/opensearch
-  | <<config-files-location,ES_PATH_CONF>>
+  | <<config-files-location,OPENSEARCH_PATH_CONF>>
 
 | data
   | The location of the data files of each index / shard allocated

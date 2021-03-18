@@ -2,7 +2,7 @@
 == Plugin Management
 
 The `plugin` script is used to install, list, and remove plugins. It is
-located in the `$ES_HOME/bin` directory by default but it may be in a
+located in the `$OPENSEARCH_HOME/bin` directory by default but it may be in a
 different location depending on which Elasticsearch package you installed:
 
 * {ref}/targz.html#targz-layout[Directory layout of `.tar.gz` archives]
@@ -102,7 +102,7 @@ to a local Java truststore and pass the location to the script as follows:
 +
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/opensearch-plugin install https://host/plugin.zip
+sudo OPENSEARCH_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/opensearch-plugin install https://host/plugin.zip
 -----------------------------------
 --
 
@@ -238,26 +238,26 @@ can do this as follows:
 
 [source,sh]
 ---------------------
-sudo ES_PATH_CONF=/path/to/conf/dir bin/opensearch-plugin install <plugin name>
+sudo OPENSEARCH_PATH_CONF=/path/to/conf/dir bin/opensearch-plugin install <plugin name>
 ---------------------
 
 [discrete]
 === Proxy settings
 
 To install a plugin via a proxy, you can add the proxy details to the
-`ES_JAVA_OPTS` environment variable with the Java settings `http.proxyHost`
+`OPENSEARCH_JAVA_OPTS` environment variable with the Java settings `http.proxyHost`
 and `http.proxyPort` (or `https.proxyHost` and `https.proxyPort`):
 
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
+sudo OPENSEARCH_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 Or on Windows:
 
 [source,shell]
 ------------------------------------
-set ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
+set OPENSEARCH_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
 bin\opensearch-plugin install analysis-icu
 ------------------------------------
 

@@ -37,7 +37,7 @@ cd opensearch-{version}/ <2>
 --------------------------------------------
 <1> Compares the SHA of the downloaded `.tar.gz` archive and the published checksum, which should output
     `opensearch-{version}-linux-x86_64.tar.gz: OK`.
-<2> This directory is known as `$ES_HOME`.
+<2> This directory is known as `$OPENSEARCH_HOME`.
 
 Alternatively, you can download the following package, which includes only 
 Apache 2.0 licensed code: 
@@ -68,7 +68,7 @@ cd opensearch-{version}/ <2>
 --------------------------------------------
 <1> Compares the SHA of the downloaded `.tar.gz` archive and the published checksum, which should output
     `opensearch-{version}-darwin-x86_64.tar.gz: OK`.
-<2> This directory is known as `$ES_HOME`.
+<2> This directory is known as `$OPENSEARCH_HOME`.
 
 Alternatively, you can download the following package, which includes only 
 Apache 2.0 licensed code: 
@@ -90,7 +90,7 @@ include::targz-daemon.asciidoc[]
 [[targz-configuring]]
 ==== Configuring Elasticsearch on the command line
 
-Elasticsearch loads its configuration from the `$ES_HOME/config/opensearch.yml`
+Elasticsearch loads its configuration from the `$OPENSEARCH_HOME/config/opensearch.yml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -110,12 +110,12 @@ such as `node.name` could be specified on the command line.
 ==== Directory layout of archives
 
 The archive distributions are entirely self-contained. All files and
-directories are, by default, contained within `$ES_HOME` -- the directory
+directories are, by default, contained within `$OPENSEARCH_HOME` -- the directory
 created when unpacking the archive.
 
 This is very convenient because you don't have to create any directories to
 start using Elasticsearch, and uninstalling Elasticsearch is as easy as
-removing the `$ES_HOME` directory.  However, it is advisable to change the
+removing the `$OPENSEARCH_HOME` directory.  However, it is advisable to change the
 default locations of the config directory, the data directory, and the logs
 directory so that you do not delete important data later on.
 
@@ -124,35 +124,35 @@ directory so that you do not delete important data later on.
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `$ES_HOME`
+  | Elasticsearch home directory or `$OPENSEARCH_HOME`
  d| Directory created by unpacking the archive
   |
 
 | bin
   | Binary scripts including `opensearch` to start a node
     and `opensearch-plugin` to install plugins
-  | $ES_HOME/bin
+  | $OPENSEARCH_HOME/bin
  d|
 
 | conf
   | Configuration files including `opensearch.yml`
-  | $ES_HOME/config
+  | $OPENSEARCH_HOME/config
   | <<config-files-location,ES_PATH_CONF>>
 
 | data
   | The location of the data files of each index / shard allocated
     on the node. Can hold multiple locations.
-  | $ES_HOME/data
+  | $OPENSEARCH_HOME/data
   | path.data
 
 | logs
   | Log files location.
-  | $ES_HOME/logs
+  | $OPENSEARCH_HOME/logs
   | path.logs
 
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
-  | $ES_HOME/plugins
+  | $OPENSEARCH_HOME/plugins
   |
 
 | repo
