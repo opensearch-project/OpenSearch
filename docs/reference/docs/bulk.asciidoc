@@ -123,7 +123,7 @@ JavaScript::
 
 // TODO(OpenSearch): Correct the website url
 .NET::
-    See https://www.opensearch.org/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
+    See https://www.opensearch.org/guide/en/opensearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
 
 [discrete]
 [[bulk-curl]]

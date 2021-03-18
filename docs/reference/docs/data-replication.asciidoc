@@ -170,5 +170,5 @@ This document provides a high level overview of how Elasticsearch deals with dat
 going on under the hood. Things like primary terms, cluster state publishing, and master election all play a role in
 keeping this system behaving correctly. This document also doesn't cover known and important
 bugs (both closed and open). We recognize that https://github.com/elastic/elasticsearch/issues?q=label%3Aresiliency[GitHub is hard to keep up with].
-To help people stay on top of those, we maintain a dedicated https://www.opensearch.org/guide/en/elasticsearch/resiliency/current/index.html[resiliency page]
+To help people stay on top of those, we maintain a dedicated https://www.opensearch.org/guide/en/opensearch/resiliency/current/index.html[resiliency page]
 on our website. We strongly advise reading it.
