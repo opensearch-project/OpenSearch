@@ -33,8 +33,8 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.TypeFieldMapper;
 
 import java.util.Collection;
 import java.util.Collections;

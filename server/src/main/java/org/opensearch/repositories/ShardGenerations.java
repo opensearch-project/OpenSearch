@@ -20,7 +20,7 @@
 package org.opensearch.repositories;
 
 import org.opensearch.common.Nullable;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -40,7 +40,7 @@ public final class ShardGenerations {
 
     /**
      * Special generation that signifies that a shard is new and the repository does not yet contain a valid
-     * {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob for it.
+     * {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob for it.
      */
     public static final String NEW_SHARD_GEN = "_new";
 
@@ -120,7 +120,7 @@ public final class ShardGenerations {
     }
 
     /**
-     * Get the generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob for a given index
+     * Get the generation of the {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob for a given index
      * and shard.
      * There are three special kinds of generations that can be returned here.
      * <ul>
@@ -134,7 +134,7 @@ public final class ShardGenerations {
      *
      * @param indexId IndexId
      * @param shardId Shard Id
-     * @return generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
+     * @return generation of the {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
      */
     @Nullable
     public String getShardGen(IndexId indexId, int shardId) {

@@ -31,11 +31,11 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.IndicesService;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.indices.IndicesService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting add and remove aliases requests

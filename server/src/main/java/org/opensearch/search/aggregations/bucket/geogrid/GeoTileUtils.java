@@ -20,7 +20,7 @@ package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.SloppyMath;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.util.OpenSearchSloppyMath;
 import org.opensearch.common.xcontent.ObjectParser.ValueType;

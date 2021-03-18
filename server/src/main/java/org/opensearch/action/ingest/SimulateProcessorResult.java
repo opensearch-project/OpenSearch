@@ -29,8 +29,8 @@ import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
+import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.ingest.IngestDocument;
 
 import java.io.IOException;
 import java.util.Locale;

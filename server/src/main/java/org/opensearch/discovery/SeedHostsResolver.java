@@ -27,9 +27,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.discovery.PeerFinder.ConfiguredHostsResolver;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -189,8 +189,8 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
     @Override
     protected void doStart() {
         logger.debug("using max_concurrent_resolvers [{}], resolver timeout [{}]", concurrentConnects, resolveTimeout);
-        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_configured_hosts_resolver]");
-        executorService.set(EsExecutors.newScaling(nodeName + "/" + "unicast_configured_hosts_resolver",
+        final ThreadFactory threadFactory = OpenSearchExecutors.daemonThreadFactory(settings, "[unicast_configured_hosts_resolver]");
+        executorService.set(OpenSearchExecutors.newScaling(nodeName + "/" + "unicast_configured_hosts_resolver",
             0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory, transportService.getThreadPool().getThreadContext()));
     }
 

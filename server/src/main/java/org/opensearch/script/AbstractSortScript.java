@@ -23,7 +23,7 @@ import org.apache.lucene.search.Scorable;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.ScorerAware;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
@@ -36,7 +36,7 @@ import java.util.function.Function;
 abstract class AbstractSortScript implements ScorerAware {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of(
             "doc", value -> {
                 deprecationLogger.deprecate("sort-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an sort-script "

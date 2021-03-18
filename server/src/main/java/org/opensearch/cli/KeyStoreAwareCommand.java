@@ -22,7 +22,7 @@ package org.opensearch.cli;
 import joptsimple.OptionSet;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureString;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;

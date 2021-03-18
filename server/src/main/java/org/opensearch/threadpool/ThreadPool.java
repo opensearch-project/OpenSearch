@@ -31,8 +31,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.opensearch.common.xcontent.ToXContentFragment;
@@ -150,7 +151,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private final CachedTimeThread cachedTimeThread;
 
-    static final ExecutorService DIRECT_EXECUTOR = EsExecutors.newDirectExecutorService();
+    static final ExecutorService DIRECT_EXECUTOR = OpenSearchExecutors.newDirectExecutorService();
 
     private final ThreadContext threadContext;
 
@@ -170,7 +171,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
-        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        final int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
@@ -232,7 +233,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         this.threadPoolInfo = new ThreadPoolInfo(infos);
         this.scheduler = Scheduler.initScheduler(settings);
         TimeValue estimatedTimeInterval = ESTIMATED_TIME_INTERVAL_SETTING.get(settings);
-        this.cachedTimeThread = new CachedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
+        this.cachedTimeThread = new CachedTimeThread(OpenSearchExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
         this.cachedTimeThread.start();
     }
 
@@ -353,7 +354,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture will cannot interact with it.
-     * @throws org.elasticsearch.common.util.concurrent.OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
+     * @throws org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {

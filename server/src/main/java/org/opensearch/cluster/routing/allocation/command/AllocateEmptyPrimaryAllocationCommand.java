@@ -33,9 +33,9 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
 import java.util.Collections;

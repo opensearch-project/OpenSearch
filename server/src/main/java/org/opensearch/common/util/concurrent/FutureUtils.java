@@ -19,7 +19,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.OpenSearchTimeoutException;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 

@@ -19,8 +19,8 @@
 package org.opensearch.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 
 import java.io.IOException;

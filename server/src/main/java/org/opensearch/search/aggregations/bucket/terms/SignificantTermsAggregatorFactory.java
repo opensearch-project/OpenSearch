@@ -21,8 +21,8 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;

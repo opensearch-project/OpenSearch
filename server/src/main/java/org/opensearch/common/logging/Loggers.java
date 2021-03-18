@@ -28,12 +28,12 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.opensearch.common.settings.Setting;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
 
 import java.util.Map;
 
-import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
+import static org.opensearch.common.util.CollectionUtils.asArrayList;
 
 /**
  * A set of utilities around Logging.

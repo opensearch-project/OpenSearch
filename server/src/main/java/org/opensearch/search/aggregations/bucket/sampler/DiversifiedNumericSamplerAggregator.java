@@ -26,7 +26,7 @@ import org.apache.lucene.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
+import org.opensearch.index.fielddata.AbstractNumericDocValues;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;

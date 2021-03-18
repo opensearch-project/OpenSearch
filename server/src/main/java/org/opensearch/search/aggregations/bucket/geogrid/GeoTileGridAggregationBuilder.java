@@ -22,7 +22,7 @@ package org.opensearch.search.aggregations.bucket.geogrid;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.ObjectParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;

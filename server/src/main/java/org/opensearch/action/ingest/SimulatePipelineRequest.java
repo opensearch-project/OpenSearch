@@ -28,12 +28,12 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
-import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
+import org.opensearch.index.VersionType;
+import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestDocument.Metadata;
+import org.opensearch.ingest.IngestService;
+import org.opensearch.ingest.Pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;

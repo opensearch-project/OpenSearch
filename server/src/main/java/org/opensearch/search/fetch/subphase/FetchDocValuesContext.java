@@ -18,8 +18,8 @@
  */
 package org.opensearch.search.fetch.subphase;
 
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
 
 import java.util.ArrayList;
 import java.util.Collection;

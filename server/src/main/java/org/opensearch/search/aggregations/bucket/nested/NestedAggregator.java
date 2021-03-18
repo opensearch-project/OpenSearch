@@ -19,7 +19,6 @@
 package org.opensearch.search.aggregations.bucket.nested;
 
 import com.carrotsearch.hppc.LongArrayList;
-
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -34,7 +33,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.CardinalityUpperBound;

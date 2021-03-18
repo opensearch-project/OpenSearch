@@ -30,14 +30,14 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.Streams;
 import org.opensearch.http.HttpServerTransport;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;

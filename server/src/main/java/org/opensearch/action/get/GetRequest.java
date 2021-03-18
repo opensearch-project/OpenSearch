@@ -19,7 +19,7 @@
 
 package org.opensearch.action.get;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
@@ -29,8 +29,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -266,7 +266,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     * Sets the versioning type. Defaults to {@link org.opensearch.index.VersionType#INTERNAL}.
      */
     public GetRequest versionType(VersionType versionType) {
         this.versionType = versionType;

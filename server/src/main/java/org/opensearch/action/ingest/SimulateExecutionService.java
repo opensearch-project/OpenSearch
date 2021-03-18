@@ -21,9 +21,9 @@ package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.elasticsearch.ingest.CompoundProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Pipeline;
+import org.opensearch.ingest.CompoundProcessor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Pipeline;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -31,7 +31,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.ingest.TrackingResultProcessor.decorate;
+import static org.opensearch.ingest.TrackingResultProcessor.decorate;
 
 class SimulateExecutionService {
 

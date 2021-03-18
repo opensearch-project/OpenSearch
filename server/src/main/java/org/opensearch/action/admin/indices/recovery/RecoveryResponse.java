@@ -19,13 +19,13 @@
 
 package org.opensearch.action.admin.indices.recovery;
 
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
 import java.util.List;

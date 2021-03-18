@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -28,9 +28,9 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
 import java.util.Map;

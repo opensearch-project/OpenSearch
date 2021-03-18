@@ -26,7 +26,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongArray;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -47,8 +47,8 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 

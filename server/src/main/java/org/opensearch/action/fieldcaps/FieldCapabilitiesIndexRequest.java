@@ -27,8 +27,8 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Objects;

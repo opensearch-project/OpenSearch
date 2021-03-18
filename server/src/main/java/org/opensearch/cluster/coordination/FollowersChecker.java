@@ -34,8 +34,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.discovery.zen.NodesFaultDetection;
-import org.elasticsearch.monitor.NodeHealthService;
-import org.elasticsearch.monitor.StatusInfo;
+import org.opensearch.monitor.NodeHealthService;
+import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.Transport;
@@ -58,8 +58,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
-import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
  * The FollowersChecker is responsible for allowing a leader to check that its followers are still connected and healthy. On deciding that a

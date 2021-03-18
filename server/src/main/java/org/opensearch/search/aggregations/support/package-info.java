@@ -40,13 +40,13 @@ package org.opensearch.search.aggregations.support;
  * <p>
  * ValuesSourceRegistry stores the mappings for what types are supported by what aggregations.  It is configured at startup, when
  * {@link org.opensearch.search.SearchModule} is configuring aggregations.  It shouldn't be necessary to access the registry in most
- * cases, but you can get a read copy from {@link org.elasticsearch.index.query.QueryShardContext#getValuesSourceRegistry()} if necessary.
+ * cases, but you can get a read copy from {@link org.opensearch.index.query.QueryShardContext#getValuesSourceRegistry()} if necessary.
  * </p>
  *
  * <h3> {@link org.opensearch.search.aggregations.support.ValuesSourceType} </h3>
  * <p>
  * ValuesSourceTypes are the quantum of support in the aggregations framework, and provide a common language between fields and
- * aggregations.  Fields which support aggregation set a ValuesSourceType on their {@link org.elasticsearch.index.fielddata.IndexFieldData}
+ * aggregations.  Fields which support aggregation set a ValuesSourceType on their {@link org.opensearch.index.fielddata.IndexFieldData}
  * implementations, and aggregations register what types they support via one of the
  * {@link org.opensearch.search.aggregations.support.ValuesSourceRegistry.Builder#register} methods.  The VaulesSourceType itself holds
  * information on how to with values of that type, including methods for creating

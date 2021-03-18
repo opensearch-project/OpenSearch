@@ -22,7 +22,7 @@ package org.opensearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
@@ -37,17 +37,17 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.Loggers;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.ReportingService;
 import org.opensearch.tasks.Task;
@@ -1050,7 +1050,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                     return "onConnectionClosed(" + connection.getNode() + ")";
                 }
             });
-        } catch (EsRejectedExecutionException ex) {
+        } catch (OpenSearchRejectedExecutionException ex) {
             logger.debug("Rejected execution on onConnectionClosed", ex);
         }
     }

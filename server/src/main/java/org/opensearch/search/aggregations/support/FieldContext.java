@@ -18,8 +18,8 @@
  */
 package org.opensearch.search.aggregations.support;
 
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.mapper.MappedFieldType;
 
 /**
  * Used by all field data based aggregators. This determine the context of the field data the aggregators are operating
