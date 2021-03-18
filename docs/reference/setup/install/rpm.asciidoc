@@ -11,7 +11,7 @@ such as SLES 11 and CentOS 5.  Please see <<targz>> instead.
 
 include::license.asciidoc[]
 
-// TODO: Correct the links for OpenSearch
+// TODO(OpenSearch): Correct the links
 The latest stable version of OpenSearch can be found on the
 link:/downloads/elasticsearch[Download OpenSearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].

@@ -4,8 +4,8 @@
 <titleabbrev>Synced flush</titleabbrev>
 ++++
 
-// TODO: Correct the version number for OpenSearch
-deprecated::[7.6, "Synced-flush is deprecated and will be removed in 8.0. Use <<indices-flush,flush>> instead. A flush has the same effect as a synced flush on OpenSearch 7.6 or later."]
+// TODO(OpenSearch): Correct the version number
+deprecated::[7.6, "Synced-flush is deprecated. Use <<indices-flush,flush>> instead. A flush has the same effect as a synced flush on OpenSearch 7.6 or later."]
 
 Performs a synced flush on one or more indices.
 

@@ -1,4 +1,4 @@
-// TODO: Correct the version numbers for OpenSearch in this page
+// TODO(OpenSearch): Correct the version numbers in this page
 [[sniffer]]
 == Sniffer
 
