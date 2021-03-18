@@ -160,20 +160,13 @@ The above request returns:
     },
     {
       "token": "dashboards",
-      "start_offset": 64,
-      "end_offset": 72,
-      "type": "word",
-      "position": 17
-    },
-    {
-      "token": "开发",
       "start_offset": 74,
       "end_offset": 76,
       "type": "word",
       "position": 20
     },
     {
-      "token": "者",
+      "token": "开发者",
       "start_offset": 76,
       "end_offset": 78,
       "type": "word",
