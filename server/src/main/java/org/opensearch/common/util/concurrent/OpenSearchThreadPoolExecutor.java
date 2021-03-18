@@ -30,7 +30,7 @@ import java.util.stream.Stream;
 /**
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
  */
-public class EsThreadPoolExecutor extends ThreadPoolExecutor {
+public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
 
     private final ThreadContext contextHolder;
     private volatile ShutdownListener listener;
@@ -45,15 +45,15 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         return name;
     }
 
-    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-            BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {
+    OpenSearchThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+                                 BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {
         this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new OpenSearchAbortPolicy(), contextHolder);
     }
 
     @SuppressForbidden(reason = "properly rethrowing errors, see OpenSearchExecutors.rethrowErrors")
-    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-            BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
-            ThreadContext contextHolder) {
+    OpenSearchThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+                                 BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
+                                 ThreadContext contextHolder) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;

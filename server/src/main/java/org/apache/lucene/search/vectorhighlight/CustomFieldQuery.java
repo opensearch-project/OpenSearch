@@ -32,7 +32,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
-import org.opensearch.index.search.ESToParentBlockJoinQuery;
+import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -85,8 +85,8 @@ public class CustomFieldQuery extends FieldQuery {
             for (Term term : synQuery.getTerms()) {
                 flatten(new TermQuery(term), reader, flatQueries, boost);
             }
-        } else if (sourceQuery instanceof ESToParentBlockJoinQuery) {
-            Query childQuery = ((ESToParentBlockJoinQuery) sourceQuery).getChildQuery();
+        } else if (sourceQuery instanceof OpenSearchToParentBlockJoinQuery) {
+            Query childQuery = ((OpenSearchToParentBlockJoinQuery) sourceQuery).getChildQuery();
             if (childQuery != null) {
                 flatten(childQuery, reader, flatQueries, boost);
             }

@@ -26,7 +26,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.service.SourcePrioritizedRunnable;
 import org.opensearch.threadpool.TestThreadPool;
@@ -50,7 +50,7 @@ import static org.hamcrest.core.Is.is;
 public class TaskExecutorTests extends OpenSearchTestCase {
 
     protected static ThreadPool threadPool;
-    protected PrioritizedEsThreadPoolExecutor threadExecutor;
+    protected PrioritizedOpenSearchThreadPoolExecutor threadExecutor;
 
     @BeforeClass
     public static void createThreadPool() {

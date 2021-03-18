@@ -545,7 +545,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     /**
      * Returns true iff this version is an alpha version
-     * Note: This has been introduced in elasticsearch version 5. Previous versions will never
+     * Note: This has been introduced in version 5 of the OpenSearch predecessor. Previous versions will never
      * have an alpha version.
      */
     public boolean isAlpha() {

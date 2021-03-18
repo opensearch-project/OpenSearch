@@ -67,7 +67,7 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
      * expose the given shard Id.
      *
      * @param reader the reader to wrap
-     * @param shardId the shard ID to expose via the elasticsearch internal reader wrappers.
+     * @param shardId the shard ID to expose via the opensearch internal reader wrappers.
      */
     public static OpenSearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId) throws IOException {
         return new OpenSearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId);

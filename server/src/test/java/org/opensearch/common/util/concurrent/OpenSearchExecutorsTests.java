@@ -51,7 +51,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
     }
 
     public void testFixedForcedExecution() throws Exception {
-        EsThreadPoolExecutor executor =
+        OpenSearchThreadPoolExecutor executor =
                 OpenSearchExecutors.newFixed(getName(), 1, 1, OpenSearchExecutors.daemonThreadFactory("test"), threadContext);
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -114,7 +114,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
     }
 
     public void testFixedRejected() throws Exception {
-        EsThreadPoolExecutor executor =
+        OpenSearchThreadPoolExecutor executor =
                 OpenSearchExecutors.newFixed(getName(), 1, 1, OpenSearchExecutors.daemonThreadFactory("test"), threadContext);
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -247,7 +247,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         int queue = between(0, 100);
         int actions = queue + pool;
         final CountDownLatch latch = new CountDownLatch(1);
-        EsThreadPoolExecutor executor =
+        OpenSearchThreadPoolExecutor executor =
                 OpenSearchExecutors.newFixed(getName(), pool, queue, OpenSearchExecutors.daemonThreadFactory("dummy"), threadContext);
         try {
             for (int i = 0; i < actions; i++) {
@@ -279,7 +279,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
                 assertFalse("Thread pool registering as terminated when it isn't", e.isExecutorShutdown());
                 String message = e.getMessage();
                 assertThat(message, containsString("of dummy runnable"));
-                assertThat(message, containsString("on EsThreadPoolExecutor[name = " + getName()));
+                assertThat(message, containsString("on OpenSearchThreadPoolExecutor[name = " + getName()));
                 assertThat(message, containsString("queue capacity = " + queue));
                 assertThat(message, containsString("[Running"));
                 /*
@@ -319,7 +319,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
             assertTrue("Thread pool not registering as terminated when it is", e.isExecutorShutdown());
             String message = e.getMessage();
             assertThat(message, containsString("of dummy runnable"));
-            assertThat(message, containsString("on EsThreadPoolExecutor[name = " + getName()));
+            assertThat(message, containsString("on OpenSearchThreadPoolExecutor[name = " + getName()));
             assertThat(message, containsString("queue capacity = " + queue));
             assertThat(message, containsString("[Terminated"));
             assertThat(message, containsString("active threads = 0"));
@@ -337,7 +337,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         threadContext.putHeader("foo", "bar");
         final Integer one = Integer.valueOf(1);
         threadContext.putTransient("foo", one);
-        EsThreadPoolExecutor executor =
+        OpenSearchThreadPoolExecutor executor =
                 OpenSearchExecutors.newFixed(getName(), pool, queue, OpenSearchExecutors.daemonThreadFactory("dummy"), threadContext);
         try {
             executor.execute(() -> {
@@ -368,7 +368,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         int queue = between(0, 100);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch executed = new CountDownLatch(1);
-        EsThreadPoolExecutor executor =
+        OpenSearchThreadPoolExecutor executor =
                 OpenSearchExecutors.newFixed(getName(), pool, queue, OpenSearchExecutors.daemonThreadFactory("dummy"), threadContext);
         try {
             Runnable r = () -> {

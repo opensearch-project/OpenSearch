@@ -144,7 +144,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -1414,7 +1414,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 clusterService = new ClusterService(settings, clusterSettings, masterService,
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
-                        protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                        protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                             return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
                         }
 

@@ -67,7 +67,7 @@ class OpenSearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHand
         logger.error(message, t);
         Terminal.DEFAULT.errorPrintln(message);
         t.printStackTrace(Terminal.DEFAULT.getErrorWriter());
-        // Without a final flush, the stacktrace may not be shown before ES exits
+        // Without a final flush, the stacktrace may not be shown before OpenSearch exits
         Terminal.DEFAULT.flush();
     }
 
@@ -76,7 +76,7 @@ class OpenSearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHand
         logger.error(message, t);
         Terminal.DEFAULT.errorPrintln(message);
         t.printStackTrace(Terminal.DEFAULT.getErrorWriter());
-        // Without a final flush, the stacktrace may not be shown if ES goes on to exit
+        // Without a final flush, the stacktrace may not be shown if OpenSearch goes on to exit
         Terminal.DEFAULT.flush();
     }
 

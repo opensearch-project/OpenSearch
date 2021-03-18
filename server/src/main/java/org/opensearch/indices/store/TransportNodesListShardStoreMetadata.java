@@ -148,7 +148,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
             if (request.getCustomDataPath() != null) {
                 customDataPath = request.getCustomDataPath();
             } else {
-                // TODO: Fallback for BWC with older ES versions. Remove this once request.getCustomDataPath() always returns non-null
+                // TODO: Fallback for BWC with older predecessor (ES) versions. Remove this once request.getCustomDataPath() always returns non-null
                 if (indexService != null) {
                     customDataPath = indexService.getIndexSettings().customDataPath();
                 } else {

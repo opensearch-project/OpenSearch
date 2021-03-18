@@ -43,7 +43,7 @@ import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.discovery.SeedHostsProvider;
@@ -108,7 +108,7 @@ public class UnicastZenPing implements ZenPing {
 
     private final SeedHostsProvider hostsProvider;
 
-    protected final EsThreadPoolExecutor unicastZenPingExecutorService;
+    protected final OpenSearchThreadPoolExecutor unicastZenPingExecutorService;
 
     private final TimeValue resolveTimeout;
 

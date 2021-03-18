@@ -95,8 +95,8 @@ public class RestAllocationAction extends AbstractCatAction {
         final Table table = new Table();
         table.startHeaders();
         table.addCell("shards", "alias:s;text-align:right;desc:number of shards on node");
-        table.addCell("disk.indices", "alias:di,diskIndices;text-align:right;desc:disk used by ES indices");
-        table.addCell("disk.used", "alias:du,diskUsed;text-align:right;desc:disk used (total, not just ES)");
+        table.addCell("disk.indices", "alias:di,diskIndices;text-align:right;desc:disk used by OpenSearch indices");
+        table.addCell("disk.used", "alias:du,diskUsed;text-align:right;desc:disk used (total, not just OpenSearch)");
         table.addCell("disk.avail", "alias:da,diskAvail;text-align:right;desc:disk available");
         table.addCell("disk.total", "alias:dt,diskTotal;text-align:right;desc:total capacity of all volumes");
         table.addCell("disk.percent", "alias:dp,diskPercent;text-align:right;desc:percent disk used");

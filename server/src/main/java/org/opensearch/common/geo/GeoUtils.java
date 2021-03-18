@@ -578,7 +578,7 @@ public class GeoUtils {
     }
 
     /**
-     * Checks that the precision is within range supported by elasticsearch - between 1 and 12
+     * Checks that the precision is within range supported by opensearch - between 1 and 12
      *
      * Returns the precision value if it is in the range and throws an IllegalArgumentException if it
      * is outside the range.

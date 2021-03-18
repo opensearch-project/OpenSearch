@@ -108,9 +108,9 @@ public class MetadataIndexUpgradeService {
     }
 
     /**
-     * Elasticsearch v6.0 no longer supports indices created pre v5.0. All indices
+     * The OpenSearch predecessor, Elasticsearch, v6.0 no longer supports indices created pre v5.0. All indices
      * that were created before Elasticsearch v5.0 should be re-indexed in Elasticsearch 5.x
-     * before they can be opened by this version of elasticsearch.
+     * before they can be opened by this version of opensearch.
      */
     private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         if (indexMetadata.getState() == IndexMetadata.State.OPEN && isSupportedVersion(indexMetadata,
@@ -124,7 +124,7 @@ public class MetadataIndexUpgradeService {
     }
 
     /*
-     * Returns true if this index can be supported by the current version of elasticsearch
+     * Returns true if this index can be supported by the current version of opensearch
      */
     private static boolean isSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         return indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);

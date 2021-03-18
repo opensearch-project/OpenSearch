@@ -61,7 +61,7 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
+        // In OpenSearch if parent is deleted, then also the children are deleted, so the child docs this agg receives
         // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
         final BitSet parentDocs = parentBitsetProducer.getBitSet(ctx);
         if (parentDocs == null) {

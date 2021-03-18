@@ -49,7 +49,7 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
     /**
      * Constructs a new request to update minimum compatible version settings for one or more indices
      *
-     * @param versions a map from index name to elasticsearch version, oldest lucene segment version tuple
+     * @param versions a map from index name to opensearch version, oldest lucene segment version tuple
      */
     public UpgradeSettingsRequest(Map<String, Tuple<Version, String>> versions) {
         this.versions = versions;

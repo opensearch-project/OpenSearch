@@ -48,7 +48,7 @@ import java.util.function.Supplier;
  * doing range searches. Therefore the {@code _seq_no} field is stored both
  * as a numeric doc value and as numeric indexed field.
  *
- * This mapper also manages the primary term field, which has no ES named
+ * This mapper also manages the primary term field, which has no OpenSearch named
  * equivalent. The primary term is only used during collision after receiving
  * identical seq# values for two document copies. The primary term is stored as
  * a doc value field without being indexed, since it is only intended for use

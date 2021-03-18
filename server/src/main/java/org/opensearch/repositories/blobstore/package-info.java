@@ -59,7 +59,7 @@
  *      |  |             in the repository
  *      |  |- meta-20131010.dat - JSON Serialized {@link org.opensearch.cluster.metadata.IndexMetadata } for index "foo"
  *      |  |- 0/ - data for shard "0" of index "foo"
- *      |  |  |- __1                      \  (files with numeric names were created by older ES versions)
+ *      |  |  |- __1                      \  (files with numeric names were created by older preceding ES versions)
  *      |  |  |- __2                      |
  *      |  |  |- __VPO5oDMVT5y4Akv8T_AO_A |- files from different segments see snap-* for their mappings to real segment files
  *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |
@@ -70,7 +70,7 @@
  *      |  |  |- snap-20131011.dat - SMILE serialized {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} for
  *      |  |  |                      snapshot "20131011"
  *      |  |  |- index-123         - SMILE serialized {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} for
- *      |  |  |                      the shard (files with numeric suffixes were created by older versions, newer ES versions use a uuid
+ *      |  |  |                      the shard (files with numeric suffixes were created by older versions, newer OpenSearch versions use a uuid
  *      |  |  |                      suffix instead)
  *      |  |
  *      |  |- 1/ - data for shard "1" of index "foo"

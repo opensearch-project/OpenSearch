@@ -117,7 +117,7 @@ public class NodeInfo extends BaseNodeResponse {
     }
 
     /**
-     * The current ES version
+     * The current OpenSearch version
      */
     public Version getVersion() {
         return version;
