@@ -37,7 +37,7 @@ and <<docs-reindex,`reindex`>> APIs.
 
 * On the fly <<highlighting,highlighting>>.
 
-* The ability to reindex from one Elasticsearch index to another, either
+* The ability to reindex from one OpenSearch index to another, either
   to change mappings or analysis, or to upgrade an index to a new major
   version.
 
@@ -60,7 +60,7 @@ stored.
 
 WARNING: Removing fields from the `_source` has similar downsides to disabling
 `_source`, especially the fact that you cannot reindex documents from one
-Elasticsearch index to another. Consider using
+OpenSearch index to another. Consider using
 <<source-filtering,source filtering>> instead.
 
 The `includes`/`excludes` parameters (which also accept wildcards) can be used

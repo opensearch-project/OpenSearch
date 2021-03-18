@@ -724,7 +724,7 @@ numeric datetime to avoid a significant performance hit.
 ===== Load the Example Data
 
 Run the following curl commands to load the data necessary for the context
-examples into an Elasticsearch cluster:
+examples into an OpenSearch cluster:
 
 . Create {ref}/mapping.html[mappings] for the sample data.
 +

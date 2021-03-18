@@ -1,9 +1,9 @@
 [[rpm]]
-=== Install Elasticsearch with RPM
+=== Install OpenSearch with RPM
 
-The RPM for Elasticsearch can be <<install-rpm,downloaded from our website>>
+The RPM for OpenSearch can be <<install-rpm,downloaded from our website>>
 or from our  <<rpm-repo,RPM repository>>. It can be used to install
-Elasticsearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
+OpenSearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
 and Oracle Enterprise.
 
 NOTE: RPM install is not supported on distributions with old versions of RPM,
@@ -11,16 +11,17 @@ such as SLES 11 and CentOS 5.  Please see <<targz>> instead.
 
 include::license.asciidoc[]
 
-The latest stable version of Elasticsearch can be found on the
-link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
+// TODO(OpenSearch): Correct the links
+The latest stable version of OpenSearch can be found on the
+link:/downloads/elasticsearch[Download OpenSearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
+NOTE: OpenSearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
 [[rpm-key]]
-==== Import the Elasticsearch PGP Key
+==== Import the OpenSearch PGP Key
 
 include::key.asciidoc[]
 
@@ -34,7 +35,7 @@ rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+Version {version} of OpenSearch has not yet been released.
 
 endif::[]
 
@@ -76,7 +77,7 @@ type=rpm-md
 
 endif::[]
 
-And your repository is ready for use. You can now install Elasticsearch with one of the following commands:
+And your repository is ready for use. You can now install OpenSearch with one of the following commands:
 
 [source,sh]
 --------------------------------------------------
@@ -131,13 +132,13 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+Version {version} of OpenSearch has not yet been released.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The RPM for Elasticsearch v{version} can be downloaded from the website and installed as follows:
+The RPM for OpenSearch v{version} can be downloaded from the website and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -172,7 +173,7 @@ include::systemd.asciidoc[]
 include::check-running.asciidoc[]
 
 [[rpm-configuring]]
-==== Configuring Elasticsearch
+==== Configuring OpenSearch
 
 include::etc-elasticsearch.asciidoc[]
 
@@ -196,7 +197,7 @@ locations for an RPM-based system:
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `$OPENSEARCH_HOME`
+  | OpenSearch home directory or `$OPENSEARCH_HOME`
   | /usr/share/opensearch
  d|
 
@@ -223,7 +224,7 @@ locations for an RPM-based system:
   | path.data
 
 | jdk
-  | The bundled Java Development Kit used to run Elasticsearch. Can
+  | The bundled Java Development Kit used to run OpenSearch. Can
     be overridden by setting the `JAVA_HOME` environment variable
     in `/etc/sysconfig/opensearch`.
   | /usr/share/opensearch/jdk

@@ -55,7 +55,7 @@ to JSON format
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-mappings-xcontent]
 --------------------------------------------------
-<1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
+<1> Mapping source provided as an `XContentBuilder` object, the OpenSearch
 built-in helpers to generate JSON content
 
 ==== Aliases

@@ -69,7 +69,7 @@ to `asc` when sorting on anything else.
 [discrete]
 === Sort mode option
 
-Elasticsearch supports sorting by array or multi-valued fields. The `mode` option
+OpenSearch supports sorting by array or multi-valued fields. The `mode` option
 controls what array value is picked for sorting the document it belongs
 to. The `mode` option can have the following values:
 
@@ -235,7 +235,7 @@ To avoid overflow, the conversion to `date_nanos` cannot be applied on dates bef
 [[nested-sorting]]
 === Sorting within nested objects.
 
-Elasticsearch also supports sorting by
+OpenSearch also supports sorting by
 fields that are inside one or more nested objects. The sorting by nested
 field support has a `nested` sort option with the following properties:
 
@@ -256,20 +256,11 @@ field support has a `nested` sort option with the following properties:
     Same as top-level `nested` but applies to another nested path within the
     current nested object.
 
-[WARNING]
-.Nested sort options before Elasticsearch 6.1
-============================================
-
-The `nested_path` and `nested_filter` options have been deprecated in
-favor of the options documented above.
-
-============================================
-
 [discrete]
 ==== Nested sorting examples
 
 In the below example `offer` is a field of type `nested`.
-The nested `path` needs to be specified; otherwise, Elasticsearch doesn't know on what nested level sort values need to be captured.
+The nested `path` needs to be specified; otherwise, OpenSearch doesn't know on what nested level sort values need to be captured.
 
 [source,console]
 --------------------------------------------------
@@ -296,7 +287,7 @@ POST /_search
 --------------------------------------------------
 
 In the below example `parent` and `child` fields are of type `nested`.
-The `nested_path` needs to be specified at each level; otherwise, Elasticsearch doesn't know on what nested level sort values need to be captured.
+The `nested_path` needs to be specified at each level; otherwise, OpenSearch doesn't know on what nested level sort values need to be captured.
 
 [source,console]
 --------------------------------------------------
@@ -394,7 +385,7 @@ GET /_search
 --------------------------------------------------
 
 If any of the indices that are queried doesn't have a mapping for `price`
-then Elasticsearch will handle it as if there was a mapping of type
+then OpenSearch will handle it as if there was a mapping of type
 `long`, with all documents in this index having no value for this field.
 
 [discrete]

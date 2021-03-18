@@ -4,7 +4,7 @@
 Electing a master node and changing the cluster state are the two fundamental
 tasks that master-eligible nodes must work together to perform. It is important
 that these activities work robustly even if some nodes have failed.
-Elasticsearch achieves this robustness by considering each action to have
+OpenSearch achieves this robustness by considering each action to have
 succeeded on receipt of responses from a _quorum_, which is a subset of the
 master-eligible nodes in the cluster. The advantage of requiring only a subset
 of the nodes to respond is that it means some of the nodes can fail without
@@ -13,11 +13,11 @@ the cluster does not have a "split brain" scenario where it's partitioned into
 two pieces such that each piece may make decisions that are inconsistent with
 those of the other piece.
 
-Elasticsearch allows you to add and remove master-eligible nodes to a running
+OpenSearch allows you to add and remove master-eligible nodes to a running
 cluster. In many cases you can do this simply by starting or stopping the nodes
 as required. See <<modules-discovery-adding-removing-nodes>>.
 
-As nodes are added or removed Elasticsearch maintains an optimal level of fault
+As nodes are added or removed OpenSearch maintains an optimal level of fault
 tolerance by updating the cluster's <<modules-discovery-voting,voting
 configuration>>, which is the set of master-eligible nodes whose responses are
 counted when making decisions such as electing a new master or committing a new
@@ -41,7 +41,7 @@ to complete before removing more nodes from the cluster.
 [discrete]
 ==== Master elections
 
-Elasticsearch uses an election process to agree on an elected master node, both
+OpenSearch uses an election process to agree on an elected master node, both
 at startup and if the existing elected master fails. Any master-eligible node
 can start an election, and normally the first election that takes place will
 succeed. Elections only usually fail when two nodes both happen to start their
@@ -56,7 +56,7 @@ election settings>>.
 ==== Cluster maintenance, rolling restarts and migrations
 
 Many cluster maintenance tasks involve temporarily shutting down one or more
-nodes and then starting them back up again. By default Elasticsearch can remain
+nodes and then starting them back up again. By default OpenSearch can remain
 available if one of its master-eligible nodes is taken offline, such as during a
 <<rolling-upgrades,rolling restart>>. Furthermore, if multiple nodes are stopped
 and then started again then it will automatically recover, such as during a

@@ -153,7 +153,7 @@ PUT /my-index-000001/_settings
 --------------------------------------------------
 // TEST[setup:my_index]
 
-By default Elasticsearch will log the first 1000 characters of the _source in
+By default OpenSearch will log the first 1000 characters of the _source in
 the slowlog. You can change that with `index.indexing.slowlog.source`. Setting
 it to `false` or `0` will skip logging the source entirely an setting it to
 `true` will log the entire source regardless of size. The original `_source` is

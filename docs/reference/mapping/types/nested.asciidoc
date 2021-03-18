@@ -11,7 +11,7 @@ independently of each other.
 [[nested-arrays-flattening-objects]]
 ==== How arrays of objects are flattened
 
-Elasticsearch has no concept of inner objects. Therefore, it flattens object
+OpenSearch has no concept of inner objects. Therefore, it flattens object
 hierarchies into a simple list of field names and values. For instance, consider the
 following document:
 
@@ -216,7 +216,7 @@ document as standard (flat) fields. Defaults to `false`.
 As described earlier, each nested object is indexed as a separate Lucene document.
 Continuing with the previous example, if we indexed a single document containing 100 `user` objects,
 then 101 Lucene documents would be created: one for the parent document, and one for each
-nested object. Because of the expense associated with `nested` mappings, Elasticsearch puts
+nested object. Because of the expense associated with `nested` mappings, OpenSearch puts
 settings in place to guard against performance problems:
 
 include::{es-repo-dir}/mapping.asciidoc[tag=nested-fields-limit]

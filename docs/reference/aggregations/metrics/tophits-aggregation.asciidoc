@@ -188,7 +188,7 @@ Possible response:
 
 Field collapsing or result grouping is a feature that logically groups a result set into groups and per group returns
 top documents. The ordering of the groups is determined by the relevancy of the first document in a group. In
-Elasticsearch this can be implemented via a bucket aggregator that wraps a `top_hits` aggregator as sub-aggregator.
+OpenSearch this can be implemented via a bucket aggregator that wraps a `top_hits` aggregator as sub-aggregator.
 
 In the example below we search across crawled webpages. For each webpage we store the body and the domain the webpage
 belong to. By defining a `terms` aggregator on the `domain` field we group the result set of webpages by domain. The

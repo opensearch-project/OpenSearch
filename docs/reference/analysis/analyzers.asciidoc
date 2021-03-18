@@ -1,7 +1,7 @@
 [[analysis-analyzers]]
 == Built-in analyzer reference
 
-Elasticsearch ships with a wide range of built-in analyzers, which can be used
+OpenSearch ships with a wide range of built-in analyzers, which can be used
 in any index without further configuration:
 
 <<analysis-standard-analyzer,Standard Analyzer>>::
@@ -37,7 +37,7 @@ It supports lower-casing and stop words.
 
 <<analysis-lang-analyzer,Language Analyzers>>::
 
-Elasticsearch provides many language-specific analyzers like `english` or
+OpenSearch provides many language-specific analyzers like `english` or
 `french`.
 
 <<analysis-fingerprint-analyzer,Fingerprint Analyzer>>::
