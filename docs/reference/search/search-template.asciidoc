@@ -620,7 +620,7 @@ GET _render/template
     }
   },
   "params": {
-    "host": "https://www.elastic.co/",
+    "host": "https://www.opensearch.org/",
     "page": "learn"
   }
 }
@@ -635,7 +635,7 @@ The previous query will be rendered as:
   "template_output": {
     "query": {
       "term": {
-        "http_access_log": "https%3A%2F%2Fwww.elastic.co%2F%2Flearn"
+        "http_access_log": "https%3A%2F%2Fwww.opensearch.org%2F%2Flearn"
       }
     }
   }

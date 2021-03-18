@@ -11,7 +11,8 @@ detailed description of the Painless syntax and language features, see the
 You can use Painless anywhere scripts are used in Elasticsearch. Painless
 provides:
 
-* Fast performance: Painless scripts https://benchmarks.elastic.co/index.html#search_qps_scripts[
+// TODO(OpenSearch): Correct the website url
+* Fast performance: Painless scripts https://benchmarks.opensearch.org/index.html#search_qps_scripts[
 run several times faster] than the alternatives.
 
 * Safety: Fine-grained allowlist with method call/field granularity. See the

@@ -27,11 +27,12 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
+// TODO(OpenSearch): Correct the website url in this page
+Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-windows-x86_64.zip
 
 Alternatively, you can download the following package, which contains only 
 features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-windows-x86_64.zip
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-oss-{version}-windows-x86_64.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
 +opensearch-{version}+, which we will refer to as `%OPENSEARCH_HOME%`. In a terminal
@@ -148,7 +149,7 @@ The Elasticsearch service can be configured prior to installation by setting the
 
 `SERVICE_DESCRIPTION`::
 
-  The description of the service.  Defaults to `Elasticsearch <version> Windows Service - https://elastic.co`.
+  The description of the service.  Defaults to `Elasticsearch <version> Windows Service - https://opensearch.org`.
 
 `JAVA_HOME`::
 

@@ -41,26 +41,27 @@ cluster behaves.
 
 To run a three-node {es} cluster locally:
 
+// TODO(OpenSearch): Correct the website url in this page
 . Download the {es} archive for your OS:
 +
-Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz[elasticsearch-{version}-linux-x86_64.tar.gz]
+Linux: https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-linux-x86_64.tar.gz[opensearch-{version}-linux-x86_64.tar.gz]
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
+curl -L -O https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
 // NOTCONSOLE
 +
-macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz[elasticsearch-{version}-darwin-x86_64.tar.gz]
+macOS: https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-darwin-x86_64.tar.gz[opensearch-{version}-darwin-x86_64.tar.gz]
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
+curl -L -O https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-darwin-x86_64.tar.gz
 --------------------------------------------------
 // NOTCONSOLE
 +
 Windows:
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip[elasticsearch-{version}-windows-x86_64.zip]
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-windows-x86_64.zip[opensearch-{version}-windows-x86_64.zip]
 
 . Extract the archive:
 +
@@ -137,7 +138,7 @@ the {es} REST API. If you have Kibana installed and running, you can also
 open Kibana and submit requests through the Dev Console.
 +
 TIP: You'll want to check out the
-https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
+https://www.opensearch.org/guide/en/opensearch/client/index.html[{es} language
 clients] when you're ready to start using {es} in your own applications.
 +
 [source,console]
