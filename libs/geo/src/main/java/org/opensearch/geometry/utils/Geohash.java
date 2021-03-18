@@ -32,7 +32,7 @@ import java.util.Collection;
  *
  * This differs from a morton encoded value which interleaves lat/lon (y/x).
  *
- * NOTE: this will replace {@code org.elasticsearch.common.geo.GeoHashUtils}
+ * NOTE: this will replace {@code org.opensearch.common.geo.GeoHashUtils}
  */
 public class Geohash {
     private static final char[] BASE_32 = {'0', '1', '2', '3', '4', '5', '6',
