@@ -2,7 +2,7 @@
 === Circuit breaker settings
 [[circuit-breaker-description]]
 // tag::circuit-breaker-description-tag[]
-{es} contains multiple circuit breakers used to prevent operations from causing an OutOfMemoryError. Each breaker specifies a limit for how much memory it can use. Additionally, there is a parent-level breaker that specifies the total amount of memory that can be used across all breakers.
+{opensearch} contains multiple circuit breakers used to prevent operations from causing an OutOfMemoryError. Each breaker specifies a limit for how much memory it can use. Additionally, there is a parent-level breaker that specifies the total amount of memory that can be used across all breakers.
 
 Except where noted otherwise, these settings can be dynamically updated on a
 live cluster with the <<cluster-update-settings,cluster-update-settings>> API.

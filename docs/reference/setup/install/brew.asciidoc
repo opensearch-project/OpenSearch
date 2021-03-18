@@ -1,7 +1,7 @@
 [[brew]]
-=== Install {es} on macOS with Homebrew
+=== Install {opensearch} on macOS with Homebrew
 
-Elastic publishes Homebrew formulae so you can install {es} with the
+Elastic publishes Homebrew formulae so you can install {opensearch} with the
 https://brew.sh/[Homebrew] package manager.
 
 To install with Homebrew, you first need to tap the
@@ -13,20 +13,20 @@ brew tap elastic/tap
 -------------------------
 
 Once you've tapped the Elastic Homebrew repo, you can use `brew install` to
-install the default distribution of {es}:
+install the default distribution of {opensearch}:
 
 [source,sh]
 -------------------------
 brew install elastic/tap/opensearch-full
 -------------------------
 
-This installs the most recently released default distribution of {es}.
+This installs the most recently released default distribution of {opensearch}.
 To install the OSS distribution, specify `opensearch/tap/opensearch-oss`.
 
 [[brew-layout]]
 ==== Directory layout for Homebrew installs
 
-When you install {es} with `brew install` the config files, logs,
+When you install {opensearch} with `brew install` the config files, logs,
 and data directory are stored in the following locations.
 
 [cols="<h,<,<m,<m",options="header",]

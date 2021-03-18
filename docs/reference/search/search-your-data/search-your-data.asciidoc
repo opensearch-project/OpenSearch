@@ -3,16 +3,16 @@
 
 [[search-query]]
 A _search query_, or _query_, is a request for information about data in
-{es} indices.
+{opensearch} indices.
 
-You can think of a query as a question, written in a way {es} understands.
+You can think of a query as a question, written in a way {opensearch} understands.
 Depending on your data, you can use a query to get answers to questions like:
 
 * What processes on my server take longer than 500 milliseconds to respond?
 * What users on my network ran `regsvr32.exe` within the last week?
 * What pages on my website contain a specific word or phrase?
 
-A _search_ consists of one or more queries that are combined and sent to {es}.
+A _search_ consists of one or more queries that are combined and sent to {opensearch}.
 Documents that match a search's queries are returned in the _hits_, or
 _search results_, of the response.
 
@@ -25,7 +25,7 @@ a specific number of results.
 == Run a search
 
 You can use the <<search-search,search API>> to search and
-<<search-aggregations,aggregate>> data stored in {es} indices.
+<<search-aggregations,aggregate>> data stored in {opensearch} indices.
 The API's `query` request body parameter accepts queries written in
 <<query-dsl,Query DSL>>.
 
@@ -149,7 +149,7 @@ calculation of these scores, use the
 other field values, see <<sort-search-results>>.
 
 *Run an async search* +
-{es} searches are designed to run on large volumes of data quickly, often
+{opensearch} searches are designed to run on large volumes of data quickly, often
 returning results in milliseconds. For this reason, searches are
 _synchronous_ by default. The search request waits for complete results before
 returning a response.
@@ -195,7 +195,7 @@ timeout).
 === Search cancellation
 
 You can cancel a search request using the <<task-cancellation,task management
-API>>. {es} also automatically cancels a search request when your client's HTTP
+API>>. {opensearch} also automatically cancels a search request when your client's HTTP
 connection closes. We recommend you set up your client to close HTTP connections
 when a search request is aborted or times out.
 

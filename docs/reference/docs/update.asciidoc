@@ -82,7 +82,7 @@ Period to wait for the following operations:
 * <<dynamic-mapping,Dynamic mapping>> updates
 * <<index-wait-for-active-shards,Waiting for active shards>>
 
-Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+Defaults to `1m` (one minute). This guarantees {opensearch} waits for at least the
 timeout before failing. The actual wait time could be longer, particularly when
 multiple waits occur.
 --

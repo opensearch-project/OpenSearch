@@ -215,7 +215,7 @@ from nested fields.
 Total number of deleted documents across all primary shards assigned to
 selected nodes.
 +
-This number is based on documents in Lucene segments. {es} reclaims the disk
+This number is based on documents in Lucene segments. {opensearch} reclaims the disk
 space of deleted Lucene documents when a segment is merged.
 =====
 
@@ -706,7 +706,7 @@ Number of selected nodes with the role. For a list of roles, see
 
 `versions`::
 (array of strings)
-Array of {es} versions used on selected nodes.
+Array of {opensearch} versions used on selected nodes.
 
 `os`::
 (object)
@@ -959,7 +959,7 @@ Total amount of disk space available to JVM in file
 stores across all selected nodes.
 +
 Depending on OS or process-level restrictions, this amount may be less than
-`nodes.fs.free`. This is the actual amount of free disk space the selected {es}
+`nodes.fs.free`. This is the actual amount of free disk space the selected {opensearch}
 nodes can use.
 
 `available_in_bytes`::
@@ -969,7 +969,7 @@ across all selected nodes.
 +
 Depending on OS or process-level restrictions, this number may be less than
 `nodes.fs.free_in_byes`. This is the actual amount of free disk space the
-selected {es} nodes can use.
+selected {opensearch} nodes can use.
 =====
 
 `plugins`::
@@ -991,15 +991,15 @@ Contains statistics about an installed plugin or module.
 ======
 `name`:::
 (string)
-Name of the {es} plugin.
+Name of the {opensearch} plugin.
 
 `version`:::
 (string)
-{es} version for which the plugin was built.
+{opensearch} version for which the plugin was built.
 
 `opensearch_version`:::
 (string)
-{es} version for which the plugin was built.
+{opensearch} version for which the plugin was built.
 
 `java_version`:::
 (string)
@@ -1075,14 +1075,14 @@ type>> to find other nodes.
 
 `packaging_types`::
 (array of objects)
-Contains statistics about {es} distributions installed on selected nodes.
+Contains statistics about {opensearch} distributions installed on selected nodes.
 +
 .Properties of `packaging_types`
 [%collapsible%open]
 =====
 `flavor`:::
 (string)
-Type of {es} distribution, such as `default` or `OSS`, used by one or more
+Type of {opensearch} distribution, such as `default` or `OSS`, used by one or more
 selected nodes.
 
 `type`:::

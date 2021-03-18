@@ -1,12 +1,12 @@
 [[add-elasticsearch-nodes]]
 == Add and remove nodes in your cluster
 
-When you start an instance of {es}, you are starting a _node_. An {es} _cluster_
+When you start an instance of {opensearch}, you are starting a _node_. An {opensearch} _cluster_
 is a group of nodes that have the same `cluster.name` attribute. As nodes join
 or leave a cluster, the cluster automatically reorganizes itself to evenly
 distribute the data across the available nodes.
 
-If you are running a single instance of {es}, you have a cluster of one node.
+If you are running a single instance of {opensearch}, you have a cluster of one node.
 All primary shards reside on the single node. No replica shards can be
 allocated, therefore the cluster state remains yellow. The cluster is fully
 functional but is at risk of data loss in the event of a failure.
@@ -26,14 +26,14 @@ green.
 image::setup/images/elas_0204.png["A cluster with three nodes"]
 
 You can run multiple nodes on your local machine in order to experiment with how
-an {es} cluster of multiple nodes behaves. To add a node to a cluster running on
+an {opensearch} cluster of multiple nodes behaves. To add a node to a cluster running on
 your local machine:
 
-. Set up a new {es} instance.
+. Set up a new {opensearch} instance.
 . Specify the name of the cluster with the `cluster.name` setting in
 `elasticsearch.yml`. For example, to add a node to the `logging-prod` cluster,
 add the line `cluster.name: "logging-prod"` to `elasticsearch.yml`.
-. Start {es}. The node automatically discovers and joins the specified cluster.
+. Start {opensearch}. The node automatically discovers and joins the specified cluster.
 
 To add a node to a cluster running on multiple machines, you must also
 <<unicast.hosts,set `discovery.seed_hosts`>> so that the new node can discover
@@ -92,13 +92,13 @@ configuration and adapt the fault tolerance level to the new set of nodes.
 
 If there are only two master-eligible nodes remaining then neither node can be
 safely removed since both are required to reliably make progress. To remove one
-of these nodes you must first inform {es} that it should not be part of the
+of these nodes you must first inform {opensearch} that it should not be part of the
 voting configuration, and that the voting power should instead be given to the
 other node. You can then take the excluded node offline without preventing the
 other node from making progress. A node which is added to a voting
-configuration exclusion list still works normally, but {es} tries to remove it
+configuration exclusion list still works normally, but {opensearch} tries to remove it
 from the voting configuration so its vote is no longer required. Importantly,
-{es} will never automatically move a node on the voting exclusions list back
+{opensearch} will never automatically move a node on the voting exclusions list back
 into the voting configuration. Once an excluded node has been successfully
 auto-reconfigured out of the voting configuration, it is safe to shut it down
 without affecting the cluster's master-level availability. A node can be added

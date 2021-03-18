@@ -36,7 +36,7 @@ GET /_search
 --------------------------------------------------
 // TEST[setup:my_index]
 
-{es} supports three highlighters: `unified`, `plain`, and `fvh` (fast vector
+{opensearch} supports three highlighters: `unified`, `plain`, and `fvh` (fast vector
 highlighter). You can specify the highlighter `type` you want to use
 for each field.
 
@@ -193,7 +193,7 @@ highlight_query:: Highlight matches for a query other than the search
 query. This is especially useful if you use a rescore query because
 those are not taken into account by highlighting by default.
 +
-IMPORTANT: {es} does not validate that `highlight_query` contains
+IMPORTANT: {opensearch} does not validate that `highlight_query` contains
 the search query in any way so it is possible to define it so
 legitimate query results are not highlighted. Generally, you should
 include the search query as part of the `highlight_query`.

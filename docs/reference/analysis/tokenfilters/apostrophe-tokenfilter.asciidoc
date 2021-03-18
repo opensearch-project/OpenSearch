@@ -6,7 +6,7 @@
 
 Strips all characters after an apostrophe, including the apostrophe itself.
 
-This filter is included in {es}'s built-in <<turkish-analyzer,Turkish language
+This filter is included in {opensearch}'s built-in <<turkish-analyzer,Turkish language
 analyzer>>. It uses Lucene's
 {lucene-analysis-docs}/tr/ApostropheFilter.html[ApostropheFilter], which was
 built for the Turkish language.

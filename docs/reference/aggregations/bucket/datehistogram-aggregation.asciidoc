@@ -356,7 +356,7 @@ Response:
 [[datehistogram-aggregation-time-zone]]
 ==== Time zone
 
-{es} stores date-times in Coordinated Universal Time (UTC). By default, all bucketing and
+{opensearch} stores date-times in Coordinated Universal Time (UTC). By default, all bucketing and
 rounding is also done in UTC. Use the `time_zone` parameter to indicate
 that bucketing should use a different time zone.
 

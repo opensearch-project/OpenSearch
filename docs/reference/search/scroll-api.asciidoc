@@ -53,7 +53,7 @@ You can use the scroll API to retrieve large sets of results from a single
 The scroll API requires a scroll ID. To get a scroll ID, submit a
 <<search-search,search API>> request that includes an argument for the
 <<search-api-scroll-query-param,`scroll` query parameter>>. The `scroll`
-parameter indicates how long {es} should retain the
+parameter indicates how long {opensearch} should retain the
 <<scroll-search-context,search context>> for the request.
 
 The search response returns a scroll ID in the `_scroll_id` response body

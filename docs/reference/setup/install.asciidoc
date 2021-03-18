@@ -40,14 +40,14 @@ Elasticsearch website or from our RPM repository.
 Images are available for running Elasticsearch as Docker containers. They may be
 downloaded from the Elastic Docker Registry.
 +
-{ref}/docker.html[Install {es} with Docker]
+{ref}/docker.html[Install {opensearch} with Docker]
 
 `brew`::
 
 Formulae are available from the Elastic Homebrew tap for installing
-{es} on macOS with the Homebrew package manager.
+{opensearch} on macOS with the Homebrew package manager.
 +
-{ref}/brew.html[Install {es} on macOS with Homebrew]
+{ref}/brew.html[Install {opensearch} on macOS with Homebrew]
 
 [discrete]
 [[config-mgmt-tools]]

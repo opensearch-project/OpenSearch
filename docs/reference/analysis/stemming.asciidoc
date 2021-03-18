@@ -19,7 +19,7 @@ word are reduced to the same root form, they will match correctly.
 [[stemmer-token-filters]]
 ==== Stemmer token filters
 
-In {es}, stemming is handled by stemmer <<analyzer-anatomy-token-filters,token
+In {opensearch}, stemming is handled by stemmer <<analyzer-anatomy-token-filters,token
 filters>>. These token filters can be categorized based on how they stem words:
 
 * <<algorithmic-stemmers,Algorithmic stemmers>>, which stem words based on a set

@@ -17,17 +17,17 @@ formation:
 
 <<modules-discovery-quorums>>::
 
-    How {es} uses a quorum-based voting mechanism to
+    How {opensearch} uses a quorum-based voting mechanism to
     make decisions even if some nodes are unavailable.
 
 <<modules-discovery-voting>>::
 
-    How {es} automatically updates voting configurations as nodes leave and join
+    How {opensearch} automatically updates voting configurations as nodes leave and join
     a cluster.
 
 <<modules-discovery-bootstrap-cluster>>::
 
-    Bootstrapping a cluster is required when an {es} cluster starts up
+    Bootstrapping a cluster is required when an {opensearch} cluster starts up
     for the very first time. In <<dev-vs-prod-mode,development mode>>, with no
     discovery settings configured, this is automatically performed by the nodes
     themselves. As this auto-bootstrapping is
@@ -54,7 +54,7 @@ formation:
 
 <<cluster-fault-detection>>::
 
-    {es} performs health checks to detect and remove faulty nodes.
+    {opensearch} performs health checks to detect and remove faulty nodes.
 
 <<modules-discovery-settings,Settings>>::
 

@@ -26,7 +26,7 @@ bin/opensearch-shard remove-corrupted-data
 [discrete]
 === Description
 
-When {es} detects that a shard's data is corrupted, it fails that shard copy and
+When {opensearch} detects that a shard's data is corrupted, it fails that shard copy and
 refuses to use it. Under normal conditions, the shard is automatically recovered
 from another copy. If no good copy of the shard is available and you cannot
 restore one from a snapshot, you can use `opensearch-shard` to remove the

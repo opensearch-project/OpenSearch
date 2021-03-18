@@ -110,5 +110,5 @@ You also can't use `ignore_malformed` to ignore JSON objects submitted to fields
 of the wrong data type. A JSON object is any data surrounded by curly brackets
 `"{}"` and includes data mapped to the nested, object, and range data types.
 
-If you submit a JSON object to an unsupported field, {es} will return an error
+If you submit a JSON object to an unsupported field, {opensearch} will return an error
 and reject the entire document regardless of the `ignore_malformed` setting.

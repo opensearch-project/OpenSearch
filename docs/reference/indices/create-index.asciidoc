@@ -19,7 +19,7 @@ PUT /my-index-000001
 
 [[indices-create-api-desc]]
 ==== {api-description-title}
-You can use the create index API to add a new index to an {es} cluster. When
+You can use the create index API to add a new index to an {opensearch} cluster. When
 creating an index, you can specify the following:
 
 * Settings for the index

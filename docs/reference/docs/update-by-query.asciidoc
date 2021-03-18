@@ -52,7 +52,7 @@ POST my-index-000001/_update_by_query?conflicts=proceed
 You can specify the query criteria in the request URI or the request body
 using the same syntax as the  <<search-search,Search API>>.
 
-When you submit an update by query request, {es} gets a snapshot of the index
+When you submit an update by query request, {opensearch} gets a snapshot of the index
 when it begins processing the request and updates matching documents using
 `internal` versioning.
 When the versions match, the document is updated and the version number is incremented.
@@ -65,7 +65,7 @@ NOTE: Documents with a version equal to 0 cannot be updated using update by
 query because `internal` versioning does not support 0 as a valid
 version number.
 
-While processing an update by query request, {es} performs multiple search
+While processing an update by query request, {opensearch} performs multiple search
 requests sequentially to find all of the matching documents.
 A bulk update request is performed for each batch of matching documents.
 Any query or update failures cause the update by query request to fail and
@@ -82,12 +82,12 @@ that received the request to be refreshed. Unlike the update API, it does not su
 [[docs-update-by-query-task-api]]
 ===== Running update by query asynchronously
 
-If the request contains `wait_for_completion=false`, {es}
+If the request contains `wait_for_completion=false`, {opensearch}
 performs some preflight checks, launches the request, and returns a
 <<tasks,`task`>> you can use to cancel or get the status of the task.
-{es} creates a record of this task as a document at `.tasks/task/${taskId}`.
+{opensearch} creates a record of this task as a document at `.tasks/task/${taskId}`.
 When you are done with a task, you should delete the task document so
-{es} can reclaim the space.
+{opensearch} can reclaim the space.
 
 ===== Waiting for active shards
 
@@ -119,7 +119,7 @@ wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
 --------------------------------------------------
 
 Since the batch is issued as a single `_bulk` request, large batch sizes
-cause {es} to create many requests and wait before starting the next set.
+cause {opensearch} to create many requests and wait before starting the next set.
 This is "bursty" instead of "smooth".
 
 [[docs-update-by-query-slice]]
@@ -197,7 +197,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=request_cache]
 
 `refresh`::
 (Optional, Boolean)
-If `true`, {es} refreshes affected shards to make the operation visible to
+If `true`, {opensearch} refreshes affected shards to make the operation visible to
 search. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
@@ -241,7 +241,7 @@ Period each update request waits for the following operations:
 * Dynamic mapping updates
 * <<index-wait-for-active-shards,Waiting for active shards>>
 
-Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+Defaults to `1m` (one minute). This guarantees {opensearch} waits for at least the
 timeout before failing. The actual wait time could be longer, particularly when
 multiple waits occur.
 --

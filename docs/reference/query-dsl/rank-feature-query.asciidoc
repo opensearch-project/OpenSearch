@@ -244,7 +244,7 @@ GET /test/_search
 }
 --------------------------------------------------
 
-If a `pivot` value is not provided, {es} computes a default value equal to the
+If a `pivot` value is not provided, {opensearch} computes a default value equal to the
 approximate geometric mean of all rank feature values in the index. We recommend
 using this default value if you haven't had the opportunity to train a good
 pivot value.

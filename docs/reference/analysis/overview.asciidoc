@@ -4,7 +4,7 @@
 <titleabbrev>Overview</titleabbrev>
 ++++
 
-Text analysis enables {es} to perform full-text search, where the search returns
+Text analysis enables {opensearch} to perform full-text search, where the search returns
 all _relevant_ results rather than just exact matches.
 
 If you search for `Quick fox jumps`, you probably want the document that
@@ -62,7 +62,7 @@ for `Foxes leap` can be normalized to a search for `fox jump`.
 Text analysis is performed by an <<analyzer-anatomy,_analyzer_>>, a set of rules
 that govern the entire process.
 
-{es} includes a default analyzer, called the
+{opensearch} includes a default analyzer, called the
 <<analysis-standard-analyzer,standard analyzer>>, which works well for most use
 cases right out of the box.
 

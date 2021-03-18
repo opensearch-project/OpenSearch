@@ -4,12 +4,12 @@
 A {wikipedia}/Regular_expression[regular expression] is a way to
 match patterns in data using placeholder characters, called operators.
 
-{es} supports regular expressions in the following queries:
+{opensearch} supports regular expressions in the following queries:
 
 * <<query-dsl-regexp-query, `regexp`>>
 * <<query-dsl-query-string-query, `query_string`>>
 
-{es} uses https://lucene.apache.org/core/[Apache Lucene]'s regular expression
+{opensearch} uses https://lucene.apache.org/core/[Apache Lucene]'s regular expression
 engine to parse these queries.
 
 [discrete]

@@ -142,7 +142,7 @@ The following Python script passes CBOR data to an HTTP indexing request that
 includes the `cbor-attachment` pipeline. The HTTP request headers use a
 a `content-type` of `application/cbor`.
 
-NOTE: Not all {es} clients support custom HTTP request headers.
+NOTE: Not all {opensearch} clients support custom HTTP request headers.
 
 [source,python]
 ----

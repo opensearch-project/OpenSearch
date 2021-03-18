@@ -1,13 +1,13 @@
 [[starting-elasticsearch]]
 == Starting Elasticsearch
 
-The method for starting {es} varies depending on how you installed it. 
+The method for starting {opensearch} varies depending on how you installed it. 
 
 [discrete]
 [[start-targz]]
 === Archive packages (`.tar.gz`)
 
-If you installed {es} with a `.tar.gz` package, you can start {es} from the 
+If you installed {opensearch} with a `.tar.gz` package, you can start {opensearch} from the 
 command line.  
 
 [discrete]
@@ -20,9 +20,9 @@ include::install/targz-daemon.asciidoc[]
 [[start-zip]]
 === Archive packages (`.zip`)
 
-If you installed {es} on Windows with a `.zip` package, you can start {es} from 
-the command line. If you want {es} to start automatically at boot time without 
-any user interaction, <<windows-service,install {es} as a service>>.
+If you installed {opensearch} on Windows with a `.zip` package, you can start {opensearch} from 
+the command line. If you want {opensearch} to start automatically at boot time without 
+any user interaction, <<windows-service,install {opensearch} as a service>>.
 
 [discrete]
 include::install/zip-windows-start.asciidoc[]
@@ -45,7 +45,7 @@ include::install/systemd.asciidoc[]
 [[start-docker]]
 === Docker images
 
-If you installed a Docker image, you can start {es} from the command line. There 
+If you installed a Docker image, you can start {opensearch} from the command line. There 
 are different methods depending on whether you're using development mode or 
 production mode. See <<docker-cli-run>>. 
 

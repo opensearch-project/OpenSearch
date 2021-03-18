@@ -1,7 +1,7 @@
 [[restart-upgrade]]
 == Full cluster restart upgrade
 
-To upgrade directly to {es} {version} from versions 6.0-6.7, you must shut down
+To upgrade directly to {opensearch} {version} from versions 6.0-6.7, you must shut down
 all nodes in the cluster, upgrade each node to {version}, and restart the cluster.
 
 NOTE: If you are running a version prior to 6.0,
@@ -55,7 +55,7 @@ the master-eligible nodes.
 . *Upgrade any plugins.*
 +
 Use the `opensearch-plugin` script to install the upgraded version of each
-installed {es} plugin. All plugins must be upgraded when you upgrade
+installed {opensearch} plugin. All plugins must be upgraded when you upgrade
 a node.
 
 . *Start each upgraded node.*

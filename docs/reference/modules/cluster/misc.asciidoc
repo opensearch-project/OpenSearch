@@ -58,7 +58,7 @@ You can dynamically adjust the cluster shard limit with the following setting:
 +
 --
 (<<dynamic-cluster-setting,Dynamic>>)
-Limits the total number of primary and replica shards for the cluster. {es}
+Limits the total number of primary and replica shards for the cluster. {opensearch}
 calculates the limit as follows:
 
 `cluster.max_shards_per_node * number of data nodes`
@@ -66,10 +66,10 @@ calculates the limit as follows:
 Shards for closed indices do not count toward this limit. Defaults to `1000`.
 A cluster with no data nodes is unlimited.
 
-{es} rejects any request that creates more shards than this limit allows. For
+{opensearch} rejects any request that creates more shards than this limit allows. For
 example, a cluster with a `cluster.max_shards_per_node` setting of `100` and
 three data nodes has a shard limit of 300. If the cluster already contains 296
-shards, {es} rejects any request that adds five or more shards to the cluster.
+shards, {opensearch} rejects any request that adds five or more shards to the cluster.
 
 NOTE: This setting does not limit shards for individual nodes. To limit the
 number of shards for each node, use the
@@ -101,7 +101,7 @@ IMPORTANT: User-defined cluster metadata is not intended to store sensitive or
 confidential information. Any information stored in user-defined cluster
 metadata will be viewable by anyone with access to the
 <<cluster-get-settings,Cluster Get Settings>> API, and is recorded in the
-{es} logs.
+{opensearch} logs.
 
 [[cluster-max-tombstones]]
 ===== Index tombstones

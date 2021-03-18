@@ -27,11 +27,11 @@ cluster:
 * Total store size of all shards, including shard replicas
 
 These metrics are retrieved directly from
-https://lucene.apache.org/core/[Lucene], which {es} uses internally to power
+https://lucene.apache.org/core/[Lucene], which {opensearch} uses internally to power
 indexing and search. As a result, all document counts include hidden
 <<nested,nested>> documents.
 
-To get an accurate count of {es} documents, use the <<cat-count,cat count>> or
+To get an accurate count of {opensearch} documents, use the <<cat-count,cat count>> or
 <<search-count,count>> APIs.
 
 

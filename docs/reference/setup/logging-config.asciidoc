@@ -3,13 +3,13 @@
 
 include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 
-You can use {es}'s application logs to monitor your cluster and diagnose issues.
-If you run {es} as a service, the default location of the logs varies based on
+You can use {opensearch}'s application logs to monitor your cluster and diagnose issues.
+If you run {opensearch} as a service, the default location of the logs varies based on
 your platform and installation method:
 
 include::{es-repo-dir}/tab-widgets/logging-widget.asciidoc[]
 
-If you run {es} from the command line, {es} prints logs to the standard output
+If you run {opensearch} from the command line, {opensearch} prints logs to the standard output
 (`stdout`).
 
 [discrete]
@@ -139,7 +139,7 @@ documentation].
 [[configuring-logging-levels]]
 === Configuring logging levels
 
-Each Java package in the {es-repo}[{es} source code] has a related logger. For
+Each Java package in the {es-repo}[{opensearch} source code] has a related logger. For
 example, the `org.opensearch.discovery` package has
 `logger.org.opensearch.discovery` for logs related to the
 <<modules-discovery-hosts-providers,discovery>> process.

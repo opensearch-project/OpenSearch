@@ -1,9 +1,9 @@
 [[shard-allocation-awareness]]
 ==== Shard allocation awareness
 
-You can use custom node attributes as _awareness attributes_ to enable {es}
+You can use custom node attributes as _awareness attributes_ to enable {opensearch}
 to take your physical hardware configuration into account when allocating shards.
-If {es} knows which nodes are on the same physical server, in the same rack, or
+If {opensearch} knows which nodes are on the same physical server, in the same rack, or
 in the same zone, it can distribute the primary shard and its replica shards to
 minimise the risk of losing all shard copies in the event of a failure.
 
@@ -11,12 +11,12 @@ When shard allocation awareness is enabled with the
 <<dynamic-cluster-setting,dynamic>>
 `cluster.routing.allocation.awareness.attributes` setting, shards are only
 allocated to nodes that have values set for the specified awareness attributes.
-If you use multiple awareness attributes, {es} considers each attribute
+If you use multiple awareness attributes, {opensearch} considers each attribute
 separately when allocating shards.
 
-By default {es} uses <<search-adaptive-replica,adaptive replica selection>>
+By default {opensearch} uses <<search-adaptive-replica,adaptive replica selection>>
 to route search or GET requests. However, with the presence of allocation awareness
-attributes {es} will prefer using shards in the same location (with the same
+attributes {opensearch} will prefer using shards in the same location (with the same
 awareness attribute values) to process these requests. This behavior can be
 disabled by specifying `export OPENSEARCH_JAVA_OPTS="$OPENSEARCH_JAVA_OPTS -Des.search.ignore_awareness_attributes=true"`
 system property on every node that is part of the cluster.
@@ -48,7 +48,7 @@ You can also set custom attributes when you start a node:
 `./bin/opensearch -Enode.attr.rack_id=rack_one`
 --------------------------------------------------------
 
-. Tell {es} to take one or more awareness attributes into account when
+. Tell {opensearch} to take one or more awareness attributes into account when
 allocating shards by setting
 `cluster.routing.allocation.awareness.attributes` in *every* master-eligible
 node's `opensearch.yml` config file.
@@ -71,10 +71,10 @@ shards and 1 replica of each primary, all primaries and replicas are
 allocated across the two nodes.
 
 If you add two nodes with `node.attr.rack_id` set to `rack_two`,
-{es} moves shards to the new nodes, ensuring (if possible)
+{opensearch} moves shards to the new nodes, ensuring (if possible)
 that no two copies of the same shard are in the same rack.
 
-If `rack_two` fails and takes down both its nodes, by default {es}
+If `rack_two` fails and takes down both its nodes, by default {opensearch}
 allocates the lost shard copies to nodes in `rack_one`. To prevent multiple
 copies of a particular shard from being allocated in the same location, you can
 enable forced awareness.

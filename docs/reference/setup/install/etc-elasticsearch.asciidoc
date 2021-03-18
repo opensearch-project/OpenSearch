@@ -1,9 +1,9 @@
 The `/etc/opensearch` directory contains the default runtime configuration
-for {es}. The ownership of this directory and all contained files are set to
+for {opensearch}. The ownership of this directory and all contained files are set to
 `root:opensearch` on package installations.
 
 The `setgid` flag applies group permissions on the `/etc/opensearch`
-directory to ensure that {es} can read any contained files and subdirectories.
+directory to ensure that {opensearch} can read any contained files and subdirectories.
 All files and subdirectories inherit the `root:opensearch` ownership.
 Running commands from this directory or any subdirectories, such as the
 <<secure-settings,elasticsearch-keystore tool>>, requires `root:opensearch`

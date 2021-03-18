@@ -7,7 +7,7 @@
 Forms {wikipedia}/Bigram[bigrams] out of CJK (Chinese,
 Japanese, and Korean) tokens.
 
-This filter is included in {es}'s built-in <<cjk-analyzer,CJK language
+This filter is included in {opensearch}'s built-in <<cjk-analyzer,CJK language
 analyzer>>. It uses Lucene's
 {lucene-analysis-docs}/cjk/CJKBigramFilter.html[CJKBigramFilter].
 

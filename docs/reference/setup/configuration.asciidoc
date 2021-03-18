@@ -123,7 +123,7 @@ apply across cluster restarts, or _transient_, which reset after a cluster
 restart. You can also reset transient or persistent settings by assigning them
 a `null` value using the API.
 
-If you configure the same setting using multiple methods, {es} applies the
+If you configure the same setting using multiple methods, {opensearch} applies the
 settings in following order of precedence:
 
 1. Transient setting

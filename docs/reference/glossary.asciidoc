@@ -26,7 +26,7 @@ Also see <<glossary-text,text>> and <<glossary-term,term>>.
 
 [[glossary-api-key]] API key ::
 // tag::api-key-def[]
-A unique identifier that you can use for authentication when submitting {es} requests.
+A unique identifier that you can use for authentication when submitting {opensearch} requests.
 When TLS is enabled, all requests must be authenticated using either basic authentication
 (user name and password) or an API key.
 // end::api-key-def[]
@@ -87,7 +87,7 @@ In most cases, the goal of filtering is to reduce the number of documents that h
 // tag::flush-def[]
 Peform a Lucene commit to write index updates in the transaction log (translog) to disk.
 Because a Lucene commit is a relatively expensive operation,
-{es} records index and delete operations in the translog and
+{opensearch} records index and delete operations in the translog and
 automatically flushes changes to disk in batches.
 To recover from a crash, operations that have been acknowledged but not yet committed
 can be replayed from the translog.
@@ -143,7 +143,7 @@ An index is a logical namespace which maps to one or more
 An index alias is a secondary name
 used to refer to one or more existing indices.
 
-Most {es} APIs accept an index alias
+Most {opensearch} APIs accept an index alias
 in place of an index name.
 // end::index-alias-desc[]
 
@@ -154,7 +154,7 @@ See {ref}/indices-add-alias.html[Add index alias].
 [[glossary-index-pattern]] index pattern ::
 // tag::index-pattern-def[]
 A string that can contain the `*` wildcard to match multiple index names.
-In most cases, the index parameter in an {es} request can be the name of a specific index,
+In most cases, the index parameter in an {opensearch} request can be the name of a specific index,
 a list of index names, or an index pattern.
 For example, if you have the indices `datastream-000001`, `datastream-000002`, and `datastream-000003`,
 to search across all three you could use the `datastream-*` index pattern.
@@ -214,8 +214,8 @@ See also <<glossary-routing,routing>>
 
 [[glossary-query]] query ::
 
-A request for information from {es}. You can think of a query as a question,
-written in a way {es} understands. A search consists of one or more queries
+A request for information from {opensearch}. You can think of a query as a question,
+written in a way {opensearch} understands. A search consists of one or more queries
 combined.
 +
 There are two types of queries: _scoring queries_ and _filters_. For more
@@ -253,7 +253,7 @@ You can reindex all documents from a source or select a subset of documents to
 copy. You can also reindex to a destination in a remote cluster.
 
 A reindex is often performed to update mappings, change static index settings,
-or upgrade {es} between incompatible versions.
+or upgrade {opensearch} between incompatible versions.
 // end::reindex-def[]
 --
 
