@@ -50,7 +50,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
 import org.opensearch.node.NodeValidationException;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.transport.TransportSettings;

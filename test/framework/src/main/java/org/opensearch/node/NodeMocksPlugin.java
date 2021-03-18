@@ -18,7 +18,7 @@
  */
 package org.opensearch.node;
 
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 
 public class NodeMocksPlugin extends Plugin { // just a marker plugin for MockNode to mock out BigArrays
 }

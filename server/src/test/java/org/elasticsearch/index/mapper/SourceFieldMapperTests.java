@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 

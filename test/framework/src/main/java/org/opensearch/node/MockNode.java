@@ -37,7 +37,7 @@ import org.opensearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;

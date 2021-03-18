@@ -26,7 +26,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.fs.FsService;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.transport.RemoteConnectionStrategy;
 
 import java.util.Arrays;

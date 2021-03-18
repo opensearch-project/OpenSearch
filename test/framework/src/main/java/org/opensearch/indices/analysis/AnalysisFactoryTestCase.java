@@ -26,7 +26,7 @@ import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
-import org.elasticsearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
