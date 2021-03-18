@@ -18,7 +18,7 @@
  */
 
 /**
- * Infrastructure for testing REST. See {@link OpenSearchRestTestCase} for running tests against an OpenSearch cluster using the REST tests and
- * the rest of the package for mocking utilities.
+ * Infrastructure for testing REST. See {@link OpenSearchRestTestCase} for running tests against an OpenSearch cluster using the
+ * REST tests and the rest of the package for mocking utilities.
  */
 package org.opensearch.test.rest;
