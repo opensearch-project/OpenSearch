@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.test.geo.RandomGeoGenerator;
+import org.opensearch.test.geo.RandomGeoGenerator;
 
 import static org.opensearch.search.aggregations.metrics.InternalGeoBoundsTests.GEOHASH_TOLERANCE;
 import static org.hamcrest.Matchers.closeTo;

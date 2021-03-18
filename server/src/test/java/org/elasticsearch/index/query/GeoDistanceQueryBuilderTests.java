@@ -29,7 +29,7 @@ import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.opensearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;

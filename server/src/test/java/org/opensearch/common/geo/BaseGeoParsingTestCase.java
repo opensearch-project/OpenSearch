@@ -24,7 +24,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.opensearch.test.OpenSearchTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
+import org.opensearch.test.hamcrest.OpenSearchGeoAssertions;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.spatial4j.shape.Shape;
@@ -55,7 +55,7 @@ abstract class BaseGeoParsingTestCase extends OpenSearchTestCase {
     protected void assertValidException(XContentBuilder builder, Class<?> expectedException) throws IOException {
         try (XContentParser parser = createParser(builder)) {
             parser.nextToken();
-            ElasticsearchGeoAssertions.assertValidException(parser, expectedException);
+            OpenSearchGeoAssertions.assertValidException(parser, expectedException);
         }
     }
 
@@ -63,12 +63,12 @@ abstract class BaseGeoParsingTestCase extends OpenSearchTestCase {
         try (XContentParser parser = createParser(geoJson)) {
             parser.nextToken();
             if (useJTS) {
-                ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildS4J());
+                OpenSearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildS4J());
             } else {
                 GeometryParser geometryParser = new GeometryParser(true, true, true);
                 org.opensearch.geometry.Geometry shape = geometryParser.parse(parser);
                 shape = new GeoShapeIndexer(true, "name").prepareForIndexing(shape);
-                ElasticsearchGeoAssertions.assertEquals(expected, shape);
+                OpenSearchGeoAssertions.assertEquals(expected, shape);
             }
         }
     }

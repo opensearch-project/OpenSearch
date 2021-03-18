@@ -39,9 +39,9 @@ import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Rectangle;
 import org.locationtech.spatial4j.shape.impl.PointImpl;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiLineString;
-import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
-import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertPolygon;
+import static org.opensearch.test.hamcrest.OpenSearchGeoAssertions.assertMultiLineString;
+import static org.opensearch.test.hamcrest.OpenSearchGeoAssertions.assertMultiPolygon;
+import static org.opensearch.test.hamcrest.OpenSearchGeoAssertions.assertPolygon;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
