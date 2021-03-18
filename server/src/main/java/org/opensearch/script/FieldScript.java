@@ -21,7 +21,7 @@ package org.opensearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
@@ -39,7 +39,7 @@ public abstract class FieldScript {
     public static final String[] PARAMETERS = {};
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of(
             "doc", value -> {
                 deprecationLogger.deprecate("field-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an field-script "

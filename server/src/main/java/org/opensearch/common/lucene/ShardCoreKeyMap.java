@@ -22,8 +22,8 @@ package org.opensearch.common.lucene;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.opensearch.Assertions;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardUtils;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardUtils;
 
 import java.io.IOException;
 import java.util.Collection;

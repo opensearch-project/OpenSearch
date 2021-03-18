@@ -20,8 +20,8 @@
 package org.opensearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
@@ -32,13 +32,13 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 
 import java.io.IOException;
 import java.io.InputStream;

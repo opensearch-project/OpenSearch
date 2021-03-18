@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.OpenSearchGenerationException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
@@ -34,7 +34,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;

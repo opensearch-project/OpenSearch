@@ -25,7 +25,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationOperation;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;

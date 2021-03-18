@@ -32,7 +32,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.discovery.zen.ElectMasterService;
 import org.opensearch.discovery.zen.ElectMasterService.MasterCandidate;
 import org.opensearch.discovery.zen.UnicastZenPing;
@@ -61,7 +61,7 @@ import java.util.stream.StreamSupport;
 import static java.lang.Math.max;
 import static org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.opensearch.cluster.ClusterState.UNKNOWN_VERSION;
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
+import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.opensearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.opensearch.discovery.zen.ZenDiscovery.PING_TIMEOUT_SETTING;
 

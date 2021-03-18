@@ -31,9 +31,9 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.collect.Tuple;
@@ -42,10 +42,10 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.ShardLimitValidator;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -57,7 +57,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
-import static org.elasticsearch.index.IndexSettings.same;
+import static org.opensearch.index.IndexSettings.same;
 
 /**
  * Service responsible for submitting update index settings requests

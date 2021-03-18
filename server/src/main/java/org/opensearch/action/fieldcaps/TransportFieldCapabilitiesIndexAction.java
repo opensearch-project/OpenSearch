@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.fieldcaps;
+package org.opensearch.action.fieldcaps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

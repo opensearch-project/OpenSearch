@@ -28,6 +28,8 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.joda.time.DateTimeZone;
+import org.joda.time.ReadableInstant;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
@@ -42,10 +44,8 @@ import org.opensearch.common.io.stream.Writeable.Writer;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -60,8 +60,8 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
-import java.time.ZoneId;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1077,9 +1077,9 @@ public abstract class StreamOutput extends OutputStream {
                 writeCause = false;
             } else if (throwable instanceof IOException) {
                 writeVInt(17);
-            } else if (throwable instanceof EsRejectedExecutionException) {
+            } else if (throwable instanceof OpenSearchRejectedExecutionException) {
                 writeVInt(18);
-                writeBoolean(((EsRejectedExecutionException) throwable).isExecutorShutdown());
+                writeBoolean(((OpenSearchRejectedExecutionException) throwable).isExecutorShutdown());
                 writeCause = false;
             } else {
                 final OpenSearchException ex;

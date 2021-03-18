@@ -19,7 +19,7 @@
 
 package org.opensearch.transport;
 
-import org.elasticsearch.OpenSearchWrapperException;
+import org.opensearch.OpenSearchWrapperException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.transport.TransportAddress;
 

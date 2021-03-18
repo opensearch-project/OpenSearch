@@ -26,7 +26,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestDocument;
 
 import java.io.IOException;
 

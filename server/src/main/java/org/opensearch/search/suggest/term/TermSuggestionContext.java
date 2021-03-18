@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.suggest.term;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.suggest.DirectSpellcheckerSettings;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 

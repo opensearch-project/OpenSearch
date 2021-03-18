@@ -22,9 +22,9 @@ package org.opensearch.action.support.replication;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.ReplicationGroup;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.ReplicationGroup;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;

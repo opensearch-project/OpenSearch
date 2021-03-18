@@ -28,6 +28,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
+import org.joda.time.DateTimeZone;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.CharArrays;
@@ -41,9 +42,8 @@ import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -1105,7 +1105,7 @@ public abstract class StreamInput extends InputStream {
                     return (T) readStackTrace(new IOException(readOptionalString(), readException()), this);
                 case 18:
                     final boolean isExecutorShutdown = readBoolean();
-                    return (T) readStackTrace(new EsRejectedExecutionException(readOptionalString(), isExecutorShutdown), this);
+                    return (T) readStackTrace(new OpenSearchRejectedExecutionException(readOptionalString(), isExecutorShutdown), this);
                 default:
                     throw new IOException("no such exception for id: " + key);
             }

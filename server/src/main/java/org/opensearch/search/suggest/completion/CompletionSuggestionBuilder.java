@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.suggest.completion;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.bytes.BytesReference;
@@ -34,10 +34,10 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.mapper.CompletionFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.suggest.SuggestionBuilder;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.opensearch.search.suggest.completion.context.ContextMapping;

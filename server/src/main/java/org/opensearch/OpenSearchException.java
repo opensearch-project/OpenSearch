@@ -962,7 +962,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 TcpTransport.HttpRequestOnTransportException::new, 125, UNKNOWN_VERSION_ADDED),
         MAPPER_PARSING_EXCEPTION(org.opensearch.index.mapper.MapperParsingException.class,
                 org.opensearch.index.mapper.MapperParsingException::new, 126, UNKNOWN_VERSION_ADDED),
-        // 127 used to be org.elasticsearch.search.SearchContextException
+        // 127 used to be org.opensearch.search.SearchContextException
         SEARCH_SOURCE_BUILDER_EXCEPTION(org.opensearch.search.builder.SearchSourceBuilderException.class,
                 org.opensearch.search.builder.SearchSourceBuilderException::new, 128, UNKNOWN_VERSION_ADDED),
         // 129 was EngineClosedException

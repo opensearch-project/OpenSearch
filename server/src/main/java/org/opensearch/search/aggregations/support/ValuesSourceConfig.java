@@ -19,12 +19,12 @@
 package org.opensearch.search.aggregations.support;
 
 import org.opensearch.common.Nullable;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexGeoPointFieldData;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.RangeFieldMapper;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.script.Script;
 import org.opensearch.search.DocValueFormat;

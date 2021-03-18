@@ -26,8 +26,8 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
-import org.elasticsearch.indices.flush.SyncedFlushService;
+import org.opensearch.indices.flush.ShardsSyncedFlushResult;
+import org.opensearch.indices.flush.SyncedFlushService;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

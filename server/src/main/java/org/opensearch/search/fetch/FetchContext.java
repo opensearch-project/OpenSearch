@@ -20,9 +20,9 @@
 package org.opensearch.search.fetch;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.fetch.subphase.FetchDocValuesContext;
 import org.opensearch.search.fetch.subphase.FetchFieldsContext;

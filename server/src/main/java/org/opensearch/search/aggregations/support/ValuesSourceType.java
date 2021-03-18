@@ -88,7 +88,7 @@ public interface ValuesSourceType {
 
     /**
      * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a
-     * {@link org.elasticsearch.index.mapper.MappedFieldType}, it prefers to get the formatter from there.  Only when a field can't be
+     * {@link org.opensearch.index.mapper.MappedFieldType}, it prefers to get the formatter from there.  Only when a field can't be
      * resolved (which is to say script cases and unmapped field cases), it will fall back to calling this method on whatever
      * {@link ValuesSourceType} it was able to resolve to.
      *

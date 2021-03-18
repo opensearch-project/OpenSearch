@@ -25,9 +25,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
 import java.util.Locale;

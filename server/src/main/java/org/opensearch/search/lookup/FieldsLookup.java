@@ -20,7 +20,7 @@ package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.common.Nullable;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperService;
 
 public class FieldsLookup {
 

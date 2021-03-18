@@ -25,7 +25,7 @@ import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -316,7 +316,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             @Override
             protected void mergeInto(Suggest.Suggestion.Entry.Option otherOption) {
                 // Completion suggestions are reduced by
-                // org.elasticsearch.search.suggest.completion.CompletionSuggestion.reduce()
+                // org.opensearch.search.suggest.completion.CompletionSuggestion.reduce()
                 throw new UnsupportedOperationException();
             }
 

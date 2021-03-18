@@ -25,7 +25,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 
 import java.io.IOException;
 import java.util.Objects;

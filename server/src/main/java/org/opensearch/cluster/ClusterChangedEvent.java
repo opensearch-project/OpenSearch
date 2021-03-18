@@ -28,7 +28,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.gateway.GatewayService;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -19,9 +19,9 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.shrink.ResizeRequest;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.support.ActiveShardCount;

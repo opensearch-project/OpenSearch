@@ -21,8 +21,8 @@ package org.opensearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.OpenSearchSecurityException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;

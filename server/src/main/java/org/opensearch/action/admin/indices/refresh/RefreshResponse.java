@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;

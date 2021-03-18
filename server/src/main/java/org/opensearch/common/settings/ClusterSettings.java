@@ -19,9 +19,9 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.opensearch.index.IndexingPressure;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
@@ -48,7 +48,7 @@ import org.opensearch.cluster.coordination.NoMasterBlockService;
 import org.opensearch.cluster.coordination.Reconfigurator;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.OperationRouting;
+import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -62,14 +62,14 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.logging.Loggers;
+import org.opensearch.cluster.service.MasterService;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.DiscoverySettings;
 import org.opensearch.discovery.HandshakingTransportAddressConnector;
@@ -79,14 +79,15 @@ import org.opensearch.discovery.SettingsBasedSeedHostsProvider;
 import org.opensearch.discovery.zen.ElectMasterService;
 import org.opensearch.discovery.zen.FaultDetection;
 import org.opensearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.DanglingIndicesState;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexingPressure;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -124,7 +125,6 @@ import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteConnectionStrategy;
 import org.opensearch.transport.SniffConnectionStrategy;
 import org.opensearch.transport.TransportSettings;
-import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -486,8 +486,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ClusterName.CLUSTER_NAME_SETTING,
             Client.CLIENT_TYPE_SETTING_S,
             ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
-            EsExecutors.PROCESSORS_SETTING,
-            EsExecutors.NODE_PROCESSORS_SETTING,
+            OpenSearchExecutors.PROCESSORS_SETTING,
+            OpenSearchExecutors.NODE_PROCESSORS_SETTING,
             ThreadContext.DEFAULT_HEADERS_SETTING,
             Loggers.LOG_DEFAULT_LEVEL_SETTING,
             Loggers.LOG_LEVEL_SETTING,

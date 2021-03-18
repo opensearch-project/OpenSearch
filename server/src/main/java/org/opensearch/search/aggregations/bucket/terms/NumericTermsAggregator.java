@@ -28,7 +28,7 @@ import org.opensearch.common.collect.List;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongArray;
-import org.elasticsearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;

@@ -20,7 +20,7 @@
 package org.opensearch.common.geo;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.unit.DistanceUnit;

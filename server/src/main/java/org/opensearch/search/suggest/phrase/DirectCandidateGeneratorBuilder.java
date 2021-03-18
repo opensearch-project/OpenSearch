@@ -35,7 +35,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.suggest.SortBy;
 import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 

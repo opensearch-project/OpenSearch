@@ -19,13 +19,13 @@
 
 package org.opensearch.common.settings;
 
+import org.opensearch.common.Booleans;
+import org.opensearch.common.util.ArrayUtils;
+
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.EnumSet;
 import java.util.Set;
-
-import org.opensearch.common.Booleans;
-import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  * A secure setting.

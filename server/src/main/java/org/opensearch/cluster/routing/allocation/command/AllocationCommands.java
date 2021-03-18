@@ -20,7 +20,7 @@
 package org.opensearch.cluster.routing.allocation.command;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.opensearch.common.Strings;

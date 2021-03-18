@@ -30,9 +30,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.DiscoveryModule;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.process.ProcessProbe;
+import org.opensearch.index.IndexModule;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.node.NodeValidationException;
 
 import java.io.BufferedReader;

@@ -35,7 +35,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.Index;
 import org.opensearch.snapshots.RestoreService;
 import org.opensearch.snapshots.SnapshotInProgressException;
