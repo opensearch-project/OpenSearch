@@ -108,7 +108,7 @@ import org.opensearch.node.Node;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.node.NodeService;
 import org.opensearch.node.NodeValidationException;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;

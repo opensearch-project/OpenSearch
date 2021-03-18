@@ -33,7 +33,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 
 import java.io.Closeable;
 import java.io.IOException;

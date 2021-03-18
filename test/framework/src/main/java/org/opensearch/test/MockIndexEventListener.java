@@ -33,7 +33,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.Arrays;
 import java.util.Collection;

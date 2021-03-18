@@ -19,8 +19,8 @@
 
 package org.opensearch.index.mapper;
 
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.function.Function;
 import java.util.function.Predicate;

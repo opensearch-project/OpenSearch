@@ -34,9 +34,9 @@ import org.opensearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.IngestPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 

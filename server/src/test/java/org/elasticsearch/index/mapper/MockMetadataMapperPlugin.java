@@ -22,8 +22,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.util.Collections;
