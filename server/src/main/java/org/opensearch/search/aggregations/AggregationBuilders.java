@@ -32,10 +32,7 @@ import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilde
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
-<<<<<<< HEAD
 import org.opensearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
-=======
->>>>>>> cleanup missed Es classes, and syned with other PR
 import org.opensearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
