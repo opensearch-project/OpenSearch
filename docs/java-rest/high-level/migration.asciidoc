@@ -1,6 +1,7 @@
 [[java-rest-high-level-migration]]
 == Migration Guide
 
+
 This section describes how to migrate existing code from the `TransportClient`
 to the Java High Level REST Client released with the version 5.6.0
 of Elasticsearch.
@@ -10,10 +11,10 @@ of Elasticsearch.
 The existing `TransportClient` has been part of Elasticsearch since https://github.com/elastic/elasticsearch/blob/b3337c312765e51cec7bde5883bbc0a08f56fb65/modules/elasticsearch/src/main/java/org/elasticsearch/client/transport/TransportClient.java[its very first commit].
  It is a special client as it uses the transport protocol to communicate with Elasticsearch,
  which causes compatibility problems if the client is not on the same version as the
- Elasticsearch instances it talks to.
+ {opensearch} instances it talks to.
 
 We released a low-level REST client in 2016, which is based on the well known Apache HTTP
-client and it allows to communicate with an Elasticsearch cluster in any version using HTTP.
+client and it allows to communicate with an {opensearch} cluster in any version using HTTP.
 On top of that we released the high-level REST client which is based on the low-level client
 but takes care of request marshalling and response un-marshalling.
 
@@ -23,7 +24,7 @@ https://www.elastic.co/blog/state-of-the-official-elasticsearch-java-clients[sta
 === Prerequisite
 
 The Java High Level Rest Client requires Java `1.8` and can be used to send requests
-to an <<java-rest-high-compatibility,Elasticsearch cluster in a compatible version>>.
+to an <<java-rest-high-compatibility,{opensearch} cluster in a compatible version>>.
 
 === How to migrate
 
@@ -69,9 +70,9 @@ argument:
 include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
 --------------------------------------------------
 
-NOTE: The `RestClient` uses Elasticsearch's HTTP service which is
+NOTE: The `RestClient` uses {opensearch}'s HTTP service which is
  bounded by default on `9200`. This port is different from the port
- used to connect to Elasticsearch with a `TransportClient`.
+ used to connect to {opensearch} with a `TransportClient`.
 
 The `RestHighLevelClient` is thread-safe. It is typically instantiated by the
 application at startup time or when the first request is executed.
@@ -270,7 +271,7 @@ include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-cluster-heal
 <1> Set up the request to wait for the cluster's health to become green if it isn't already.
 <2> Make the request and the get back a `Response` object.
 <3> Retrieve an `InputStream` object in order to read the response's content
-<4> Parse the response's content using Elasticsearch's helper class `XContentHelper`. This
+<4> Parse the response's content using {opensearch}'s helper class `XContentHelper`. This
  helper requires the content type of the response to be passed as an argument and returns
  a `Map` of objects. Values in the map can be of any type, including inner `Map` that are
  used to represent the JSON object hierarchy.
@@ -280,7 +281,7 @@ object. This method throws an exception if the value does not corresponds to a v
 health status.
 <6> Handle the situation where the cluster's health is not green
 
-Note that for convenience this example uses Elasticsearch's helpers to parse the JSON response
+Note that for convenience this example uses {opensearch}'s helpers to parse the JSON response
 body, but any other JSON parser could have been use instead.
 
 === Provide feedback

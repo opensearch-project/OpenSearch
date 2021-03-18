@@ -6,10 +6,10 @@ include::{search-root}/docs/Versions.asciidoc[]
 [preface]
 == Preface
 
-deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
+deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in {opensearch} 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
 
-This section describes the Java API that Elasticsearch provides. All
-Elasticsearch operations are executed using a
+This section describes the Java API that {opensearch} provides. All
+{opensearch} operations are executed using a
 <<client,Client>> object. All
 operations are completely asynchronous in nature (either accepts a
 listener, or returns a future).
@@ -27,7 +27,7 @@ The javadoc for the transport client can be found at {transport-client-javadoc}/
 // TODO(OpenSearch): Correct the maven repository
 == Maven Repository
 
-Elasticsearch is hosted on
+{opensearch} is hosted on
 http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.opensearch.client%22[Maven
 Central].
 
