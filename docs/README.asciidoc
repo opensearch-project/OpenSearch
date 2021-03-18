@@ -1,22 +1,17 @@
-The Elasticsearch docs are in AsciiDoc format and can be built using the
-Elasticsearch documentation build process.
-
-See: https://github.com/elastic/docs
+The OpenSearch docs are in AsciiDoc format. The process to build this documentation is currently under development.
 
 === Backporting doc fixes
 
 * Doc changes should generally be made against master and backported through to the current version
-  (as applicable).  
-  
-* Changes can also be backported to the maintenance version of the previous major version. 
+  (as applicable).
+
+* Changes can also be backported to the maintenance version of the previous major version.
   This is typically reserved for technical corrections, as it can require resolving more complex
   merge conflicts, fixing test failures, and figuring out where to apply the change.
 
-* Avoid backporting to out-of-maintenance versions. 
+* Avoid backporting to out-of-maintenance versions.
   Docs follow the same policy as code and fixes are not ordinarily merged to
   versions that are out of maintenance.
-  
-* Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions]. 
 
 === Snippet testing
 
@@ -79,7 +74,7 @@ used for its modifiers:
   they are useful for eliding portions of the response that are not pertinent
   to the documentation.
     * One interesting difference here is that you often want to match against
-    the response from Elasticsearch. To do that you can reference the "body" of
+    the response from OpenSearch. To do that you can reference the "body" of
     the response like this: `// TESTRESPONSE[s/"took": 25/"took": $body.took/]`.
     Note the `$body` string. This says "I don't expect that 25 number in the
     response, just match against what is in the response." Instead of writing
