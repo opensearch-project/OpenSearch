@@ -33,8 +33,8 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.opensearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.mockito.Mockito;
@@ -43,7 +43,7 @@ import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 
-public class NestedSortBuilderTests extends ESTestCase {
+public class NestedSortBuilderTests extends OpenSearchTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;

@@ -26,13 +26,13 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.RestClient;
 import org.opensearch.common.Booleans;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ReindexFromOldRemoteIT extends ESRestTestCase {
+public class ReindexFromOldRemoteIT extends OpenSearchRestTestCase {
     /**
      * Number of documents to test when reindexing from an old version.
      */

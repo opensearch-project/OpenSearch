@@ -26,7 +26,7 @@ import org.apache.lucene.util.RamUsageTester;
 import org.apache.lucene.util.TestUtil;
 import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LiveVersionMapTests extends ESTestCase {
+public class LiveVersionMapTests extends OpenSearchTestCase {
 
     public void testRamBytesUsed() throws Exception {
         LiveVersionMap map = new LiveVersionMap();

@@ -26,13 +26,13 @@ import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -41,7 +41,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntB
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
+public class StemmerTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
     private static final CommonAnalysisPlugin PLUGIN = new CommonAnalysisPlugin();
 
@@ -58,7 +58,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
 
-            ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+            OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_english");
             assertThat(tokenFilter, instanceOf(StemmerTokenFilterFactory.class));
             Tokenizer tokenizer = new WhitespaceTokenizer();
@@ -85,7 +85,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
 
-            ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+            OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_porter2");
             assertThat(tokenFilter, instanceOf(StemmerTokenFilterFactory.class));
             Tokenizer tokenizer = new WhitespaceTokenizer();

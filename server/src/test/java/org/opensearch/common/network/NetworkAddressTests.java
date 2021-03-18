@@ -19,9 +19,8 @@
 
 package org.opensearch.common.network;
 
-import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.transport.PortsRange;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.net.Inet6Address;
@@ -32,7 +31,7 @@ import java.util.Random;
 /**
  * Tests for network address formatting. Please avoid using any methods that cause DNS lookups!
  */
-public class NetworkAddressTests extends ESTestCase {
+public class NetworkAddressTests extends OpenSearchTestCase {
 
     public void testFormatV4() throws Exception {
         assertEquals("127.0.0.1", NetworkAddress.format(forge("localhost", "127.0.0.1")));

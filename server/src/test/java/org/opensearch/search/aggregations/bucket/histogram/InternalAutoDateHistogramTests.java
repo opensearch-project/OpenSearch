@@ -28,7 +28,7 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.opensearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;

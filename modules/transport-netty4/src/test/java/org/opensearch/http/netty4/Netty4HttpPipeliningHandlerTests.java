@@ -35,7 +35,7 @@ import org.opensearch.http.HttpPipelinedRequest;
 import org.opensearch.http.HttpPipelinedResponse;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
 import java.nio.channels.ClosedChannelException;
@@ -55,7 +55,7 @@ import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.hamcrest.core.Is.is;
 
-public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
+public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
 
     private final ExecutorService handlerService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
     private final ExecutorService eventLoopService = Executors.newFixedThreadPool(1);

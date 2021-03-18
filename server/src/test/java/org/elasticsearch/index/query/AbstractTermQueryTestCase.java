@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.util.HashMap;
 import java.util.Map;

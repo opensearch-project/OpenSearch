@@ -27,16 +27,16 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class RatedDocumentTests extends ESTestCase {
+public class RatedDocumentTests extends OpenSearchTestCase {
 
     public static RatedDocument createRatedDocument() {
         return new RatedDocument(randomAlphaOfLength(10), randomAlphaOfLength(10), randomInt());
@@ -67,7 +67,7 @@ public class RatedDocumentTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RatedDocument original = createRatedDocument();
-        RatedDocument deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
+        RatedDocument deserialized = OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
                 RatedDocument::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());

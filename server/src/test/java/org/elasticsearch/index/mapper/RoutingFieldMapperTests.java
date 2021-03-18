@@ -24,12 +24,12 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
+public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     public void testRoutingMapper() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")

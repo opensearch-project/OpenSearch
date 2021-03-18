@@ -21,7 +21,7 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,7 +29,7 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase {
+public abstract class AbstractStringProcessorFactoryTestCase extends OpenSearchTestCase {
 
     protected abstract AbstractStringProcessor.Factory newFactory();
 

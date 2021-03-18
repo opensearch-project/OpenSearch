@@ -26,6 +26,7 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
+import org.opensearch.index.mapper.FieldTypeTestCase;
 
 public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 

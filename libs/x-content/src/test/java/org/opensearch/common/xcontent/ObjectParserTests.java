@@ -24,7 +24,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.opensearch.common.xcontent.ObjectParser.ValueType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ObjectParserTests extends ESTestCase {
+public class ObjectParserTests extends OpenSearchTestCase {
 
     public void testBasics() throws IOException {
         XContentParser parser = createParser(

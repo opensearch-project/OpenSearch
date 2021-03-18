@@ -34,7 +34,7 @@ import org.opensearch.http.HttpStats;
 import org.opensearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -51,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-public class NetworkModuleTests extends ESTestCase {
+public class NetworkModuleTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
 
     @Override

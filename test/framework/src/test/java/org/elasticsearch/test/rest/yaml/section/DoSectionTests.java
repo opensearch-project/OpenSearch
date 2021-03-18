@@ -28,9 +28,11 @@ import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.xcontent.XContentLocation;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
+import org.opensearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.opensearch.test.rest.yaml.ClientYamlTestResponse;
 import org.hamcrest.MatcherAssert;
+import org.opensearch.test.rest.yaml.section.ApiCallSection;
+import org.opensearch.test.rest.yaml.section.DoSection;
 
 import java.io.IOException;
 import java.util.ArrayList;

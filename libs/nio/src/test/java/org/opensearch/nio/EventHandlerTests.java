@@ -19,7 +19,7 @@
 
 package org.opensearch.nio;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class EventHandlerTests extends ESTestCase {
+public class EventHandlerTests extends OpenSearchTestCase {
 
     private Consumer<Exception> channelExceptionHandler;
     private Consumer<Exception> genericExceptionHandler;

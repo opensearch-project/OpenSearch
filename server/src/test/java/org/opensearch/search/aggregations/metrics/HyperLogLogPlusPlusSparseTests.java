@@ -26,7 +26,7 @@ import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
@@ -38,7 +38,7 @@ import static org.opensearch.search.aggregations.metrics.AbstractHyperLogLog.MIN
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
+public class HyperLogLogPlusPlusSparseTests extends OpenSearchTestCase {
 
     public void testBasic()  {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);

@@ -30,7 +30,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.http.HttpInfo;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
@@ -44,7 +44,7 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4Plugin;
 import org.junit.After;
@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.hasSize;
  * Integration test for bulk retry behavior. Useful because retrying relies on the way that the
  * rest of OpenSearch throws exceptions and unit tests won't verify that.
  */
-public class RetryTests extends ESIntegTestCase {
+public class RetryTests extends OpenSearchIntegTestCase {
 
     private static final int DOC_COUNT = 20;
 
@@ -225,7 +225,7 @@ public class RetryTests extends ESIntegTestCase {
 
     /**
      * Blocks the named executor by getting its only thread running a task blocked on a CyclicBarrier and fills the queue with a noop task.
-     * So requests to use this queue should get {@link EsRejectedExecutionException}s.
+     * So requests to use this queue should get {@link OpenSearchRejectedExecutionException}s.
      */
     private CyclicBarrier blockExecutor(String name, String node) throws Exception {
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, node);

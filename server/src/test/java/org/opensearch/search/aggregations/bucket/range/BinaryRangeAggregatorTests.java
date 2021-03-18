@@ -30,11 +30,11 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedBinaryRangeLeafCollector;
 import org.opensearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedSetRangeLeafCollector;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import com.carrotsearch.hppc.LongHashSet;
 
-public class BinaryRangeAggregatorTests extends ESTestCase {
+public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
 
     private static class FakeSortedSetDocValues extends AbstractSortedSetDocValues {
 

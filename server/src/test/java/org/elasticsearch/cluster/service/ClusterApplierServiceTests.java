@@ -39,9 +39,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -59,12 +59,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.test.ClusterServiceUtils.createNoOpNodeConnectionsService;
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.opensearch.test.ClusterServiceUtils.createNoOpNodeConnectionsService;
+import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class ClusterApplierServiceTests extends ESTestCase {
+public class ClusterApplierServiceTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
     private TimedClusterApplierService clusterApplierService;

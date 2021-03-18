@@ -33,18 +33,18 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class RecallAtKTests extends ESTestCase {
+public class RecallAtKTests extends OpenSearchTestCase {
 
     private static final int IRRELEVANT_RATING = 0;
     private static final int RELEVANT_RATING = 1;
@@ -200,7 +200,7 @@ public class RecallAtKTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RecallAtK original = createTestItem();
-        RecallAtK deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
+        RecallAtK deserialized = OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
             RecallAtK::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());

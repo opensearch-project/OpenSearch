@@ -41,7 +41,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 

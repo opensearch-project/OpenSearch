@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link GeoBoundingBox}
  */
-public class GeoBoundingBoxTests extends ESTestCase {
+public class GeoBoundingBoxTests extends OpenSearchTestCase {
 
     public void testInvalidParseInvalidWKT() throws IOException {
         XContentBuilder bboxBuilder = XContentFactory.jsonBuilder()

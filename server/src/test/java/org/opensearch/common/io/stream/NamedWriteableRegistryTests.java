@@ -23,14 +23,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class NamedWriteableRegistryTests extends ESTestCase {
+public class NamedWriteableRegistryTests extends OpenSearchTestCase {
 
     private static class DummyNamedWriteable implements NamedWriteable {
         DummyNamedWriteable(StreamInput in) {}

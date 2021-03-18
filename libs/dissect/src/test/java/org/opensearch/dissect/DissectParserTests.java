@@ -21,7 +21,7 @@ package org.opensearch.dissect;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.mockito.internal.util.collections.Sets;
@@ -34,7 +34,7 @@ import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiAlphanumOfLengthBetween;
 
-public class DissectParserTests extends ESTestCase {
+public class DissectParserTests extends OpenSearchTestCase {
 
     public void testJavaDocExamples() {
         assertMatch("%{a} %{b},%{c}", "foo bar,baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));

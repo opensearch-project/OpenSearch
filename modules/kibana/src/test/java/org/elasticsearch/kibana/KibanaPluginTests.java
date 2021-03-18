@@ -21,7 +21,7 @@ package org.elasticsearch.kibana;
 
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 
-public class KibanaPluginTests extends ESTestCase {
+public class KibanaPluginTests extends OpenSearchTestCase {
 
     public void testKibanaIndexNames() {
         assertThat(new KibanaPlugin().getSettings(), contains(KibanaPlugin.KIBANA_INDEX_NAMES_SETTING));

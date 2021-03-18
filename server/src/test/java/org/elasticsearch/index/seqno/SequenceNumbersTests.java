@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class SequenceNumbersTests extends ESTestCase {
+public class SequenceNumbersTests extends OpenSearchTestCase {
 
     public void testMin() {
         final long seqNo = randomNonNegativeLong();

@@ -21,7 +21,7 @@ package org.opensearch.search.suggest.completion;
 
 import org.opensearch.common.text.Text;
 import org.opensearch.search.suggest.Suggest;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class CompletionSuggestionTests extends ESTestCase {
+public class CompletionSuggestionTests extends OpenSearchTestCase {
 
     public void testReduce() {
         List<Suggest.Suggestion<CompletionSuggestion.Entry>> shardSuggestions = new ArrayList<>();

@@ -33,7 +33,7 @@ import org.opensearch.search.aggregations.ParsedAggregation;
 import org.opensearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import org.opensearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

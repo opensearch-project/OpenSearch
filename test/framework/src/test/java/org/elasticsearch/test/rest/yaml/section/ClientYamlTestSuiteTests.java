@@ -24,6 +24,17 @@ import org.opensearch.client.NodeSelector;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.XContentLocation;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.test.rest.yaml.section.ApiCallSection;
+import org.opensearch.test.rest.yaml.section.ClientYamlTestSection;
+import org.opensearch.test.rest.yaml.section.ClientYamlTestSuite;
+import org.opensearch.test.rest.yaml.section.ContainsAssertion;
+import org.opensearch.test.rest.yaml.section.DoSection;
+import org.opensearch.test.rest.yaml.section.ExecutableSection;
+import org.opensearch.test.rest.yaml.section.IsTrueAssertion;
+import org.opensearch.test.rest.yaml.section.MatchAssertion;
+import org.opensearch.test.rest.yaml.section.SetupSection;
+import org.opensearch.test.rest.yaml.section.SkipSection;
+import org.opensearch.test.rest.yaml.section.TeardownSection;
 
 import java.util.ArrayList;
 import java.util.Collections;

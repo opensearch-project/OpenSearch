@@ -21,7 +21,7 @@ package org.opensearch.common.util.concurrent;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
@@ -36,7 +36,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class AbstractAsyncTaskTests extends ESTestCase {
+public class AbstractAsyncTaskTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
 

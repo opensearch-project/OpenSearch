@@ -27,7 +27,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
 import org.opensearch.rest.RestStatus;
 
@@ -74,7 +74,7 @@ public final class ExceptionsHelper {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof JsonParseException) {
                 return RestStatus.BAD_REQUEST;
-            } else if (t instanceof EsRejectedExecutionException) {
+            } else if (t instanceof OpenSearchRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;
             }
         }

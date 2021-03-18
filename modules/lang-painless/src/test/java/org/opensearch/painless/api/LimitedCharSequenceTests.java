@@ -20,11 +20,11 @@
 package org.opensearch.painless.api;
 
 import org.opensearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.regex.Pattern;
 
-public class LimitedCharSequenceTests extends ESTestCase {
+public class LimitedCharSequenceTests extends OpenSearchTestCase {
     public void testBadFactor() {
         IllegalArgumentException badArg = expectThrows(IllegalArgumentException.class,
             () -> new LimitedCharSequence("abc", null, -1)

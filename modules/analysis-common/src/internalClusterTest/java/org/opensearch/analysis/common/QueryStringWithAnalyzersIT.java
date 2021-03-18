@@ -23,16 +23,16 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.Operator;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
 
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
-public class QueryStringWithAnalyzersIT extends ESIntegTestCase {
+public class QueryStringWithAnalyzersIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(CommonAnalysisPlugin.class);

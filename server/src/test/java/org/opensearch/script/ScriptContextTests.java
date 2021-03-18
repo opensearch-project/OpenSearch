@@ -19,9 +19,9 @@
 
 package org.opensearch.script;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class ScriptContextTests extends ESTestCase {
+public class ScriptContextTests extends OpenSearchTestCase {
 
     public interface TwoNewInstance {
         String newInstance(int foo, int bar);

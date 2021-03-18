@@ -19,13 +19,13 @@
 
 package org.opensearch.script;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.security.AllPermission;
 import java.security.PermissionCollection;
 
 /** Very simple sanity checks for {@link ClassPermission} */
-public class ClassPermissionTests extends ESTestCase {
+public class ClassPermissionTests extends OpenSearchTestCase {
 
     public void testEquals() {
         assertEquals(new ClassPermission("pkg.MyClass"), new ClassPermission("pkg.MyClass"));

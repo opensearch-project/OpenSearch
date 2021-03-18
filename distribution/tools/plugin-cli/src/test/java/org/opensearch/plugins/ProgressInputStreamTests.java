@@ -19,7 +19,7 @@
 
 package org.opensearch.plugins;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 
-public class ProgressInputStreamTests extends ESTestCase {
+public class ProgressInputStreamTests extends OpenSearchTestCase {
 
     private List<Integer> progresses = new ArrayList<>();
 

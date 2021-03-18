@@ -48,11 +48,12 @@ import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
+import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.TranslogCorruptedException;
-import org.elasticsearch.test.CorruptionUtils;
-import org.elasticsearch.test.DummyShardLock;
+import org.opensearch.test.CorruptionUtils;
+import org.opensearch.test.DummyShardLock;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -39,7 +39,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.indices.TermsLookup;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 

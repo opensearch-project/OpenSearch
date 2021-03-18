@@ -25,13 +25,13 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Set;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public class ByteSizeCachingDirectoryTests extends ESTestCase {
+public class ByteSizeCachingDirectoryTests extends OpenSearchTestCase {
 
     private static class LengthCountingDirectory extends FilterDirectory {
 

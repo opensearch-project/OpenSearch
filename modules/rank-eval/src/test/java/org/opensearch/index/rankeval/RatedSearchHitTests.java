@@ -27,15 +27,15 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.opensearch.search.SearchHit;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.OptionalInt;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public class RatedSearchHitTests extends ESTestCase {
+public class RatedSearchHitTests extends OpenSearchTestCase {
 
     public static RatedSearchHit randomRatedSearchHit() {
         OptionalInt rating = randomBoolean() ? OptionalInt.empty()
@@ -88,7 +88,7 @@ public class RatedSearchHitTests extends ESTestCase {
     }
 
     private static RatedSearchHit copy(RatedSearchHit original) throws IOException {
-        return ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), RatedSearchHit::new);
+        return OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), RatedSearchHit::new);
     }
 
 }

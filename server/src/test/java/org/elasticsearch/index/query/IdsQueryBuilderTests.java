@@ -27,7 +27,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

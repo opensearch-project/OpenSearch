@@ -34,8 +34,8 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Table;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RestShardsActionTests extends ESTestCase {
+public class RestShardsActionTests extends OpenSearchTestCase {
 
     public void testBuildTable() {
         final int numShards = randomIntBetween(1, 5);

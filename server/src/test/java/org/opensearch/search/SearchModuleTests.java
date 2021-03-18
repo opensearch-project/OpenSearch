@@ -73,7 +73,7 @@ import org.opensearch.search.suggest.SuggestionSearchContext;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.opensearch.search.suggest.term.TermSuggestion;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,7 +91,7 @@ import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SearchModuleTests extends ESTestCase {
+public class SearchModuleTests extends OpenSearchTestCase {
 
     public void testDoubleRegister() {
         SearchPlugin registersDupeHighlighter = new SearchPlugin() {

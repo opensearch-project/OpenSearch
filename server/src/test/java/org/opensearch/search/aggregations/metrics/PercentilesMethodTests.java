@@ -21,14 +21,14 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PercentilesMethodTests extends ESTestCase {
+public class PercentilesMethodTests extends OpenSearchTestCase {
 
     public void testValidOrdinals() {
         assertThat(PercentilesMethod.TDIGEST.ordinal(), equalTo(0));

@@ -21,7 +21,7 @@ package org.opensearch.bootstrap;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.PathUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.net.URL;
@@ -38,7 +38,7 @@ import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-public class JarHellTests extends ESTestCase {
+public class JarHellTests extends OpenSearchTestCase {
 
     URL makeJar(Path dir, String name, Manifest manifest, String... files) throws IOException {
         Path jarpath = dir.resolve(name);

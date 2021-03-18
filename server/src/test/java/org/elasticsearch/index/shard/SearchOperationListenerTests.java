@@ -20,8 +20,8 @@ package org.elasticsearch.index.shard;
 
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestSearchContext;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequest.Empty;
 
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
-public class SearchOperationListenerTests extends ESTestCase {
+public class SearchOperationListenerTests extends OpenSearchTestCase {
 
     // this test also tests if calls are correct if one or more listeners throw exceptions
     public void testListenersAreExecuted() {

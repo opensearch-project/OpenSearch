@@ -27,13 +27,9 @@ import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.index.IndexModule;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.settings.SettingUpgrader;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -59,7 +55,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ScopedSettingsTests extends ESTestCase {
+public class ScopedSettingsTests extends OpenSearchTestCase {
 
     public void testResetSetting() {
         Setting<Integer> dynamicSetting = Setting.intSetting("some.dyn.setting", 1, Property.Dynamic, Property.NodeScope);

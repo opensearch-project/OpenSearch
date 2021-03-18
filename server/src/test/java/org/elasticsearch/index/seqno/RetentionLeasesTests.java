@@ -20,7 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class RetentionLeasesTests extends ESTestCase {
+public class RetentionLeasesTests extends OpenSearchTestCase {
 
     public void testPrimaryTermOutOfRange() {
         final long primaryTerm = randomLongBetween(Long.MIN_VALUE, 0);

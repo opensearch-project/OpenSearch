@@ -22,7 +22,7 @@ package org.opensearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,7 +33,7 @@ import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
+public abstract class AbstractStringProcessorTestCase<T> extends OpenSearchTestCase {
 
     protected abstract AbstractStringProcessor<T> newProcessor(String field, boolean ignoreMissing, String targetField);
 

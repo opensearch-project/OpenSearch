@@ -28,7 +28,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.node.Node;
@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.apache.lucene.util.LuceneTestCase.random;
-import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.opensearch.test.OpenSearchTestCase.randomInt;
 
 public class FakeThreadPoolMasterService extends MasterService {
     private static final Logger logger = LogManager.getLogger(FakeThreadPoolMasterService.class);
@@ -62,7 +62,7 @@ public class FakeThreadPoolMasterService extends MasterService {
 
     @Override
     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-        return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 1, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(name),
+        return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 1, TimeUnit.SECONDS, OpenSearchExecutors.daemonThreadFactory(name),
             null, null) {
 
             @Override

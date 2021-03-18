@@ -30,16 +30,16 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import java.util.Collection;
 import java.util.Map;
 
-import static org.elasticsearch.index.MapperTestUtils.assertConflicts;
+import static org.opensearch.index.MapperTestUtils.assertConflicts;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SourceFieldMapperTests extends ESSingleNodeTestCase {
+public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

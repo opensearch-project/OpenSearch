@@ -19,7 +19,7 @@
 
 package org.opensearch.dissect;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.CoreMatchers;
 
 import java.util.EnumSet;
@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class DissectKeyTests extends ESTestCase {
+public class DissectKeyTests extends OpenSearchTestCase {
 
     public void testNoModifier() {
         String keyName = randomAlphaOfLengthBetween(1, 10);

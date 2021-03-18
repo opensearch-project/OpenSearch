@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class DiscoveryNodesTests extends ESTestCase {
+public class DiscoveryNodesTests extends OpenSearchTestCase {
 
     public void testResolveNodeByIdOrName() {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();

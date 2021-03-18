@@ -22,9 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
-public class LegacyTypeFieldMapperTests extends ESSingleNodeTestCase {
+public class LegacyTypeFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

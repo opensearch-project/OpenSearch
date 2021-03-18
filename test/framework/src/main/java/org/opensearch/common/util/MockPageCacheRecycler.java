@@ -22,7 +22,6 @@ package org.opensearch.common.util;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.common.recycler.Recycler.V;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.set.Sets;
 
 import java.lang.reflect.Array;
@@ -34,7 +33,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.elasticsearch.test.ESTestCase.waitUntil;
+import static org.opensearch.test.OpenSearchTestCase.waitUntil;
 
 public class MockPageCacheRecycler extends PageCacheRecycler {
 

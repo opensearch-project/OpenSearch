@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class XContentHelperTests extends ESTestCase {
+public class XContentHelperTests extends OpenSearchTestCase {
 
     Map<String, Object> getMap(Object... keyValues) {
         Map<String, Object> map = new HashMap<>();

@@ -32,7 +32,7 @@ import org.opensearch.geometry.MultiPolygon;
 import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
+import static org.opensearch.test.OpenSearchTestCase.randomValueOtherThanMany;
 
 public class GeometryTestUtils {
 
@@ -53,15 +53,15 @@ public class GeometryTestUtils {
     }
 
     public static double randomAlt() {
-        return ESTestCase.randomDouble();
+        return OpenSearchTestCase.randomDouble();
     }
 
     public static Circle randomCircle(boolean hasAlt) {
         if (hasAlt) {
-            return new Circle(randomLon(), randomLat(), ESTestCase.randomDouble(),
-                ESTestCase.randomDoubleBetween(0, 100, false));
+            return new Circle(randomLon(), randomLat(), OpenSearchTestCase.randomDouble(),
+                OpenSearchTestCase.randomDoubleBetween(0, 100, false));
         } else {
-            return new Circle(randomLon(), randomLat(), ESTestCase.randomDoubleBetween(0, 100, false));
+            return new Circle(randomLon(), randomLat(), OpenSearchTestCase.randomDoubleBetween(0, 100, false));
         }
     }
 
@@ -86,7 +86,7 @@ public class GeometryTestUtils {
     }
 
     public static Point randomPoint() {
-        return randomPoint(ESTestCase.randomBoolean());
+        return randomPoint(OpenSearchTestCase.randomBoolean());
     }
 
     public static Point randomPoint(boolean hasAlt) {
@@ -145,7 +145,7 @@ public class GeometryTestUtils {
     }
 
     public static MultiPoint randomMultiPoint(boolean hasAlt) {
-        int size = ESTestCase.randomIntBetween(3, 10);
+        int size = OpenSearchTestCase.randomIntBetween(3, 10);
         List<Point> points = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             points.add(randomPoint(hasAlt));
@@ -154,7 +154,7 @@ public class GeometryTestUtils {
     }
 
     public static MultiLine randomMultiLine(boolean hasAlt) {
-        int size = ESTestCase.randomIntBetween(3, 10);
+        int size = OpenSearchTestCase.randomIntBetween(3, 10);
         List<Line> lines = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             lines.add(randomLine(hasAlt));
@@ -163,7 +163,7 @@ public class GeometryTestUtils {
     }
 
     public static MultiPolygon randomMultiPolygon(boolean hasAlt) {
-        int size = ESTestCase.randomIntBetween(3, 10);
+        int size = OpenSearchTestCase.randomIntBetween(3, 10);
         List<Polygon> polygons = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             polygons.add(randomPolygon(hasAlt));
@@ -176,7 +176,7 @@ public class GeometryTestUtils {
     }
 
     private static GeometryCollection<Geometry> randomGeometryCollection(int level, boolean hasAlt) {
-        int size = ESTestCase.randomIntBetween(1, 10);
+        int size = OpenSearchTestCase.randomIntBetween(1, 10);
         List<Geometry> shapes = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             shapes.add(randomGeometry(level, hasAlt));
@@ -189,7 +189,7 @@ public class GeometryTestUtils {
     }
 
     protected static Geometry randomGeometry(int level, boolean hasAlt) {
-        @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
+        @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = OpenSearchTestCase.randomFrom(
             GeometryTestUtils::randomCircle,
             GeometryTestUtils::randomLine,
             GeometryTestUtils::randomPoint,

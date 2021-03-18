@@ -30,9 +30,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -41,7 +41,7 @@ import java.util.Arrays;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
+public class NGramTokenizerFactoryTests extends OpenSearchTokenStreamTestCase {
     public void testParseTokenChars() {
         final Index index = new Index("test", "_na_");
         final String name = "ngr";

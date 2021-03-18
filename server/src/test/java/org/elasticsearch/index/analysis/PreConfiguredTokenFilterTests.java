@@ -25,13 +25,13 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 
-public class PreConfiguredTokenFilterTests extends ESTestCase {
+public class PreConfiguredTokenFilterTests extends OpenSearchTestCase {
 
     private final Settings emptyNodeSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())

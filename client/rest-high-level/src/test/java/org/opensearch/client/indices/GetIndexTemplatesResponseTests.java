@@ -34,7 +34,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -49,12 +49,12 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
-import static org.elasticsearch.index.RandomCreateIndexGenerator.randomMappingFields;
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.opensearch.index.RandomCreateIndexGenerator.randomIndexSettings;
+import static org.opensearch.index.RandomCreateIndexGenerator.randomMappingFields;
+import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GetIndexTemplatesResponseTests extends ESTestCase {
+public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
 
     static final String mappingString = "{\"properties\":{\"f1\": {\"type\":\"text\"},\"f2\": {\"type\":\"keyword\"}}}";
 

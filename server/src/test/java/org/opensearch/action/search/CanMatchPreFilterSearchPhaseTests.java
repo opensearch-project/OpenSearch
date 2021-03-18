@@ -26,7 +26,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.Strings;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
@@ -93,7 +93,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+            Collections.emptyMap(), Collections.emptyMap(), OpenSearchExecutors.newDirectExecutorService(),
             searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
             (iter) -> new SearchPhase("test") {
                     @Override
@@ -161,7 +161,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+            Collections.emptyMap(), Collections.emptyMap(), OpenSearchExecutors.newDirectExecutorService(),
             searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
             (iter) -> new SearchPhase("test") {
                 @Override
@@ -224,7 +224,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(),
             Collections.emptyMap(),
-            EsExecutors.newDirectExecutorService(),
+            OpenSearchExecutors.newDirectExecutorService(),
             searchRequest,
             null,
             shardsIter,
@@ -328,7 +328,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-                Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+                Collections.emptyMap(), Collections.emptyMap(), OpenSearchExecutors.newDirectExecutorService(),
                 searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
                 (iter) -> new SearchPhase("test") {
                     @Override
@@ -405,7 +405,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-                Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+                Collections.emptyMap(), Collections.emptyMap(), OpenSearchExecutors.newDirectExecutorService(),
                 searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
                 (iter) -> new SearchPhase("test") {
                     @Override

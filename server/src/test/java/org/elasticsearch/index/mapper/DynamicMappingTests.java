@@ -23,6 +23,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.mapper.MapperServiceTestCase;
 
 import java.io.IOException;
 import java.time.Instant;

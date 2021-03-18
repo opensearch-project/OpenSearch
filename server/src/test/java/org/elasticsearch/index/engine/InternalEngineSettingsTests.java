@@ -23,13 +23,13 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.EngineAccess;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
-public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
+public class InternalEngineSettingsTests extends OpenSearchSingleNodeTestCase {
 
     public void testSettingsUpdate() {
         final IndexService service = createIndex("foo");

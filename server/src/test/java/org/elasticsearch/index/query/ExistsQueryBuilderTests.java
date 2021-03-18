@@ -28,7 +28,7 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.Version;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

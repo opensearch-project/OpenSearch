@@ -59,7 +59,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -78,7 +78,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SliceBuilderTests extends ESTestCase {
+public class SliceBuilderTests extends OpenSearchTestCase {
     private static final int MAX_SLICE = 20;
 
     private static SliceBuilder randomSliceBuilder() {

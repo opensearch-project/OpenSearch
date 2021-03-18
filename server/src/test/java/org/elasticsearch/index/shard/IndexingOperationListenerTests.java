@@ -25,7 +25,7 @@ import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.is;
 
-public class IndexingOperationListenerTests extends ESTestCase{
+public class IndexingOperationListenerTests extends OpenSearchTestCase {
 
     // this test also tests if calls are correct if one or more listeners throw exceptions
     public void testListenersAreExecuted() {

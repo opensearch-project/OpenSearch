@@ -40,9 +40,9 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.NotEqualMessageBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,10 +69,10 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     @Override
     protected InternalTopHits createTestInstance(String name, Map<String, Object> metadata) {
         if (randomBoolean()) {
-            return createTestInstanceSortedByFields(name, between(1, 40), metadata, ESTestCase::randomFloat,
+            return createTestInstanceSortedByFields(name, between(1, 40), metadata, OpenSearchTestCase::randomFloat,
                 randomSortFields(), InternalTopHitsTests::randomOfType);
         }
-        return createTestInstanceSortedScore(name, between(1, 40), metadata, ESTestCase::randomFloat);
+        return createTestInstanceSortedScore(name, between(1, 40), metadata, OpenSearchTestCase::randomFloat);
     }
 
     @Override
@@ -83,7 +83,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
          */
         Set<Float> usedScores = new HashSet<>();
         Supplier<Float> scoreSupplier = () -> {
-            float score = randomValueOtherThanMany(usedScores::contains, ESTestCase::randomFloat);
+            float score = randomValueOtherThanMany(usedScores::contains, OpenSearchTestCase::randomFloat);
             usedScores.add(score);
             return score;
         };

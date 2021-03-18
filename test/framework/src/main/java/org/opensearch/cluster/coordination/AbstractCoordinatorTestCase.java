@@ -70,9 +70,9 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.disruption.DisruptableMockTransport;
-import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.disruption.DisruptableMockTransport;
+import org.opensearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportInterceptor;
@@ -145,7 +145,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class AbstractCoordinatorTestCase extends ESTestCase {
+public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
 
     protected final List<NodeEnvironment> nodeEnvironments = new ArrayList<>();
     protected final Set<Cluster.MockPersistedState> openPersistedStates = new HashSet<>();

@@ -21,7 +21,7 @@ package org.opensearch.http;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.Netty4Plugin;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.opensearch.transport.nio.NioTransportPlugin;
@@ -30,7 +30,7 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.Collection;
 
-public abstract class HttpSmokeTestCase extends ESIntegTestCase {
+public abstract class HttpSmokeTestCase extends OpenSearchIntegTestCase {
 
     private static String nodeTransportTypeKey;
     private static String nodeHttpTypeKey;

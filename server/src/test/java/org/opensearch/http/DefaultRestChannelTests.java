@@ -227,7 +227,7 @@ public class DefaultRestChannelTests extends OpenSearchTestCase {
         } else {
             listener.onFailure(new ClosedChannelException());
         }
-        // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
+        // OpenSearchTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
     }
 
     @SuppressWarnings("unchecked")
@@ -290,7 +290,7 @@ public class DefaultRestChannelTests extends OpenSearchTestCase {
             HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext(), CorsHandler.fromSettings(Settings.EMPTY),
             null);
 
-        // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
+        // OpenSearchTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         final ByteArray byteArray = bigArrays.newByteArray(0, false);
         final BytesReference content = new ReleasableBytesReference(BytesReference.fromByteArray(byteArray, 0) , byteArray);
@@ -328,7 +328,7 @@ public class DefaultRestChannelTests extends OpenSearchTestCase {
             HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext(), CorsHandler.fromSettings(Settings.EMPTY),
             null);
 
-        // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
+        // OpenSearchTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         final ByteArray byteArray = bigArrays.newByteArray(0, false);
         final BytesReference content = new ReleasableBytesReference(BytesReference.fromByteArray(byteArray, 0) , byteArray);

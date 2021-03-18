@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.process;
 
 import org.apache.lucene.util.Constants;
 import org.opensearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.elasticsearch.monitor.jvm.JvmInfo.jvmInfo;
 import static org.hamcrest.Matchers.allOf;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ProcessProbeTests extends ESTestCase {
+public class ProcessProbeTests extends OpenSearchTestCase {
     private final ProcessProbe probe = ProcessProbe.getInstance();
 
     public void testProcessInfo() {

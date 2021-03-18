@@ -21,7 +21,7 @@ package org.opensearch.common.xcontent.support.filtering;
 
 import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Set;
 
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class FilterPathTests extends ESTestCase {
+public class FilterPathTests extends OpenSearchTestCase {
 
     public void testSimpleFilterPath() {
         final String input = "test";

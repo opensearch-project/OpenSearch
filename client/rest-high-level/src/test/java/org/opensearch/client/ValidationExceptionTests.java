@@ -19,14 +19,14 @@
 
 package org.opensearch.client;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 
-public class ValidationExceptionTests extends ESTestCase {
+public class ValidationExceptionTests extends OpenSearchTestCase {
 
     private static final String ERROR = "some-error";
     private static final String OTHER_ERROR = "some-other-error";

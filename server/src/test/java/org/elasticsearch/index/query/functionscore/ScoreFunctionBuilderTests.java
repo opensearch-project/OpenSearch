@@ -29,10 +29,10 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.Mockito;
 
-public class ScoreFunctionBuilderTests extends ESTestCase {
+public class ScoreFunctionBuilderTests extends OpenSearchTestCase {
 
     public void testIllegalArguments() {
         expectThrows(IllegalArgumentException.class, () -> new RandomScoreFunctionBuilder().seed(null));

@@ -37,7 +37,7 @@ import org.opensearch.search.collapse.CollapseBuilderTests;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.opensearch.search.rescore.QueryRescorerBuilderTests;
 import org.opensearch.search.suggest.SuggestBuilderTests;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +51,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public abstract class AbstractSearchTestCase extends ESTestCase {
+public abstract class AbstractSearchTestCase extends OpenSearchTestCase {
 
     protected NamedWriteableRegistry namedWriteableRegistry;
     private TestSearchExtPlugin searchExtPlugin;

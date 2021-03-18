@@ -24,8 +24,8 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;

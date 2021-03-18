@@ -30,19 +30,19 @@ import org.opensearch.plugin.repository.url.URLRepositoryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class URLSnapshotRestoreIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class URLSnapshotRestoreIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

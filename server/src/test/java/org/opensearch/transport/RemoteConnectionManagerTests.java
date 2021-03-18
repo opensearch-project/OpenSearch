@@ -24,7 +24,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
 import java.util.HashSet;
@@ -36,7 +36,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-public class RemoteConnectionManagerTests extends ESTestCase {
+public class RemoteConnectionManagerTests extends OpenSearchTestCase {
 
     private Transport transport;
     private RemoteConnectionManager remoteConnectionManager;

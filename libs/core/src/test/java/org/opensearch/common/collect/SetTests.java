@@ -19,14 +19,14 @@
 
 package org.opensearch.common.collect;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SetTests extends ESTestCase {
+public class SetTests extends OpenSearchTestCase {
 
     public void testStringSetOfZero() {
         final String[] strings = {};

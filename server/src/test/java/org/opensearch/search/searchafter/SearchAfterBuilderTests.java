@@ -39,18 +39,18 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Collections;
 
 import static org.opensearch.search.searchafter.SearchAfterBuilder.extractSortType;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchAfterBuilderTests extends ESTestCase {
+public class SearchAfterBuilderTests extends OpenSearchTestCase {
     private static final int NUMBER_OF_TESTBUILDERS = 20;
 
     private static SearchAfterBuilder randomSearchAfterBuilder() throws IOException {

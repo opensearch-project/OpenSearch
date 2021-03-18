@@ -20,11 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class QueryShardExceptionTests extends ESTestCase {
+public class QueryShardExceptionTests extends OpenSearchTestCase {
 
     public void testCreateFromQueryShardContext() {
         String indexUuid = randomAlphaOfLengthBetween(5, 10);

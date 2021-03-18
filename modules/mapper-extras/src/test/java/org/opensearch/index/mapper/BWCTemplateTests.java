@@ -21,17 +21,17 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collection;
 
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;
 
 /**
  * Rudimentary tests that the templates used by Logstash and Beats
  * prior to their 5.x releases work for newly created indices
  */
-public class BWCTemplateTests extends ESSingleNodeTestCase {
+public class BWCTemplateTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(MapperExtrasPlugin.class);

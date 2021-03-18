@@ -23,14 +23,14 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for the circuit breaker
  */
-public class CircuitBreakerUnitTests extends ESTestCase {
+public class CircuitBreakerUnitTests extends OpenSearchTestCase {
     public static long pctBytes(String percentString) {
         return Settings.EMPTY.getAsMemory("", percentString).getBytes();
     }

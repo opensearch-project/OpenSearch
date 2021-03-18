@@ -27,13 +27,13 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IndexFieldTypeTests extends ESTestCase {
+public class IndexFieldTypeTests extends OpenSearchTestCase {
 
     public void testPrefixQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;

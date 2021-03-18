@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;

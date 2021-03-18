@@ -19,14 +19,13 @@
 
 package org.opensearch.common.xcontent;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SuggestingErrorOnUnknownTests extends ESTestCase {
+public class SuggestingErrorOnUnknownTests extends OpenSearchTestCase {
     private String errorMessage(String unknownField, String... candidates) {
         return new SuggestingErrorOnUnknown().errorMessage("test", unknownField, Arrays.asList(candidates));
     }

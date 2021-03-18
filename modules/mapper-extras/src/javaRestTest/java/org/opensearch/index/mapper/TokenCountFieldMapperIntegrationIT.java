@@ -32,7 +32,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
+public class TokenCountFieldMapperIntegrationIT extends OpenSearchIntegTestCase {
     @ParametersFactory
     public static Iterable<Object[]> buildParameters() {
         List<Object[]> parameters = new ArrayList<>();

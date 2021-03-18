@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 
-public class SlowLogLevelTests extends ESTestCase {
+public class SlowLogLevelTests extends OpenSearchTestCase {
 
     public void testTracePrecedence() {
         assertTrue(SlowLogLevel.TRACE.isLevelEnabledFor(SlowLogLevel.TRACE));

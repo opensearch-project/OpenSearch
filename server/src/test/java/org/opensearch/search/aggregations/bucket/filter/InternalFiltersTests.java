@@ -26,7 +26,7 @@ import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilters.InternalBucket;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;

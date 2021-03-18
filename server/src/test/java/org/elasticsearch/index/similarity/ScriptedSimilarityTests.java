@@ -43,13 +43,13 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.opensearch.script.SimilarityScript;
 import org.opensearch.script.SimilarityWeightScript;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ScriptedSimilarityTests extends ESTestCase {
+public class ScriptedSimilarityTests extends OpenSearchTestCase {
 
     public void testSameNormsAsBM25CountOverlaps() {
         doTestSameNormsAsBM25(false);

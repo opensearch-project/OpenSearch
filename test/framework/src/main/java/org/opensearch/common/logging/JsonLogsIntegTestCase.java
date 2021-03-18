@@ -20,7 +20,7 @@
 package org.opensearch.common.logging;
 
 import org.opensearch.common.SuppressForbidden;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.not;
  * Note that this won't pass for nodes in clusters that don't have the node name defined in elasticsearch.yml <strong>and</strong> start
  * with DEBUG or TRACE level logging. Those nodes log a few lines before the node.name is set by <code>LogConfigurator.setNodeName</code>.
  */
-public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
+public abstract class JsonLogsIntegTestCase extends OpenSearchRestTestCase {
     /**
      * Number of lines in the log file to check for the <code>node.name</code>, <code>node.id</code> or <code>cluster.uuid</code>. We don't
      * just check the entire log file because it could be quite long

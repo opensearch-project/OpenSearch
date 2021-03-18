@@ -31,12 +31,12 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.util.Collections;
 
-public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
+public class ScriptedConditionTokenFilterTests extends OpenSearchTokenStreamTestCase {
 
     public void testSimpleCondition() throws Exception {
         Settings settings = Settings.builder()

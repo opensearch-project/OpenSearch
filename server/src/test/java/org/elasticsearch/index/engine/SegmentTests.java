@@ -28,13 +28,13 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class SegmentTests extends ESTestCase {
+public class SegmentTests extends OpenSearchTestCase {
     static SortField randomSortField() {
         if (randomBoolean()) {
             SortedNumericSortField field =

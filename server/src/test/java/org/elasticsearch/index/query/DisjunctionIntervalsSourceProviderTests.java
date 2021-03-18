@@ -23,7 +23,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.List;

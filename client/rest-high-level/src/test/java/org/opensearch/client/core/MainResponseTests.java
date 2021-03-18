@@ -25,7 +25,7 @@ import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Date;

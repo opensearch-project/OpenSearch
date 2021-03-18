@@ -42,7 +42,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

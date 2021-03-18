@@ -24,8 +24,8 @@ import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAlias;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.opensearch.index.RandomCreateIndexGenerator.randomAlias;
+import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
 
 public class RandomCreateIndexGenerator {
 
@@ -41,7 +41,7 @@ public class RandomCreateIndexGenerator {
             // Because client requests only accept typeless mappings, we must swap out the
             // mapping definition for one that does not contain types.
             org.opensearch.action.admin.indices.create.CreateIndexRequest serverRequest =
-                org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
+                org.opensearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
             return new CreateIndexRequest(serverRequest.index())
                 .settings(serverRequest.settings())
                 .aliases(serverRequest.aliases())
@@ -57,7 +57,7 @@ public class RandomCreateIndexGenerator {
     public static XContentBuilder randomMapping() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        org.elasticsearch.index.RandomCreateIndexGenerator.randomMappingFields(builder, true);
+        org.opensearch.index.RandomCreateIndexGenerator.randomMappingFields(builder, true);
         builder.endObject();
         return builder;
     }

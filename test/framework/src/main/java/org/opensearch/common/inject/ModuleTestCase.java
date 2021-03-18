@@ -22,7 +22,7 @@ import org.opensearch.common.inject.spi.Element;
 import org.opensearch.common.inject.spi.Elements;
 import org.opensearch.common.inject.spi.InstanceBinding;
 import org.opensearch.common.inject.spi.ProviderInstanceBinding;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.annotation.Annotation;
 import java.util.List;
@@ -31,7 +31,7 @@ import java.util.function.Predicate;
 /**
  * Base testcase for testing {@link Module} implementations.
  */
-public abstract class ModuleTestCase extends ESTestCase {
+public abstract class ModuleTestCase extends OpenSearchTestCase {
     /**
      * Configures the module, and ensures an instance is bound to the "to" class, and the
      * provided tester returns true on the instance.

@@ -33,13 +33,6 @@ import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.nio.entity.NStringEntity;
-import org.opensearch.client.Cancellable;
-import org.opensearch.client.Request;
-import org.opensearch.client.RequestOptions;
-import org.opensearch.client.Response;
-import org.opensearch.client.ResponseException;
-import org.opensearch.client.ResponseListener;
-import org.opensearch.client.RestClient;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
@@ -77,10 +70,10 @@ import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.opensearch.search.suggest.Suggest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
+import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -112,7 +105,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RestHighLevelClientTests extends ESTestCase {
+public class RestHighLevelClientTests extends OpenSearchTestCase {
 
     private static final String SUBMIT_TASK_PREFIX = "submit_";
     private static final String SUBMIT_TASK_SUFFIX = "_task";

@@ -28,11 +28,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.Version;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
-public class QueriesTests extends ESTestCase {
+public class QueriesTests extends OpenSearchTestCase {
 
     public void testNonNestedQuery() {
         for (Version version : VersionUtils.allVersions()) {

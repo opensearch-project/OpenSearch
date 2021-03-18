@@ -116,7 +116,7 @@ import org.opensearch.common.unit.ByteSizeValue;
  */
 
 public final class MergePolicyConfig {
-    private final EsTieredMergePolicy mergePolicy = new EsTieredMergePolicy();
+    private final OpenSearchTieredMergePolicy mergePolicy = new OpenSearchTieredMergePolicy();
     private final Logger logger;
     private final boolean mergesEnabled;
 

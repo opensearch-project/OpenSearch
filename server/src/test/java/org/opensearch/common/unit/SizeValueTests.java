@@ -18,14 +18,12 @@
  */
 package org.opensearch.common.unit;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.unit.SizeUnit;
-import org.opensearch.common.unit.SizeValue;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class SizeValueTests extends ESTestCase {
+public class SizeValueTests extends OpenSearchTestCase {
     public void testThatConversionWorks() {
         SizeValue sizeValue = new SizeValue(1000);
         assertThat(sizeValue.kilo(), is(1L));
@@ -77,7 +75,7 @@ public class SizeValueTests extends ESTestCase {
 
     public void testCompareValue() {
         long firstRandom = randomNonNegativeLong();
-        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomNonNegativeLong);
+        long secondRandom = randomValueOtherThan(firstRandom, OpenSearchTestCase::randomNonNegativeLong);
         SizeUnit unit = randomFrom(SizeUnit.values());
         SizeValue firstSizeValue = new SizeValue(firstRandom, unit);
         SizeValue secondSizeValue = new SizeValue(secondRandom, unit);

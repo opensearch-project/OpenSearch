@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.hamcrest.Matchers;
 import org.opensearch.cluster.routing.PlainShardIterator;
 
@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class PlainShardIteratorTests extends ESTestCase {
+public class PlainShardIteratorTests extends OpenSearchTestCase {
 
     public void testEqualsAndHashCode() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomPlainShardIterator(),

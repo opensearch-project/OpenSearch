@@ -37,7 +37,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoryShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,7 +48,7 @@ import java.util.stream.StreamSupport;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.is;
 
-public class SnapshotsServiceTests extends ESTestCase {
+public class SnapshotsServiceTests extends OpenSearchTestCase {
 
     public void testNoopShardStateUpdates() throws Exception {
         final String repoName = "test-repo";

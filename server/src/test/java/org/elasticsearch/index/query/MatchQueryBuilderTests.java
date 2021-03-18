@@ -50,7 +50,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;

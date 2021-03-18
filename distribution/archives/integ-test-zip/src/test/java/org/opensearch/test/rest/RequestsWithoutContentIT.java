@@ -19,7 +19,6 @@
 
 package org.opensearch.test.rest;
 
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.Request;
 
@@ -27,7 +26,7 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class RequestsWithoutContentIT extends ESRestTestCase {
+public class RequestsWithoutContentIT extends OpenSearchRestTestCase {
 
     public void testIndexMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () ->

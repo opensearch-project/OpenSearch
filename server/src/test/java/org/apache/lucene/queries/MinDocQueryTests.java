@@ -27,11 +27,11 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.store.Directory;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class MinDocQueryTests extends ESTestCase {
+public class MinDocQueryTests extends OpenSearchTestCase {
 
     public void testBasics() {
         MinDocQuery query1 = new MinDocQuery(42);

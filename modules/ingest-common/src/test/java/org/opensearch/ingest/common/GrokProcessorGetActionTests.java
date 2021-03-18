@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class GrokProcessorGetActionTests extends ESTestCase {
+public class GrokProcessorGetActionTests extends OpenSearchTestCase {
     private static final Map<String, String> TEST_PATTERNS =
         org.elasticsearch.common.collect.Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
 

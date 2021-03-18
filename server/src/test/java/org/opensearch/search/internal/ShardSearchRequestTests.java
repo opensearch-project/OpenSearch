@@ -41,7 +41,7 @@ import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.opensearch.search.AbstractSearchTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.search.SearchSortValuesAndFormatsTests;
 
 import java.io.IOException;

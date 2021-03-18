@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -44,7 +44,7 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DiscoveryNodeFiltersTests extends ESTestCase {
+public class DiscoveryNodeFiltersTests extends OpenSearchTestCase {
 
     private static TransportAddress localAddress;
 

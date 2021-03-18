@@ -36,7 +36,7 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class Netty4BadRequestTests extends ESTestCase {
+public class Netty4BadRequestTests extends OpenSearchTestCase {
 
     private NetworkService networkService;
     private MockBigArrays bigArrays;

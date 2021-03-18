@@ -25,11 +25,11 @@ import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class IntervalBuilderTests extends ESTestCase {
+public class IntervalBuilderTests extends OpenSearchTestCase {
 
     private static final IntervalBuilder BUILDER = new IntervalBuilder("field1", new StandardAnalyzer());
 

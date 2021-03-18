@@ -24,13 +24,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 import org.junit.BeforeClass;
 
 //TODO: This is a *temporary* workaround to ensure a timeout does not mask other problems
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
-public class Netty4ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class Netty4ClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
     @BeforeClass
     public static void muteInFips() {
         assumeFalse("We run with DEFAULT distribution in FIPS mode and default to security4 instead of netty4", inFipsJvm());
@@ -41,7 +41,7 @@ public class Netty4ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 
 }

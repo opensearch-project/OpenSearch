@@ -26,7 +26,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RoutingNodeTests extends ESTestCase {
+public class RoutingNodeTests extends OpenSearchTestCase {
     private ShardRouting unassignedShard0 =
         TestShardRouting.newShardRouting("test", 0, "node-1", false, ShardRoutingState.STARTED);
     private ShardRouting initializingShard0 =

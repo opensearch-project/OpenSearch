@@ -21,16 +21,16 @@ package org.elasticsearch.cluster.metadata;
 
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.opensearch.test.VersionUtils.randomVersion;
 
-public class HumanReadableIndexSettingsTests extends ESTestCase {
+public class HumanReadableIndexSettingsTests extends OpenSearchTestCase {
     public void testHumanReadableSettings() {
         Version versionCreated = randomVersion(random());
         Version versionUpgraded = randomVersion(random());

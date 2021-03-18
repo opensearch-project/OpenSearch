@@ -44,7 +44,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class PercolateQueryTests extends ESTestCase {
+public class PercolateQueryTests extends OpenSearchTestCase {
 
     private Directory directory;
     private IndexWriter indexWriter;

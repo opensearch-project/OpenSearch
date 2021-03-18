@@ -30,8 +30,8 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.ArrayList;
 import java.util.Collection;

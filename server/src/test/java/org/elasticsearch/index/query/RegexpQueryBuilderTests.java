@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

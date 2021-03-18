@@ -24,12 +24,12 @@ import java.util.Map;
 
 import joptsimple.internal.Strings;
 import org.apache.http.Header;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 /**
  * A test case with access to internals of a RestClient.
  */
-public abstract class RestClientBuilderTestCase extends ESTestCase {
+public abstract class RestClientBuilderTestCase extends OpenSearchTestCase {
     /** Checks the given rest client has the provided default headers. */
     public void assertHeaders(RestClient client, Map<String, String> expectedHeaders) {
         expectedHeaders = new HashMap<>(expectedHeaders); // copy so we can remove as we check

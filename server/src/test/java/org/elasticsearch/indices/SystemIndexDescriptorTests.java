@@ -19,11 +19,11 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class SystemIndexDescriptorTests extends ESTestCase {
+public class SystemIndexDescriptorTests extends OpenSearchTestCase {
 
     public void testValidation() {
         {

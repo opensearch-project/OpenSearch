@@ -33,7 +33,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,11 +41,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class MeanReciprocalRankTests extends ESTestCase {
+public class MeanReciprocalRankTests extends OpenSearchTestCase {
 
     private static final int IRRELEVANT_RATING_0 = 0;
     private static final int RELEVANT_RATING_1 = 1;
@@ -216,7 +216,7 @@ public class MeanReciprocalRankTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         MeanReciprocalRank original = createTestItem();
-        MeanReciprocalRank deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
+        MeanReciprocalRank deserialized = OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
                 MeanReciprocalRank::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());

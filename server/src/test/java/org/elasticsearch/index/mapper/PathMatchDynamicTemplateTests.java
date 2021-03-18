@@ -24,13 +24,13 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PathMatchDynamicTemplateTests extends ESSingleNodeTestCase {
+public class PathMatchDynamicTemplateTests extends OpenSearchSingleNodeTestCase {
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
         IndexService index = createIndex("test");

@@ -30,7 +30,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Path;

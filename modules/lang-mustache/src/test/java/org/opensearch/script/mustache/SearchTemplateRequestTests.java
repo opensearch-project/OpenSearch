@@ -23,7 +23,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.RandomSearchRequestGenerator;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

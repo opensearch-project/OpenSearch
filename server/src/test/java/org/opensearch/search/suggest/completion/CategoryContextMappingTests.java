@@ -50,7 +50,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.opensearch.search.suggest.completion.context.CategoryContextMapping;
 import org.opensearch.search.suggest.completion.context.ContextBuilder;
 import org.opensearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.List;
 import java.util.Set;
@@ -59,7 +59,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CategoryContextMappingTests extends ESSingleNodeTestCase {
+public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexingWithNoContexts() throws Exception {
         String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")

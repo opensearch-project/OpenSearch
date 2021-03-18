@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
+import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 

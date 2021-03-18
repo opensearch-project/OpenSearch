@@ -23,12 +23,12 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 
-public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTestCase {
+public abstract class QueryContextTestCase<QC extends ToXContent> extends OpenSearchTestCase {
     private static final int NUMBER_OF_RUNS = 20;
 
     /**

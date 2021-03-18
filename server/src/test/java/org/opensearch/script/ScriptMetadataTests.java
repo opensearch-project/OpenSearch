@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

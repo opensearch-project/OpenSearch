@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.collect.EvictingQueue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MovAvgUnitTests extends ESTestCase {
+public class MovAvgUnitTests extends OpenSearchTestCase {
     public void testSimpleMovAvgModel() {
         MovAvgModel model = new SimpleModel();
 

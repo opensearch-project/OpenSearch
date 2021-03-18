@@ -22,11 +22,11 @@ package org.elasticsearch.index.query;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CombineFunctionTests extends ESTestCase {
+public class CombineFunctionTests extends OpenSearchTestCase {
 
     public void testValidOrdinals() {
         assertThat(CombineFunction.MULTIPLY.ordinal(), equalTo(0));

@@ -32,9 +32,9 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.opensearch.rest.action.document.RestIndexAction.CreateHandler;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.test.rest.RestActionTestCase;
+import org.opensearch.test.VersionUtils;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicReference;

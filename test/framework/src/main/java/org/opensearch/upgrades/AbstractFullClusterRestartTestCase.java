@@ -25,7 +25,7 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.Map;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase {
+public abstract class AbstractFullClusterRestartTestCase extends OpenSearchRestTestCase {
 
     private static final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
 

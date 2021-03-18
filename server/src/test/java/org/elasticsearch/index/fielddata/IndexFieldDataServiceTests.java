@@ -48,9 +48,9 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.mockito.Matchers;
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
+public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

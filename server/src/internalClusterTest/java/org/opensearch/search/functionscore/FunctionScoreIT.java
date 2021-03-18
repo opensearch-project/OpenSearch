@@ -32,7 +32,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -132,8 +132,8 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
     }
 
     public void testMinScoreFunctionScoreBasic() throws IOException {
-        float score = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, ESTestCase::randomFloat);
-        float minScore = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, ESTestCase::randomFloat);
+        float score = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, OpenSearchTestCase::randomFloat);
+        float minScore = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, OpenSearchTestCase::randomFloat);
         index(INDEX, TYPE, jsonBuilder().startObject()
             .field("num", 2)
             .field("random_score", score) // Pass the random score as a document field so that it can be extracted in the script

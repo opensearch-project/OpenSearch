@@ -48,7 +48,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.internal.net.NetUtils;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
@@ -79,7 +79,7 @@ public class Netty4Transport extends TcpTransport {
 
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
-            (s) -> Integer.toString(EsExecutors.allocatedProcessors(s)),
+            (s) -> Integer.toString(OpenSearchExecutors.allocatedProcessors(s)),
             (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope);
 
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
@@ -104,7 +104,7 @@ public class Netty4Transport extends TcpTransport {
                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                            CircuitBreakerService circuitBreakerService, SharedGroupFactory sharedGroupFactory) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
-        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
+        Netty4Utils.setAvailableProcessors(OpenSearchExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
 

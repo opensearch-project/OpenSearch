@@ -23,7 +23,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.script.TemplateScript;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -40,7 +40,7 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class DateProcessorTests extends ESTestCase {
+public class DateProcessorTests extends OpenSearchTestCase {
 
     private TemplateScript.Factory templatize(Locale locale) {
         return new TestTemplateService.MockTemplateScript.Factory(locale.getLanguage());

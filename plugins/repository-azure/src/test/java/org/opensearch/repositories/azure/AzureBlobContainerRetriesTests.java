@@ -83,7 +83,7 @@ import static org.opensearch.repositories.azure.AzureStorageSettings.ENDPOINT_SU
 import static org.opensearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
 import static org.opensearch.repositories.azure.AzureStorageSettings.MAX_RETRIES_SETTING;
 import static org.opensearch.repositories.azure.AzureStorageSettings.TIMEOUT_SETTING;
-import static org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;

@@ -29,8 +29,8 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RestRequestTests extends ESTestCase {
+public class RestRequestTests extends OpenSearchTestCase {
 
     public void testContentConsumesContent() {
         runConsumesContentTest(RestRequest::content, true);

@@ -25,8 +25,8 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 
@@ -34,7 +34,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MetadataIndexUpgradeServiceTests extends ESTestCase {
+public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
 
     public void testArchiveBrokenIndexSettings() {
         MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();

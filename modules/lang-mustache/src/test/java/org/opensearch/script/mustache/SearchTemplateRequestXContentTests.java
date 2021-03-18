@@ -28,14 +28,14 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.nullValue;

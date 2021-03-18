@@ -21,7 +21,7 @@ package org.opensearch.ingest.useragent;
 
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
-public class UserAgentProcessorTests extends ESTestCase {
+public class UserAgentProcessorTests extends OpenSearchTestCase {
 
     private static UserAgentProcessor processor;
 

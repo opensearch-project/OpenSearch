@@ -29,13 +29,13 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SearchIndexNameMatcherTests extends ESTestCase {
+public class SearchIndexNameMatcherTests extends OpenSearchTestCase {
     private SearchIndexNameMatcher matcher;
     private SearchIndexNameMatcher remoteMatcher;
 

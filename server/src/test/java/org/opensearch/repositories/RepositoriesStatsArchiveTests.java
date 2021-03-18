@@ -21,14 +21,14 @@ package org.opensearch.repositories;
 
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RepositoriesStatsArchiveTests extends ESTestCase {
+public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
     public void testStatsAreEvictedOnceTheyAreOlderThanRetentionPeriod() {
         int retentionTimeInMillis = randomIntBetween(100, 1000);
 

@@ -22,7 +22,7 @@ package org.opensearch.index.reindex;
 import org.opensearch.action.search.SearchRequest;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -31,7 +31,7 @@ import static org.opensearch.index.reindex.BulkByScrollParallelizationHelper.sli
 import static org.opensearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.opensearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 
-public class BulkByScrollParallelizationHelperTests extends ESTestCase {
+public class BulkByScrollParallelizationHelperTests extends OpenSearchTestCase {
     public void testSliceIntoSubRequests() throws IOException {
         SearchRequest searchRequest = randomSearchRequest(() -> randomSearchSourceBuilder(
                 () -> null,

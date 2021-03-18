@@ -33,7 +33,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.elasticsearch.mocksocket.MockHttpServer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @SuppressForbidden(reason = "use a http server")
-public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
+public abstract class AbstractBlobContainerRetriesTestCase extends OpenSearchTestCase {
 
     private static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1;
 

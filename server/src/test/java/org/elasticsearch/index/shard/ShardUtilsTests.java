@@ -28,11 +28,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class ShardUtilsTests extends ESTestCase {
+public class ShardUtilsTests extends OpenSearchTestCase {
 
     public void testExtractShardId() throws IOException {
         BaseDirectoryWrapper dir = newDirectory();

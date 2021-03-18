@@ -28,12 +28,12 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 /**
  * Converts {@code %test_thread_info} in log4j patterns into information
  * based on the loggin thread's name. If that thread is part of an
- * {@link ESIntegTestCase} then this information is the node name.
+ * {@link OpenSearchIntegTestCase} then this information is the node name.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "TestInfoPatternConverter")
 @ConverterKeys({"test_thread_info"})

@@ -23,7 +23,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
+public class Netty4HeadBodyIsEmptyIT extends OpenSearchRestTestCase {
     public void testHeadRoot() throws IOException {
         headTestCase("/", emptyMap(), greaterThan(0));
         headTestCase("/", singletonMap("pretty", ""), greaterThan(0));

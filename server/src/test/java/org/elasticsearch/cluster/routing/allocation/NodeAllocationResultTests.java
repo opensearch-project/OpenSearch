@@ -25,7 +25,7 @@ import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
 import org.opensearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -35,7 +35,7 @@ import static java.util.Collections.emptySet;
 /**
  * Unit tests for the {@link NodeAllocationResult} class.
  */
-public class NodeAllocationResultTests extends ESTestCase {
+public class NodeAllocationResultTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);

@@ -27,7 +27,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -36,7 +36,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.containsString;
 
 //TODO: please convert to unit tests!
-public class StoredExpressionIT extends ESIntegTestCase {
+public class StoredExpressionIT extends OpenSearchIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));

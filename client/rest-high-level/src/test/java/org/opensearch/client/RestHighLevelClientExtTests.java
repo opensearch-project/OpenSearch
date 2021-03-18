@@ -26,7 +26,7 @@ import org.elasticsearch.client.RestClient;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.mockito.Mockito.mock;
  * This test works against a {@link RestHighLevelClient} subclass that simulates how custom response sections returned by
  * OpenSearch plugins can be parsed using the high level client.
  */
-public class RestHighLevelClientExtTests extends ESTestCase {
+public class RestHighLevelClientExtTests extends OpenSearchTestCase {
 
     private RestHighLevelClient restHighLevelClient;
 

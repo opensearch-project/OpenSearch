@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.persistent.decider;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class AssignmentDecisionTests extends ESTestCase {
+public class AssignmentDecisionTests extends OpenSearchTestCase {
 
     public void testConstantsTypes() {
         assertEquals(AssignmentDecision.Type.YES, AssignmentDecision.YES.getType());

@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.opensearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeAnalyzer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchAsYouTypeAnalyzerTests extends ESTestCase {
+public class SearchAsYouTypeAnalyzerTests extends OpenSearchTestCase {
 
     private static final Analyzer SIMPLE = new SimpleAnalyzer();
 

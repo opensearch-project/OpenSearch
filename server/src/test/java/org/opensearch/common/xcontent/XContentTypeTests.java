@@ -19,14 +19,14 @@
 package org.opensearch.common.xcontent;
 
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class XContentTypeTests extends ESTestCase {
+public class XContentTypeTests extends OpenSearchTestCase {
 
     public void testFromJson() throws Exception {
         String mediaType = "application/json";

@@ -18,16 +18,14 @@
  */
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.cluster.coordination.DeterministicTaskQueue;
-import org.opensearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.opensearch.common.Priority;
 import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.PrioritizedRunnable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class MockSinglePrioritizingExecutorTests extends ESTestCase {
+public class MockSinglePrioritizingExecutorTests extends OpenSearchTestCase {
 
     public void testPrioritizedEsThreadPoolExecutor() {
         final DeterministicTaskQueue taskQueue = DeterministicTaskQueueTests.newTaskQueue();

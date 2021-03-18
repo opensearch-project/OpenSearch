@@ -20,10 +20,8 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.opensearch.common.util.concurrent.AsyncIOProcessor;
-import org.opensearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,7 +37,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class AsyncIOProcessorTests extends ESTestCase {
+public class AsyncIOProcessorTests extends OpenSearchTestCase {
 
     private ThreadContext threadContext;
 

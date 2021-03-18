@@ -35,8 +35,8 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.junit.Before;
 import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
 import org.opensearch.cluster.coordination.ElectionStrategy;
@@ -56,7 +56,7 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CoordinationStateTests extends ESTestCase {
+public class CoordinationStateTests extends OpenSearchTestCase {
 
     private DiscoveryNode node1;
     private DiscoveryNode node2;

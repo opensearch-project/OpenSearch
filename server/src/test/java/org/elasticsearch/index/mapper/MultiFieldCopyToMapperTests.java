@@ -20,6 +20,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.opensearch.index.mapper.MapperServiceTestCase;
+
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class MultiFieldCopyToMapperTests extends MapperServiceTestCase {

@@ -19,7 +19,7 @@
 
 package org.opensearch.core.internal.io;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -29,7 +29,7 @@ import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StreamsTests extends ESTestCase {
+public class StreamsTests extends OpenSearchTestCase {
     public void testCopyFromInputStream() throws IOException {
         byte[] content = "content".getBytes(StandardCharsets.UTF_8);
         ByteArrayInputStream in = new ByteArrayInputStream(content);

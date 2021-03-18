@@ -844,7 +844,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.indices.IndexTemplateMissingException::new, 57, UNKNOWN_VERSION_ADDED),
         SEND_REQUEST_TRANSPORT_EXCEPTION(org.opensearch.transport.SendRequestTransportException.class,
                 org.opensearch.transport.SendRequestTransportException::new, 58, UNKNOWN_VERSION_ADDED),
-        // 59 used to be EsRejectedExecutionException
+        // 59 used to be OpenSearchRejectedExecutionException
         // 60 used to be for EarlyTerminationException
         // 61 used to be for RoutingValidationException
         NOT_SERIALIZABLE_EXCEPTION_WRAPPER(org.opensearch.common.io.stream.NotSerializableExceptionWrapper.class,

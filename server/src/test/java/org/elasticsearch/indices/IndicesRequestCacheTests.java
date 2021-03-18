@@ -45,13 +45,13 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class IndicesRequestCacheTests extends ESTestCase {
+public class IndicesRequestCacheTests extends OpenSearchTestCase {
 
     public void testBasicOperationsCache() throws Exception {
         ShardRequestCache requestCacheStats = new ShardRequestCache();

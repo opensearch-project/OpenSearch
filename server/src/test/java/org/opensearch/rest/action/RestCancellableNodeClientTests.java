@@ -35,7 +35,7 @@ import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RestCancellableNodeClientTests extends ESTestCase {
+public class RestCancellableNodeClientTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
 

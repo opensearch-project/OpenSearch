@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.HashMap;
@@ -30,7 +30,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ConvertProcessorFactoryTests extends ESTestCase {
+public class ConvertProcessorFactoryTests extends OpenSearchTestCase {
 
     public void testCreate() throws Exception {
         ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
