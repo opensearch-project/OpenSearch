@@ -90,7 +90,7 @@ configurations {
 }
 
 dependencies {
-  oldesFixture project(':test:fixtures:old-opensearch')
+  oldesFixture project(':test:fixtures:old-elasticsearch')
   /* Right now we just test against the latest version of each major we expect
    * reindex-from-remote to work against. We could randomize the versions but
    * that doesn't seem worth it at this point. */
@@ -145,7 +145,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       env 'JAVA_HOME', jdks.legacy.javaHomePath
-      args 'oldes.OldOpenSearch',
+      args 'oldes.OldElasticsearch',
         baseDir,
         unzip.temporaryDir,
         version == '090'
