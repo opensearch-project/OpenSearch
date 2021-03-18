@@ -7,7 +7,7 @@ include::{search-root}/docs/Versions.asciidoc[]
 [preface]
 == Preface
 
-deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in OpenSearch 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
+deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client]. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
 
 This section describes the Java API that OpenSearch provides. All
 OpenSearch operations are executed using a
