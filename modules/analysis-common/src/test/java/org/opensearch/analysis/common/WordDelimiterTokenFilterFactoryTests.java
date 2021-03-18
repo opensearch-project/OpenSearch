@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 

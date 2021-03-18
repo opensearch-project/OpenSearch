@@ -35,7 +35,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.get.GetResultTests;
+import org.opensearch.index.get.GetResultTests;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.search.SearchHit.NestedIdentity;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;

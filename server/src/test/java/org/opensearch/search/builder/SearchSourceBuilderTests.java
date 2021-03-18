@@ -37,7 +37,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.RandomQueryBuilder;
+import org.opensearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.rescore.QueryRescorerBuilder;

@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.index.query.InnerHitBuilderTests;
+import org.opensearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.lookup.SearchLookup;

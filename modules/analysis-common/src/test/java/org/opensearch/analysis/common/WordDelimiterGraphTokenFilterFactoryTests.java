@@ -26,7 +26,7 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;

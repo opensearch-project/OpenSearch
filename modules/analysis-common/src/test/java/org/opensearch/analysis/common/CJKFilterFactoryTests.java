@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
