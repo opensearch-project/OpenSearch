@@ -129,8 +129,8 @@ The cat APIs return information about your cluster and indices in a
 format that's easier to read than raw JSON.
 +
 You can interact directly with your cluster by submitting HTTP requests to
-the {es} REST API. If you have Kibana installed and running, you can also
-open Kibana and submit requests through the Dev Console.
+the {es} REST API. If you have OpenSearch Dashboards installed and running, you can also
+open OpenSearch Dashboards and submit requests through the Dev Console.
 +
 TIP: You'll want to check out the
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
@@ -699,5 +699,5 @@ features such as using machine learning to detect anomalies.
 Now that you've set up a cluster, indexed some documents, and run some
 searches and aggregations, you might want to:
 
-* {kibana-ref}/add-sample-data.html[Load one of the sample data sets into Kibana]
-to see how you can use {es} and Kibana together to visualize your data.
+* {kibana-ref}/add-sample-data.html[Load one of the sample data sets into OpenSearch Dashboards]
+to see how you can use {es} and OpenSearch Dashboards together to visualize your data.

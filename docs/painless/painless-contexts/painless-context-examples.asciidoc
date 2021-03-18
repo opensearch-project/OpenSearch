@@ -34,8 +34,8 @@ Each document contains the following fields:
         The time of the play as a keyword.
 
 . {defguide}/running-elasticsearch.html[Start] OpenSearch. Note these
-examples assume OpenSearch and Kibana are running locally. To use the Console
-editor with a remote Kibana instance, click the settings icon and enter the
+examples assume OpenSearch and OpenSearch Dashboards are running locally. To use the Console
+editor with a remote OpenSearch Dashboards instance, click the settings icon and enter the
 Console URL. To submit a cURL request to a remote OpenSearch instance, edit
 the request URL.
 

@@ -412,7 +412,7 @@ PUT _ingest/pipeline/not_prod_dropper
 --------------------------------------------------
 
 The conditional needs to be all on one line since JSON does not
-support new line characters. However, Kibana's console supports
+support new line characters. However, OpenSearch Dashboards' console supports
 a triple quote syntax to help with writing and debugging
 scripts like these.
 

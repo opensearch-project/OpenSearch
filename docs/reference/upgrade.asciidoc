@@ -16,7 +16,7 @@ endif::[]
 [TIP]
 ====
 For rolling upgrades between major versions (e.g., 5.6 to 6.8), we recommend
-using the {kibana-ref}/upgrade-assistant.html[Kibana Upgrade Assistant].
+using the {kibana-ref}/upgrade-assistant.html[OpenSearch Dashboards Upgrade Assistant].
 
 The upgrade assistant identifies deprecated settings in your cluster and guides
 you through the process of resolving issues, including reindexing.
