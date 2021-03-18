@@ -197,10 +197,10 @@ class NodeInfo {
              * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
              * getting the short name requiring the path to already exist.
              */
-            env.put('ES_PATH_CONF', "${-> getShortPathName(pathConf.toString())}")
+            env.put('OPENSEARCH_PATH_CONF', "${-> getShortPathName(pathConf.toString())}")
         }
         else {
-            env.put('ES_PATH_CONF', pathConf)
+            env.put('OPENSEARCH_PATH_CONF', pathConf)
         }
         if (!System.properties.containsKey("tests.opensearch.path.data")) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {

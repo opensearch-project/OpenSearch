@@ -94,7 +94,7 @@ import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * <h2>Debugging Security</h2>
  * A good place to start when there is a problem is to turn on security debugging:
  * <pre>
- * ES_JAVA_OPTS="-Djava.security.debug=access,failure" bin/opensearch
+ * OPENSEARCH_JAVA_OPTS="-Djava.security.debug=access,failure" bin/opensearch
  * </pre>
  * <p>
  * When running tests you have to pass it to the test runner like this:

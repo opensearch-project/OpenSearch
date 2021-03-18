@@ -376,7 +376,7 @@ public abstract class PackagingTestCase extends Assert {
             // In Windows, we have written our stdout and stderr to files in order to run
             // in the background
             String wrapperPid = result.stdout.trim();
-            sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
+            sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.OPENSEARCH_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
                     + "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |"
@@ -432,9 +432,9 @@ public abstract class PackagingTestCase extends Assert {
 
         if (distribution.isPackage()) {
             Files.copy(installation.envFile, tempDir.resolve("opensearch.bk"));// backup
-            append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
+            append(installation.envFile, "OPENSEARCH_PATH_CONF=" + tempConf + "\n");
         } else {
-            sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
+            sh.getEnv().put("OPENSEARCH_PATH_CONF", tempConf.toString());
         }
 
         action.accept(tempConf);
@@ -442,7 +442,7 @@ public abstract class PackagingTestCase extends Assert {
             IOUtils.rm(installation.envFile);
             Files.copy(tempDir.resolve("opensearch.bk"), installation.envFile);
         } else {
-            sh.getEnv().remove("ES_PATH_CONF");
+            sh.getEnv().remove("OPENSEARCH_PATH_CONF");
         }
         IOUtils.rm(tempDir);
     }

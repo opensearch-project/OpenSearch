@@ -167,7 +167,7 @@ public class DockerTests extends PackagingTestCase {
 
         // Restart the container
         final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/usr/share/opensearch/config"));
-        final Map<String, String> envVars = singletonMap("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
+        final Map<String, String> envVars = singletonMap("OPENSEARCH_JAVA_OPTS", "-XX:-UseCompressedOops");
         runContainer(distribution(), volumes, envVars);
 
         waitForOpenSearch(installation);

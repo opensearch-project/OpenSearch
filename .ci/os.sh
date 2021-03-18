@@ -23,8 +23,8 @@ sudo useradd vagrant
 set -e
 
 . .ci/java-versions.properties
-RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
-BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+RUNTIME_JAVA_HOME=$HOME/.java/$OPENSEARCH_RUNTIME_JAVA
+BUILD_JAVA_HOME=$HOME/.java/$OPENSEARCH_BUILD_JAVA
 
 rm -Rfv $HOME/.gradle/init.d/ && mkdir -p $HOME/.gradle/init.d
 cp -v .ci/init.gradle $HOME/.gradle/init.d

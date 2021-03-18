@@ -16,7 +16,7 @@ while [ -h "$SCRIPT" ] ; do
 done
 
 source $(dirname "${SCRIPT}")/java-versions.properties
-export JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA}
+export JAVA_HOME="${HOME}"/.java/${OPENSEARCH_BUILD_JAVA}
 # We are caching BWC versions too, need these so we can build those
 export JAVA8_HOME="${HOME}"/.java/java8
 export JAVA11_HOME="${HOME}"/.java/java11
