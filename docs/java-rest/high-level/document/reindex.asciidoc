@@ -109,7 +109,7 @@ in JSON.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-remote]
 --------------------------------------------------
-<1> set remote elastic cluster
+<1> set remote opensearch cluster
 
 +{request}+ also helps in automatically parallelizing using `sliced-scroll` to
 slice on `_id`. Use `setSlices` to specify the number of slices to use.

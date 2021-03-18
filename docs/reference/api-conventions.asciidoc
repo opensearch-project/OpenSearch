@@ -149,7 +149,7 @@ they resolve to given the current time is 22nd March 2024 noon utc.
 To use the characters `{` and `}` in the static part of an index name template, escape them
 with a backslash `\`, for example:
 
- * `<elastic\\{ON\\}-{now/M}>` resolves to `elastic{ON}-2024.03.01`
+ * `<opensearch\\{ON\\}-{now/M}>` resolves to `opensearch{ON}-2024.03.01`
 
 The following example shows a search request that searches the Logstash indices for the past
 three days, assuming the indices use the default Logstash index name format,
