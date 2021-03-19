@@ -350,13 +350,13 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     public void setHeaderWarningAppender() {
         this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
         this.headerWarningAppender.start();
-        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+        Loggers.addAppender(LogManager.getLogger("org.opensearch.deprecation"), this.headerWarningAppender);
     }
 
     @After
     public void removeHeaderWarningAppender() {
         if (this.headerWarningAppender != null) {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+            Loggers.removeAppender(LogManager.getLogger("org.opensearch.deprecation"), this.headerWarningAppender);
             this.headerWarningAppender = null;
         }
     }

@@ -25,10 +25,10 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedBiConsumer;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -49,31 +49,31 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
     protected final <R extends InternalAggregation> void asSubAggTestCase(AggregationBuilder builder, Consumer<R> verify)
             throws IOException {
         CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.DateFieldType, IOException> buildIndex = (iw, dft) -> {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(org.opensearch.common.collect.List.of(
                 new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
                 new SortedSetDocValuesField("k1", new BytesRef("a")),
                 new SortedSetDocValuesField("k2", new BytesRef("a")),
                 new SortedNumericDocValuesField("n", 1)
             ));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(org.opensearch.common.collect.List.of(
                 new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-03-01T00:00:00Z")),
                 new SortedSetDocValuesField("k1", new BytesRef("a")),
                 new SortedSetDocValuesField("k2", new BytesRef("a")),
                 new SortedNumericDocValuesField("n", 2)
             ));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(org.opensearch.common.collect.List.of(
                 new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-02-01T00:00:00Z")),
                 new SortedSetDocValuesField("k1", new BytesRef("a")),
                 new SortedSetDocValuesField("k2", new BytesRef("a")),
                 new SortedNumericDocValuesField("n", 3)
             ));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(org.opensearch.common.collect.List.of(
                 new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-03-01T00:00:00Z")),
                 new SortedSetDocValuesField("k1", new BytesRef("a")),
                 new SortedSetDocValuesField("k2", new BytesRef("b")),
                 new SortedNumericDocValuesField("n", 4)
             ));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(org.opensearch.common.collect.List.of(
                 new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
                 new SortedSetDocValuesField("k1", new BytesRef("b")),
                 new SortedSetDocValuesField("k2", new BytesRef("b")),

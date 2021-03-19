@@ -24,7 +24,7 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.get.GetResult;
+import org.opensearch.index.get.GetResult;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.RestResponse;
@@ -40,7 +40,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 

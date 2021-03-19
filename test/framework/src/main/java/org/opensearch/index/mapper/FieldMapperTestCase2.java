@@ -25,8 +25,8 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.util.ArrayList;

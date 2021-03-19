@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
+import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude.OrdinalsFilter;

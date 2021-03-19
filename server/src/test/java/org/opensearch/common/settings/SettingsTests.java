@@ -19,7 +19,7 @@
 
 package org.opensearch.common.settings;
 
-import org.elasticsearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;

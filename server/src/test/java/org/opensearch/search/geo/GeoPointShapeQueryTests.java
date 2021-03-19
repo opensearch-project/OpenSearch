@@ -37,8 +37,8 @@ import org.opensearch.geometry.MultiLine;
 import org.opensearch.geometry.MultiPoint;
 import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.opensearch.index.query.GeoShapeQueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
 
 import static org.hamcrest.Matchers.containsString;
 

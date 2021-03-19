@@ -22,7 +22,6 @@ package org.opensearch.common.xcontent.support.filtering;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
-import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 

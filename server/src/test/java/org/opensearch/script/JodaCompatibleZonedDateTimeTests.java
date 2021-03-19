@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class JodaCompatibleZonedDateTimeTests extends OpenSearchTestCase {
     private static final Logger DEPRECATION_LOGGER =
-        LogManager.getLogger("org.elasticsearch.deprecation.script.JodaCompatibleZonedDateTime");
+        LogManager.getLogger("org.opensearch.deprecation.script.JodaCompatibleZonedDateTime");
 
     // each call to get or getValue will be run with limited permissions, just as they are in scripts
     private static PermissionCollection NO_PERMISSIONS = new Permissions();

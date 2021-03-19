@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 import java.nio.file.Path;
 

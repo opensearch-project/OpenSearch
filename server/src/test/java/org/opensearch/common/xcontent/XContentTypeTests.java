@@ -18,7 +18,6 @@
  */
 package org.opensearch.common.xcontent;
 
-import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Locale;

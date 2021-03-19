@@ -22,11 +22,11 @@ package org.opensearch.indices.recovery;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.IndexShard;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesService;
+import org.opensearch.index.store.Store;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.transport.TransportService;
 

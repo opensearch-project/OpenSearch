@@ -24,7 +24,7 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;

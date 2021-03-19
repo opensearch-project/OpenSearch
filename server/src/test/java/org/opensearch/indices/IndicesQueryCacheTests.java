@@ -40,8 +40,8 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.cache.query.QueryCacheStats;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

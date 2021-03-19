@@ -85,4 +85,4 @@ setup:
           match_all: {}
 
   - is_false: valid
-  - match: {error: 'org.elasticsearch.common.ParsingException: request does not support [match_all]'}
+  - match: {error: 'org.opensearch.common.ParsingException: request does not support [match_all]'}

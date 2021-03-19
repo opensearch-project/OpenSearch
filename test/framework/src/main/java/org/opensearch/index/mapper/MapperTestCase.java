@@ -37,10 +37,10 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldDataCache;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
 
