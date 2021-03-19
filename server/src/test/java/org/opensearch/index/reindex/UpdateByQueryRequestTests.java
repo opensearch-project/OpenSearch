@@ -81,7 +81,7 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         assertEquals(original.getPipeline(), forSliced.getPipeline());
     }
 
-    plugins/transport-nio/src/internalClusterTest/java/org/opensearch/NioIntegTestCase.java
+    // TODO: Implement standard to/from x-content parsing tests
 
     @Override
     protected UpdateByQueryRequest createTestInstance() {

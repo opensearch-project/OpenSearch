@@ -141,13 +141,13 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
         String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*").endObject()
             .endObject().endObject());
-        MapperTestUtils.assertConflicts(defaultMapping, mapping1, parser, "Cannot update parameter [includes] from [[]] to [[foo.*]]");
-        MapperTestUtils.assertConflicts(mapping1, defaultMapping, parser, "Cannot update parameter [includes] from [[foo.*]] to [[]]");
+        assertConflicts(defaultMapping, mapping1, parser, "Cannot update parameter [includes] from [[]] to [[foo.*]]");
+        assertConflicts(mapping1, defaultMapping, parser, "Cannot update parameter [includes] from [[foo.*]] to [[]]");
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*", "bar.*").endObject()
             .endObject().endObject());
-        MapperTestUtils.assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [includes] from [[foo.*]] to [[foo.*, bar.*]]");
+        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [includes] from [[foo.*]] to [[foo.*, bar.*]]");
 
         // not changing is ok
         assertConflicts(mapping1, mapping1, parser);
@@ -159,13 +159,13 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
         String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*").endObject()
             .endObject().endObject());
-        MapperTestUtils.assertConflicts(defaultMapping, mapping1, parser, "Cannot update parameter [excludes] from [[]] to [[foo.*]]");
-        MapperTestUtils.assertConflicts(mapping1, defaultMapping, parser, "Cannot update parameter [excludes] from [[foo.*]] to [[]]");
+        assertConflicts(defaultMapping, mapping1, parser, "Cannot update parameter [excludes] from [[]] to [[foo.*]]");
+        assertConflicts(mapping1, defaultMapping, parser, "Cannot update parameter [excludes] from [[foo.*]] to [[]]");
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*", "bar.*").endObject()
             .endObject().endObject());
-        MapperTestUtils.assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [excludes]");
+        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [excludes]");
 
         // not changing is ok
         assertConflicts(mapping1, mapping1, parser);
