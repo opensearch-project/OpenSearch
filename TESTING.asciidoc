@@ -5,7 +5,7 @@
 
 OpenSearch uses jUnit for testing, it also uses randomness in the
 tests, that can be set using a seed, the following is a cheatsheet of
-options for running the tests for ES.
+options for running the tests for OpenSearch.
 
 == Requirements
 
@@ -83,7 +83,7 @@ To for example start the open source distribution:
 - In order to preserve data in between executions: `--preserve-data`
 - In order to remotely attach a debugger to the process: `--debug-jvm`
 - In order to set a different keystore password: `--keystore-password yourpassword`
-- In order to set an OpenSearch setting, provide a setting with the following prefix: `-Dtests.es.`
+- In order to set an OpenSearch setting, provide a setting with the following prefix: `-Dtests.opensearch.`
 
 === Test case filtering.
 
@@ -220,10 +220,10 @@ tests (note the exclamation mark).
 ./gradlew test -Dtests.timeoutSuite=5000! ...
 ---------------------------------------
 
-Change the logging level of ES (not Gradle)
+Change the logging level of OpenSearch (not Gradle)
 
 --------------------------------
-./gradlew test -Dtests.es.logger.level=DEBUG
+./gradlew test -Dtests.opensearch.logger.level=DEBUG
 --------------------------------
 
 Print all the logging output from the test runs to the commandline
@@ -394,7 +394,7 @@ If you want a quick test of the tarball and RPM packagings for Centos 7, you
 would run:
 +
 -------------------------------------------------------------------------------------------------
-./gradlew :qa:os:centos-7:distroTest.default-rpm :qa:os:centos-7:distroTest.default-linux-archive
+./gradlew :qa:os:centos-7:distroTest.rpm :qa:os:centos-7:distroTest.linux-archive
 -------------------------------------------------------------------------------------------------
 
 Note that if you interrupt Gradle in the middle of running these tasks, any boxes started
@@ -496,14 +496,14 @@ faster to develop against smaller subsets of the tests. For example, to run
 tests for the default archive distribution on Fedora 28:
 
 -----------------------------------------------------------
-./gradlew :qa:os:fedora-28:distroTest.default-linux-archive
+./gradlew :qa:os:fedora-28:distroTest.linux-archive
 -----------------------------------------------------------
 
 These test tasks can use the `--tests`, `--info`, and `--debug` parameters just like
 non-OS tests can. For example:
 
 -----------------------------------------------------------
-./gradlew :qa:os:fedora-28:distroTest.default-linux-archive \
+./gradlew :qa:os:fedora-28:distroTest.linux-archive \
   --tests "com.opensearch.packaging.test.ArchiveTests"
 -----------------------------------------------------------
 
@@ -577,15 +577,15 @@ fetching the latest from the remote.
 
 There are multiple base classes for tests:
 
-* **`ESTestCase`**: The base class of all tests. It is typically extended
+* **`OpenSearchTestCase`**: The base class of all tests. It is typically extended
   directly by unit tests.
-* **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
+* **`OpenSearchSingleNodeTestCase`**: This test case sets up a cluster that has a
   single node.
-* **`ESIntegTestCase`**: An integration test case that creates a cluster that
+* **`OpenSearchIntegTestCase`**: An integration test case that creates a cluster that
   might have multiple nodes.
-* **`ESRestTestCase`**: An integration tests that interacts with an external
+* **`OpenSearchRestTestCase`**: An integration tests that interacts with an external
   cluster via the REST API. This is used for Java based REST tests.
-* **`ESClientYamlSuiteTestCase` **: A subclass of `ESRestTestCase` used to run
+* **`OpenSearchClientYamlSuiteTestCase` **: A subclass of `OpenSearchRestTestCase` used to run
   YAML based REST tests.
 
 === Good practices
@@ -597,14 +597,14 @@ they are simpler to understand, more likely to reproduce, and unlikely to be
 affected by changes that are unrelated to the piece of functionality that is
 being tested.
 
-The reason why `ESSingleNodeTestCase` exists is that all our components used to
+The reason why `OpenSearchSingleNodeTestCase` exists is that all our components used to
 be very hard to set up in isolation, which had led us to having a number of
-integration tests but close to no unit tests. `ESSingleNodeTestCase` is a
+integration tests but close to no unit tests. `OpenSearchSingleNodeTestCase` is a
 workaround for this issue which provides an easy way to spin up a node and get
 access to components that are hard to instantiate like `IndicesService`.
 Whenever practical, you should prefer unit tests.
 
-Many tests extend `ESIntegTestCase`, mostly because this is how most tests used
+Many tests extend `OpenSearchIntegTestCase`, mostly because this is how most tests used
 to work in the early days of Elasticsearch. However the complexity of these
 tests tends to make them hard to debug. Whenever the functionality that is
 being tested isn't intimately dependent on how OpenSearch behaves as a
