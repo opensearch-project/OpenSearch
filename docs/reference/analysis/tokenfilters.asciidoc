@@ -6,7 +6,7 @@ Token filters accept a stream of tokens from a
 (eg lowercasing), delete tokens (eg remove stopwords)
 or add tokens (eg synonyms).
 
-{es} has a number of built-in token filters you can use
+{opensearch} has a number of built-in token filters you can use
 to build <<analysis-custom-analyzer,custom analyzers>>.
 
 

@@ -37,7 +37,7 @@ For more information on how Mustache templating and what kind of templating you
 can do with it check out the https://mustache.github.io/mustache.5.html[online
 documentation of the mustache project].
 
-NOTE: The mustache language is implemented in {es} as a sandboxed scripting
+NOTE: The mustache language is implemented in {opensearch} as a sandboxed scripting
 language, hence it obeys settings that may be used to enable or disable scripts
 per type and context as described in the
 <<allowed-script-types-setting, scripting docs>>.
@@ -46,13 +46,13 @@ per type and context as described in the
 [[search-template-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
 
 [[search-template-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
@@ -60,7 +60,7 @@ Defaults to `true`.
   (Optional, Boolean) If `true`, network round-trips are minimized for
  cross-cluster search requests. Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 `explain`::
   (Optional, Boolean) If `true`, the response includes additional details about
@@ -70,9 +70,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
   (Optional, Boolean) If `true`, specified concrete, expanded or aliased indices
   are not included in the response when throttled. Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
 `profile`::
   (Optional, Boolean) If `true`, the query execution is profiled. Defaults
@@ -82,11 +82,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
   (Optional, Boolean) If `true`, `hits.total` are rendered as an integer in
   the response. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `typed_keys`::
   (Optional, Boolean) If `true`, aggregation and suggester names are

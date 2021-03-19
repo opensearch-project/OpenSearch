@@ -80,7 +80,7 @@ the case sensitivity of matching depends on the underlying field's mapping.
 {wikipedia}/Deterministic_finite_automaton[automaton states]
 required for the query. Default is `10000`.
 
-{es} uses https://lucene.apache.org/core/[Apache Lucene] internally to parse
+{opensearch} uses https://lucene.apache.org/core/[Apache Lucene] internally to parse
 regular expressions. Lucene converts each regular expression to a finite
 automaton containing a number of determinized states.
 

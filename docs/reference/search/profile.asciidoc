@@ -451,11 +451,11 @@ Looking at the previous example:
 
 We see a single collector named `SimpleTopScoreDocCollector` wrapped into 
 `CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and 
-sorting" `Collector` used by {es}. The `reason` field attempts to give a plain 
+sorting" `Collector` used by {opensearch}. The `reason` field attempts to give a plain 
 English description of the class name.  The `time_in_nanos` is similar to the 
 time in the Query tree: a wall-clock time inclusive of all children. Similarly, 
 `children` lists all sub-collectors. The `CancellableCollector` that wraps 
-`SimpleTopScoreDocCollector` is used by {es} to detect if the current search was 
+`SimpleTopScoreDocCollector` is used by {opensearch} to detect if the current search was 
 cancelled and stop collecting documents as soon as it occurs.
 
 It should be noted that Collector times are **independent** from the Query 
@@ -730,7 +730,7 @@ solve and still in-progress. :)
 
 The `aggregations` section contains detailed timing of the aggregation tree 
 executed by a particular shard. The overall structure of this aggregation tree 
-will resemble your original {es} request. Let's execute the previous query again 
+will resemble your original {opensearch} request. Let's execute the previous query again 
 and look at the aggregation profile this time:
 
 [source,console]
@@ -908,7 +908,7 @@ future use and always returns `0`.
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all. All 
 caveats about the overall `time` apply here.  The intention of the breakdown is 
-to give you a feel for A) what machinery in {es} is actually eating time, and B) 
+to give you a feel for A) what machinery in {opensearch} is actually eating time, and B) 
 the magnitude of differences in times between the various components. Like the 
 overall time, the breakdown is inclusive of all children times.
 

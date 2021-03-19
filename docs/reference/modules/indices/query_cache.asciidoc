@@ -11,7 +11,7 @@ Term queries and queries used outside of a filter context are not eligible for
 caching.
 
 By default, the cache holds a maximum of 10000 queries in up to 10% of the total 
-heap space. To determine if a query is eligible for caching, {es} maintains a 
+heap space. To determine if a query is eligible for caching, {opensearch} maintains a 
 query history to track occurrences.
 
 Caching is done on a per segment basis if a segment contains at least 10000 

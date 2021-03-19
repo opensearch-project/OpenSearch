@@ -1,7 +1,7 @@
 [[cluster-shard-allocation-filtering]]
 ==== Cluster-level shard allocation filtering
 
-You can use cluster-level shard allocation filters to control where {es}
+You can use cluster-level shard allocation filters to control where {opensearch}
 allocates shards from any index. These cluster wide filters are applied in
 conjunction with <<shard-allocation-filtering, per-index allocation filtering>>
 and <<shard-allocation-awareness, allocation awareness>>.

@@ -6,7 +6,7 @@
 
 Deletes an existing index alias.
 
-include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
+include::{opensearch-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----
@@ -36,7 +36,7 @@ use a value of `_all` or `*`.
 
 `<alias>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
 +
 To delete all aliases,
 use a value of `_all` or `*`.
@@ -45,4 +45,4 @@ use a value of `_all` or `*`.
 [[delete-alias-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

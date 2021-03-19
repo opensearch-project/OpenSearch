@@ -1,9 +1,9 @@
 [[setup-upgrade]]
-= Upgrade {es}
+= Upgrade {opensearch}
 
 [partintro]
 --
-{es} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
+{opensearch} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
 process so upgrading does not interrupt service. Rolling upgrades are supported:
 
 * Between minor versions
@@ -81,14 +81,14 @@ earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
 to the version upgrade.
 ====
 
-{es} can read indices created in the previous major version. If you
+{opensearch} can read indices created in the previous major version. If you
 have indices created in 5.x or before, you must reindex or delete them
-before upgrading to {version}. {es} nodes will fail to start if
+before upgrading to {version}. {opensearch} nodes will fail to start if
 incompatible indices are present. Snapshots of 5.x or earlier indices cannot be
 restored to a 7.x cluster even if they were created by a 6.x cluster. For
 information about upgrading old indices, see <<reindex-upgrade, Reindex to upgrade>>.
 
-When upgrading to a new version of {es}, you need to upgrade each
+When upgrading to a new version of {opensearch}, you need to upgrade each
 of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
 

@@ -35,7 +35,7 @@ of syncing a replica shard from a primary shard.
 Upon completion,
 the replica shard is available for search.
 
-include::{es-repo-dir}/glossary.asciidoc[tag=recovery-triggers]
+include::{opensearch-repo-dir}/glossary.asciidoc[tag=recovery-triggers]
 
 // end::shard-recovery-desc[]
 
@@ -54,11 +54,11 @@ To target all indices in a cluster, omit this parameter or use
 [[index-recovery-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=active-only]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=active-only]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
 
 [[index-recovery-api-response-body]]

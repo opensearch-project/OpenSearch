@@ -1,9 +1,9 @@
 [[modules-node]]
 === Node
 
-Any time that you start an instance of {es}, you are starting a _node_. A
+Any time that you start an instance of {opensearch}, you are starting a _node_. A
 collection of connected nodes is called a <<modules-cluster,cluster>>. If you
-are running a single node of {es}, then you have a cluster of one node.
+are running a single node of {opensearch}, then you have a cluster of one node.
 
 Every node in the cluster can handle <<modules-http,HTTP>> and
 <<modules-transport,Transport>> traffic by default. The transport layer is used
@@ -250,7 +250,7 @@ Like all node settings, it can also be specified on the command line as:
 ----
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
-should be configured to locate the data directory outside the {es} home
+should be configured to locate the data directory outside the {opensearch} home
 directory, so that the home directory can be deleted without deleting your data!
 The RPM and Debian distributions do this for you already.
 
@@ -259,11 +259,11 @@ The RPM and Debian distributions do this for you already.
 === `node.max_local_storage_nodes`
 
 The <<data-path,data path>> can be shared by multiple nodes, even by nodes from
-different clusters. It is recommended however to only run one node of {es} using
+different clusters. It is recommended however to only run one node of {opensearch} using
 the same data path. This setting is deprecated in 7.x and will be removed in
 version 8.0.
 
-By default, {es} is configured to prevent more than one node from sharing the
+By default, {opensearch} is configured to prevent more than one node from sharing the
 same data path. To allow for more than one node (e.g., on your development
 machine), use the setting `node.max_local_storage_nodes` and set this to a
 positive integer larger than one.

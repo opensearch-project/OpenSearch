@@ -27,11 +27,11 @@ cluster:
 * Total store size of all shards, including shard replicas
 
 These metrics are retrieved directly from
-https://lucene.apache.org/core/[Lucene], which {es} uses internally to power
+https://lucene.apache.org/core/[Lucene], which {opensearch} uses internally to power
 indexing and search. As a result, all document counts include hidden
 <<nested,nested>> documents.
 
-To get an accurate count of {es} documents, use the <<cat-count,cat count>> or
+To get an accurate count of {opensearch} documents, use the <<cat-count,cat count>> or
 <<search-count,count>> APIs.
 
 
@@ -49,11 +49,11 @@ To target all indices in a cluster, omit this parameter or use
 [[cat-indices-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 `health`::
 +
@@ -68,26 +68,26 @@ are:
 By default, the response includes indices of any health status.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[pri-flag]]
 `pri` (primary shards)::
 (Optional, Boolean) If `true`, the response only includes information from
 primary shards. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 
 [[cat-indices-api-example]]

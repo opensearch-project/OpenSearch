@@ -67,7 +67,7 @@ analyzer produces the following tokens:
 [ quick, fox ]
 ------
 
-To execute the search, {es} compares these query string tokens to the tokens
+To execute the search, {opensearch} compares these query string tokens to the tokens
 indexed in the `text` field.
 
 [options="header"]
@@ -91,7 +91,7 @@ over the dog!"`, just as the user expects.
 ==== When to use a different search analyzer
 
 While less common, it sometimes makes sense to use different analyzers at index
-and search time. To enable this, {es} allows you to
+and search time. To enable this, {opensearch} allows you to
 <<specify-search-analyzer,specify a separate search analyzer>>.
 
 Generally, a separate search analyzer should only be specified when using the
@@ -102,7 +102,7 @@ or irrelevant search matches.
 .*Example*
 [%collapsible]
 ====
-{es} is used to create a search engine that matches only words that start with
+{opensearch} is used to create a search engine that matches only words that start with
 a provided prefix. For instance, a search for `tr` should return `tram` or
 `trope`—but never `taxi` or `bat`.
 
@@ -143,7 +143,7 @@ produce the following tokens:
 [ a, ap, app, appl, appli ]
 ------
 
-When {es} compares these query string tokens to the ones indexed for `apple`,
+When {opensearch} compares these query string tokens to the ones indexed for `apple`,
 it finds several matches.
 
 [options="header"]

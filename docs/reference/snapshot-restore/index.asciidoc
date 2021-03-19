@@ -5,7 +5,7 @@
 --
 
 // tag::snapshot-intro[]
-A _snapshot_ is a backup taken from a running {es} cluster.
+A _snapshot_ is a backup taken from a running {opensearch} cluster.
 You can take snapshots of an entire cluster, including all its
 indices. You can also take snapshots of only specific indices in
 the cluster.
@@ -19,7 +19,7 @@ Remote repositories can reside on Amazon S3, HDFS, Microsoft Azure,
 Google Cloud Storage,
 and other platforms supported by a {plugins}/repository.html[repository plugin].
 
-{es} takes snapshots incrementally: the snapshotting process only copies data
+{opensearch} takes snapshots incrementally: the snapshotting process only copies data
 to the repository that was not already copied there by an earlier snapshot,
 avoiding unnecessary duplication of work or storage space. This means you can
 safely take snapshots very frequently with minimal overhead. However, snapshots
@@ -35,8 +35,8 @@ streams or indices from a snapshot.
 // end::restore-intro[]
 
 // tag::backup-warning[]
-WARNING: You cannot back up an {es} cluster by simply copying
-the data directories of all of its nodes. {es} may be making changes to
+WARNING: You cannot back up an {opensearch} cluster by simply copying
+the data directories of all of its nodes. {opensearch} may be making changes to
 the contents of its data directories while it is running; copying its data
 directories cannot be expected to capture a consistent picture of their contents.
 If you try to restore a cluster from such a backup, it may fail and report
@@ -56,7 +56,7 @@ when migrating between versions.
 
 A snapshot contains a copy of the on-disk data structures that comprise an
 index. This means that snapshots can only be restored to versions of
-{es} that can read the indices.
+{opensearch} that can read the indices.
 
 The following table indicates snapshot compatibility between versions. The first column denotes the base version that you can restore snapshots from.
 
@@ -75,15 +75,15 @@ The following table indicates snapshot compatibility between versions. The first
 
 The following conditions apply for restoring snapshots and indices across versions:
 
-* *Snapshots*: You cannot restore snapshots from later {es} versions into a cluster running an earlier {es} version. For example, you cannot restore a snapshot taken in 7.6.0 to a cluster running 7.5.0.
-* *Indices*: You cannot restore indices into a cluster running a version of {es} that is more than _one major version_ newer than the version of {es} used to snapshot the indices. For example, you cannot restore indices from a snapshot taken in 5.0 to a cluster running 7.0.
+* *Snapshots*: You cannot restore snapshots from later {opensearch} versions into a cluster running an earlier {opensearch} version. For example, you cannot restore a snapshot taken in 7.6.0 to a cluster running 7.5.0.
+* *Indices*: You cannot restore indices into a cluster running a version of {opensearch} that is more than _one major version_ newer than the version of {opensearch} used to snapshot the indices. For example, you cannot restore indices from a snapshot taken in 5.0 to a cluster running 7.0.
 +
 [NOTE]
 ====
-The one caveat is that snapshots taken by {es} 2.0 can be restored in clusters running {es} 5.0.
+The one caveat is that snapshots taken by {opensearch} 2.0 can be restored in clusters running {opensearch} 5.0.
 ====
 
-Each snapshot can contain indices created in various versions of {es}.
+Each snapshot can contain indices created in various versions of {opensearch}.
 When restoring a snapshot, it
 must be possible to restore all of these indices into the target cluster. If any
 indices in a snapshot were created in an incompatible version, you will not be

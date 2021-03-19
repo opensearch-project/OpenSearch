@@ -38,7 +38,7 @@ PUT /_snapshot/my_repository/my_snapshot
 ==== {api-description-title}
 
 You can use the create snapshot API to create a <<snapshot-restore,snapshot>>, which is a
-backup taken from a running {es} cluster.
+backup taken from a running {opensearch} cluster.
 
 By default, a snapshot includes all open indices in the
 cluster, as well as the cluster state.  You can change this behavior by
@@ -47,15 +47,15 @@ snapshot request.
 
 NOTE: You must register a snapshot repository before performing snapshot and restore operations. Use the <<put-snapshot-repo-api,put snapshot repository API>> to register new repositories and update existing ones.
 
-The snapshot process is incremental. When creating a snapshot, {es} analyzes the list of files that are already stored in the repository and copies only files that were created or changed since the last snapshot. This process allows multiple snapshots to be preserved in the repository in a compact form.
+The snapshot process is incremental. When creating a snapshot, {opensearch} analyzes the list of files that are already stored in the repository and copies only files that were created or changed since the last snapshot. This process allows multiple snapshots to be preserved in the repository in a compact form.
 
-The snapshot process is executed in non-blocking fashion, so all indexing and searching operations can run concurrently against the index that {es} is snapshotting.
+The snapshot process is executed in non-blocking fashion, so all indexing and searching operations can run concurrently against the index that {opensearch} is snapshotting.
 
 A snapshot represents a point-in-time view of the moment when the snapshot was created. No records that were added to an index after the snapshot process started will be present in the snapshot.
 
-For primary shards that have not been started and are not currently relocating, the snapshot process starts immediately. If shards are in the process of starting or relocating, {es} waits for these processes to complete before taking a snapshot.
+For primary shards that have not been started and are not currently relocating, the snapshot process starts immediately. If shards are in the process of starting or relocating, {opensearch} waits for these processes to complete before taking a snapshot.
 
-IMPORTANT: While a snapshot of a particular shard is being created, this shard cannot be moved to another node. Relocating a shard during the snapshot process can interfere with rebalancing and allocation filtering. {es} can move a shard to another node (according to the current allocation filtering settings and rebalancing algorithm) only after the snapshot process completes.
+IMPORTANT: While a snapshot of a particular shard is being created, this shard cannot be moved to another node. Relocating a shard during the snapshot process can interfere with rebalancing and allocation filtering. {opensearch} can move a shard to another node (according to the current allocation filtering settings and rebalancing algorithm) only after the snapshot process completes.
 
 Besides creating a copy of each index, the snapshot process can also store global cluster metadata, including persistent cluster settings and templates. The transient settings and registered snapshot repositories are not stored as part of the snapshot.
 
@@ -105,7 +105,7 @@ The cluster state includes:
 +
 IMPORTANT: By default, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<create-snapshot-api-partial,`partial`>> to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `metadata`::
 (Optional, string)

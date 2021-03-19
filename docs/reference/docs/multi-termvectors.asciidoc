@@ -58,27 +58,27 @@ that can be included in the response.
 [[docs-multi-termvectors-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=field_statistics]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=field_statistics]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=offsets]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=offsets]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=payloads]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=payloads]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=positions]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=positions]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=term_statistics]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=term_statistics]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
 [discrete]
 [[docs-multi-termvectors-api-example]]

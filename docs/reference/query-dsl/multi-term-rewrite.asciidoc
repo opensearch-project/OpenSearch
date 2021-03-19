@@ -4,7 +4,7 @@
 WARNING: This parameter is for expert users only. Changing the value of
 this parameter can impact search performance and relevance.
 
-{es} uses https://lucene.apache.org/core/[Apache Lucene] internally to power
+{opensearch} uses https://lucene.apache.org/core/[Apache Lucene] internally to power
 indexing and searching. In their original form, Lucene cannot execute the
 following queries:
 
@@ -44,7 +44,7 @@ query>>. This `bool` query contains a `should` clause and
 +
 This method can cause the final `bool` query to exceed the clause limit in the
 <<indices-query-bool-max-clause-count, `indices.query.bool.max_clause_count`>>
-setting. If the query exceeds this limit, {es} returns an error.
+setting. If the query exceeds this limit, {opensearch} returns an error.
 
 `scoring_boolean`::
 Calculates a relevance score for each matching document.
@@ -55,7 +55,7 @@ query>>. This `bool` query contains a `should` clause and
 +
 This method can cause the final `bool` query to exceed the clause limit in the
 <<indices-query-bool-max-clause-count, `indices.query.bool.max_clause_count`>>
-setting. If the query exceeds this limit, {es} returns an error.
+setting. If the query exceeds this limit, {opensearch} returns an error.
 
 `top_terms_blended_freqs_N`::
 Calculates a relevance score for each matching document as if all terms had the

@@ -95,7 +95,7 @@ Guidelines
 
 ===== Avoid using the `sample` query for `text` fields
 
-By default, {es} changes the values of `text` fields during analysis. For
+By default, {opensearch} changes the values of `text` fields during analysis. For
 example, ...
 
 ===== Using the `sample` query on time series data

@@ -19,7 +19,7 @@ deprecated features and update your code accordingly.
 changes to your code and configuration for version {version}.
 
 . If you use any plugins, make sure there is a version of each plugin that is
-compatible with {es} version {version}.
+compatible with {opensearch} version {version}.
 
 . Test the upgrade in an isolated environment before upgrading your production
 cluster.

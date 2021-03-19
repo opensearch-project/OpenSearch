@@ -40,7 +40,7 @@ the existing index meets a condition you provide. You can use this API to retire
 an index that becomes too large or too old.
 
 NOTE: To roll over an index, a condition must be met *when you call the API*.
-{es} does not monitor the index after you receive an API response.
+{opensearch} does not monitor the index after you receive an API response.
 
 The rollover index API accepts a rollover target name
 and a list of `conditions`.
@@ -83,7 +83,7 @@ to assign to the target index.	perform the rollover.
 (Optional*, string)
 Name of the target index to create and assign the index alias.
 
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{opensearch-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 
 If `rollover-target` is an alias that is assigned to an index name that ends
 with `-` and a number such as `logs-000001`. In this case, the name of the new
@@ -107,17 +107,17 @@ the request checks whether the index matches provided conditions
 but does not perform a rollover.
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[rollover-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 
 `conditions`::
 +
@@ -148,9 +148,9 @@ TIP: To see the current index size, use the <<cat-indices, _cat indices>> API.
 The `pri.store.size` value shows the combined size of all primary shards.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 
 [[rollover-index-api-example]]

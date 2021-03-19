@@ -13,7 +13,7 @@ May also be a single string containing the addresses separated by commas. Each
 address has the format `host:port` or `host`. The `host` is either a host name
 to be resolved by DNS, an IPv4 address, or an IPv6 address. IPv6 addresses
 must be enclosed in square brackets. If a host name resolves via DNS to multiple
-addresses, {es} uses all of them. DNS lookups are subject to
+addresses, {opensearch} uses all of them. DNS lookups are subject to
 <<networkaddress-cache-ttl,JVM DNS caching>>. If the `port` is not given then it
 is determined by checking the following settings in order:
 
@@ -41,9 +41,9 @@ compatibility. Support for the old name will be removed in a future version.
 
 `discovery.type`::
 (<<static-cluster-setting,Static>>)
-Specifies whether {es} should form a multiple-node cluster. By default, {es}
+Specifies whether {opensearch} should form a multiple-node cluster. By default, {opensearch}
 discovers other nodes when forming a cluster and allows other nodes to join
-the cluster later. If `discovery.type` is set to `single-node`, {es} forms a
+the cluster later. If `discovery.type` is set to `single-node`, {opensearch} forms a
 single-node cluster and suppresses the timeout set by
 `cluster.publish.timeout`. For more information about when you might use
 this setting, see <<single-node-discovery>>.
@@ -265,4 +265,4 @@ to `2m`.
 `monitor.fs.health.slow_path_logging_threshold`::
 (<<dynamic-cluster-setting,Dynamic>>)
 If a <<cluster-fault-detection-filesystem-health,filesystem health checks>>
-takes longer than this threshold then {es} logs a warning. Defaults to `5s`.
+takes longer than this threshold then {opensearch} logs a warning. Defaults to `5s`.

@@ -13,7 +13,7 @@ a price, a product ID, or a username.
 ====
 Avoid using the `term` query for <<text, `text`>> fields.
 
-By default, {es} changes the values of `text` fields as part of <<analysis,
+By default, {opensearch} changes the values of `text` fields as part of <<analysis,
 analysis>>. This can make finding exact matches for `text` field values
 difficult.
 
@@ -72,7 +72,7 @@ the case sensitivity of matching depends on the underlying field's mapping
 
 [[avoid-term-query-text-fields]]
 ===== Avoid using the `term` query for `text` fields
-By default, {es} changes the values of `text` fields during analysis. For
+By default, {opensearch} changes the values of `text` fields during analysis. For
 example, the default <<analysis-standard-analyzer, standard analyzer>> changes
 `text` field values as follows:
 
@@ -123,7 +123,7 @@ PUT my-index-000001/_doc/1
 ----
 // TEST[continued]
 
-Because `full_text` is a `text` field, {es} changes `Quick Brown Foxes!` to
+Because `full_text` is a `text` field, {opensearch} changes `Quick Brown Foxes!` to
 `[quick, brown, fox]` during analysis.
 
 --

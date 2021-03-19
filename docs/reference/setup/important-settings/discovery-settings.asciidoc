@@ -10,7 +10,7 @@ master node.
 [[unicast.hosts]]
 ==== `discovery.seed_hosts`
 
-Out of the box, without any network configuration, {es} will bind to
+Out of the box, without any network configuration, {opensearch} will bind to
 the available loopback addresses and scan local ports `9300` to `9305` to
 connect with other nodes running on the same server. This behavior provides an
 auto-clustering experience without having to do any configuration.
@@ -46,7 +46,7 @@ dynamically.
 [[initial_master_nodes]]
 ==== `cluster.initial_master_nodes`
 
-When you start an {es} cluster for the first time, a
+When you start an {opensearch} cluster for the first time, a
 <<modules-discovery-bootstrap-cluster,cluster bootstrapping>> step
 determines the set of master-eligible nodes whose votes are counted in the
 first election. In <<dev-vs-prod-mode,development mode>>, with no discovery

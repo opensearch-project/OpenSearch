@@ -279,7 +279,7 @@ PUT _cluster/settings
 --------------------------------
 // TEST[continued]
 
-If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
+If `cluster_two` is disconnected or unavailable during a {ccs}, {opensearch} won't
 include matching documents from that cluster in the final results.
 
 [discrete]
@@ -315,16 +315,16 @@ can impact search speed. To avoid slow searches, {ccs} offers two options for
 handling network delays:
 
 <<ccs-min-roundtrips,Minimize network roundtrips>>::
-By default, {es} reduces the number of network roundtrips between remote
+By default, {opensearch} reduces the number of network roundtrips between remote
 clusters. This reduces the impact of network delays on search speed. However,
-{es} can't reduce network roundtrips for large search requests, such as those
+{opensearch} can't reduce network roundtrips for large search requests, such as those
 including a <<scroll-search-results, scroll>> or
 <<inner-hits,inner hits>>.
 +
 See <<ccs-min-roundtrips>> to learn how this option works.
 
 <<ccs-unmin-roundtrips, Don't minimize network roundtrips>>:: For search
-requests that include a scroll or inner hits, {es} sends multiple outgoing and
+requests that include a scroll or inner hits, {opensearch} sends multiple outgoing and
 ingoing requests to each remote cluster. You can also choose this option by
 setting the <<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> parameter to
 `false`. While typically slower, this approach may work well for networks with
@@ -413,10 +413,10 @@ version. Cross cluster search can also search remote clusters that are being
 <<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
 "upgrade to" version are compatible with the gateway node.
 
-For example, a coordinating node running {es} 5.6 can search a remote cluster
-running {es} 6.8, but that cluster can not be upgraded to 7.1. In this case
+For example, a coordinating node running {opensearch} 5.6 can search a remote cluster
+running {opensearch} 6.8, but that cluster can not be upgraded to 7.1. In this case
 you should first upgrade the coordinating node to 7.1 and then upgrade remote
 cluster.
 
-WARNING: Running multiple versions of {es} in the same cluster beyond the
+WARNING: Running multiple versions of {opensearch} in the same cluster beyond the
 duration of an upgrade is not supported.

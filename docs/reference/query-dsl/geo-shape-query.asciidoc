@@ -52,7 +52,7 @@ POST /example/_doc?refresh
 // TESTSETUP
 
 
-The following query will find the point using {es}'s `envelope` GeoJSON 
+The following query will find the point using {opensearch}'s `envelope` GeoJSON 
 extension:
 
 [source,console]
