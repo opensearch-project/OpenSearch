@@ -52,7 +52,7 @@ import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;

@@ -49,7 +49,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.LegacyReaderContext;
 import org.opensearch.search.internal.ReaderContext;

@@ -23,7 +23,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;

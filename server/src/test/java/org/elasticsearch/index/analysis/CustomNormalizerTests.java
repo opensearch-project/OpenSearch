@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;

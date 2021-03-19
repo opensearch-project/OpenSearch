@@ -42,7 +42,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.IndicesModule;
+import org.opensearch.indices.IndicesModule;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder.ValidationContext;

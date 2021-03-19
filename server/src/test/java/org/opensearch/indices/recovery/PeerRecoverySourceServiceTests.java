@@ -26,7 +26,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesService;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.transport.TransportService;
 

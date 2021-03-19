@@ -31,7 +31,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;

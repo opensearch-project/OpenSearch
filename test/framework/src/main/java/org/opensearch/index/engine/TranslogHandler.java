@@ -38,8 +38,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.IndicesModule;
+import org.opensearch.indices.mapper.MapperRegistry;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -31,8 +31,8 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.IndicesModule;
+import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;

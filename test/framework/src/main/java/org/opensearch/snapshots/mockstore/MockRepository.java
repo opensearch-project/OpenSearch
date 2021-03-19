@@ -39,7 +39,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;

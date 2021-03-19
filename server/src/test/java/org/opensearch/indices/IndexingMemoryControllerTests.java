@@ -32,7 +32,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;

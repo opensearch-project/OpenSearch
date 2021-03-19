@@ -44,7 +44,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;

@@ -48,7 +48,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

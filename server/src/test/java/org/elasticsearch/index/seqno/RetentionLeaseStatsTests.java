@@ -26,7 +26,7 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.index.seqno.RetentionLeaseUtils;
 

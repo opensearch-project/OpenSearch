@@ -59,7 +59,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
-import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.opensearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
