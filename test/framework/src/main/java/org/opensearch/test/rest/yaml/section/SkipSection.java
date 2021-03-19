@@ -33,7 +33,7 @@ import java.util.List;
 /**
  * Represents a skip section that tells whether a specific test section or suite needs to be skipped
  * based on:
- * - the elasticsearch version the tests are running against
+ * - the opensearch version the tests are running against
  * - a specific test feature required that might not be implemented yet by the runner
  */
 public class SkipSection {

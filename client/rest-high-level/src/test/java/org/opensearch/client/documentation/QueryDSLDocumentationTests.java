@@ -127,7 +127,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
         // tag::dis_max
         disMaxQuery()
                 .add(termQuery("name", "kimchy"))                    // <1>
-                .add(termQuery("name", "elasticsearch"))             // <2>
+                .add(termQuery("name", "opensearch"))             // <2>
                 .boost(1.2f)                                         // <3>
                 .tieBreaker(0.7f);                                   // <4>
         // end::dis_max
@@ -251,7 +251,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
         // tag::match
         matchQuery(
                 "name",                                              // <1>
-                "kimchy elasticsearch");                             // <2>
+                "kimchy opensearch");                             // <2>
         // end::match
     }
 
@@ -269,7 +269,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
     public void testMultiMatch() {
         // tag::multi_match
         multiMatchQuery(
-                "kimchy elasticsearch",                              // <1>
+                "kimchy opensearch",                              // <1>
                 "user", "message");                                  // <2>
         // end::multi_match
     }
@@ -295,7 +295,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
 
     public void testQueryString() {
         // tag::query_string
-        queryStringQuery("+kimchy -elasticsearch");
+        queryStringQuery("+kimchy -opensearch");
         // end::query_string
     }
 
@@ -344,7 +344,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
 
     public void testSimpleQueryString() {
         // tag::simple_query_string
-        simpleQueryStringQuery("+kimchy -elasticsearch");
+        simpleQueryStringQuery("+kimchy -opensearch");
         // end::simple_query_string
     }
 

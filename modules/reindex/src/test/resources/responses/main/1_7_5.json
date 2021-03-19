@@ -1,7 +1,7 @@
 {
   "status" : 200,
   "name" : "Robert Kelly",
-  "cluster_name" : "elasticsearch",
+  "cluster_name" : "opensearch",
   "version" : {
     "number" : "1.7.5",
     "build_hash" : "00f95f4ffca6de89d68b7ccaf80d148f1f70e4d4",

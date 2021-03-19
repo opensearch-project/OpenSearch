@@ -151,7 +151,7 @@ public class RestClient implements Closeable {
 
         String decoded = new String(Base64.getDecoder().decode(cloudId), UTF_8);
         // once decoded the parts are separated by a $ character.
-        // they are respectively domain name and optional port, elasticsearch id, kibana id
+        // they are respectively domain name and optional port, opensearch id, opensearch-dashboards id
         String[] decodedParts = decoded.split("\\$");
         if (decodedParts.length != 3) {
             throw new IllegalStateException("cloudId " + cloudId + " did not decode to a cluster identifier correctly");

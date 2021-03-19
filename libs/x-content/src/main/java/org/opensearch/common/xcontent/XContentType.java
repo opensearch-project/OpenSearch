@@ -149,8 +149,8 @@ public enum XContentType {
      * @return a media type string without
      */
     private static String removeVersionInMediaType(String mediaType) {
-        if (mediaType.contains("vnd.elasticsearch")) {
-            return mediaType.replaceAll("vnd.elasticsearch\\+", "")
+        if (mediaType.contains("vnd.opensearch")) {
+            return mediaType.replaceAll("vnd.opensearch\\+", "")
                 .replaceAll("\\s*;\\s*compatible-with=\\d+", "");
         }
         return mediaType;

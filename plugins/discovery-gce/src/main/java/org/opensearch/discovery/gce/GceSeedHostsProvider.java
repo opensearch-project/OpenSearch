@@ -49,7 +49,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 
 public class GceSeedHostsProvider implements SeedHostsProvider {
-    
+
     private static final Logger logger = LogManager.getLogger(GceSeedHostsProvider.class);
 
     /**
@@ -102,7 +102,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
         // We check that needed properties have been set
         if (this.project == null || this.project.isEmpty() || this.zones == null || this.zones.isEmpty()) {
             throw new IllegalArgumentException("one or more gce discovery settings are missing. " +
-                "Check elasticsearch.yml file. Should have [" + GceInstancesService.PROJECT_SETTING.getKey() +
+                "Check opensearch.yml file. Should have [" + GceInstancesService.PROJECT_SETTING.getKey() +
                 "] and [" + GceInstancesService.ZONE_SETTING.getKey() + "].");
         }
 

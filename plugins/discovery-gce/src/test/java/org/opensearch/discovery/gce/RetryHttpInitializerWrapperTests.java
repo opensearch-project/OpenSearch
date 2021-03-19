@@ -109,6 +109,7 @@ public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
                 .setApplicationName("test")
                 .build();
 
+        // TODO (URL) replace w/ opensearch url
         HttpRequest request = client.getRequestFactory().buildRequest("Get", new GenericUrl("http://elasticsearch.com"), null);
         HttpResponse response = request.execute();
 
@@ -141,6 +142,7 @@ public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
                 .setApplicationName("test")
                 .build();
 
+        // TODO (URL) replace w/ opensearch URL
         HttpRequest request1 = client.getRequestFactory().buildRequest("Get", new GenericUrl("http://elasticsearch.com"), null);
         try {
             request1.execute();
@@ -167,6 +169,7 @@ public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
                 .setApplicationName("test")
                 .build();
 
+        // TODO (URL) replace w/ opensearch URL
         HttpRequest request = client.getRequestFactory().buildRequest("Get", new GenericUrl("http://elasticsearch.com"), null);
         HttpResponse response = request.execute();
 

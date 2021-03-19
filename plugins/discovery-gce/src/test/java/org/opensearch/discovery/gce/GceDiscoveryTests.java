@@ -129,7 +129,7 @@ public class GceDiscoveryTests extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
+                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "opensearch")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
@@ -140,7 +140,7 @@ public class GceDiscoveryTests extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
+                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "opensearch", "dev")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
@@ -161,7 +161,7 @@ public class GceDiscoveryTests extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
+                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "opensearch")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
@@ -172,7 +172,7 @@ public class GceDiscoveryTests extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
+                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "opensearch", "dev")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);

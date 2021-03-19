@@ -186,7 +186,7 @@ public class Docker {
                 assertThat(localPath, fileExists());
 
                 if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root") && uid == null) {
-                    // The tests are running as root, but the process in the Docker container runs as `elasticsearch` (UID 1000),
+                    // The tests are running as root, but the process in the Docker container runs as `opensearch` (UID 1000),
                     // so we need to ensure that the container process is able to read the bind-mounted files.
                     //
                     // NOTE that we don't do this if a UID is specified - in that case, we assume that the caller knows
@@ -332,7 +332,7 @@ public class Docker {
         protected String[] getScriptCommand(String script) {
             assert containerId != null;
 
-            return super.getScriptCommand("docker exec --user elasticsearch:root --tty " + containerId + " " + script);
+            return super.getScriptCommand("docker exec --user opensearch:root --tty " + containerId + " " + script);
         }
     }
 
@@ -458,7 +458,7 @@ public class Docker {
         Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
 
         assertEquals("Permissions of " + path + " are wrong", actualPermissions, expectedPermissions);
-        assertThat("File owner of " + path + " is wrong", username, equalTo("elasticsearch"));
+        assertThat("File owner of " + path + " is wrong", username, equalTo("opensearch"));
         assertThat("File group of " + path + " is wrong", group, equalTo("root"));
     }
 
@@ -487,10 +487,10 @@ public class Docker {
     }
 
     private static void verifyOssInstallation(Installation es) {
-        dockerShell.run("id elasticsearch");
-        dockerShell.run("getent group elasticsearch");
+        dockerShell.run("id opensearch");
+        dockerShell.run("getent group opensearch");
 
-        final Shell.Result passwdResult = dockerShell.run("getent passwd elasticsearch");
+        final Shell.Result passwdResult = dockerShell.run("getent passwd opensearch");
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
         assertThat(homeDir, equalTo("/usr/share/opensearch"));
 
