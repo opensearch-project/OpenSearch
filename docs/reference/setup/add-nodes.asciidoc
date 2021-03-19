@@ -1,4 +1,4 @@
-[[add-elasticsearch-nodes]]
+[[add-opensearch-nodes]]
 == Add and remove nodes in your cluster
 
 When you start an instance of {es}, you are starting a _node_. An {es} _cluster_
@@ -43,7 +43,7 @@ For more information about discovery and shard allocation, see
 <<modules-discovery>> and <<modules-cluster>>.
 
 [discrete]
-[[add-elasticsearch-nodes-master-eligible]]
+[[add-opensearch-nodes-master-eligible]]
 === Master-eligible nodes
 
 As nodes are added or removed OpenSearch maintains an optimal level of fault

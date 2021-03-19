@@ -229,7 +229,7 @@ See <<getting-started-next-steps>>.
 === {ccs-cap} reduction
 See <<ccs-works>>.
 
-[role="exclude",id="administer-elasticsearch"]
+[role="exclude",id="administer-opensearch"]
 === Administering {es}
 See <<high-availability>>.
 
@@ -469,7 +469,7 @@ For other information, see:
 [role="exclude",id="modules-discovery-adding-removing-nodes"]
 === Adding and removing nodes
 
-See <<add-elasticsearch-nodes>>.
+See <<add-opensearch-nodes>>.
 
 [role="exclude",id="_installation"]
 === Installation
