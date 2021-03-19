@@ -19,7 +19,7 @@ services:
     ports:
       - 9200:9200
     networks:
-      - elastic
+      - opensearch
   es02:
     image: {docker-image}
     container_name: es02
@@ -37,7 +37,7 @@ services:
     volumes:
       - data02:/usr/share/opensearch/data
     networks:
-      - elastic
+      - opensearch
   es03:
     image: {docker-image}
     container_name: es03
@@ -55,7 +55,7 @@ services:
     volumes:
       - data03:/usr/share/opensearch/data    
     networks:
-      - elastic
+      - opensearch
 
 volumes:
   data01:
@@ -66,5 +66,5 @@ volumes:
     driver: local    
 
 networks:
-  elastic:
+  opensearch:
     driver: bridge
