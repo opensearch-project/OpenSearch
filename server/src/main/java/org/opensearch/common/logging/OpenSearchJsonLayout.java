@@ -74,10 +74,10 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
 
-    protected OpenSearchJsonLayout(String typeName, Charset charset, String[] esmessagefields) {
+    protected OpenSearchJsonLayout(String typeName, Charset charset, String[] opensearchMessageFields) {
         super(charset);
         this.patternLayout = PatternLayout.newBuilder()
-                                          .withPattern(pattern(typeName, esmessagefields))
+                                          .withPattern(pattern(typeName, opensearchMessageFields))
                                           .withAlwaysWriteExceptions(false)
                                           .build();
     }
