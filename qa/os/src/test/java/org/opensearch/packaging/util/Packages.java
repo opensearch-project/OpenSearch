@@ -172,7 +172,8 @@ public class Packages {
         final Path homeDir = Paths.get(passwdResult.stdout.trim().split(":")[5]);
         assertThat("opensearch user home directory must not exist", homeDir, fileDoesNotExist());
 
-        Stream.of(opensearch.home, opensearch.plugins, opensearch.modules).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
+        Stream.of(opensearch.home, opensearch.plugins, opensearch.modules)
+            .forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
 
         Stream.of(opensearch.data, opensearch.logs).forEach(dir -> assertThat(dir, file(Directory, "opensearch", "opensearch", p750)));
 
@@ -195,7 +196,8 @@ public class Packages {
         Stream.of("opensearch", "opensearch-plugin", "opensearch-keystore", "opensearch-shard", "opensearch-shard")
             .forEach(executable -> assertThat(opensearch.bin(executable), file(File, "root", "root", p755)));
 
-        Stream.of("NOTICE.txt", "README.asciidoc").forEach(doc -> assertThat(opensearch.home.resolve(doc), file(File, "root", "root", p644)));
+        Stream.of("NOTICE.txt", "README.asciidoc")
+            .forEach(doc -> assertThat(opensearch.home.resolve(doc), file(File, "root", "root", p644)));
 
         assertThat(opensearch.envFile, file(File, "root", "opensearch", p660));
 

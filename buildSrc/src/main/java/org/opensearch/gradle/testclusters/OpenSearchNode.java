@@ -662,8 +662,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void user(Map<String, String> userSpec) {
-    }
+    public void user(Map<String, String> userSpec) {}
 
     private void runOpenSearchBinScriptWithInput(String input, String tool, CharSequence... args) {
         if (Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false
