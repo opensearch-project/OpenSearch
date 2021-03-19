@@ -46,14 +46,14 @@ import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.engine.InternalEngineTests;
+import org.opensearch.index.engine.InternalEngineTests;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
-import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
+import org.opensearch.index.replication.RecoveryDuringReplicationTests;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
-import org.elasticsearch.index.translog.SnapshotMatchers;
+import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
 
 import java.io.IOException;
