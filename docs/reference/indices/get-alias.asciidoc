@@ -6,7 +6,7 @@
 
 Returns information about one or more index aliases.
 
-include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
+include::{opensearch-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----
@@ -31,22 +31,22 @@ GET /my-index-000001/_alias/alias1
 
 `<alias>`::
 (Optional, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
 +
 To retrieve information for all index aliases,
 use a value of `_all` or `*`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
 
 [[get-alias-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `all`.
 
@@ -55,7 +55,7 @@ Defaults to `all`.
 If `false`, requests that include a missing index in the `<index>` argument
 return an error. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
 
 [[get-alias-api-example]]

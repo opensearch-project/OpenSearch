@@ -27,7 +27,7 @@ memory usage) and information about the current nodes that form the cluster
 ==== {api-path-parms-title}
 
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
 
 
 [[cluster-stats-api-query-params]]
@@ -80,7 +80,7 @@ Unique identifier for the cluster.
 the last time the cluster statistics were refreshed.
 
 `status`::
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 +
 See <<cluster-health>>.
 

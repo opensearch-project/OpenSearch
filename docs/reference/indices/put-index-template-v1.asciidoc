@@ -108,7 +108,7 @@ Templates with lower `order` values are merged first.
 Templates with higher `order` values are merged later,
 overriding templates with lower values.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[put-index-template-v1-api-request-body]]
@@ -119,11 +119,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 Array of wildcard expressions
 used to match the names of indices during creation.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 `version`::
 (Optional, integer)

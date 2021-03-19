@@ -38,25 +38,25 @@ To target all indices in a cluster, omit this parameter or use
 [[get-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 `ignore_unavailable`::
 (Optional, Boolean)
 If `false`, requests that target a missing index return an error. Defaults to
 `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]

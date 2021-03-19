@@ -116,9 +116,9 @@ configuration to account for this.
 
 Supported `path.repo` values vary by platform:
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
+include::{opensearch-repo-dir}/tab-widgets/code.asciidoc[]
 
-include::{es-repo-dir}/tab-widgets/register-fs-repo-widget.asciidoc[]
+include::{opensearch-repo-dir}/tab-widgets/register-fs-repo-widget.asciidoc[]
 
 [discrete]
 [[snapshots-read-only-repository]]

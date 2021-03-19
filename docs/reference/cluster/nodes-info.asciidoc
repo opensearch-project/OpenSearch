@@ -81,7 +81,7 @@ Transport statistics about sent and received bytes in cluster communication.
 ====
 
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-info-api-response-body]]
@@ -154,9 +154,9 @@ running process:
 [[cluster-nodes-info-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[cluster-nodes-info-api-example]]

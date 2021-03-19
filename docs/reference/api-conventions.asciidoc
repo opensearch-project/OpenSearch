@@ -34,18 +34,18 @@ an index alias, the pattern `test*,-test3` still targets the indices for
 Multi-target APIs that can target indices support the following query
 string parameters:
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
 Some multi-target APIs that can target indices also support the following query
 string parameter:
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 NOTE: Single index APIs, such as the <<docs>> and
 <<indices-aliases,single-index `alias` APIs>>, do not support multi-target
