@@ -4,6 +4,7 @@
 To run the examples, index the sample seat data into OpenSearch. The examples
 must be run sequentially to work correctly.
 
+// TODO(OpenSearch): Correct the website url in this page
 . Download the
 https://download.opensearch.org/demos/painless/contexts/seats.json[seat data]. This
 data set contains booking information for a collection of plays. Each document
@@ -33,7 +34,7 @@ Each document contains the following fields:
 `time` ({ref}/keyword.html[`keyword`])::
         The time of the play as a keyword.
 
-. {defguide}/running-elasticsearch.html[Start] OpenSearch. Note these
+. {defguide}/running-opensearch.html[Start] OpenSearch. Note these
 examples assume OpenSearch and Kibana are running locally. To use the Console
 editor with a remote Kibana instance, click the settings icon and enter the
 Console URL. To submit a cURL request to a remote OpenSearch instance, edit
