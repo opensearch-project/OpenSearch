@@ -262,16 +262,16 @@ public class OpenSearchExecutors {
     }
 
     public static ThreadFactory daemonThreadFactory(String namePrefix) {
-        return new EsThreadFactory(namePrefix);
+        return new OpenSearchThreadFactory(namePrefix);
     }
 
-    static class EsThreadFactory implements ThreadFactory {
+    static class OpenSearchThreadFactory implements ThreadFactory {
 
         final ThreadGroup group;
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String namePrefix;
 
-        EsThreadFactory(String namePrefix) {
+        OpenSearchThreadFactory(String namePrefix) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() :

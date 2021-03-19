@@ -24,18 +24,18 @@ import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 
-public class ESJsonLayoutTests extends OpenSearchTestCase {
+public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
     @BeforeClass
     public static void initNodeName() {
         JsonLogsTestSetup.init();
     }
 
     public void testEmptyType() {
-        expectThrows(IllegalArgumentException.class, () -> ESJsonLayout.newBuilder().build());
+        expectThrows(IllegalArgumentException.class, () -> OpenSearchJsonLayout.newBuilder().build());
     }
 
     public void testLayout() {
-        ESJsonLayout server = ESJsonLayout.newBuilder()
+        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
                                           .setType("server")
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
@@ -54,7 +54,7 @@ public class ESJsonLayoutTests extends OpenSearchTestCase {
     }
 
     public void testLayoutWithAdditionalFields() {
-        ESJsonLayout server = ESJsonLayout.newBuilder()
+        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
                                           .setType("server")
                                           .setESMessageFields("x-opaque-id,someOtherField")
                                           .build();
@@ -76,7 +76,7 @@ public class ESJsonLayoutTests extends OpenSearchTestCase {
     }
 
     public void testLayoutWithAdditionalFieldOverride() {
-        ESJsonLayout server = ESJsonLayout.newBuilder()
+        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
                                           .setType("server")
                                           .setESMessageFields("message")
                                           .build();

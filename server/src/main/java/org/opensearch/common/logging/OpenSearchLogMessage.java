@@ -30,14 +30,14 @@ import java.util.stream.Stream;
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
 @SuppressLoggerChecks(reason = "Safe as this is abstract class")
-public abstract class ESLogMessage extends ParameterizedMessage {
+public abstract class OpenSearchLogMessage extends ParameterizedMessage {
     private final Map<String, Object> fields;
 
     /**
      * This is an abstract class, so this is safe. The check is done on DeprecationMessage.
      * Other subclasses are not allowing varargs
      */
-    public ESLogMessage(Map<String, Object> fields, String messagePattern, Object... args) {
+    public OpenSearchLogMessage(Map<String, Object> fields, String messagePattern, Object... args) {
         super(messagePattern, args);
         this.fields = fields;
     }
@@ -61,7 +61,7 @@ public abstract class ESLogMessage extends ParameterizedMessage {
 
     public static String asJsonArray(Stream<String> stream) {
         return "[" + stream
-            .map(ESLogMessage::inQuotes)
+            .map(OpenSearchLogMessage::inQuotes)
             .collect(Collectors.joining(", ")) + "]";
     }
 

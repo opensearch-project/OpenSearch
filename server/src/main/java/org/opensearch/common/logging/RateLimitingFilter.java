@@ -64,11 +64,11 @@ public class RateLimitingFilter extends AbstractFilter {
     }
 
     public Result filter(Message message) {
-        if (message instanceof ESLogMessage) {
-            final ESLogMessage esLogMessage = (ESLogMessage) message;
+        if (message instanceof OpenSearchLogMessage) {
+            final OpenSearchLogMessage opensearchLogMessage = (OpenSearchLogMessage) message;
 
-            String xOpaqueId = esLogMessage.getValueFor(X_OPAQUE_ID_FIELD_NAME);
-            final String key = esLogMessage.getValueFor("key");
+            String xOpaqueId = opensearchLogMessage.getValueFor(X_OPAQUE_ID_FIELD_NAME);
+            final String key = opensearchLogMessage.getValueFor("key");
 
             return lruKeyCache.add(xOpaqueId + key) ? Result.ACCEPT : Result.DENY;
 
