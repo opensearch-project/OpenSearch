@@ -60,7 +60,16 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log4j.Category',
   'org.apache.log4j.Level',
   'org.apache.log4j.Logger',
-  'org.apache.log4j.Priority'
+  'org.apache.log4j.Priority',
+  // TODO - OpenSearch remove this missing classes. Issue: https://github.com/opensearch-project/OpenSearch/issues/420
+  'org.apache.tools.ant.BuildException',
+  'org.apache.tools.ant.DirectoryScanner',
+  'org.apache.tools.ant.Task',
+  'org.apache.tools.ant.types.FileSet',
+)
+// TODO - OpenSearch remove this violation. Issue: https://github.com/opensearch-project/OpenSearch/issues/420
+thirdPartyAudit.ignoreViolations(
+  'org.objenesis.instantiator.sun.UnsafeFactoryInstantiator'
 )
 
 test {
