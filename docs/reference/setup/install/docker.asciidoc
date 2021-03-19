@@ -4,8 +4,9 @@
 {opensearch} is also available as Docker images.
 The images use https://hub.docker.com/_/centos/[centos:8] as the base image.
 
+// TODO(OpenSearch): Correct the website url in this page
 A list of all published Docker images and tags is available at
-https://www.docker.elastic.co[www.docker.elastic.co]. The source files
+https://www.docker.opensearch.org[www.docker.opensearch.org]. The source files
 are in
 https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
@@ -13,7 +14,7 @@ These images are free to use under the Elastic license. They contain open source
 and free commercial features and access to paid commercial features.
 {kibana-ref}/managing-licenses.html[Start a 30-day trial] to try out all of the
 paid commercial features. See the
-https://www.elastic.co/subscriptions[Subscriptions] page for information about
+https://www.opensearch.org/subscriptions[Subscriptions] page for information about
 Elastic license levels.
 
 ==== Pulling the image
@@ -37,7 +38,7 @@ docker pull {docker-repo}:{version}
 
 Alternatively, you can download other Docker images that contain only features
 available under the Apache 2.0 license. To download the images, go to
-https://www.docker.elastic.co[www.docker.elastic.co].
+https://www.docker.opensearch.org[www.docker.opensearch.org].
 
 endif::[]
 
@@ -298,7 +299,7 @@ memory access] to the container.
 ===== Pin deployments to a specific image version
 
 Pin your deployments to a specific version of the {opensearch} Docker image. For
-example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
+example +docker.opensearch.org/opensearch/opensearch:{version}+.
 
 ===== Always bind data volumes
 
@@ -403,7 +404,7 @@ your configuration. A `Dockerfile` to achieve this might be as simple as:
 
 [source,sh,subs="attributes"]
 --------------------------------------------
-FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
+FROM docker.opensearch.org/opensearch/opensearch:{version}
 COPY --chown=opensearch:opensearch opensearch.yml /usr/share/opensearch/config/
 --------------------------------------------
 

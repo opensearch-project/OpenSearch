@@ -613,7 +613,7 @@ PUT _ingest/pipeline/check_url
 POST test/_doc/1?pipeline=check_url
 {
   "href": {
-    "url": "http://www.elastic.co/"
+    "url": "http://www.opensearch.org/"
   }
 }
 --------------------------------------------------
@@ -643,7 +643,7 @@ GET test/_doc/1
   "_source": {
     "href": {
       "insecure": true,
-      "url": "http://www.elastic.co/"
+      "url": "http://www.opensearch.org/"
     }
   }
 }

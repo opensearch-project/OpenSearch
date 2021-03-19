@@ -7,9 +7,9 @@ OpenSearch on any Debian-based system such as Debian and Ubuntu.
 
 include::license.asciidoc[]
 
-// TODO(OpenSearch): Correct the links
+// TODO(OpenSearch): Correct the website url in this page
 The latest stable version of OpenSearch can be found on the
-link:/downloads/elasticsearch[Download OpenSearch] page. Other versions can
+link:/downloads/opensearch[Download OpenSearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
 NOTE: OpenSearch includes a bundled version of https://openjdk.java.net[OpenJDK]
@@ -21,9 +21,10 @@ see the <<jvm-version, JVM version requirements>>
 
 include::key.asciidoc[]
 
+// TODO(OpenSearch): Correct the website url in this page
 [source,sh]
 -------------------------
-wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+wget -qO - https://artifacts.opensearch.org/GPG-KEY-opensearch | sudo apt-key add -
 -------------------------
 
 [[deb-repo]]
@@ -50,7 +51,7 @@ ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
+echo "deb https://artifacts.opensearch.org/packages/{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -59,7 +60,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
+echo "deb https://artifacts.opensearch.org/packages/{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -97,7 +98,7 @@ If two entries exist for the same OpenSearch repository, you will see an error l
 
 ["literal",subs="attributes,callouts"]
 
-Duplicate sources.list entry https://artifacts.elastic.co/packages/{major-version}/apt/ ...`
+Duplicate sources.list entry https://artifacts.opensearch.org/packages/{major-version}/apt/ ...`
 
 Examine +/etc/apt/sources.list.d/opensearch-{major-version}.list+ for the duplicate entry or locate the duplicate entry amongst the files in `/etc/apt/sources.list.d/` and the `/etc/apt/sources.list` file.
 ==================================================
@@ -118,7 +119,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
+echo "deb https://artifacts.opensearch.org/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -127,7 +128,7 @@ ifeval::["{release-state}"!="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/oss-{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
+echo "deb https://artifacts.opensearch.org/packages/oss-{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -151,8 +152,8 @@ The Debian package for OpenSearch v{version} can be downloaded from the website 
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-amd64.deb
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-amd64.deb.sha512
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-amd64.deb
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-amd64.deb.sha512
 shasum -a 512 -c opensearch-{version}-amd64.deb.sha512 <1>
 sudo dpkg -i opensearch-{version}-amd64.deb
 --------------------------------------------
@@ -161,7 +162,7 @@ sudo dpkg -i opensearch-{version}-amd64.deb
 
 Alternatively, you can download the following package, which contains only
 features that are available under the Apache 2.0 license:
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-amd64.deb
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-oss-{version}-amd64.deb
 
 endif::[]
 
