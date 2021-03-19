@@ -17,8 +17,9 @@ client and it allows to communicate with an OpenSearch cluster in any version us
 On top of that we released the high-level REST client which is based on the low-level client
 but takes care of request marshalling and response un-marshalling.
 
+// TODO(OpenSearch): Correct the website url in this page
 If you're interested in knowing more about these changes, we wrote a blog post about the
-https://www.elastic.co/blog/state-of-the-official-elasticsearch-java-clients[state of the official Elasticsearch Java clients].
+https://www.opensearch.org/blog/state-of-the-official-opensearch-java-clients[state of the official OpenSearch Java clients].
 
 === Prerequisite
 
@@ -286,4 +287,4 @@ body, but any other JSON parser could have been use instead.
 === Provide feedback
 
 We love to hear from you! Please give us your feedback about your migration
-experience and how to improve the Java High Level Rest Client on https://discuss.elastic.co/[our forum].
+experience and how to improve the Java High Level Rest Client on https://discuss.opensearch.org/[our forum].

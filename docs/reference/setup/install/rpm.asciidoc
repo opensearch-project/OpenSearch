@@ -11,9 +11,9 @@ such as SLES 11 and CentOS 5.  Please see <<targz>> instead.
 
 include::license.asciidoc[]
 
-// TODO(OpenSearch): Correct the links
+// TODO(OpenSearch): Correct the website url in this page
 The latest stable version of OpenSearch can be found on the
-link:/downloads/elasticsearch[Download OpenSearch] page. Other versions can
+link:/downloads/opensearch[Download OpenSearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
 NOTE: OpenSearch includes a bundled version of https://openjdk.java.net[OpenJDK]
@@ -27,7 +27,7 @@ include::key.asciidoc[]
 
 [source,sh]
 -------------------------
-rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
+rpm --import https://artifacts.opensearch.org/GPG-KEY-opensearch
 -------------------------
 
 [[rpm-repo]]
@@ -51,9 +51,9 @@ ifeval::["{release-state}"=="released"]
 --------------------------------------------------
 [opensearch]
 name=Elasticsearch repository for {major-version} packages
-baseurl=https://artifacts.elastic.co/packages/{major-version}/yum
+baseurl=https://artifacts.opensearch.org/packages/{major-version}/yum
 gpgcheck=1
-gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+gpgkey=https://artifacts.opensearch.org/GPG-KEY-opensearch
 enabled=0
 autorefresh=1
 type=rpm-md
@@ -67,9 +67,9 @@ ifeval::["{release-state}"=="prerelease"]
 --------------------------------------------------
 [opensearch]
 name=Elasticsearch repository for {major-version} packages
-baseurl=https://artifacts.elastic.co/packages/{major-version}-prerelease/yum
+baseurl=https://artifacts.opensearch.org/packages/{major-version}-prerelease/yum
 gpgcheck=1
-gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+gpgkey=https://artifacts.opensearch.org/GPG-KEY-opensearch
 enabled=0
 autorefresh=1
 type=rpm-md
@@ -109,7 +109,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-baseurl=https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/yum
+baseurl=https://artifacts.opensearch.org/packages/oss-{major-version}-prerelease/yum
 --------------------------------------------------
 
 endif::[]
@@ -118,7 +118,7 @@ ifeval::["{release-state}"!="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-baseurl=https://artifacts.elastic.co/packages/oss-{major-version}/yum
+baseurl=https://artifacts.opensearch.org/packages/oss-{major-version}/yum
 --------------------------------------------------
 
 endif::[]
@@ -142,17 +142,17 @@ The RPM for OpenSearch v{version} can be downloaded from the website and install
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-x86_64.rpm
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-x86_64.rpm.sha512
-shasum -a 512 -c elasticsearch-{version}-x86_64.rpm.sha512 <1>
-sudo rpm --install elasticsearch-{version}-x86_64.rpm
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-x86_64.rpm
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-x86_64.rpm.sha512
+shasum -a 512 -c opensearch-{version}-x86_64.rpm.sha512 <1>
+sudo rpm --install opensearch-{version}-x86_64.rpm
 --------------------------------------------
 <1> Compares the SHA of the downloaded RPM and the published checksum, which should output
-    `elasticsearch-{version}-x86_64.rpm: OK`.
+    `opensearch-{version}-x86_64.rpm: OK`.
     
 Alternatively, you can download the following package, which contains only 
 features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-x86_64.rpm    
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-oss-{version}-x86_64.rpm    
 
 endif::[]
 

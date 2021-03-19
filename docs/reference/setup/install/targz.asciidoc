@@ -5,9 +5,9 @@ OpenSearch is as a `.tar.gz` archive for Linux and MacOS.
 
 include::license.asciidoc[]
 
-// TODO(OpenSearch): Correct the links
+// TODO(OpenSearch): Correct the website url in this page
 The latest stable version of OpenSearch can be found on the
-link:/downloads/elasticsearch[Download OpenSearch] page.
+link:/downloads/opensearch[Download OpenSearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
@@ -30,8 +30,8 @@ The Linux archive for OpenSearch v{version} can be downloaded and installed as f
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz.sha512
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-linux-x86_64.tar.gz
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-linux-x86_64.tar.gz.sha512
 shasum -a 512 -c opensearch-{version}-linux-x86_64.tar.gz.sha512 <1>
 tar -xzf opensearch-{version}-linux-x86_64.tar.gz
 cd opensearch-{version}/ <2>
@@ -42,7 +42,7 @@ cd opensearch-{version}/ <2>
 
 Alternatively, you can download the following package, which includes only 
 Apache 2.0 licensed code: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-linux-x86_64.tar.gz
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-oss-{version}-linux-x86_64.tar.gz
 
 endif::[]
 
@@ -61,8 +61,8 @@ The MacOS archive for OpenSearch v{version} can be downloaded and installed as f
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz.sha512
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-darwin-x86_64.tar.gz
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-darwin-x86_64.tar.gz.sha512
 shasum -a 512 -c opensearch-{version}-darwin-x86_64.tar.gz.sha512 <1>
 tar -xzf opensearch-{version}-darwin-x86_64.tar.gz
 cd opensearch-{version}/ <2>
@@ -73,7 +73,7 @@ cd opensearch-{version}/ <2>
 
 Alternatively, you can download the following package, which includes only 
 Apache 2.0 licensed code: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-darwin-x86_64.tar.gz
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-oss-{version}-darwin-x86_64.tar.gz
 
 endif::[]
 
