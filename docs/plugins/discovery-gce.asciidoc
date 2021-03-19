@@ -120,7 +120,7 @@ If you did not set it yet, you can define your default project you will work on:
 
 [source,sh]
 --------------------------------------------------
-gcloud config set project es-cloud
+gcloud config set project opensearch-cloud
 --------------------------------------------------
 
 [[discovery-gce-usage-long-login]]
@@ -151,7 +151,7 @@ When done, a report like this one should appears:
 
 [source,text]
 --------------------------------------------------
-Created [https://www.googleapis.com/compute/v1/projects/es-cloud-1070/zones/us-central1-f/instances/myesnode1].
+Created [https://www.googleapis.com/compute/v1/projects/opensearch-cloud-1070/zones/us-central1-f/instances/myesnode1].
 NAME      ZONE          MACHINE_TYPE  PREEMPTIBLE INTERNAL_IP   EXTERNAL_IP   STATUS
 myesnode1 us-central1-f n1-standard-1             10.240.133.54 104.197.94.25 RUNNING
 --------------------------------------------------
@@ -208,7 +208,7 @@ And add the following lines:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
+      project_id: opensearch-cloud
       zone: europe-west1-a
 discovery:
       seed_providers: gce
@@ -346,7 +346,7 @@ Add your tag when building the new instance:
 
 [source,sh]
 --------------------------------------------------
-gcloud compute instances create myesnode1 --project=es-cloud \
+gcloud compute instances create myesnode1 --project=opensearch-cloud \
        --scopes=compute-rw \
        --tags=elasticsearch,dev
 --------------------------------------------------
@@ -410,7 +410,7 @@ If you don't want to repeat the project id each time, you can save it in the loc
 
 [source,sh]
 --------------------------------------------------
-gcloud config set project es-cloud
+gcloud config set project opensearch-cloud
 --------------------------------------------------
 
 [[discovery-gce-usage-tips-permissions]]
