@@ -32,7 +32,7 @@ To take {es} for a test drive, you can set up a multi-node {es} cluster on your 
 Linux, macOS, or Windows machine.
 
 [discrete]
-[[run-elasticsearch-local]]
+[[run-opensearch-local]]
 === Run {es} locally on Linux, macOS, or Windows
 
 By installing from the tar or zip 
