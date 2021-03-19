@@ -30,32 +30,32 @@ import org.opensearch.common.Strings;
 
 /**
  * Pattern converter to populate ESMessageField in a pattern.
- * It will only populate these if the event have message of type <code>ESLogMessage</code>.
+ * It will only populate these if the event have message of type <code>OpenSearchLogMessage</code>.
  */
-@Plugin(category = PatternConverter.CATEGORY, name = "ESMessageField")
-@ConverterKeys({"ESMessageField"})
-public final class ESMessageFieldConverter extends LogEventPatternConverter {
+@Plugin(category = PatternConverter.CATEGORY, name = "OpenSearchMessageField")
+@ConverterKeys({"OpenSearchMessageField"})
+public final class OpenSearchMessageFieldConverter extends LogEventPatternConverter {
 
     private String key;
 
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static ESMessageFieldConverter newInstance(final Configuration config, final String[] options) {
+    public static OpenSearchMessageFieldConverter newInstance(final Configuration config, final String[] options) {
         final String key = options[0];
 
-        return new ESMessageFieldConverter(key);
+        return new OpenSearchMessageFieldConverter(key);
     }
 
-    public ESMessageFieldConverter(String key) {
+    public OpenSearchMessageFieldConverter(String key) {
         super("ESMessageField", "ESMessageField");
         this.key = key;
     }
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (event.getMessage() instanceof ESLogMessage) {
-            ESLogMessage logMessage = (ESLogMessage) event.getMessage();
+        if (event.getMessage() instanceof OpenSearchLogMessage) {
+            OpenSearchLogMessage logMessage = (OpenSearchLogMessage) event.getMessage();
             final String value = logMessage.getValueFor(key);
             if (Strings.isNullOrEmpty(value) == false) {
                 StringBuilders.appendValue(toAppendTo, value);

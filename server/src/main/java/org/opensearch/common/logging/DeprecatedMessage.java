@@ -28,7 +28,7 @@ import org.opensearch.common.collect.MapBuilder;
  * A logger message used by {@link DeprecationLogger}.
  * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
  */
-public class DeprecatedMessage extends ESLogMessage {
+public class DeprecatedMessage extends OpenSearchLogMessage {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
 
     public DeprecatedMessage(String key, String xOpaqueId, String messagePattern, Object... args) {

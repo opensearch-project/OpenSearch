@@ -93,7 +93,7 @@ public class DeprecationLogger {
     public class DeprecationLoggerBuilder {
 
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
-            ESLogMessage deprecationMessage = new DeprecatedMessage(key, HeaderWarning.getXOpaqueId(), msg, params);
+            OpenSearchLogMessage deprecationMessage = new DeprecatedMessage(key, HeaderWarning.getXOpaqueId(), msg, params);
 
             logger.log(DEPRECATION, deprecationMessage);
 
