@@ -270,19 +270,19 @@ public class ScriptContextInfoTests extends OpenSearchTestCase {
             "          \"name\": \"weight\"" +
             "        }," +
             "        {" +
-            "          \"type\": \"org.elasticsearch.index.similarity.ScriptedSimilarity$Query\"," +
+            "          \"type\": \"org.opensearch.index.similarity.ScriptedSimilarity$Query\"," +
             "          \"name\": \"query\"" +
             "        }," +
             "        {" +
-            "          \"type\": \"org.elasticsearch.index.similarity.ScriptedSimilarity$Field\"," +
+            "          \"type\": \"org.opensearch.index.similarity.ScriptedSimilarity$Field\"," +
             "          \"name\": \"field\"" +
             "        }," +
             "        {" +
-            "          \"type\": \"org.elasticsearch.index.similarity.ScriptedSimilarity$Term\"," +
+            "          \"type\": \"org.opensearch.index.similarity.ScriptedSimilarity$Term\"," +
             "          \"name\": \"term\"" +
             "        }," +
             "        {" +
-            "          \"type\": \"org.elasticsearch.index.similarity.ScriptedSimilarity$Doc\"," +
+            "          \"type\": \"org.opensearch.index.similarity.ScriptedSimilarity$Doc\"," +
             "          \"name\": \"doc\"" +
             "        }" +
             "      ]" +

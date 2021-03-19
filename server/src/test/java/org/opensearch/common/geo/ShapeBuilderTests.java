@@ -28,7 +28,7 @@ import org.opensearch.common.geo.builders.PointBuilder;
 import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.geometry.LinearRing;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.opensearch.index.mapper.GeoShapeIndexer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;

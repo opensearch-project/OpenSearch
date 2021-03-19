@@ -46,7 +46,7 @@ import org.opensearch.geometry.MultiPolygon;
 import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.opensearch.index.mapper.GeoShapeIndexer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 

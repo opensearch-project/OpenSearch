@@ -24,8 +24,8 @@ import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -48,7 +48,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .endObject()
         .endObject();
 
-        List<FieldAndFormat> fieldAndFormats = org.elasticsearch.common.collect.List.of(
+        List<FieldAndFormat> fieldAndFormats = org.opensearch.common.collect.List.of(
             new FieldAndFormat("field", null),
             new FieldAndFormat("object.field", null));
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats);
@@ -80,7 +80,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
         DocumentField rangeField = fields.get("float_range");
         assertNotNull(rangeField);
         assertThat(rangeField.getValues().size(), equalTo(1));
-        assertThat(rangeField.getValue(), equalTo(org.elasticsearch.common.collect.Map.of("gte", 0.0f, "lte", 2.718f)));
+        assertThat(rangeField.getValue(), equalTo(org.opensearch.common.collect.Map.of("gte", 0.0f, "lte", 2.718f)));
     }
 
     public void testNonExistentField() throws IOException {
@@ -211,7 +211,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .field("date_field", "1990-12-29T00:00:00.000Z")
         .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, org.elasticsearch.common.collect.List.of(
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, org.opensearch.common.collect.List.of(
             new FieldAndFormat("field", null),
             new FieldAndFormat("date_field", "yyyy/MM/dd")));
         assertThat(fields.size(), equalTo(2));
@@ -391,7 +391,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
     private Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
         throws IOException {
 
-        List<FieldAndFormat> fields = org.elasticsearch.common.collect.List.of(new FieldAndFormat(fieldPattern, null));
+        List<FieldAndFormat> fields = org.opensearch.common.collect.List.of(new FieldAndFormat(fieldPattern, null));
         return fetchFields(mapperService, source, fields);
     }
 
@@ -402,7 +402,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
         sourceLookup.setSource(BytesReference.bytes(source));
 
         FieldFetcher fieldFetcher = FieldFetcher.create(mapperService, null, fields);
-        return fieldFetcher.fetch(sourceLookup, org.elasticsearch.common.collect.Set.of());
+        return fieldFetcher.fetch(sourceLookup, org.opensearch.common.collect.Set.of());
     }
 
     public MapperService createMapperService() throws IOException {

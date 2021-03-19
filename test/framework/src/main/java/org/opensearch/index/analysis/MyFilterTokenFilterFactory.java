@@ -22,8 +22,8 @@ import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.env.Environment;
+import org.opensearch.index.IndexSettings;
 
 public class MyFilterTokenFilterFactory extends AbstractTokenFilterFactory {
 

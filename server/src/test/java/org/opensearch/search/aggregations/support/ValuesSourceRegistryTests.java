@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.support;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.search.aggregations.bucket.histogram.HistogramAggregatorSupplier;
 import org.opensearch.test.OpenSearchTestCase;

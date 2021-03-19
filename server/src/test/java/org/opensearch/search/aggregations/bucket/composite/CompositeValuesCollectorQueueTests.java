@@ -43,10 +43,10 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.util.BigArrays;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.LeafBucketCollector;
@@ -58,8 +58,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
-import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.LONG;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 

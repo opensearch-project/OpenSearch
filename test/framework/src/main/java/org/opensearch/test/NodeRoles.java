@@ -20,7 +20,7 @@
 package org.opensearch.test;
 
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.node.NodeRoleSettings;
 
 import java.util.Collections;

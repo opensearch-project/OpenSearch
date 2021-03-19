@@ -20,7 +20,7 @@
 package org.opensearch.search.suggest.completion;
 
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.index.query.RegexpFlag;
+import org.opensearch.index.query.RegexpFlag;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

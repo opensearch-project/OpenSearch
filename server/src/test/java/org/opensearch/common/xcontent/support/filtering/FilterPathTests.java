@@ -19,7 +19,6 @@
 
 package org.opensearch.common.xcontent.support.filtering;
 
-import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.test.OpenSearchTestCase;
 

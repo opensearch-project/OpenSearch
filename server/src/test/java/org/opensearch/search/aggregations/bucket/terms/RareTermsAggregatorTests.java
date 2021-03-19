@@ -41,18 +41,18 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.text.Text;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.RangeFieldMapper;
+import org.opensearch.index.mapper.RangeType;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.TypeFieldMapper;
+import org.opensearch.index.mapper.Uid;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -81,7 +81,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
+import static org.opensearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
@@ -376,22 +376,22 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             InternalRareTerms<?, ?> evenRare = even.getAggregations().get("rare");
             assertEquals(
                 evenRare.getBuckets().stream().map(InternalRareTerms.Bucket::getKeyAsString).collect(toList()),
-                org.elasticsearch.common.collect.List.of("2")
+                org.opensearch.common.collect.List.of("2")
             );
             assertEquals(
                 evenRare.getBuckets().stream().map(InternalRareTerms.Bucket::getDocCount).collect(toList()),
-                org.elasticsearch.common.collect.List.of(2L)
+                org.opensearch.common.collect.List.of(2L)
             );
 
             StringTerms.Bucket odd = terms.getBucketByKey("odd");
             InternalRareTerms<?, ?> oddRare = odd.getAggregations().get("rare");
             assertEquals(
                 oddRare.getBuckets().stream().map(InternalRareTerms.Bucket::getKeyAsString).collect(toList()),
-                org.elasticsearch.common.collect.List.of("1")
+                org.opensearch.common.collect.List.of("1")
             );
             assertEquals(
                 oddRare.getBuckets().stream().map(InternalRareTerms.Bucket::getDocCount).collect(toList()),
-                org.elasticsearch.common.collect.List.of(1L)
+                org.opensearch.common.collect.List.of(1L)
             );
         }
     }

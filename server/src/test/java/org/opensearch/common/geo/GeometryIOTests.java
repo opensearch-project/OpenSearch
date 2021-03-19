@@ -30,7 +30,7 @@ import org.opensearch.geometry.ShapeType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.geo.GeometryTestUtils.randomGeometry;
-import static org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor.geometryToShapeBuilder;
+import static org.opensearch.index.query.LegacyGeoShapeQueryProcessor.geometryToShapeBuilder;
 
 public class GeometryIOTests extends OpenSearchTestCase {
 

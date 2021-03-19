@@ -411,7 +411,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
         List<PreConfiguredCharFilter> filters = new ArrayList<>();
         filters.add(PreConfiguredCharFilter.singleton("html_strip", false, HTMLStripCharFilter::new));
-        filters.add(PreConfiguredCharFilter.elasticsearchVersion("htmlStrip", false, (reader, version) -> {
+        filters.add(PreConfiguredCharFilter.openSearchVersion("htmlStrip", false, (reader, version) -> {
             if (version.onOrAfter(org.opensearch.Version.V_6_3_0)) {
                 deprecationLogger.deprecate("htmlStrip_deprecation",
                         "The [htmpStrip] char filter name is deprecated and will be removed in a future version. "
@@ -438,7 +438,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 input -> new CommonGramsFilter(input, CharArraySet.EMPTY_SET)));
         filters.add(PreConfiguredTokenFilter.singleton("czech_stem", false, CzechStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("decimal_digit", true, DecimalDigitFilter::new));
-        filters.add(PreConfiguredTokenFilter.elasticsearchVersion("delimited_payload_filter", false, (input, version) -> {
+        filters.add(PreConfiguredTokenFilter.openSearchVersion("delimited_payload_filter", false, (input, version) -> {
             if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException(
                     "[delimited_payload_filter] is not supported for new indices, use [delimited_payload] instead");
@@ -458,7 +458,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
         filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, false, input ->
                 new EdgeNGramTokenFilter(input, 1)));
-        filters.add(PreConfiguredTokenFilter.elasticsearchVersion("edgeNGram", false, false, (reader, version) -> {
+        filters.add(PreConfiguredTokenFilter.openSearchVersion("edgeNGram", false, false, (reader, version) -> {
             if (version.onOrAfter(org.opensearch.Version.V_7_0_0)) {
                 throw new IllegalArgumentException(
                         "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
@@ -486,7 +486,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                         LimitTokenCountFilterFactory.DEFAULT_MAX_TOKEN_COUNT,
                         LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS)));
         filters.add(PreConfiguredTokenFilter.singleton("ngram", false, false, reader -> new NGramTokenFilter(reader, 1, 2, false)));
-        filters.add(PreConfiguredTokenFilter.elasticsearchVersion("nGram", false, false, (reader, version) -> {
+        filters.add(PreConfiguredTokenFilter.openSearchVersion("nGram", false, false, (reader, version) -> {
             if (version.onOrAfter(org.opensearch.Version.V_7_0_0)) {
                 throw new IllegalArgumentException("The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                         + "Please change the filter name to [ngram] instead.");
@@ -532,7 +532,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                       | WordDelimiterFilter.SPLIT_ON_CASE_CHANGE
                       | WordDelimiterFilter.SPLIT_ON_NUMERICS
                       | WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null)));
-        filters.add(PreConfiguredTokenFilter.elasticsearchVersion("word_delimiter_graph", false, false, (input, version) -> {
+        filters.add(PreConfiguredTokenFilter.openSearchVersion("word_delimiter_graph", false, false, (input, version) -> {
             boolean adjustOffsets = version.onOrAfter(Version.V_7_3_0);
             return new WordDelimiterGraphFilter(input, adjustOffsets, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
                         WordDelimiterGraphFilter.GENERATE_WORD_PARTS
@@ -554,7 +554,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("letter", LetterTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new));
-        tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("edge_ngram", (version) -> {
+        tokenizers.add(PreConfiguredTokenizer.openSearchVersion("edge_ngram", (version) -> {
             if (version.onOrAfter(Version.V_7_3_0)) {
                 return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
             }
@@ -567,7 +567,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new));
 
         // Temporary shim for aliases. TODO deprecate after they are moved
-        tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("nGram", (version) -> {
+        tokenizers.add(PreConfiguredTokenizer.openSearchVersion("nGram", (version) -> {
             if (version.onOrAfter(org.opensearch.Version.V_7_6_0)) {
                 deprecationLogger.deprecate("nGram_tokenizer_deprecation",
                         "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
@@ -575,7 +575,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             }
             return new NGramTokenizer();
         }));
-        tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("edgeNGram", (version) -> {
+        tokenizers.add(PreConfiguredTokenizer.openSearchVersion("edgeNGram", (version) -> {
             if (version.onOrAfter(org.opensearch.Version.V_7_6_0)) {
                 deprecationLogger.deprecate("edgeNGram_tokenizer_deprecation",
                         "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "

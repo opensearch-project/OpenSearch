@@ -19,7 +19,6 @@
 
 package org.opensearch.common.xcontent.smile;
 
-import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentGenerator;
