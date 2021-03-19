@@ -25,7 +25,6 @@ import org.opensearch.index.engine.InternalEngineTests;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.hamcrest.Matchers;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
