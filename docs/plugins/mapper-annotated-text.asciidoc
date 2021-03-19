@@ -200,7 +200,7 @@ GET my-index-000001/_search
 {
   "query": {
     "query_string": {
-        "query": "opensearch OR opensearch\-dashboards",<2>
+        "query": "opensearch OR opensearch\\-dashboards",<2>
         "default_field": "my_unstructured_text_field"
     }
   },
