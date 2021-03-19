@@ -1,60 +1,6 @@
 # Only used for testing the docker images
 version: '3'
 services:
-  elasticsearch-default-1:
-    image: opensearch:test
-    environment:
-       - node.name=opensearch-default-1
-       - cluster.initial_master_nodes=opensearch-default-1,opensearch-default-2
-       - discovery.seed_hosts=opensearch-default-2:9300
-       - cluster.name=opensearch-default
-       - bootstrap.memory_lock=true
-       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-       - path.repo=/tmp/es-repo
-       - node.attr.testattr=test
-       - cluster.routing.allocation.disk.watermark.low=1b
-       - cluster.routing.allocation.disk.watermark.high=1b
-       - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       - node.store.allow_mmap=false
-    volumes:
-       - ./build/repo:/tmp/es-repo
-       - ./build/certs/testnode.jks:/usr/share/opensearch/config/testnode.jks
-       - ./build/logs/default-1:/usr/share/opensearch/logs
-       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
-    ports:
-      - "9200"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    entrypoint: /docker-test-entrypoint.sh
-  opensearch-default-2:
-    image: opensearch:test
-    environment:
-       - node.name=opensearch-default-2
-       - cluster.initial_master_nodes=opensearch-default-1,opensearch-default-2
-       - discovery.seed_hosts=opensearch-default-1:9300
-       - cluster.name=opensearch-default
-       - bootstrap.memory_lock=true
-       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-       - path.repo=/tmp/es-repo
-       - node.attr.testattr=test
-       - cluster.routing.allocation.disk.watermark.low=1b
-       - cluster.routing.allocation.disk.watermark.high=1b
-       - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       - node.store.allow_mmap=false
-    volumes:
-       - ./build/repo:/tmp/es-repo
-       - ./build/certs/testnode.jks:/usr/share/opensearch/config/testnode.jks
-       - ./build/logs/default-2:/usr/share/opensearch/logs
-       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
-    ports:
-      - "9200"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    entrypoint: /docker-test-entrypoint.sh
   opensearch-oss-1:
     image: opensearch:test
     environment:
