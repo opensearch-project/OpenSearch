@@ -283,7 +283,8 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
         shardSizes.put("[test][1][r]", 100L);
         shardSizes.put("[test][2][r]", 1000L);
         shardSizes.put("[other][0][p]", 10000L);
-        ClusterInfo info = new DiskThresholdDeciderTests.DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
+        ClusterInfo info =
+            new DiskThresholdDeciderTests.DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)
             .put("index.uuid", "1234")).numberOfShards(3).numberOfReplicas(1));
@@ -362,7 +363,8 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
         shardSizes.put("[test][2][p]", 500L);
         shardSizes.put("[test][3][p]", 500L);
 
-        ClusterInfo info = new DiskThresholdDeciderTests.DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
+        ClusterInfo info =
+            new DiskThresholdDeciderTests.DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(IndexMetadata.builder("test").settings(settings(Version.CURRENT).put("index.uuid", "1234"))
             .numberOfShards(4).numberOfReplicas(0));

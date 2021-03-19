@@ -44,8 +44,8 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.index.translog.Translog.CHECKPOINT_FILE_NAME;
-import static org.elasticsearch.index.translog.Translog.TRANSLOG_FILE_SUFFIX;
+import static org.opensearch.index.translog.Translog.CHECKPOINT_FILE_NAME;
+import static org.opensearch.index.translog.Translog.TRANSLOG_FILE_SUFFIX;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;

@@ -23,11 +23,11 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.opensearch.common.compress.CompressedXContent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.MapperServiceTestCase;
 
 import java.io.IOException;
@@ -260,9 +260,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Map<String, Object> expected = org.elasticsearch.common.collect.Map.of(
+        Map<String, Object> expected = org.opensearch.common.collect.Map.of(
             "field", "value",
-            "object", org.elasticsearch.common.collect.Map.of("field1", "value1", "field2", "value2"));
+            "object", org.opensearch.common.collect.Map.of("field1", "value1", "field2", "value2"));
         assertThat(initMapper.meta(), equalTo(expected));
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
@@ -284,9 +284,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }));
         mergedMapper = mergedMapper.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE);
 
-        expected = org.elasticsearch.common.collect.Map.of(
+        expected = org.opensearch.common.collect.Map.of(
             "field", "value",
-            "object", org.elasticsearch.common.collect.Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
+            "object", org.opensearch.common.collect.Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
         assertThat(mergedMapper.meta(), equalTo(expected));
     }
 }

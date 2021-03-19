@@ -190,7 +190,8 @@ public class ExpectedReciprocalRankTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         ExpectedReciprocalRank original = createTestItem();
-        ExpectedReciprocalRank deserialized = OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
+        ExpectedReciprocalRank deserialized =
+            OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
                 ExpectedReciprocalRank::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());

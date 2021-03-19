@@ -357,9 +357,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
         List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
         // TODO remove in 8.0
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.ELASTICSEARCH,
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.OPENSEARCH,
             () -> new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET)));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH,
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.OPENSEARCH,
             () -> new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true,
             CharArraySet.EMPTY_SET)));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("snowball", CachingStrategy.LUCENE,

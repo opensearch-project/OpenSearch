@@ -45,11 +45,11 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.index.search.MatchQuery.Type;
-import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.search.MatchQuery;
+import org.opensearch.index.search.MatchQuery.Type;
+import org.opensearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 

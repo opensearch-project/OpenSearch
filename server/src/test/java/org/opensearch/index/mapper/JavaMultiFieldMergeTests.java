@@ -24,7 +24,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;

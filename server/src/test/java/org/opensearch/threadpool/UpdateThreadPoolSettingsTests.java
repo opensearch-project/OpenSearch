@@ -114,7 +114,8 @@ public class UpdateThreadPoolSettingsTests extends OpenSearchThreadPoolTestCase 
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedSize));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
             // keep alive does not apply to fixed thread pools
-            assertThat(((OpenSearchThreadPoolExecutor) threadPool.executor(threadPoolName)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(0L));
+            assertThat(((OpenSearchThreadPoolExecutor) threadPool.executor(threadPoolName)).getKeepAliveTime(TimeUnit.MINUTES),
+                equalTo(0L));
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }

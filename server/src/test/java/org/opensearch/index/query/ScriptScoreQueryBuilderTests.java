@@ -23,7 +23,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
+import org.opensearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -32,7 +32,7 @@ import org.opensearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

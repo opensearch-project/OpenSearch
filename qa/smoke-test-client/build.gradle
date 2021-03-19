@@ -47,7 +47,7 @@ testingConventions {
   naming.clear()
   naming {
     IT {
-      baseClass 'org.opensearch.smoketest.ESSmokeClientTestCase'
+      baseClass 'org.opensearch.smoketest.OpenSearchSmokeClientTestCase'
     }
   }
 }

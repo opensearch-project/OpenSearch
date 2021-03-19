@@ -30,7 +30,7 @@ import org.opensearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.index.query.IntervalsSourceProvider.IntervalFilter;
+import static org.opensearch.index.query.IntervalsSourceProvider.IntervalFilter;
 
 public class FilterIntervalsSourceProviderTests extends AbstractSerializingTestCase<IntervalFilter> {
 

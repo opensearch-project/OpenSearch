@@ -169,21 +169,15 @@ public class Archives {
         assertThat(es.lib, file(Directory, owner, owner, p755));
         assertThat(Files.exists(es.config("opensearch.keystore")), is(false));
 
-        Stream.of(
-            "opensearch",
-            "opensearch-env",
-            "opensearch-keystore",
-            "opensearch-plugin",
-            "opensearch-shard",
-            "opensearch-node"
-        ).forEach(executable -> {
+        Stream.of("opensearch", "opensearch-env", "opensearch-keystore", "opensearch-plugin", "opensearch-shard", "opensearch-node")
+            .forEach(executable -> {
 
-            assertThat(es.bin(executable), file(File, owner, owner, p755));
+                assertThat(es.bin(executable), file(File, owner, owner, p755));
 
-            if (distribution.packaging == Distribution.Packaging.ZIP) {
-                assertThat(es.bin(executable + ".bat"), file(File, owner));
-            }
-        });
+                if (distribution.packaging == Distribution.Packaging.ZIP) {
+                    assertThat(es.bin(executable + ".bat"), file(File, owner));
+                }
+            });
 
         if (distribution.packaging == Distribution.Packaging.ZIP) {
             Stream.of("opensearch-service.bat", "opensearch-service-mgr.exe", "opensearch-service-x64.exe")
@@ -237,12 +231,7 @@ public class Archives {
         return sh.runIgnoreExitCode(script);
     }
 
-    public static Shell.Result runOpenSearchStartCommand(
-        Installation installation,
-        Shell sh,
-        String keystorePassword,
-        boolean daemonize
-    ) {
+    public static Shell.Result runOpenSearchStartCommand(Installation installation, Shell sh, String keystorePassword, boolean daemonize) {
         final Path pidFile = installation.home.resolve("opensearch.pid");
 
         assertThat(pidFile, fileDoesNotExist());

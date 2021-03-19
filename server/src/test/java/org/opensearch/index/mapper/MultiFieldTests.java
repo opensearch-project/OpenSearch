@@ -30,9 +30,9 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.ParseContext.Document;
+import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;

@@ -48,7 +48,7 @@ public class LoggerUsageTask extends PrecommitTask {
     @TaskAction
     public void runLoggerUsageTask() {
         LoggedExec.javaexec(getProject(), spec -> {
-            spec.setMain("org.opensearch.test.loggerusage.ESLoggerUsageChecker");
+            spec.setMain("org.opensearch.test.loggerusage.OpenSearchLoggerUsageChecker");
             spec.classpath(getClasspath());
             getClassDirectories().forEach(spec::args);
         });

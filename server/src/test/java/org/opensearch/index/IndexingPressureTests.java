@@ -20,7 +20,7 @@
 package org.opensearch.index;
 
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.test.OpenSearchTestCase;
@@ -78,12 +78,14 @@ public class IndexingPressureTests extends OpenSearchTestCase {
              Releasable primary = indexingPressure.markPrimaryOperationStarted(1024 * 3, false);
              Releasable replica = indexingPressure.markReplicaOperationStarted(1024 * 3, false)) {
             if (randomBoolean()) {
-                expectThrows(OpenSearchRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1024 * 2, false));
+                expectThrows(OpenSearchRejectedExecutionException.class,
+                    () -> indexingPressure.markCoordinatingOperationStarted(1024 * 2, false));
                 IndexingPressureStats stats = indexingPressure.stats();
                 assertEquals(1, stats.getCoordinatingRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
             } else {
-                expectThrows(OpenSearchRejectedExecutionException.class, () -> indexingPressure.markPrimaryOperationStarted(1024 * 2, false));
+                expectThrows(OpenSearchRejectedExecutionException.class,
+                    () -> indexingPressure.markPrimaryOperationStarted(1024 * 2, false));
                 IndexingPressureStats stats = indexingPressure.stats();
                 assertEquals(1, stats.getPrimaryRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());

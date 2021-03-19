@@ -422,8 +422,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             boolean markAsRecovering) throws IOException {
             final IndexShardRoutingTable routingTable = routingTable(Function.identity());
             final Set<String> inSyncIds = activeIds();
-            OpenSearchIndexLevelReplicationTestCase.this.recoverUnstartedReplica(replica, primary, targetSupplier, markAsRecovering, inSyncIds,
-                routingTable);
+            OpenSearchIndexLevelReplicationTestCase.this.recoverUnstartedReplica(
+                replica, primary, targetSupplier, markAsRecovering, inSyncIds, routingTable);
             OpenSearchIndexLevelReplicationTestCase.this.startReplicaAfterRecovery(replica, primary, inSyncIds, routingTable);
             computeReplicationTargets();
         }

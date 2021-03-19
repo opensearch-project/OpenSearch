@@ -1061,7 +1061,8 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             putTemplateRequest.version(OpenSearchTestCase.randomInt());
         }
         if (OpenSearchTestCase.randomBoolean()) {
-            putTemplateRequest.settings(Settings.builder().put("setting-" + OpenSearchTestCase.randomInt(), OpenSearchTestCase.randomTimeValue()));
+            putTemplateRequest.settings(
+                Settings.builder().put("setting-" + OpenSearchTestCase.randomInt(), OpenSearchTestCase.randomTimeValue()));
         }
         Map<String, String> expectedParams = new HashMap<>();
         if (OpenSearchTestCase.randomBoolean()) {
@@ -1106,7 +1107,8 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             putTemplateRequest.version(OpenSearchTestCase.randomInt());
         }
         if (OpenSearchTestCase.randomBoolean()) {
-            putTemplateRequest.settings(Settings.builder().put("setting-" + OpenSearchTestCase.randomInt(), OpenSearchTestCase.randomTimeValue()));
+            putTemplateRequest.settings(
+                Settings.builder().put("setting-" + OpenSearchTestCase.randomInt(), OpenSearchTestCase.randomTimeValue()));
         }
         Map<String, String> expectedParams = new HashMap<>();
         if (OpenSearchTestCase.randomBoolean()) {

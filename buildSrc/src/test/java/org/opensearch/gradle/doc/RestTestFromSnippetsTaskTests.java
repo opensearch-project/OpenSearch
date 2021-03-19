@@ -18,7 +18,6 @@
  */
 package org.opensearch.gradle.doc;
 
-import org.opensearch.gradle.doc.RestTestsFromSnippetsTask;
 import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.InvalidUserDataException;
 import org.junit.Rule;

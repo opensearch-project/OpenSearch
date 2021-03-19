@@ -49,10 +49,10 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.search.Queries;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.MultiValueMode;
 
 import java.io.IOException;

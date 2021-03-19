@@ -21,7 +21,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.Mockito;
 

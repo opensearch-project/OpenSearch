@@ -22,9 +22,9 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
@@ -69,7 +69,7 @@ public class PreConfiguredTokenFilterTests extends OpenSearchTestCase {
 
     public void testCachingWithElasticsearchVersion() throws IOException {
         PreConfiguredTokenFilter pctf =
-            PreConfiguredTokenFilter.elasticsearchVersion("elasticsearch_version", randomBoolean(),
+            PreConfiguredTokenFilter.openSearchVersion("elasticsearch_version", randomBoolean(),
                 (tokenStream, esVersion) -> new TokenFilter(tokenStream) {
                     @Override
                     public boolean incrementToken() {

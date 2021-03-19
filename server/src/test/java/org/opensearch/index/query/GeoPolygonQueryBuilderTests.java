@@ -27,7 +27,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.geo.RandomShapeGenerator;
 import org.opensearch.test.geo.RandomShapeGenerator.ShapeType;

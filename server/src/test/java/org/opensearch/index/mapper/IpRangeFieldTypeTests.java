@@ -35,8 +35,8 @@ public class IpRangeFieldTypeTests extends FieldTypeTestCase {
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP, true).build(context);
-        Map<String, Object> range = org.elasticsearch.common.collect.Map.of("gte", "2001:db8:0:0:0:0:2:1");
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("gte", "2001:db8::2:1")),
+        Map<String, Object> range = org.opensearch.common.collect.Map.of("gte", "2001:db8:0:0:0:0:2:1");
+        assertEquals(Collections.singletonList(org.opensearch.common.collect.Map.of("gte", "2001:db8::2:1")),
             fetchSourceValue(mapper.fieldType(), range));
         assertEquals(Collections.singletonList("2001:db8::2:1/32"), fetchSourceValue(mapper.fieldType(), "2001:db8:0:0:0:0:2:1/32"));
     }

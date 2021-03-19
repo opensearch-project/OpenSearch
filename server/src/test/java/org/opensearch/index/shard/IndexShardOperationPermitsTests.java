@@ -78,8 +78,10 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".queue_size", writeThreadPoolQueueSize)
                 .build());
         assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(OpenSearchThreadPoolExecutor.class));
-        assertThat(((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getCorePoolSize(), equalTo(writeThreadPoolSize));
-        assertThat(((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getMaximumPoolSize(), equalTo(writeThreadPoolSize));
+        assertThat(((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getCorePoolSize(),
+            equalTo(writeThreadPoolSize));
+        assertThat(((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getMaximumPoolSize(),
+            equalTo(writeThreadPoolSize));
         assertThat(((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getQueue().remainingCapacity(),
             equalTo(writeThreadPoolQueueSize));
     }
@@ -165,10 +167,12 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
                 assertNotNull(future.get(1, TimeUnit.MINUTES));
             } catch (ExecutionException e) {
                 if (closeAfterBlocking) {
-                    assertThat(e.getCause(), either(instanceOf(DummyException.class)).or(instanceOf(OpenSearchRejectedExecutionException.class))
+                    assertThat(e.getCause(), either(instanceOf(DummyException.class))
+                        .or(instanceOf(OpenSearchRejectedExecutionException.class))
                         .or(instanceOf(IndexShardClosedException.class)));
                 } else {
-                    assertThat(e.getCause(), either(instanceOf(DummyException.class)).or(instanceOf(OpenSearchRejectedExecutionException.class)));
+                    assertThat(e.getCause(), either(instanceOf(DummyException.class))
+                        .or(instanceOf(OpenSearchRejectedExecutionException.class)));
                 }
             }
         }

@@ -55,19 +55,19 @@ import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.StandardTokenizerFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
-import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.search.MatchQuery;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.CharFilterFactory;
+import org.opensearch.index.analysis.CustomAnalyzer;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.analysis.StandardTokenizerFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
+import org.opensearch.index.query.MatchPhraseQueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.search.MatchQuery;
 import org.opensearch.index.mapper.MapperTestCase;
 
 import java.io.IOException;
@@ -227,11 +227,11 @@ public class TextFieldMapperTests extends MapperTestCase {
             )
         );
         return new IndexAnalyzers(
-            org.elasticsearch.common.collect.Map.of(
+            org.opensearch.common.collect.Map.of(
                 "default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop
             ),
-            org.elasticsearch.common.collect.Map.of(),
-            org.elasticsearch.common.collect.Map.of()
+            org.opensearch.common.collect.Map.of(),
+            org.opensearch.common.collect.Map.of()
         );
     }
 

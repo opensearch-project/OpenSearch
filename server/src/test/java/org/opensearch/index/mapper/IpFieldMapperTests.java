@@ -28,7 +28,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.opensearch.index.termvectors.TermVectorsService;
 import org.opensearch.index.mapper.MapperTestCase;
 
 import java.io.IOException;

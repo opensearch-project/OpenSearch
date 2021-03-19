@@ -34,7 +34,7 @@ import java.security.cert.Certificate;
 import java.util.Collections;
 
 /**
- * Unit tests for ESPolicy: these cannot run with security manager,
+ * Unit tests for OpenSearchPolicy: these cannot run with security manager,
  * we don't allow messing with the policy
  */
 public class OpenSearchPolicyUnitTests extends OpenSearchTestCase {
@@ -52,7 +52,8 @@ public class OpenSearchPolicyUnitTests extends OpenSearchTestCase {
         Permission all = new AllPermission();
         PermissionCollection allCollection = all.newPermissionCollection();
         allCollection.add(all);
-        ESPolicy policy = new ESPolicy(Collections.emptyMap(), allCollection, Collections.emptyMap(), true, new Permissions());
+        OpenSearchPolicy policy =
+            new OpenSearchPolicy(Collections.emptyMap(), allCollection, Collections.emptyMap(), true, new Permissions());
         // restrict ourselves to NoPermission
         PermissionCollection noPermissions = new Permissions();
         assertFalse(policy.implies(new ProtectionDomain(null, noPermissions), new FilePermission("foo", "read")));
@@ -67,7 +68,8 @@ public class OpenSearchPolicyUnitTests extends OpenSearchTestCase {
     public void testNullLocation() throws Exception {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();
-        ESPolicy policy = new ESPolicy(Collections.emptyMap(), noPermissions, Collections.emptyMap(), true, new Permissions());
+        OpenSearchPolicy policy =
+            new OpenSearchPolicy(Collections.emptyMap(), noPermissions, Collections.emptyMap(), true, new Permissions());
         assertFalse(policy.implies(new ProtectionDomain(new CodeSource(null, (Certificate[]) null), noPermissions),
                 new FilePermission("foo", "read")));
     }
@@ -75,7 +77,8 @@ public class OpenSearchPolicyUnitTests extends OpenSearchTestCase {
     public void testListen() {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         final PermissionCollection noPermissions = new Permissions();
-        final ESPolicy policy = new ESPolicy(Collections.emptyMap(), noPermissions, Collections.emptyMap(), true, new Permissions());
+        final OpenSearchPolicy policy =
+            new OpenSearchPolicy(Collections.emptyMap(), noPermissions, Collections.emptyMap(), true, new Permissions());
         assertFalse(
             policy.implies(
                 new ProtectionDomain(OpenSearchPolicyUnitTests.class.getProtectionDomain().getCodeSource(), noPermissions),
@@ -87,7 +90,8 @@ public class OpenSearchPolicyUnitTests extends OpenSearchTestCase {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         final PermissionCollection dataPathPermission = new Permissions();
         dataPathPermission.add(new FilePermission("/home/opensearch/data/-", "read"));
-        final ESPolicy policy = new ESPolicy(Collections.emptyMap(), new Permissions(), Collections.emptyMap(), true, dataPathPermission);
+        final OpenSearchPolicy policy =
+            new OpenSearchPolicy(Collections.emptyMap(), new Permissions(), Collections.emptyMap(), true, dataPathPermission);
         assertTrue(
             policy.implies(
                     new ProtectionDomain(new CodeSource(null, (Certificate[]) null), new Permissions()),

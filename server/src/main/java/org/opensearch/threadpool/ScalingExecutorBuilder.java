@@ -95,7 +95,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         int core = settings.core;
         int max = settings.max;
         final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.SCALING, core, max, keepAlive, null);
-        final ThreadFactory threadFactory = OpenSearchExecutors.daemonThreadFactory(OpenSearchExecutors.threadName(settings.nodeName, name()));
+        final ThreadFactory threadFactory =
+            OpenSearchExecutors.daemonThreadFactory(OpenSearchExecutors.threadName(settings.nodeName, name()));
         final ExecutorService executor =
             OpenSearchExecutors.newScaling(
                     settings.nodeName + "/" + name(),

@@ -51,7 +51,7 @@ public class TrackFailedAllocationNodesTests extends OpenSearchAllocationTestCas
         for (int i = 0; i < 5; i++) {
             discoNodes.add(newNode("node-" + i));
         }
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(discoNodes)
             .metadata(metadata).routingTable(RoutingTable.builder().addAsNew(metadata.index("idx")).build())
             .build();

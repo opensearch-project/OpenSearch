@@ -19,7 +19,7 @@
 
 package org.opensearch.index.query;
 
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;

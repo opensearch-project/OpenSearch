@@ -902,7 +902,8 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                     }
                     if (i == toReject) {
                         responses[i] = new BulkItemResponse(i, item.opType(),
-                                new Failure(response.getIndex(), response.getType(), response.getId(), new OpenSearchRejectedExecutionException()));
+                                new Failure(response.getIndex(), response.getType(), response.getId(),
+                                    new OpenSearchRejectedExecutionException()));
                     } else {
                         responses[i] = new BulkItemResponse(i, item.opType(), response);
                     }

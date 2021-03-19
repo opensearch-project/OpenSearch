@@ -101,14 +101,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testBundledJdkDefault() {
-        OpenSearchDistribution distro = checkDistro(
-            createProject(null, false),
-            "testdistro",
-            "5.0.0",
-            Type.ARCHIVE,
-            Platform.LINUX,
-            true
-        );
+        OpenSearchDistribution distro = checkDistro(createProject(null, false), "testdistro", "5.0.0", Type.ARCHIVE, Platform.LINUX, true);
         assertTrue(distro.getBundledJdk());
     }
 

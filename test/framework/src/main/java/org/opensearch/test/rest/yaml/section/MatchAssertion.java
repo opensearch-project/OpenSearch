@@ -29,7 +29,6 @@ import org.opensearch.test.hamcrest.RegexMatcher;
 import java.io.IOException;
 import java.util.regex.Pattern;
 
-import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;

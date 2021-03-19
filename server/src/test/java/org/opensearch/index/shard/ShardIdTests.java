@@ -20,7 +20,7 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class ShardIdTests extends OpenSearchTestCase {

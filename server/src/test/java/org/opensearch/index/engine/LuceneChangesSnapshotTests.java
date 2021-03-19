@@ -21,11 +21,11 @@ package org.opensearch.index.engine;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.translog.SnapshotMatchers;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.test.IndexSettingsModule;
 import org.junit.Before;
 

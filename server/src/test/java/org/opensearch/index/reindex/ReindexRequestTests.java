@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.TermQueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.slice.SliceBuilder;
 
@@ -41,7 +41,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.

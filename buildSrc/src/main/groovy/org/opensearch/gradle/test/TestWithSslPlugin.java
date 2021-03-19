@@ -64,8 +64,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
             File keystoreDir = new File(project.getBuildDir(), "keystore/test/ssl");
             File nodeKeystore = new File(keystoreDir, "test-node.jks");
             File clientKeyStore = new File(keystoreDir, "test-client.jks");
-            NamedDomainObjectContainer<OpenSearchCluster> clusters = (NamedDomainObjectContainer<OpenSearchCluster>) project
-                .getExtensions()
+            NamedDomainObjectContainer<OpenSearchCluster> clusters = (NamedDomainObjectContainer<OpenSearchCluster>) project.getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
             clusters.all(c -> {
                 // copy keystores & certs into config/

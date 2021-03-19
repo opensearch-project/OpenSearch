@@ -34,7 +34,7 @@ import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.geometry.Point;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 import org.opensearch.index.mapper.FieldMapperTestCase2;

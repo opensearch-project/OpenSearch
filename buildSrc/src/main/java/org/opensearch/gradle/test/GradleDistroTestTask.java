@@ -76,7 +76,9 @@ public class GradleDistroTestTask extends VagrantShellTask {
         line.append(isWindows ? "& .\\gradlew " : "./gradlew ");
         line.append(taskName);
         line.append(" --project-cache-dir ");
-        line.append(isWindows ? VagrantMachine.convertWindowsPath(getProject(), cacheDir) : VagrantMachine.convertLinuxPath(getProject(), cacheDir));
+        line.append(
+            isWindows ? VagrantMachine.convertWindowsPath(getProject(), cacheDir) : VagrantMachine.convertLinuxPath(getProject(), cacheDir)
+        );
         line.append(" -S");
         line.append(" --parallel");
         line.append(" -D'org.gradle.logging.level'=" + getProject().getGradle().getStartParameter().getLogLevel());

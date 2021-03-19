@@ -217,14 +217,14 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     private static IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
-            org.elasticsearch.common.collect.Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            org.elasticsearch.common.collect.Map.ofEntries(
-                org.elasticsearch.common.collect.Map.entry("lowercase",
+            org.opensearch.common.collect.Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            org.opensearch.common.collect.Map.ofEntries(
+                org.opensearch.common.collect.Map.entry("lowercase",
                     new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
-                org.elasticsearch.common.collect.Map.entry("other_lowercase",
+                org.opensearch.common.collect.Map.entry("other_lowercase",
                     new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
             ),
-            org.elasticsearch.common.collect.Map.of(
+            org.opensearch.common.collect.Map.of(
                 "lowercase",
                 new NamedAnalyzer(
                     "lowercase",

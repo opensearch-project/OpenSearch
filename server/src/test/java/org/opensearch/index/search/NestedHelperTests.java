@@ -32,12 +32,12 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.NestedQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.NestedQueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
@@ -331,7 +331,7 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
     public void testNested() throws IOException {
         QueryShardContext context = indexService.newQueryShardContext(0, new IndexSearcher(new MultiReader()), () -> 0, null);
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Avg);
-        ESToParentBlockJoinQuery query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
+        OpenSearchToParentBlockJoinQuery query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         Query expectedChildQuery = new BooleanQuery.Builder()
                 .add(new MatchAllDocsQuery(), Occur.MUST)
@@ -347,7 +347,7 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(query, "nested_missing"));
 
         queryBuilder = new NestedQueryBuilder("nested1", new TermQueryBuilder("nested1.foo", "bar"), ScoreMode.Avg);
-        query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
+        query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // this time we do not add a filter since the inner query only matches inner docs
         expectedChildQuery = new TermQuery(new Term("nested1.foo", "bar"));
@@ -360,7 +360,7 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(query, "nested_missing"));
 
         queryBuilder = new NestedQueryBuilder("nested2", new TermQueryBuilder("nested2.foo", "bar"), ScoreMode.Avg);
-        query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
+        query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // we need to add the filter again because of include_in_parent
         expectedChildQuery = new BooleanQuery.Builder()
@@ -376,7 +376,7 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(query, "nested_missing"));
 
         queryBuilder = new NestedQueryBuilder("nested3", new TermQueryBuilder("nested3.foo", "bar"), ScoreMode.Avg);
-        query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
+        query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // we need to add the filter again because of include_in_root
         expectedChildQuery = new BooleanQuery.Builder()

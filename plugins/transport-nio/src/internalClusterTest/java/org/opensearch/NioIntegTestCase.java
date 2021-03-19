@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.opensearch
+package org.opensearch;
 
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
