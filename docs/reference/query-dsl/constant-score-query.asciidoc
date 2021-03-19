@@ -32,7 +32,7 @@ GET /_search
 Any returned documents must match this query.
 
 Filter queries do not calculate <<relevance-scores,relevance scores>>. To
-speed up performance, {es} automatically caches frequently used filter queries.
+speed up performance, {opensearch} automatically caches frequently used filter queries.
 --
 
 `boost`::

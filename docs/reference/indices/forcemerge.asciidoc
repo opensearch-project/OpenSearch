@@ -88,7 +88,7 @@ Defaults to `open`.
 `flush`::
 (Optional, Boolean)
 If `true`,
-{es} performs a <<indices-flush,flush>> on the indices
+{opensearch} performs a <<indices-flush,flush>> on the indices
 after the force merge.
 Defaults to `true`.
 

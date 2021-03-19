@@ -1,7 +1,7 @@
 [[specify-analyzer]]
 === Specify an analyzer
 
-{es} offers a variety of ways to specify built-in or custom analyzers:
+{opensearch} offers a variety of ways to specify built-in or custom analyzers:
 
 * By `text` field, index, or query
 * For <<analysis-index-search-time,index or search time>>
@@ -15,7 +15,7 @@ is great... _but only when it's needed_.
 In most cases, a simple approach works best: Specify an analyzer for each
 `text` field, as outlined in <<specify-index-field-analyzer>>.
 
-This approach works well with {es}'s default behavior, letting you use the same
+This approach works well with {opensearch}'s default behavior, letting you use the same
 analyzer for indexing and search. It also lets you quickly see which analyzer
 applies to which field using the <<indices-get-mapping,get mapping API>>.
 
@@ -24,9 +24,9 @@ If you don't typically create mappings for your indices, you can use
 ====
 
 [[specify-index-time-analyzer]]
-==== How {es} determines the index analyzer
+==== How {opensearch} determines the index analyzer
 
-{es} determines which index analyzer to use by checking the following parameters
+{opensearch} determines which index analyzer to use by checking the following parameters
 in order:
 
 . The <<analyzer,`analyzer`>> mapping parameter for the field.
@@ -87,7 +87,7 @@ PUT my-index-000001
 ----
 
 [[specify-search-analyzer]]
-==== How {es} determines the search analyzer
+==== How {opensearch} determines the search analyzer
 
 // tag::search-analyzer-warning[]
 [WARNING]
@@ -101,7 +101,7 @@ production.
 ====
 // end::search-analyzer-warning[]
 
-At search time, {es} determines which analyzer to use by checking the following
+At search time, {opensearch} determines which analyzer to use by checking the following
 parameters in order:
 
 . The <<analyzer,`analyzer`>> parameter in the search query.

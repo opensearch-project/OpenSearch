@@ -1,7 +1,7 @@
 [[important-settings]]
 == Important OpenSearch configuration
 
-{es} requires very little configuration to get started, but there are a number
+{opensearch} requires very little configuration to get started, but there are a number
 of items which *must* be considered before using your cluster in production:
 
 * <<path-settings,Path settings>>

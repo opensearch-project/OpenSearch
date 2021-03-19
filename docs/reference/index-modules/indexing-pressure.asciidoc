@@ -1,7 +1,7 @@
 [[index-modules-indexing-pressure]]
 == Indexing pressure
 
-Indexing documents into {es} introduces system load in the form of memory and
+Indexing documents into {opensearch} introduces system load in the form of memory and
 CPU load. Each indexing operation includes coordinating, primary, and replica
 stages. These stages can be performed across multiple nodes in a cluster.
 
@@ -11,7 +11,7 @@ indexing work is introduced into the system, the cluster can become saturated.
 This can adversely impact other operations, such as search, cluster
 coordination, and background processing.
 
-To prevent these issues, {es} internally monitors indexing load. When the load
+To prevent these issues, {opensearch} internally monitors indexing load. When the load
 exceeds certain limits, new indexing work is rejected
 
 [discrete]
@@ -29,7 +29,7 @@ The `indexing_pressure.memory.limit` node setting restricts the number of bytes
 available for outstanding indexing requests. This setting defaults to 10% of
 the heap.
 
-At the beginning of each indexing stage, {es} accounts for the
+At the beginning of each indexing stage, {opensearch} accounts for the
 bytes consumed by an indexing request. This accounting is only released at the
 end of the indexing stage. This means that upstream stages will account for the
 request overheard until all downstream stages are complete. For example, the
@@ -51,7 +51,7 @@ The `indexing_pressure.memory.limit` setting's 10% default limit is generously
 sized. You should only change it after careful consideration. Only indexing
 requests contribute to this limit. This means there is additional indexing
 overhead (buffers, listeners, etc) which also require heap space. Other
-components of {es} also require memory. Setting this limit too high can deny
+components of {opensearch} also require memory. Setting this limit too high can deny
 operating memory to other operations and components.
 
 [discrete]

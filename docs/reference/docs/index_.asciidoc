@@ -79,7 +79,7 @@ Period the request waits for the following operations:
 * <<dynamic-mapping,Dynamic mapping>> updates
 * <<index-wait-for-active-shards,Waiting for active shards>>
 
-Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+Defaults to `1m` (one minute). This guarantees {opensearch} waits for at least the
 timeout before failing. The actual wait time could be longer, particularly when
 multiple waits occur.
 --
@@ -126,7 +126,7 @@ failed on a replica shard. 0 indicates there were no failures.
 The name of the index the document was added to.
 
 `_type`::
-The document type. {es} indices now support a single document type, `_doc`.
+The document type. {opensearch} indices now support a single document type, `_doc`.
 
 `_id`::
 The unique identifier for the added document.

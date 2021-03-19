@@ -132,7 +132,7 @@ When unspecified, the pre-filter phase is executed if any of these conditions is
 [[search-preference]]
 `preference`::
 (Optional, string)
-Nodes and shards used for the search. By default, {es} selects from eligible
+Nodes and shards used for the search. By default, {opensearch} selects from eligible
 nodes and shards using <<search-adaptive-replica,adaptive replica selection>>,
 accounting for <<shard-allocation-awareness,allocation awareness>>.
 +
@@ -172,7 +172,7 @@ to the same shards in the same order.
 include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 +
 You can use the `q` parameter to run a query parameter search. Query parameter
-searches do not support the full {es} <<query-dsl,Query DSL>> but are handy for
+searches do not support the full {opensearch} <<query-dsl,Query DSL>> but are handy for
 testing.
 +
 IMPORTANT: The `q` parameter overrides the <<request-body-search-query,`query`>>
@@ -551,7 +551,7 @@ query parameter>> is specified in the request.
 +
 --
 (integer)
-Milliseconds it took {es} to execute the request.
+Milliseconds it took {opensearch} to execute the request.
 
 This value is calculated by measuring the time elapsed
 between receipt of a request on the coordinating node
@@ -566,7 +566,7 @@ Took time includes:
 
 Took time does *not* include:
 
-* Time needed to send the request to {es}
+* Time needed to send the request to {opensearch}
 * Time needed to serialize the JSON response
 * Time needed to send the response to a client
 --

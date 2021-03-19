@@ -123,7 +123,7 @@ unstemmed ones.
 
 The `prefix` rule matches terms that start with a specified set of characters.
 This prefix can expand to match at most 128 terms. If the prefix matches more
-than 128 terms, {es} returns an error. You can use the
+than 128 terms, {opensearch} returns an error. You can use the
 <<index-prefixes,`index-prefixes`>> option in the field mapping to avoid this
 limit.
 
@@ -150,7 +150,7 @@ separate `analyzer` is specified.
 
 The `wildcard` rule matches terms using a wildcard pattern. This pattern can
 expand to match at most 128 terms. If the pattern matches more than 128 terms,
-{es} returns an error.
+{opensearch} returns an error.
 
 `pattern`::
 (Required, string) Wildcard pattern used to find matching terms.
@@ -183,7 +183,7 @@ The `pattern` is normalized using the search analyzer from this field, unless
 
 The `fuzzy` rule matches terms that are similar to the provided term, within an
 edit distance defined by <<fuzziness>>.  If the fuzzy expansion matches more than
-128 terms, {es} returns an error.
+128 terms, {opensearch} returns an error.
 
 `term`::
 (Required, string) The term to match

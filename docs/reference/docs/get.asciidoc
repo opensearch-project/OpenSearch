@@ -162,7 +162,7 @@ include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
 `refresh`::
 (Optional, Boolean)
-If `true`, {es} refreshes the affected shards to make this operation visible to
+If `true`, {opensearch} refreshes the affected shards to make this operation visible to
 search. If `false`, do nothing with refreshes. Defaults to `false`.
 
 include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
@@ -186,7 +186,7 @@ include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 The name of the index the document belongs to.
 
 `_type`::
-The document type. {es} indices now support a single document type, `_doc`.
+The document type. {opensearch} indices now support a single document type, `_doc`.
 
 `_id`::
 The unique identifier for the document.
@@ -273,7 +273,7 @@ HEAD my-index-000001/_doc/0
 --------------------------------------------------
 // TEST[setup:my_index]
 
-{es} returns a status code of `200 - OK` if the document exists, or
+{opensearch} returns a status code of `200 - OK` if the document exists, or
 `404 - Not Found` if it doesn't.
 
 [discrete]

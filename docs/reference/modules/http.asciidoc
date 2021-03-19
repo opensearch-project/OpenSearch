@@ -2,7 +2,7 @@
 === HTTP
 [[modules-http-description]]
 // tag::modules-http-description-tag[]
-The HTTP layer exposes {es}'s REST APIs over HTTP. Clients send HTTP requests
+The HTTP layer exposes {opensearch}'s REST APIs over HTTP. Clients send HTTP requests
 to a node in the cluster which either handles it locally or else passes it on
 to other nodes for further processing using the <<modules-transport,Transport
 layer>>.
@@ -71,13 +71,13 @@ Defines the compression level to use for HTTP responses. Valid values are in the
 // tag::http-cors-enabled-tag[]
 `http.cors.enabled`::
 (<<static-cluster-setting,Static>>)
-Enable or disable cross-origin resource sharing, which determines whether a browser on another origin can execute requests against {es}. Set to `true` to enable {es} to process pre-flight
+Enable or disable cross-origin resource sharing, which determines whether a browser on another origin can execute requests against {opensearch}. Set to `true` to enable {opensearch} to process pre-flight
 {wikipedia}/Cross-origin_resource_sharing[CORS] requests.
-{es} will respond to those requests with the `Access-Control-Allow-Origin` header if the `Origin` sent in the request is permitted by the `http.cors.allow-origin` list. Set to `false` (the default) to make {es} ignore the `Origin` request header, effectively disabling CORS requests because {es} will never respond with the `Access-Control-Allow-Origin` response header.
+{opensearch} will respond to those requests with the `Access-Control-Allow-Origin` header if the `Origin` sent in the request is permitted by the `http.cors.allow-origin` list. Set to `false` (the default) to make {opensearch} ignore the `Origin` request header, effectively disabling CORS requests because {opensearch} will never respond with the `Access-Control-Allow-Origin` response header.
 +
 NOTE: If the client does not send a pre-flight request with an `Origin` header or it does not check the response headers from the server to validate the
 `Access-Control-Allow-Origin` response header, then cross-origin security is
-compromised. If CORS is not enabled on {es}, the only way for the client to know is to send a pre-flight request and realize the required response headers are missing.
+compromised. If CORS is not enabled on {opensearch}, the only way for the client to know is to send a pre-flight request and realize the required response headers are missing.
 
 // end::http-cors-enabled-tag[]
 
@@ -87,7 +87,7 @@ compromised. If CORS is not enabled on {es}, the only way for the client to know
 (<<static-cluster-setting,Static>>)
 Which origins to allow. If you prepend and append a forward slash (`/`) to the value, this will be treated as a regular expression, allowing you to support HTTP and HTTPs. For example, using `/https?:\/\/localhost(:[0-9]+)?/` would return the request header appropriately in both cases. Defaults to no origins allowed.
 +
-IMPORTANT: A wildcard (`*`) is a valid value but is considered a security risk, as your {es} instance is open to cross origin requests from *anywhere*.
+IMPORTANT: A wildcard (`*`) is a valid value but is considered a security risk, as your {opensearch} instance is open to cross origin requests from *anywhere*.
 
 // end::http-cors-allow-origin-tag[]
 

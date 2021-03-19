@@ -2,11 +2,11 @@
 [discrete]
 === JVM heap dump path setting
 
-By default, {es} configures the JVM to dump the heap on out of
+By default, {opensearch} configures the JVM to dump the heap on out of
 memory exceptions to the default data directory. On <<rpm,RPM>> and
 <<deb,Debian>> packages, the data directory is `/var/lib/opensearch`. On
 <<targz,Linux and MacOS>> and <<zip-windows,Windows>> distributions,
-the `data` directory is located under the root of the {es} installation.
+the `data` directory is located under the root of the {opensearch} installation.
 
 If this path is not suitable for receiving heap dumps, modify the
 `-XX:HeapDumpPath=...` entry in <<jvm-options,`jvm.options`>>:

@@ -127,11 +127,11 @@ in the <<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>>:
 [NOTE]
 ==================================================
 
-[[modules-discovery-bootstrap-cluster-joining]] If you start an {es} node
+[[modules-discovery-bootstrap-cluster-joining]] If you start an {opensearch} node
 without configuring these settings then it will start up in development mode and
-auto-bootstrap itself into a new cluster. If you start some {es} nodes on
+auto-bootstrap itself into a new cluster. If you start some {opensearch} nodes on
 different hosts then by default they will not discover each other and will form
-a different cluster on each host. {es} will not merge separate clusters together
+a different cluster on each host. {opensearch} will not merge separate clusters together
 after they have formed, even if you subsequently try and configure all the nodes
 into a single cluster. This is because there is no way to merge these separate
 clusters together without a risk of data loss. You can tell that you have formed

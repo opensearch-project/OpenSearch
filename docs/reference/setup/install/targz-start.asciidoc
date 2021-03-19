@@ -7,7 +7,7 @@ OpenSearch can be started from the command line as follows:
 ./bin/opensearch
 --------------------------------------------
 
-If you have password-protected the {es} keystore, you will be prompted
+If you have password-protected the {opensearch} keystore, you will be prompted
 to enter the keystore's password. See <<secure-settings>> for more
 details.
 

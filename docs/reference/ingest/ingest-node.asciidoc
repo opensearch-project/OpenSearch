@@ -88,7 +88,7 @@ curly brackets `"{{ }}"`. For example, `{{_index}}` retrieves the name of a
 document's index.
 
 WARNING: If you <<create-document-ids-automatically,automatically generate>>
-document IDs, you cannot use the `{{_id}}` value in an ingest processor. {es}
+document IDs, you cannot use the `{{_id}}` value in an ingest processor. {opensearch}
 assigns auto-generated `_id` values after ingest.
 
 [discrete]

@@ -55,7 +55,7 @@ POST /my-index-000001/_delete_by_query
 You can specify the query criteria in the request URI or the request body
 using the same syntax as the  <<search-search,Search API>>.
 
-When you submit a delete by query request, {es} gets a snapshot of the index
+When you submit a delete by query request, {opensearch} gets a snapshot of the index
 when it begins processing the request and deletes matching documents using
 `internal` versioning. If a document changes between the time that the
 snapshot is taken and the delete operation is processed, it results in a version
@@ -65,7 +65,7 @@ NOTE: Documents with a version equal to 0 cannot be deleted using delete by
 query because `internal` versioning does not support 0 as a valid
 version number.
 
-While processing a delete by query request, {es} performs multiple search
+While processing a delete by query request, {opensearch} performs multiple search
 requests sequentially to find all of the matching documents to delete. A bulk
 delete request is performed for each batch of matching documents. If a
 search or bulk request is rejected, the requests are retried up to 10 times, with
@@ -87,11 +87,11 @@ request to be refreshed. Unlike the delete API, it does not support
 [[docs-delete-by-query-task-api]]
 ===== Running delete by query asynchronously
 
-If the request contains `wait_for_completion=false`, {es}
+If the request contains `wait_for_completion=false`, {opensearch}
 performs some preflight checks, launches the request, and returns a
-<<tasks,`task`>> you can use to cancel or get the status of the task. {es} creates a
+<<tasks,`task`>> you can use to cancel or get the status of the task. {opensearch} creates a
 record of this task as a document at `.tasks/task/${taskId}`. When you are
-done with a task, you should delete the task document so {es} can reclaim the
+done with a task, you should delete the task document so {opensearch} can reclaim the
 space.
 
 ===== Waiting for active shards
@@ -124,7 +124,7 @@ wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
 --------------------------------------------------
 
 Since the batch is issued as a single `_bulk` request, large batch sizes
-cause {es} to create many requests and wait before starting the next set.
+cause {opensearch} to create many requests and wait before starting the next set.
 This is "bursty" instead of "smooth".
 
 [[docs-delete-by-query-slice]]
@@ -542,7 +542,7 @@ Which results in a sensible `total` like this one:
 }
 ----------------------------------------------------------------
 
-Setting `slices` to `auto` will let {es} choose the number of slices
+Setting `slices` to `auto` will let {opensearch} choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If
 there are multiple source indices, it will choose the number of slices based
 on the index with the smallest number of shards.

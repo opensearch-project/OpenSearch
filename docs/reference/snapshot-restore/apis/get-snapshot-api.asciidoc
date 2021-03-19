@@ -40,7 +40,7 @@ GET /_snapshot/my_repository/my_snapshot
 Use the get snapshot API to return information about one or more snapshots, including:
 
 * Start and end time values
-* Version of {es} that created the snapshot
+* Version of {opensearch} that created the snapshot
 * List of included indices
 * Current state of the snapshot
 * List of failures that occurred during the snapshot
@@ -96,11 +96,11 @@ Universally unique identifier (UUID) of the snapshot.
 
 `version_id`::
 (int)
-Build ID of the {es} version used to create the snapshot.
+Build ID of the {opensearch} version used to create the snapshot.
 
 `version`::
 (float)
-{es} version used to create the snapshot.
+{opensearch} version used to create the snapshot.
 
 `indices`::
 (array)

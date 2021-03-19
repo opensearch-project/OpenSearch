@@ -130,7 +130,7 @@ NOTE: The query being sent in the body must be nested in a `query` key, same as
 the <<search-search,search api>> works
 
 If the query is invalid, `valid` will be `false`. Here the query is invalid
-because {es} knows the `post_date` field should be a date due to dynamic
+because {opensearch} knows the `post_date` field should be a date due to dynamic
 mapping, and 'foo' does not correctly parse into a date:
 
 [source,console]

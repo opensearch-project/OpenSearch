@@ -112,7 +112,7 @@ include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 		Host and port where transport HTTP connections are accepted.
 
 `version`::
-		{es} version running on this node.
+		{opensearch} version running on this node.
 
 The `os` flag can be set to retrieve information that concern the operating
 system:

@@ -5,7 +5,7 @@
 ++++
 
 Returns information about the <<modules-snapshots,snapshots>> stored in one or
-more repositories. A snapshot is a backup of an index or running {es} cluster.
+more repositories. A snapshot is a backup of an index or running {opensearch} cluster.
 
 
 [[cat-snapshots-api-request]]
@@ -21,7 +21,7 @@ more repositories. A snapshot is a backup of an index or running {es} cluster.
 --
 (Required, string) Snapshot repository used to limit the request.
 
-If the repository fails during the request, {es} returns an error.
+If the repository fails during the request, {opensearch} returns an error.
 --
 
 

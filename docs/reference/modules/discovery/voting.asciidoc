@@ -1,7 +1,7 @@
 [[modules-discovery-voting]]
 === Voting configurations
 
-Each {es} cluster has a _voting configuration_, which is the set of
+Each {opensearch} cluster has a _voting configuration_, which is the set of
 <<master-node,master-eligible nodes>> whose responses are counted when making
 decisions such as electing a new master or committing a new cluster state.
 Decisions are made only after a majority (more than half) of the nodes in the
@@ -18,7 +18,7 @@ example, if there are three or four master-eligible nodes, the cluster
 can tolerate one unavailable node. If there are two or fewer master-eligible
 nodes, they must all remain available.
 
-After a node joins or leaves the cluster, {es} reacts by automatically making
+After a node joins or leaves the cluster, {opensearch} reacts by automatically making
 corresponding changes to the voting configuration in order to ensure that the
 cluster is as resilient as possible. It is important to wait for this adjustment
 to complete before you remove more nodes from the cluster. For more information,

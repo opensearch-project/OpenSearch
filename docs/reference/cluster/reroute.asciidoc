@@ -20,7 +20,7 @@ shards in the cluster. For example, a shard can be moved from one node to
 another explicitly, an allocation can be cancelled, and an unassigned shard can
 be explicitly allocated to a specific node.
 
-It is important to note that after processing any reroute commands {es} will
+It is important to note that after processing any reroute commands {opensearch} will
 perform rebalancing as normal (respecting the values of settings such as
 `cluster.routing.rebalance.enable`) in order to remain in a balanced state. For
 example, if the requested allocation includes moving a shard from `node1` to
@@ -138,7 +138,7 @@ include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 Two more commands are available that allow the allocation of a primary shard to
 a node. These commands should however be used with extreme care, as primary
-shard allocation is usually fully automatically handled by {es}. Reasons why a
+shard allocation is usually fully automatically handled by {opensearch}. Reasons why a
 primary shard cannot be automatically allocated include the
 following:
 

@@ -15,14 +15,14 @@ optimized for search.
 [[when-to-configure-analysis]]
 === When to configure text analysis
 
-{es} performs text analysis when indexing or searching <<text,`text`>> fields.
+{opensearch} performs text analysis when indexing or searching <<text,`text`>> fields.
 
 If your index doesn't contain `text` fields, no further setup is needed; you can
 skip the pages in this section.
 
 However, if you use `text` fields or your text searches aren't returning results
 as expected, configuring text analysis can often help. You should also look into
-analysis configuration if you're using {es} to:
+analysis configuration if you're using {opensearch} to:
 
 * Build a search engine
 * Mine unstructured data

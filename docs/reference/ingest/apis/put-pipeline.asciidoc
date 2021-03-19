@@ -68,7 +68,7 @@ and a list of built-in processors.
 (Optional, integer)
 Optional version number used by external systems to manage ingest pipelines.
 
-Versions are not used or validated by {es};
+Versions are not used or validated by {opensearch};
 they are intended for external management only.
 --
 
