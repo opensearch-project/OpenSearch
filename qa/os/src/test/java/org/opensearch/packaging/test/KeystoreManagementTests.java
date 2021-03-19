@@ -259,7 +259,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         try {
-            sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile);
+            sh.run("sudo systemctl set-environment OPENSEARCH_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile);
 
             Files.createFile(esKeystorePassphraseFile);
             Files.write(esKeystorePassphraseFile, singletonList(password));
@@ -268,7 +268,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             ServerUtils.runOpenSearchTests();
             stopOpenSearch();
         } finally {
-            sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
+            sh.run("sudo systemctl unset-environment OPENSEARCH_KEYSTORE_PASSPHRASE_FILE");
         }
     }
 
@@ -279,7 +279,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         try {
-            sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile);
+            sh.run("sudo systemctl set-environment OPENSEARCH_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile);
 
             if (Files.exists(esKeystorePassphraseFile)) {
                 rm(esKeystorePassphraseFile);
@@ -292,7 +292,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Shell.Result result = runOpenSearchStartCommand(null, false, false);
             assertOpenSearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), journaldWrapper);
         } finally {
-            sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
+            sh.run("sudo systemctl unset-environment OPENSEARCH_KEYSTORE_PASSPHRASE_FILE");
         }
     }
 

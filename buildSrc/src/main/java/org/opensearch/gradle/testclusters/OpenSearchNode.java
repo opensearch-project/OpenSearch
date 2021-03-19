@@ -729,17 +729,17 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private Map<String, String> getESEnvironment() {
         Map<String, String> defaultEnv = new HashMap<>();
         getRequiredJavaHome().ifPresent(javaHome -> defaultEnv.put("JAVA_HOME", javaHome));
-        defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
+        defaultEnv.put("OPENSEARCH_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {
             systemPropertiesString = " "
                 + systemProperties.entrySet()
                     .stream()
                     .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
-                    // ES_PATH_CONF is also set as an environment variable and for a reference to ${ES_PATH_CONF}
-                    // to work ES_JAVA_OPTS, we need to make sure that ES_PATH_CONF before ES_JAVA_OPTS. Instead,
+                    // OPENSEARCH_PATH_CONF is also set as an environment variable and for a reference to ${OPENSEARCH_PATH_CONF}
+                    // to work OPENSEARCH_JAVA_OPTS, we need to make sure that OPENSEARCH_PATH_CONF before OPENSEARCH_JAVA_OPTS. Instead,
                     // we replace the reference with the actual value in other environment variables
-                    .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
+                    .map(p -> p.replace("${OPENSEARCH_PATH_CONF}", configFile.getParent().toString()))
                     .collect(Collectors.joining(" "));
         }
         String jvmArgsString = "";
@@ -754,13 +754,13 @@ public class OpenSearchNode implements TestClusterConfiguration {
         }
         String heapSize = System.getProperty("tests.heap.size", "512m");
         defaultEnv.put(
-            "ES_JAVA_OPTS",
+            "OPENSEARCH_JAVA_OPTS",
             "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa " + systemPropertiesString + " " + jvmArgsString + " " +
             // Support passing in additional JVM arguments
                 System.getProperty("tests.jvm.argline", "")
         );
-        defaultEnv.put("ES_TMPDIR", tmpDir.toString());
-        // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
+        defaultEnv.put("OPENSEARCH_TMPDIR", tmpDir.toString());
+        // Windows requires this as it defaults to `c:\windows` despite OPENSEARCH_TMPDIR
         defaultEnv.put("TMP", tmpDir.toString());
 
         // Override the system hostname variables for testing
