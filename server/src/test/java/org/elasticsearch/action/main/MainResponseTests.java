@@ -83,8 +83,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                     + "\"build_snapshot\":" + current.isSnapshot() + ","
                     + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
                     + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
-                    + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"
-                + "\"tagline\":\"You Know, for Search\""
+                    + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"}"
           + "}", Strings.toString(builder));
     }
 

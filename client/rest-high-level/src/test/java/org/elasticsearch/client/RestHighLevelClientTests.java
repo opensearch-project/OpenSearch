@@ -167,7 +167,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testInfo() throws IOException {
         MainResponse testInfo = new MainResponse("nodeName", new MainResponse.Version("number", "buildType", "buildHash",
             "buildDate", true, "luceneVersion", "minimumWireCompatibilityVersion", "minimumIndexCompatibilityVersion"),
-            "clusterName", "clusterUuid", "You Know, for Search");
+            "clusterName", "clusterUuid");
         mockResponse((ToXContentFragment) (builder, params) -> {
             // taken from the server side MainResponse
             builder.field("name", testInfo.getNodeName());
@@ -183,7 +183,6 @@ public class RestHighLevelClientTests extends ESTestCase {
                 .field("minimum_wire_compatibility_version", testInfo.getVersion().getMinimumWireCompatibilityVersion())
                 .field("minimum_index_compatibility_version", testInfo.getVersion().getMinimumIndexCompatibilityVersion())
                 .endObject();
-            builder.field("tagline", testInfo.getTagline());
             return builder;
         });
         MainResponse receivedInfo = restHighLevelClient.info(RequestOptions.DEFAULT);
