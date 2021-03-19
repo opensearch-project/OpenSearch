@@ -260,7 +260,7 @@ public class GetResultTests extends OpenSearchTestCase {
             field.equals(IdFieldMapper.NAME) || field.equals(VersionFieldMapper.NAME) ||
             field.equals(SourceFieldMapper.NAME) || field.equals(SeqNoFieldMapper.NAME) ;
         while (fields.size() < numFields) {
-            Tuple<DocumentField, DocumentField> tuple = DocumentFieldTests.randomDocumentField(xContentType, isMetaFields, excludeMetaFieldFilter);
+            Tuple<DocumentField, DocumentField> tuple = randomDocumentField(xContentType, isMetaFields, excludeMetaFieldFilter);
             DocumentField getField = tuple.v1();
             DocumentField expectedGetField = tuple.v2();
             if (fields.putIfAbsent(getField.getName(), getField) == null) {

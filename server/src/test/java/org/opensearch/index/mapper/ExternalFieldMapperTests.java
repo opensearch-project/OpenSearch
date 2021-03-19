@@ -58,7 +58,7 @@ public class ExternalFieldMapperTests extends MapperServiceTestCase {
         assertThat(doc.rootDoc().getField("field.field"), notNullValue());
         assertThat(doc.rootDoc().getField("field.field").stringValue(), is("foo"));
 
-        assertThat(doc.rootDoc().getField(ExternalMetadataMapper.FIELD_NAME).stringValue(), Matchers.is(ExternalMetadataMapper.FIELD_VALUE));
+        assertThat(doc.rootDoc().getField(ExternalMetadataMapper.FIELD_NAME).stringValue(), is(ExternalMetadataMapper.FIELD_VALUE));
 
     }
 

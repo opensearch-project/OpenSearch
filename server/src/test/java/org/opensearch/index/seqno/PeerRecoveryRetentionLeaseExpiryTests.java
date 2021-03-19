@@ -81,7 +81,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             () -> safeCommitInfo);
         replicationTracker.updateFromMaster(1L, Collections.singleton(primaryAllocationId.getId()),
             routingTable(Collections.emptySet(), primaryAllocationId));
-        replicationTracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
 
         final AllocationId replicaAllocationId = AllocationId.newInitializing();
         final IndexShardRoutingTable routingTableWithReplica
@@ -96,7 +96,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
     }
 
     private long randomCheckpoint() {
-        return randomBoolean() ? NO_OPS_PERFORMED : randomNonNegativeLong();
+        return randomBoolean() ? SequenceNumbers.NO_OPS_PERFORMED : randomNonNegativeLong();
     }
 
     private void startReplica() {
@@ -197,7 +197,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         }
 
         final String unknownNodeId = randomAlphaOfLength(10);
-        final long globalCheckpoint = randomValueOtherThan(NO_OPS_PERFORMED, this::randomCheckpoint);
+        final long globalCheckpoint = randomValueOtherThan(SequenceNumbers.NO_OPS_PERFORMED, this::randomCheckpoint);
         replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
 
         safeCommitInfo = randomSafeCommitInfoSuitableForFileBasedRecovery(globalCheckpoint);

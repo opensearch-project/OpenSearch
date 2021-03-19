@@ -50,14 +50,14 @@ public class IndexingOperationListenerTests extends OpenSearchTestCase {
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
-                assertThat(shardId, Matchers.is(randomShardId));
+                assertThat(shardId, is(randomShardId));
                 preIndex.incrementAndGet();
                 return operation;
             }
 
             @Override
             public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
-                assertThat(shardId, Matchers.is(randomShardId));
+                assertThat(shardId, is(randomShardId));
                 switch (result.getResultType()) {
                     case SUCCESS:
                         postIndex.incrementAndGet();
@@ -72,20 +72,20 @@ public class IndexingOperationListenerTests extends OpenSearchTestCase {
 
             @Override
             public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
-                assertThat(shardId, Matchers.is(randomShardId));
+                assertThat(shardId, is(randomShardId));
                 postIndexException.incrementAndGet();
             }
 
             @Override
             public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-                assertThat(shardId, Matchers.is(randomShardId));
+                assertThat(shardId, is(randomShardId));
                 preDelete.incrementAndGet();
                 return delete;
             }
 
             @Override
             public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
-                assertThat(shardId, Matchers.is(randomShardId));
+                assertThat(shardId, is(randomShardId));
                 switch (result.getResultType()) {
                     case SUCCESS:
                         postDelete.incrementAndGet();
@@ -100,7 +100,7 @@ public class IndexingOperationListenerTests extends OpenSearchTestCase {
 
             @Override
             public void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {
-                assertThat(shardId, Matchers.is(randomShardId));
+                assertThat(shardId, is(randomShardId));
                 postDeleteException.incrementAndGet();
             }
         };

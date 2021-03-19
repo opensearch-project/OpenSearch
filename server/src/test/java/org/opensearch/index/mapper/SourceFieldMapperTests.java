@@ -30,7 +30,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
-import org.opensearch.index.MapperTestUtils;
+
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
@@ -127,7 +127,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").field("enabled", false).endObject()
             .endObject().endObject());
-        MapperTestUtils.assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [enabled] from [true] to [false]");
+        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [enabled] from [true] to [false]");
 
         // not changing is ok
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")

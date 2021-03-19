@@ -26,6 +26,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.plugin.DummyQueryParserPlugin.DummyQuery;
 
 import java.io.IOException;
 
@@ -57,7 +58,7 @@ public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new DummyQueryParserPlugin.DummyQuery();
+        return new DummyQuery();
     }
 
     @Override

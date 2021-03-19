@@ -644,7 +644,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final boolean isPrimaryMode;
         if (randomBoolean()) {
             // relocation target
-            indexShard = newShard(TestShardRouting.newShardRouting(shardId, "local_node", "other node",
+            indexShard = newShard(newShardRouting(shardId, "local_node", "other node",
                 true, ShardRoutingState.INITIALIZING, AllocationId.newRelocation(AllocationId.newInitializing())));
             assertEquals(0, indexShard.getActiveOperationsCount());
             isPrimaryMode = false;
@@ -866,7 +866,7 @@ public class IndexShardTests extends IndexShardTestCase {
             case 1: {
                 // initializing replica / primary
                 final boolean relocating = randomBoolean();
-                ShardRouting routing = TestShardRouting.newShardRouting(shardId, "local_node",
+                ShardRouting routing = newShardRouting(shardId, "local_node",
                     relocating ? "sourceNode" : null,
                     relocating ? randomBoolean() : false,
                     ShardRoutingState.INITIALIZING,
@@ -1496,7 +1496,7 @@ public class IndexShardTests extends IndexShardTestCase {
         allowShardFailures();
         final ShardId shardId = new ShardId("index", "_na_", 0);
         final ShardRouting shardRouting =
-            TestShardRouting.newShardRouting(shardId, "node", true,
+            newShardRouting(shardId, "node", true,
                 ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
 
@@ -2819,7 +2819,7 @@ public class IndexShardTests extends IndexShardTestCase {
         sourceShard.refresh("test");
 
 
-        ShardRouting targetRouting = TestShardRouting.newShardRouting(new ShardId("index_1", "index_1", 0), "n1", true,
+        ShardRouting targetRouting = newShardRouting(new ShardId("index_1", "index_1", 0), "n1", true,
             ShardRoutingState.INITIALIZING, RecoverySource.LocalShardsRecoverySource.INSTANCE);
 
         final IndexShard targetShard;

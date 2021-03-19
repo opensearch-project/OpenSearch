@@ -762,7 +762,7 @@ public class InternalEngineTests extends EngineTestCase {
                 final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 if (randomBoolean()) {
                         final Engine.Index operation = new Engine.Index(newUid(doc), doc, UNASSIGNED_SEQ_NO,
-                        0, i, VersionType.EXTERNAL, PRIMARY, System.nanoTime(),
+                        0, i, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(),
                             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, UNASSIGNED_SEQ_NO, 0);
                     operations.add(operation);
                     initialEngine.index(operation);

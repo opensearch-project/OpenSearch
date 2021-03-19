@@ -489,14 +489,14 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                         .stream()
                         .filter(a -> a.equals(primaryId) == false)
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
-                            == UNASSIGNED_SEQ_NO));
+                            == SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertTrue(initializingIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
         assertTrue(
                 initializingIds
                         .stream()
                         .filter(a -> a.equals(primaryId) == false)
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
-                            == UNASSIGNED_SEQ_NO));
+                            == SequenceNumbers.UNASSIGNED_SEQ_NO));
 
         // now we will remove some allocation IDs from these and ensure that they propagate through
         final Set<AllocationId> removingActiveAllocationIds = new HashSet<>(randomSubsetOf(activeAllocationIds));
@@ -531,13 +531,13 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                         .stream()
                         .filter(a -> a.equals(primaryId) == false)
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
-                            == UNASSIGNED_SEQ_NO));
+                            == SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertTrue(newInitializingAllocationIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
         assertTrue(
                 newInitializingAllocationIds
                         .stream()
                         .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint()
-                            == UNASSIGNED_SEQ_NO));
+                            == SequenceNumbers.UNASSIGNED_SEQ_NO));
 
         // the tracking allocation IDs should play no role in determining the global checkpoint
         final Map<AllocationId, Integer> activeLocalCheckpoints =
@@ -727,7 +727,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         markAsTrackingAndInSyncQuietly(
                 oldPrimary,
                 newPrimary.shardAllocationId,
-                Math.max(NO_OPS_PERFORMED, oldPrimary.getGlobalCheckpoint() + randomInt(5)));
+                Math.max(SequenceNumbers.NO_OPS_PERFORMED, oldPrimary.getGlobalCheckpoint() + randomInt(5)));
         oldPrimary.updateGlobalCheckpointForShard(newPrimary.shardAllocationId, oldPrimary.getGlobalCheckpoint());
         ReplicationTracker.PrimaryContext primaryContext = oldPrimary.startRelocationHandoff(newPrimary.shardAllocationId);
 
@@ -903,7 +903,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     private static void randomLocalCheckpointUpdate(ReplicationTracker gcp) {
         String allocationId = randomFrom(gcp.checkpoints.keySet());
         long currentLocalCheckpoint = gcp.checkpoints.get(allocationId).getLocalCheckpoint();
-        gcp.updateLocalCheckpoint(allocationId, Math.max(NO_OPS_PERFORMED, currentLocalCheckpoint + randomInt(5)));
+        gcp.updateLocalCheckpoint(allocationId, Math.max(SequenceNumbers.NO_OPS_PERFORMED, currentLocalCheckpoint + randomInt(5)));
     }
 
     private static void randomMarkInSync(ReplicationTracker oldPrimary, ReplicationTracker newPrimary) {
