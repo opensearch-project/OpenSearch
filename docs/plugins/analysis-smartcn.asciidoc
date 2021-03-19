@@ -133,261 +133,268 @@ The above request returns:
     {
       "token": "opensearch",
       "start_offset": 7,
-      "end_offset": 14,
+      "end_offset": 17,
       "type": "word",
       "position": 5
     },
     {
       "token": "opensearch",
-      "start_offset": 35,
-      "end_offset": 48,
+      "start_offset": 26,
+      "end_offset": 36,
+      "type": "word",
+      "position": 8
+    },
+    {
+      "token": "和",
+      "start_offset": 37,
+      "end_offset": 38,
+      "type": "word",
+      "position": 9
+    },
+    {
+      "token": "opensearch",
+      "start_offset": 39,
+      "end_offset": 49,
+      "type": "word",
+      "position": 10
+    },
+    {
+      "token": "dashboard",
+      "start_offset": 50,
+      "end_offset": 60,
       "type": "word",
       "position": 11
     },
     {
-      "token": "和",
+      "token": "开发",
       "start_offset": 62,
-      "end_offset": 63,
+      "end_offset": 64,
       "type": "word",
-      "position": 16
+      "position": 14
     },
     {
-      "token": "opensearch",
+      "token": "者",
       "start_offset": 64,
-      "end_offset": 72,
+      "end_offset": 65,
+      "type": "word",
+      "position": 15
+    },
+    {
+      "token": "从",
+      "start_offset": 66,
+      "end_offset": 67,
       "type": "word",
       "position": 17
     },
     {
-      "token": "dashboards",
-      "start_offset": 74,
-      "end_offset": 76,
+      "token": "股票",
+      "start_offset": 67,
+      "end_offset": 69,
+      "type": "word",
+      "position": 18
+    },
+    {
+      "token": "行情",
+      "start_offset": 69,
+      "end_offset": 71,
+      "type": "word",
+      "position": 19
+    },
+    {
+      "token": "到",
+      "start_offset": 71,
+      "end_offset": 72,
       "type": "word",
       "position": 20
     },
     {
-      "token": "开发者",
-      "start_offset": 76,
-      "end_offset": 78,
+      "token": "twitter",
+      "start_offset": 73,
+      "end_offset": 80,
       "type": "word",
       "position": 21
     },
     {
-      "token": "从",
-      "start_offset": 79,
-      "end_offset": 80,
+      "token": "消息",
+      "start_offset": 81,
+      "end_offset": 83,
+      "type": "word",
+      "position": 22
+    },
+    {
+      "token": "流",
+      "start_offset": 83,
+      "end_offset": 84,
       "type": "word",
       "position": 23
     },
     {
-      "token": "股票",
-      "start_offset": 80,
-      "end_offset": 82,
-      "type": "word",
-      "position": 24
-    },
-    {
-      "token": "行情",
-      "start_offset": 82,
-      "end_offset": 84,
+      "token": "从",
+      "start_offset": 85,
+      "end_offset": 86,
       "type": "word",
       "position": 25
     },
     {
-      "token": "到",
-      "start_offset": 84,
-      "end_offset": 85,
+      "token": "apach",
+      "start_offset": 87,
+      "end_offset": 93,
       "type": "word",
       "position": 26
     },
     {
-      "token": "twitter",
-      "start_offset": 86,
-      "end_offset": 93,
+      "token": "日志",
+      "start_offset": 94,
+      "end_offset": 96,
       "type": "word",
       "position": 27
     },
     {
-      "token": "消息",
-      "start_offset": 94,
-      "end_offset": 96,
+      "token": "到",
+      "start_offset": 96,
+      "end_offset": 97,
       "type": "word",
       "position": 28
     },
     {
-      "token": "流",
-      "start_offset": 96,
-      "end_offset": 97,
+      "token": "wordpress",
+      "start_offset": 98,
+      "end_offset": 107,
       "type": "word",
       "position": 29
     },
     {
-      "token": "从",
-      "start_offset": 98,
-      "end_offset": 99,
+      "token": "博",
+      "start_offset": 108,
+      "end_offset": 109,
+      "type": "word",
+      "position": 30
+    },
+    {
+      "token": "文",
+      "start_offset": 109,
+      "end_offset": 110,
       "type": "word",
       "position": 31
     },
     {
-      "token": "apach",
-      "start_offset": 100,
-      "end_offset": 106,
-      "type": "word",
-      "position": 32
-    },
-    {
-      "token": "日志",
-      "start_offset": 107,
-      "end_offset": 109,
+      "token": "我们",
+      "start_offset": 111,
+      "end_offset": 113,
       "type": "word",
       "position": 33
     },
     {
-      "token": "到",
-      "start_offset": 109,
-      "end_offset": 110,
+      "token": "可以",
+      "start_offset": 113,
+      "end_offset": 115,
       "type": "word",
-      "position": 34
+      "position": 44
     },
     {
-      "token": "wordpress",
-      "start_offset": 111,
-      "end_offset": 120,
+      "token": "帮助",
+      "start_offset": 115,
+      "end_offset": 117,
       "type": "word",
       "position": 35
     },
     {
-      "token": "博",
-      "start_offset": 121,
-      "end_offset": 122,
+      "token": "人们",
+      "start_offset": 117,
+      "end_offset": 119,
       "type": "word",
       "position": 36
     },
     {
-      "token": "文",
-      "start_offset": 122,
-      "end_offset": 123,
+      "token": "体验",
+      "start_offset": 119,
+      "end_offset": 121,
       "type": "word",
       "position": 37
     },
     {
-      "token": "我们",
+      "token": "搜索",
+      "start_offset": 121,
+      "end_offset": 123,
+      "type": "word",
+      "position": 38
+    },
+    {
+      "token": "强大",
       "start_offset": 124,
       "end_offset": 126,
       "type": "word",
       "position": 39
     },
     {
-      "token": "可以",
+      "token": "力量",
       "start_offset": 126,
       "end_offset": 128,
-      "type": "word",
-      "position": 40
-    },
-    {
-      "token": "帮助",
-      "start_offset": 128,
-      "end_offset": 130,
       "type": "word",
       "position": 41
     },
     {
-      "token": "人们",
-      "start_offset": 130,
-      "end_offset": 132,
-      "type": "word",
-      "position": 42
-    },
-    {
-      "token": "体验",
-      "start_offset": 132,
-      "end_offset": 134,
+      "token": "帮助",
+      "start_offset": 129,
+      "end_offset": 131,
       "type": "word",
       "position": 43
     },
     {
-      "token": "搜索",
-      "start_offset": 134,
-      "end_offset": 136,
+      "token": "他们",
+      "start_offset": 131,
+      "end_offset": 133,
       "type": "word",
       "position": 44
     },
     {
-      "token": "强大",
-      "start_offset": 137,
-      "end_offset": 139,
+      "token": "以",
+      "start_offset": 133,
+      "end_offset": 134,
+      "type": "word",
+      "position": 45
+    },
+    {
+      "token": "截然不同",
+      "start_offset": 134,
+      "end_offset": 138,
       "type": "word",
       "position": 46
     },
     {
-      "token": "力量",
+      "token": "方式",
       "start_offset": 139,
       "end_offset": 141,
       "type": "word",
-      "position": 47
+      "position": 48
     },
     {
-      "token": "帮助",
-      "start_offset": 142,
-      "end_offset": 144,
+      "token": "探索",
+      "start_offset": 141,
+      "end_offset": 143,
       "type": "word",
       "position": 49
     },
     {
-      "token": "他们",
-      "start_offset": 144,
-      "end_offset": 146,
+      "token": "和",
+      "start_offset": 143,
+      "end_offset": 144,
       "type": "word",
       "position": 50
     },
     {
-      "token": "以",
-      "start_offset": 146,
-      "end_offset": 147,
+      "token": "分析",
+      "start_offset": 144,
+      "end_offset": 146,
       "type": "word",
       "position": 51
     },
     {
-      "token": "截然不同",
-      "start_offset": 147,
-      "end_offset": 151,
+      "token": "数据",
+      "start_offset": 146,
+      "end_offset": 148,
       "type": "word",
       "position": 52
-    },
-    {
-      "token": "方式",
-      "start_offset": 152,
-      "end_offset": 154,
-      "type": "word",
-      "position": 54
-    },
-    {
-      "token": "探索",
-      "start_offset": 154,
-      "end_offset": 156,
-      "type": "word",
-      "position": 55
-    },
-    {
-      "token": "和",
-      "start_offset": 156,
-      "end_offset": 157,
-      "type": "word",
-      "position": 56
-    },
-    {
-      "token": "分析",
-      "start_offset": 157,
-      "end_offset": 159,
-      "type": "word",
-      "position": 57
-    },
-    {
-      "token": "数据",
-      "start_offset": 159,
-      "end_offset": 161,
-      "type": "word",
-      "position": 58
     }
   ]
 }
