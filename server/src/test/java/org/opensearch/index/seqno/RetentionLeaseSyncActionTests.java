@@ -20,7 +20,7 @@
 package org.opensearch.index.seqno;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.index.IndexingPressure;
+import org.opensearch.index.IndexingPressure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
@@ -29,12 +29,12 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.SystemIndices;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;

@@ -27,10 +27,10 @@ import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 

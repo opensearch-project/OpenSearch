@@ -170,8 +170,9 @@ public class ReadOnlyEngine extends Engine {
         // reopened as an internal engine, which would be the path to fix the issue.
     }
 
-    protected final OpenSearchDirectoryReader wrapReader(DirectoryReader reader,
-                                                         Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
+    protected final OpenSearchDirectoryReader wrapReader(
+        DirectoryReader reader,
+        Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         }

@@ -153,7 +153,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
      * If the provided key is already present, the corresponding metadata will be replaced
      */
     public void addMetadata(String key, List<String> values) {
-        //we need to enforce this otherwise bw comp doesn't work properly, as "opensearch." was the previous criteria to split headers in two sets
+        // we need to enforce this otherwise bw comp doesn't work properly, as "opensearch."
+        // was the previous criteria to split headers in two sets
         if (key.startsWith("opensearch.") == false) {
             throw new IllegalArgumentException("exception metadata must start with [opensearch.], found [" + key + "] instead");
         }
@@ -184,7 +185,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
      * This method will replace existing header if a header with the same key already exists
      */
     public void addHeader(String key, List<String> value) {
-        //we need to enforce this otherwise bw comp doesn't work properly, as "opensearch." was the previous criteria to split headers in two sets
+        // we need to enforce this otherwise bw comp doesn't work properly, as "opensearch."
+        // was the previous criteria to split headers in two sets
         if (key.startsWith("opensearch.")) {
             throw new IllegalArgumentException("exception headers must not start with [opensearch.], found [" + key + "] instead");
         }

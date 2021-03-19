@@ -32,9 +32,6 @@ import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
-import org.opensearch.action.admin.indices.stats.CommonStats;
-import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.opensearch.action.admin.indices.stats.ShardStats;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -44,7 +41,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class IndicesStatsTests extends ESSingleNodeTestCase {
+public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
 
     public void testSegmentStatsEmptyIndex() {
         createIndex("test");

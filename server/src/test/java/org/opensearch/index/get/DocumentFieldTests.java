@@ -27,8 +27,8 @@ import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.IgnoredFieldMapper;
-import org.elasticsearch.indices.IndicesModule;
+import org.opensearch.index.mapper.IgnoredFieldMapper;
+import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 

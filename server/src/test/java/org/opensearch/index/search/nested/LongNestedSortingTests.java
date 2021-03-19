@@ -20,10 +20,10 @@ package org.opensearch.index.search.nested;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.search.MultiValueMode;
 
 public class LongNestedSortingTests extends AbstractNumberNestedSortingTestCase {

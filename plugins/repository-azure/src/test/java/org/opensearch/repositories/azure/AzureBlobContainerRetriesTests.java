@@ -43,7 +43,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.mocksocket.MockHttpServer;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
 import org.opensearch.test.OpenSearchTestCase;

@@ -21,8 +21,8 @@ package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.opensearch.index.mapper.MapperException;
+import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class NamedAnalyzerTests extends OpenSearchTestCase {

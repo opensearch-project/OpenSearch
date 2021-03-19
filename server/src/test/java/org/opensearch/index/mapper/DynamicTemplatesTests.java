@@ -22,7 +22,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.opensearch.index.mapper.ParseContext.Document;
 
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;

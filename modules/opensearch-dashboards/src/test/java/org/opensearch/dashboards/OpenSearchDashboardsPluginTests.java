@@ -34,7 +34,10 @@ import static org.hamcrest.Matchers.is;
 public class OpenSearchDashboardsPluginTests extends OpenSearchTestCase {
 
     public void testOpenSearchDashboardsIndexNames() {
-        assertThat(new OpenSearchDashboardsPlugin().getSettings(), contains(OpenSearchDashboardsPlugin.OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING));
+        assertThat(
+            new OpenSearchDashboardsPlugin().getSettings(),
+            contains(OpenSearchDashboardsPlugin.OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING)
+        );
         assertThat(
             new OpenSearchDashboardsPlugin().getSystemIndexDescriptors(Settings.EMPTY)
                 .stream()

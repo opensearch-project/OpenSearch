@@ -24,8 +24,8 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.Mockito;
 

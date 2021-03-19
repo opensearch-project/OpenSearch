@@ -36,13 +36,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexingSlowLog.IndexingSlowLogMessage;
-import org.elasticsearch.index.engine.Engine;
+import org.opensearch.index.IndexingSlowLog.IndexingSlowLogMessage;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineTests;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -345,7 +345,7 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
             assertNotNull(ex.getCause());
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
-            assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
+            assertThat(cause, hasToString(containsString("No enum constant org.opensearch.index.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
 

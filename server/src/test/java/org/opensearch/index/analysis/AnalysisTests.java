@@ -21,7 +21,7 @@ package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
 

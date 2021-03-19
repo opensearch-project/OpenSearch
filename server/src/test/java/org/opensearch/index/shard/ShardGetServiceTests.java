@@ -22,19 +22,18 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.get.GetResult;
+import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class ShardGetServiceTests extends IndexShardTestCase {
 

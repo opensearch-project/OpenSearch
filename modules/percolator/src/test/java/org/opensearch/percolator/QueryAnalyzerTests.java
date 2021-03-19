@@ -1202,7 +1202,8 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
     public void testToParentBlockJoinQuery() {
         TermQuery termQuery = new TermQuery(new Term("field", "value"));
         QueryBitSetProducer queryBitSetProducer = new QueryBitSetProducer(new TermQuery(new Term("_type", "child")));
-        OpenSearchToParentBlockJoinQuery query = new OpenSearchToParentBlockJoinQuery(termQuery, queryBitSetProducer, ScoreMode.None, "child");
+        OpenSearchToParentBlockJoinQuery query =
+            new OpenSearchToParentBlockJoinQuery(termQuery, queryBitSetProducer, ScoreMode.None, "child");
         Result result = analyze(query, Version.CURRENT);
         assertFalse(result.verified);
         assertThat(result.minimumShouldMatch, equalTo(1));

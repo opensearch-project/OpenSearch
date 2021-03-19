@@ -27,7 +27,7 @@ import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.index.analysis.AnalysisTestsHelper;

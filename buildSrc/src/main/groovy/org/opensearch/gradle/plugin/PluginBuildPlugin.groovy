@@ -115,9 +115,9 @@ class PluginBuildPlugin implements Plugin<Project> {
                     baseClass 'org.apache.lucene.util.LuceneTestCase'
                 }
                 IT {
-                    baseClass 'org.opensearch.test.ESIntegTestCase'
-                    baseClass 'org.opensearch.test.rest.ESRestTestCase'
-                    baseClass 'org.opensearch.test.ESSingleNodeTestCase'
+                    baseClass 'org.opensearch.test.OpenSearchIntegTestCase'
+                    baseClass 'org.opensearch.test.rest.OpenSearchRestTestCase'
+                    baseClass 'org.opensearch.test.OpenSearchSingleNodeTestCase'
                 }
             }
         }

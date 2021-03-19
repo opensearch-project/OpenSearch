@@ -41,8 +41,7 @@ public class RestTestUtil {
     static OpenSearchCluster createTestCluster(Project project, SourceSet sourceSet) {
         // eagerly create the testCluster container so it is easily available for configuration
         @SuppressWarnings("unchecked")
-        NamedDomainObjectContainer<OpenSearchCluster> testClusters = (NamedDomainObjectContainer<OpenSearchCluster>) project
-            .getExtensions()
+        NamedDomainObjectContainer<OpenSearchCluster> testClusters = (NamedDomainObjectContainer<OpenSearchCluster>) project.getExtensions()
             .getByName(TestClustersPlugin.EXTENSION_NAME);
         return testClusters.create(sourceSet.getName());
     }
@@ -81,10 +80,7 @@ public class RestTestUtil {
             project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
         } else {
             project.getDependencies()
-                .add(
-                    sourceSet.getImplementationConfigurationName(),
-                    "org.opensearch.test:framework:" + VersionProperties.getOpenSearch()
-                );
+                .add(sourceSet.getImplementationConfigurationName(), "org.opensearch.test:framework:" + VersionProperties.getOpenSearch());
         }
 
     }

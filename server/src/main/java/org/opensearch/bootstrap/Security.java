@@ -118,7 +118,8 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = getCodebaseJarMap(JarHell.parseClassPath());
-        Policy.setPolicy(new OpenSearchPolicy(codebases, createPermissions(environment), getPluginPermissions(environment), filterBadDefaults,
+        Policy.setPolicy(new OpenSearchPolicy(codebases, createPermissions(environment),
+            getPluginPermissions(environment), filterBadDefaults,
             createRecursiveDataPathPermission(environment)));
 
         // enable security manager

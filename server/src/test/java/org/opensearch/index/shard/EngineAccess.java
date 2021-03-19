@@ -18,7 +18,7 @@
  */
 package org.opensearch.index.shard;
 
-import org.elasticsearch.index.engine.Engine;
+import org.opensearch.index.engine.Engine;
 
 /**
  * Test utility to access the engine of a shard

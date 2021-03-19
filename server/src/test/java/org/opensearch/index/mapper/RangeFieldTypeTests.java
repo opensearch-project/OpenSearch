@@ -38,11 +38,11 @@ import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.opensearch.index.mapper.RangeFieldMapper.RangeFieldType;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardException;
 import org.opensearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
 import org.junit.Before;
@@ -501,16 +501,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true)
             .build(context)
             .fieldType();
-        Map<String, Object> longRange = org.elasticsearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
+        Map<String, Object> longRange = org.opensearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(Collections.singletonList(org.opensearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
             fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
             .format("yyyy/MM/dd||epoch_millis")
             .build(context)
             .fieldType();
-        Map<String, Object> dateRange = org.elasticsearch.common.collect.Map.of("lt", "1990/12/29", "gte", 597429487111L);
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
+        Map<String, Object> dateRange = org.opensearch.common.collect.Map.of("lt", "1990/12/29", "gte", 597429487111L);
+        assertEquals(Collections.singletonList(org.opensearch.common.collect.Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
             fetchSourceValue(dateMapper, dateRange));
     }
 
@@ -521,18 +521,18 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true)
             .build(context)
             .fieldType();
-        Map<String, Object> longRange = org.elasticsearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
+        Map<String, Object> longRange = org.opensearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(Collections.singletonList(org.opensearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
             fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
             .format("strict_date_time")
             .build(context)
             .fieldType();
-        Map<String, Object> dateRange = org.elasticsearch.common.collect.Map.of("lt", "1990-12-29T00:00:00.000Z");
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("lt", "1990/12/29")),
+        Map<String, Object> dateRange = org.opensearch.common.collect.Map.of("lt", "1990-12-29T00:00:00.000Z");
+        assertEquals(Collections.singletonList(org.opensearch.common.collect.Map.of("lt", "1990/12/29")),
             fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("lt", "662428800000")),
+        assertEquals(Collections.singletonList(org.opensearch.common.collect.Map.of("lt", "662428800000")),
             fetchSourceValue(dateMapper, dateRange,"epoch_millis"));
     }
 }

@@ -23,10 +23,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.Mapper.BuilderContext;
+import org.opensearch.index.mapper.TextFieldMapper;
 
 import java.util.List;
 import java.util.Random;

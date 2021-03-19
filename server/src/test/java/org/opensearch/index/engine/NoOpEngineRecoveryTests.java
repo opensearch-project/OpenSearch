@@ -21,7 +21,7 @@ package org.opensearch.index.engine;
 import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 
 import java.io.IOException;

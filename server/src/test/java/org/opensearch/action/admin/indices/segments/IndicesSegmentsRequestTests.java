@@ -28,15 +28,13 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.junit.Before;
-import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 
 import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
-public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
+public class IndicesSegmentsRequestTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

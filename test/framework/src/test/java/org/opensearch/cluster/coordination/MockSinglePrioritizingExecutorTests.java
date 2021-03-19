@@ -29,7 +29,8 @@ public class MockSinglePrioritizingExecutorTests extends OpenSearchTestCase {
 
     public void testPrioritizedEsThreadPoolExecutor() {
         final DeterministicTaskQueue taskQueue = DeterministicTaskQueueTests.newTaskQueue();
-        final PrioritizedOpenSearchThreadPoolExecutor executor = new MockSinglePrioritizingExecutor("test", taskQueue, taskQueue.getThreadPool());
+        final PrioritizedOpenSearchThreadPoolExecutor executor =
+            new MockSinglePrioritizingExecutor("test", taskQueue, taskQueue.getThreadPool());
         final AtomicBoolean called1 = new AtomicBoolean();
         final AtomicBoolean called2 = new AtomicBoolean();
         executor.execute(new PrioritizedRunnable(Priority.NORMAL) {

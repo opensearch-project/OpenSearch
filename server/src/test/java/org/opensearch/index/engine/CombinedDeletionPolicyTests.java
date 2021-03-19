@@ -22,10 +22,10 @@ package org.opensearch.index.engine;
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.doAnswer;

@@ -236,7 +236,7 @@ public class Packages {
         return sh.runIgnoreExitCode("service opensearch start");
     }
 
-    public static void assertOpenSearchearchStarted(Shell sh, Installation installation) throws Exception {
+    public static void assertOpenSearchStarted(Shell sh, Installation installation) throws Exception {
         waitForOpenSearch(installation);
 
         if (isSystemd()) {
@@ -261,7 +261,7 @@ public class Packages {
         } else {
             sh.run("service opensearch restart");
         }
-        assertOpenSearchearchStarted(sh, installation);
+        assertOpenSearchStarted(sh, installation);
     }
 
     /**
