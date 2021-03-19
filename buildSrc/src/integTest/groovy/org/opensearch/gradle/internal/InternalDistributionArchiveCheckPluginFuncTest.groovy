@@ -97,7 +97,7 @@ Copyright 2009-2018 Acme Coorp"""
         then:
         result.task(":darwin-tar:checkNotice").outcome == TaskOutcome.FAILED
         normalizedOutput(result.output).contains("> expected line [2] in " +
-                "[./darwin-tar/build/tar-extracted/elasticsearch-${VersionProperties.getElasticsearch()}/NOTICE.txt] " +
+                "[./darwin-tar/build/tar-extracted/opensearch-${VersionProperties.getOpenSearch()}/NOTICE.txt] " +
                 "to be [Copyright 2021 OpenSearch Contributors] but was [Copyright 2009-2018 Acme Coorp]")
     }
 
