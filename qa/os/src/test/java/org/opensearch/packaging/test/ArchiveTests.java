@@ -250,7 +250,7 @@ public class ArchiveTests extends PackagingTestCase {
             final List<String> jvmOptions = org.opensearch.common.collect.List.of("-Xms512m", "-Xmx512m", "-Dlog4j2.disable.jmx=true");
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
-            sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
+            sh.getEnv().put("OPENSEARCH_JAVA_OPTS", "-XX:-UseCompressedOops");
 
             startOpenSearch();
 

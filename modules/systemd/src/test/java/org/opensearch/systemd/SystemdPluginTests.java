@@ -93,7 +93,7 @@ public class SystemdPluginTests extends OpenSearchTestCase {
             () -> randomAlphaOfLength(4));
         final RuntimeException e = expectThrows(RuntimeException.class,
             () -> new SystemdPlugin(false, randomPackageBuildType, esSDNotify));
-        assertThat(e, hasToString(containsString("ES_SD_NOTIFY set to unexpected value [" + esSDNotify + "]")));
+        assertThat(e, hasToString(containsString("OPENSEARCH_SD_NOTIFY set to unexpected value [" + esSDNotify + "]")));
     }
 
     public void testOnNodeStartedSuccess() {

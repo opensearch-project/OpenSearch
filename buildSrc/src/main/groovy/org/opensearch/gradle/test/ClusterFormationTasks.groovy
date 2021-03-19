@@ -758,24 +758,24 @@ class ClusterFormationTasks {
             }
 
             // Configure ES JAVA OPTS - adds system properties, assertion flags, remote debug etc
-            List<String> esJavaOpts = [node.env.get('ES_JAVA_OPTS', '')]
+            List<String> opensearchJavaOpts = [node.env.get('OPENSEARCH_JAVA_OPTS', '')]
             String collectedSystemProperties = node.config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
-            esJavaOpts.add(collectedSystemProperties)
-            esJavaOpts.add(node.config.jvmArgs)
+            opensearchJavaOpts.add(collectedSystemProperties)
+            opensearchJavaOpts.add(node.config.jvmArgs)
             if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
                 // put the enable assertions options before other options to allow
                 // flexibility to disable assertions for specific packages or classes
                 // in the cluster-specific options
-                esJavaOpts.add("-ea")
-                esJavaOpts.add("-esa")
+                opensearchJavaOpts.add("-ea")
+                opensearchJavaOpts.add("-esa")
             }
             // we must add debug options inside the closure so the config is read at execution time, as
             // gradle task options are not processed until the end of the configuration phase
             if (node.config.debug) {
                 println 'Running opensearch in debug mode, suspending until connected on port 8000'
-                esJavaOpts.add('-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000')
+                opensearchJavaOpts.add('-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000')
             }
-            node.env['ES_JAVA_OPTS'] = esJavaOpts.join(" ")
+            node.env['OPENSEARCH_JAVA_OPTS'] = opensearchJavaOpts.join(" ")
 
             //
             project.logger.info("Starting node in ${node.clusterName} distribution: ${node.config.distribution}")

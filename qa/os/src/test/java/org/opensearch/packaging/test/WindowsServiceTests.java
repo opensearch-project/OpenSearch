@@ -273,11 +273,11 @@ public class WindowsServiceTests extends PackagingTestCase {
     }
 
     public void test80JavaOptsInEnvVar() throws Exception {
-        sh.getEnv().put("ES_JAVA_OPTS", "-Xmx2g -Xms2g");
+        sh.getEnv().put("OPENSEARCH_JAVA_OPTS", "-Xmx2g -Xms2g");
         sh.run(serviceScript + " install");
         assertCommand(serviceScript + " start");
         assertStartedAndStop();
-        sh.getEnv().remove("ES_JAVA_OPTS");
+        sh.getEnv().remove("OPENSEARCH_JAVA_OPTS");
     }
 
     public void test81JavaOptsInJvmOptions() throws Exception {
