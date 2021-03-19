@@ -91,9 +91,9 @@ public class EvilLoggerTests extends OpenSearchTestCase {
         testLogger.debug("This is a debug message");
         testLogger.trace("This is a trace message");
         final String path =
-            System.getProperty("es.logs.base_path") +
+            System.getProperty("opensearch.logs.base_path") +
                 System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") +
+                System.getProperty("opensearch.logs.cluster_name") +
                 ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
         assertThat(events.size(), equalTo(5));
@@ -164,9 +164,9 @@ public class EvilLoggerTests extends OpenSearchTestCase {
         barrier.await();
 
         final String deprecationPath =
-                System.getProperty("es.logs.base_path") +
+                System.getProperty("opensearch.logs.base_path") +
                         System.getProperty("file.separator") +
-                        System.getProperty("es.logs.cluster_name") +
+                        System.getProperty("opensearch.logs.cluster_name") +
                         "_deprecation.log";
         final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
         // we appended an integer to each log message, use that for sorting
@@ -200,9 +200,9 @@ public class EvilLoggerTests extends OpenSearchTestCase {
         }
 
         final String deprecationPath =
-                System.getProperty("es.logs.base_path") +
+                System.getProperty("opensearch.logs.base_path") +
                         System.getProperty("file.separator") +
-                        System.getProperty("es.logs.cluster_name") +
+                        System.getProperty("opensearch.logs.cluster_name") +
                         "_deprecation.log";
         final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
         if (iterations > 0) {
@@ -241,9 +241,9 @@ public class EvilLoggerTests extends OpenSearchTestCase {
         logger.info(new ParameterizedMessage("{}", "test"), e);
 
         final String path =
-            System.getProperty("es.logs.base_path") +
+            System.getProperty("opensearch.logs.base_path") +
                 System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") +
+                System.getProperty("opensearch.logs.cluster_name") +
                 ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
 
@@ -279,10 +279,10 @@ public class EvilLoggerTests extends OpenSearchTestCase {
                 .build();
         setupLogging("minimal", settings);
 
-        assertNotNull(System.getProperty("es.logs.base_path"));
+        assertNotNull(System.getProperty("opensearch.logs.base_path"));
 
-        assertThat(System.getProperty("es.logs.cluster_name"), equalTo(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()));
-        assertThat(System.getProperty("es.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
+        assertThat(System.getProperty("opensearch.logs.cluster_name"), equalTo(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()));
+        assertThat(System.getProperty("opensearch.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
     }
 
     public void testNoNodeNameInPatternWarning() throws IOException, UserException {
@@ -290,9 +290,9 @@ public class EvilLoggerTests extends OpenSearchTestCase {
         LogConfigurator.setNodeName(nodeName);
         setupLogging("no_node_name");
         final String path =
-            System.getProperty("es.logs.base_path") +
+            System.getProperty("opensearch.logs.base_path") +
                 System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") + ".log";
+                System.getProperty("opensearch.logs.cluster_name") + ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
         assertThat(events.size(), equalTo(2));
         final String location = "org.opensearch.common.logging.LogConfigurator";

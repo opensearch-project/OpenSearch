@@ -20,7 +20,7 @@
 package org.opensearch.index.analysis;
 
 import org.opensearch.indices.analysis.AnalysisFactoryTestCase;
-import org.elasticsearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.AnalysisPlugin;
 
 /**
  * Checks on the analysis components that are part of core to make sure that any that are added

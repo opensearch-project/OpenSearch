@@ -19,12 +19,12 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestDocument.Metadata;
+import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestTemplateService;
-import org.elasticsearch.ingest.ValueSource;
+import org.opensearch.ingest.ValueSource;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 

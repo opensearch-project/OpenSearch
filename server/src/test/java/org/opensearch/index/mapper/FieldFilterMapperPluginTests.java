@@ -30,8 +30,8 @@ import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 import org.junit.Before;
@@ -46,8 +46,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.cluster.metadata.MetadataTests.assertLeafs;
-import static org.elasticsearch.cluster.metadata.MetadataTests.assertMultiField;
+import static org.opensearch.cluster.metadata.MetadataTests.assertLeafs;
+import static org.opensearch.cluster.metadata.MetadataTests.assertMultiField;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {

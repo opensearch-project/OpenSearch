@@ -25,8 +25,8 @@ import java.util.Map;
 
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
 
 public class ExternalMapperPlugin extends Plugin implements MapperPlugin {
 

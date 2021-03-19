@@ -36,7 +36,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
  */
 public class MockLogAppender extends AbstractAppender {
 
-    private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
+    private static final String COMMON_PREFIX = System.getProperty("opensearch.logger.prefix", "org.elasticsearch.");
 
     private List<LoggingExpectation> expectations;
 

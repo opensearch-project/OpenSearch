@@ -21,16 +21,16 @@ import org.opensearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'opensearch.validate-rest-spec'
 apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
+opensearchplugin {
   description 'An easy, safe and fast scripting language for OpenSearch'
   classname 'org.opensearch.painless.PainlessPlugin'
 }
 
 testClusters.all {
   module ':modules:mapper-extras'
-  systemProperty 'es.scripting.update.ctx_in_params', 'false'
+  systemProperty 'opensearch.scripting.update.ctx_in_params', 'false'
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
-  systemProperty 'es.transport.cname_in_publish_address', 'true'
+  systemProperty 'opensearch.transport.cname_in_publish_address', 'true'
 }
 
 dependencies {

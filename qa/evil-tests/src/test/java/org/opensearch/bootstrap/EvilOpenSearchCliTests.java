@@ -33,9 +33,9 @@ public class EvilOpenSearchCliTests extends BaseOpenSearchCliTestCase {
 
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testPathHome() throws Exception {
-        final String pathHome = System.getProperty("es.path.home");
+        final String pathHome = System.getProperty("opensearch.path.home");
         final String value = randomAlphaOfLength(16);
-        System.setProperty("es.path.home", value);
+        System.setProperty("opensearch.path.home", value);
 
         runTest(
                 ExitCodes.OK,
@@ -50,7 +50,7 @@ public class EvilOpenSearchCliTests extends BaseOpenSearchCliTestCase {
                     assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
                 });
 
-        System.clearProperty("es.path.home");
+        System.clearProperty("opensearch.path.home");
         final String commandLineValue = randomAlphaOfLength(16);
         runTest(
                 ExitCodes.OK,
@@ -66,8 +66,8 @@ public class EvilOpenSearchCliTests extends BaseOpenSearchCliTestCase {
                 },
                 "-Epath.home=" + commandLineValue);
 
-        if (pathHome != null) System.setProperty("es.path.home", pathHome);
-        else System.clearProperty("es.path.home");
+        if (pathHome != null) System.setProperty("opensearch.path.home", pathHome);
+        else System.clearProperty("opensearch.path.home");
     }
 
 }

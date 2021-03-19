@@ -48,7 +48,7 @@ import org.gradle.jvm.tasks.Jar
  */
 class PluginBuildPlugin implements Plugin<Project> {
 
-    public static final String PLUGIN_EXTENSION_NAME = 'esplugin'
+    public static final String PLUGIN_EXTENSION_NAME = 'opensearchplugin'
 
     @Override
     void apply(Project project) {
@@ -79,20 +79,20 @@ class PluginBuildPlugin implements Plugin<Project> {
             project.description = extension1.description
 
             if (extension1.name == null) {
-                throw new InvalidUserDataException('name is a required setting for esplugin')
+                throw new InvalidUserDataException('name is a required setting for opensearchplugin')
             }
             if (extension1.description == null) {
-                throw new InvalidUserDataException('description is a required setting for esplugin')
+                throw new InvalidUserDataException('description is a required setting for opensearchplugin')
             }
             if (extension1.classname == null) {
-                throw new InvalidUserDataException('classname is a required setting for esplugin')
+                throw new InvalidUserDataException('classname is a required setting for opensearchplugin')
             }
 
             Map<String, String> properties = [
                     'name'                : extension1.name,
                     'description'         : extension1.description,
                     'version'             : extension1.version,
-                    'opensearchVersion': Version.fromString(VersionProperties.opensearch).toString(),
+                    'opensearchVersion': Version.fromString(VersionProperties.getOpenSearch()).toString(),
                     'javaVersion'         : project.targetCompatibility as String,
                     'classname'           : extension1.classname,
                     'extendedPlugins'     : extension1.extendedPlugins.join(','),
@@ -164,7 +164,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             compileOnly "org.locationtech.jts:jts-core:${project.versions.jts}"
             compileOnly "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
             compileOnly "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
-            compileOnly "org.opensearch:jna:${project.versions.jna}"
+            compileOnly "org.elasticsearch:jna:${project.versions.jna}"
         }
     }
 

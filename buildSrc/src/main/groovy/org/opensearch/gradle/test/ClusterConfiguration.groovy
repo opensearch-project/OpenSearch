@@ -236,7 +236,7 @@ class ClusterConfiguration {
         plugins.put(name, mavenCoords)
     }
 
-    /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */
+    /** Add a module to the cluster. The project must be an opensearchplugin and have a single zip default artifact. */
     @Input
     void module(Project moduleProject) {
         modules.add(moduleProject)

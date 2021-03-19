@@ -93,7 +93,7 @@ class ClusterFormationTasks {
         if (System.getProperty('tests.distribution', 'oss') == 'integ-test-zip') {
             throw new Exception("tests.distribution=integ-test-zip is not supported")
         }
-        configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.opensearch)
+        configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.getOpenSearch())
         boolean hasBwcNodes = config.numBwcNodes > 0
         if (hasBwcNodes) {
             if (config.bwcVersion == null) {
@@ -123,7 +123,7 @@ class ClusterFormationTasks {
                 }
                 distro = bwcDistro
             } else {
-                opensearchVersion = VersionProperties.opensearch
+                opensearchVersion = VersionProperties.getOpenSearch()
                 distro = currentDistro
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, opensearchVersion, sharedDir)
@@ -218,7 +218,7 @@ class ClusterFormationTasks {
             dependency = project.dependencies.project(
                     path: unreleasedInfo.gradleProjectPath, configuration: snapshotProject
             )
-        } else if (internalBuild && opensearchVersion.equals(VersionProperties.opensearch)) {
+        } else if (internalBuild && opensearchVersion.equals(VersionProperties.getOpenSearch())) {
             dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")
         } else {
             if (version.before('7.0.0')) {
@@ -282,7 +282,7 @@ class ClusterFormationTasks {
         setup = configureAddKeystoreFileTasks(prefix, project, setup, node)
 
         if (node.config.plugins.isEmpty() == false) {
-            if (node.nodeVersion == Version.fromString(VersionProperties.opensearch)) {
+            if (node.nodeVersion == Version.fromString(VersionProperties.getOpenSearch())) {
                 setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node, prefix)
             } else {
                 setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node, prefix)
@@ -629,7 +629,7 @@ class ClusterFormationTasks {
             return setup
         }
         if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
-            throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
+            throw new GradleException("Task ${name} cannot include module ${module.path} which is not an opensearchplugin")
         }
         Copy installModule = project.tasks.create(name, Copy.class)
         installModule.dependsOn(setup)
@@ -641,7 +641,7 @@ class ClusterFormationTasks {
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, String pluginName, String prefix) {
         FileCollection pluginZip;
-        if (node.nodeVersion != Version.fromString(VersionProperties.opensearch)) {
+        if (node.nodeVersion != Version.fromString(VersionProperties.getOpenSearch())) {
             pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, pluginName))
         } else {
             pluginZip = project.configurations.getByName(pluginConfigurationName(prefix, pluginName))
@@ -986,13 +986,13 @@ class ClusterFormationTasks {
     static void verifyProjectHasBuildPlugin(String name, Version version, Project project, Project pluginProject) {
         if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
             throw new GradleException("Task [${name}] cannot add plugin [${pluginProject.path}] with version [${version}] to project's " +
-                    "[${project.path}] dependencies: the plugin is not an esplugin")
+                    "[${project.path}] dependencies: the plugin is not an opensearchplugin")
         }
     }
 
     /** Find the plugin name in the given project. */
     static String findPluginName(Project pluginProject) {
-        PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin')
+        PluginPropertiesExtension extension = pluginProject.extensions.findByName('opensearchplugin')
         return extension.name
     }
 

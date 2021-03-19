@@ -19,15 +19,15 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.AbstractProcessor;
+import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
 
 /**
  * A processor that breaks line from CSV file into separate fields.
@@ -88,7 +88,7 @@ public final class CsvProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static final class Factory implements org.elasticsearch.ingest.Processor.Factory {
+    public static final class Factory implements org.opensearch.ingest.Processor.Factory {
         @Override
         public CsvProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                    String description, Map<String, Object> config) {

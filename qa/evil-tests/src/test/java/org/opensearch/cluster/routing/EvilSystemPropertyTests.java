@@ -37,13 +37,13 @@ public class EvilSystemPropertyTests extends OpenSearchTestCase {
         assertWarnings(OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
         assertThat(routing.getAwarenessAttributes().size(), equalTo(1));
         assertThat(routing.getAwarenessAttributes().get(0), equalTo("test"));
-        System.setProperty("es.search.ignore_awareness_attributes", "true");
+        System.setProperty("opensearch.search.ignore_awareness_attributes", "true");
         try {
             routing = new OperationRouting(indexSettings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             assertTrue(routing.getAwarenessAttributes().isEmpty());
         } finally {
-            System.clearProperty("es.search.ignore_awareness_attributes");
+            System.clearProperty("opensearch.search.ignore_awareness_attributes");
         }
 
     }

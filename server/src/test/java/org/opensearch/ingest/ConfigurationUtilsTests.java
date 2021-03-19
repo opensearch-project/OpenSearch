@@ -138,10 +138,10 @@ public class ConfigurationUtilsTests extends OpenSearchTestCase {
         OpenSearchParseException e = expectThrows(OpenSearchParseException.class,
             () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry));
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
-        assertThat(e.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
-        assertThat(e.getMetadata("es.processor_type"), equalTo(Collections.singletonList("unknown_processor")));
-        assertThat(e.getMetadata("es.property_name"), is(nullValue()));
-        assertThat(e.getMetadata("es.processor_description"), is(nullValue()));
+        assertThat(e.getMetadata("opensearch.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
+        assertThat(e.getMetadata("opensearch.processor_type"), equalTo(Collections.singletonList("unknown_processor")));
+        assertThat(e.getMetadata("opensearch.property_name"), is(nullValue()));
+        assertThat(e.getMetadata("opensearch.processor_description"), is(nullValue()));
 
         List<Map<String, Object>> config2 = new ArrayList<>();
         unknownTaggedConfig = new HashMap<>();
@@ -155,17 +155,17 @@ public class ConfigurationUtilsTests extends OpenSearchTestCase {
             () -> ConfigurationUtils.readProcessorConfigs(config2, scriptService, registry)
         );
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
-        assertThat(e.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
-        assertThat(e.getMetadata("es.processor_type"), equalTo(Collections.singletonList("unknown_processor")));
-        assertThat(e.getMetadata("es.property_name"), is(nullValue()));
+        assertThat(e.getMetadata("opensearch.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
+        assertThat(e.getMetadata("opensearch.processor_type"), equalTo(Collections.singletonList("unknown_processor")));
+        assertThat(e.getMetadata("opensearch.property_name"), is(nullValue()));
 
         assertThat(e.getSuppressed().length, equalTo(1));
         assertThat(e.getSuppressed()[0], instanceOf(OpenSearchParseException.class));
         OpenSearchParseException e2 = (OpenSearchParseException) e.getSuppressed()[0];
         assertThat(e2.getMessage(), equalTo("No processor type exists with name [second_unknown_processor]"));
-        assertThat(e2.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_second_unknown")));
-        assertThat(e2.getMetadata("es.processor_type"), equalTo(Collections.singletonList("second_unknown_processor")));
-        assertThat(e2.getMetadata("es.property_name"), is(nullValue()));
+        assertThat(e2.getMetadata("opensearch.processor_tag"), equalTo(Collections.singletonList("my_second_unknown")));
+        assertThat(e2.getMetadata("opensearch.processor_type"), equalTo(Collections.singletonList("second_unknown_processor")));
+        assertThat(e2.getMetadata("opensearch.property_name"), is(nullValue()));
     }
 
     public void testReadProcessorNullDescription() throws Exception {

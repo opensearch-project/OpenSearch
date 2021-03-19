@@ -53,7 +53,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
 
     /** Determines whether settings those reroutes GCE call should be allowed (for testing purposes only). */
     private static final boolean ALLOW_REROUTE_GCE_SETTINGS =
-        Booleans.parseBoolean(System.getProperty("es.allow_reroute_gce_settings", "false"));
+        Booleans.parseBoolean(System.getProperty("opensearch.allow_reroute_gce_settings", "false"));
 
     public static final String GCE = "gce";
     protected final Settings settings;

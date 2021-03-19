@@ -28,7 +28,7 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.opensearch.index.reindex.ReindexPlugin'
   hasClientJar = true
@@ -48,7 +48,7 @@ test {
    * same JVM randomize processors and will step on each other if we allow them to
    * set the number of available processors as it's set-once in Netty.
    */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
 
 dependencies {
@@ -90,13 +90,13 @@ configurations {
 }
 
 dependencies {
-  oldesFixture project(':test:fixtures:old-opensearch')
+  oldesFixture project(':test:fixtures:old-elasticsearch')
   /* Right now we just test against the latest version of each major we expect
    * reindex-from-remote to work against. We could randomize the versions but
    * that doesn't seem worth it at this point. */
-  es2 'org.elasticsearch.distribution.zip:elasticsearch:2.4.5@zip'
-  es1 'org.elasticsearch:elasticsearch:1.7.6@zip'
-  es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
+  es2 'org.opensearch.distribution.zip:elasticsearch:2.4.5@zip'
+  es1 'org.opensearch:elasticsearch:1.7.6@zip'
+  es090 'org.opensearch:elasticsearch:0.90.13@zip'
 }
 
 jdks {

@@ -25,9 +25,9 @@ import org.apache.lucene.analysis.de.GermanStemFilter;
 import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.Analysis;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AbstractTokenFilterFactory;
+import org.opensearch.index.analysis.Analysis;
 
 public class GermanStemTokenFilterFactory extends AbstractTokenFilterFactory {
 

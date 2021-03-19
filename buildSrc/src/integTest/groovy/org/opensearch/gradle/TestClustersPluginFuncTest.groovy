@@ -104,7 +104,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
     boolean assertEsStdoutContains(String testCluster, String expectedOutput) {
         assert new File(testProjectDir.root,
-                "build/testclusters/${testCluster}-0/logs/es.stdout.log").text.contains(expectedOutput)
+                "build/testclusters/${testCluster}-0/logs/opensearch.stdout.log").text.contains(expectedOutput)
         true
     }
 

@@ -76,7 +76,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     public static final int LARGE_BLOB_THRESHOLD_BYTE_SIZE;
 
     static {
-        final String key = "es.repository_gcs.large_blob_threshold_byte_size";
+        final String key = "opensearch.repository_gcs.large_blob_threshold_byte_size";
         final String largeBlobThresholdByteSizeProperty = System.getProperty(key);
         if (largeBlobThresholdByteSizeProperty == null) {
             LARGE_BLOB_THRESHOLD_BYTE_SIZE = Math.toIntExact(new ByteSizeValue(5, ByteSizeUnit.MB).getBytes());

@@ -23,7 +23,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.hamcrest.Matchers;
 import org.opensearch.common.geo.GeoPoint;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.index.mapper.MapperServiceTestCase;
 
 import java.util.Collection;
 import java.util.Collections;

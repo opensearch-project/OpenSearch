@@ -19,7 +19,7 @@
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 
-esplugin {
+opensearchplugin {
   description 'Adds advanced field mappers'
   classname 'org.opensearch.index.mapper.MapperExtrasPlugin'
   hasClientJar = true

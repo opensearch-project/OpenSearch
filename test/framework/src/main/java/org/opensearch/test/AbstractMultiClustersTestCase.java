@@ -25,7 +25,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteConnectionInfo;

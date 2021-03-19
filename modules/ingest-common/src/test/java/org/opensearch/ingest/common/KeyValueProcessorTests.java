@@ -20,8 +20,8 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.test.OpenSearchTestCase;
 

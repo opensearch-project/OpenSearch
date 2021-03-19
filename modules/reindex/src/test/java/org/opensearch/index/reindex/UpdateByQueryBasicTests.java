@@ -20,9 +20,6 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.opensearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
@@ -32,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.hasSize;
 

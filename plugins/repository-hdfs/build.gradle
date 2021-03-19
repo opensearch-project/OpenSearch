@@ -157,7 +157,7 @@ Set disabledIntegTestTaskNames = []
 
 for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
   task "${integTestTaskName}"(type: RestIntegTestTask) {
-    description = "Runs rest tests against an elasticsearch cluster with HDFS."
+    description = "Runs rest tests against an opensearch cluster with HDFS."
     dependsOn(project.bundlePlugin)
 
     if (disabledIntegTestTaskNames.contains(integTestTaskName)) {

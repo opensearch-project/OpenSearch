@@ -61,7 +61,7 @@ import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.RandomScoreFunction;
 import org.opensearch.common.network.InetAddresses;
-import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.percolator.QueryAnalyzer.QueryExtraction;
 import org.opensearch.percolator.QueryAnalyzer.Result;
 import org.opensearch.test.OpenSearchTestCase;
@@ -1202,7 +1202,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
     public void testToParentBlockJoinQuery() {
         TermQuery termQuery = new TermQuery(new Term("field", "value"));
         QueryBitSetProducer queryBitSetProducer = new QueryBitSetProducer(new TermQuery(new Term("_type", "child")));
-        ESToParentBlockJoinQuery query = new ESToParentBlockJoinQuery(termQuery, queryBitSetProducer, ScoreMode.None, "child");
+        OpenSearchToParentBlockJoinQuery query = new OpenSearchToParentBlockJoinQuery(termQuery, queryBitSetProducer, ScoreMode.None, "child");
         Result result = analyze(query, Version.CURRENT);
         assertFalse(result.verified);
         assertThat(result.minimumShouldMatch, equalTo(1));

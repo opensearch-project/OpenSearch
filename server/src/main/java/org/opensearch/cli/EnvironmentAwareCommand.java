@@ -79,9 +79,9 @@ public abstract class EnvironmentAwareCommand extends Command {
             settings.put(kvp.key, kvp.value);
         }
 
-        putSystemPropertyIfSettingIsMissing(settings, "path.data", "es.path.data");
-        putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
-        putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
+        putSystemPropertyIfSettingIsMissing(settings, "path.data", "opensearch.path.data");
+        putSystemPropertyIfSettingIsMissing(settings, "path.home", "opensearch.path.home");
+        putSystemPropertyIfSettingIsMissing(settings, "path.logs", "opensearch.path.logs");
 
         execute(terminal, options, createEnv(settings));
     }
@@ -93,9 +93,9 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */
     protected final Environment createEnv(final Settings baseSettings, final Map<String, String> settings) throws UserException {
-        final String esPathConf = System.getProperty("es.path.conf");
+        final String esPathConf = System.getProperty("opensearch.path.conf");
         if (esPathConf == null) {
-            throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
+            throw new UserException(ExitCodes.CONFIG, "the system property [opensearch.path.conf] must be set");
         }
         return InternalSettingsPreparer.prepareEnvironment(baseSettings, settings,
             getConfigPath(esPathConf),

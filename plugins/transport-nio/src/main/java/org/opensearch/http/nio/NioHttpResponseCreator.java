@@ -38,7 +38,7 @@ import java.util.List;
 @ChannelHandler.Sharable
 public class NioHttpResponseCreator extends MessageToMessageEncoder<NioHttpResponse> {
 
-    private static final String DO_NOT_SPLIT = "es.unsafe.do_not_split_http_responses";
+    private static final String DO_NOT_SPLIT = "opensearch.unsafe.do_not_split_http_responses";
 
     private static final boolean DO_NOT_SPLIT_HTTP_RESPONSES;
     private static final int SPLIT_THRESHOLD;

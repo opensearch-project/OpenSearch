@@ -30,7 +30,7 @@ import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.network.IfConfig;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.plugins.PluginInfo;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.secure_sm.SecureSM;
 import org.junit.Assert;
 
@@ -140,10 +140,10 @@ public class BootstrapForTesting {
                 // read test-framework permissions
                 Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
                 // when testing server, the main opensearch code is not yet in a jar, so we need to manually add it
-                addClassCodebase(codebases,"opensearch", "org.elasticsearch.plugins.PluginsService");
+                addClassCodebase(codebases,"opensearch", "org.opensearch.plugins.PluginsService");
                 if (System.getProperty("tests.gradle") == null) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
-                    addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
+                    addClassCodebase(codebases,"plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
                     addClassCodebase(codebases,"opensearch-nio", "org.elasticsearch.nio.ChannelFactory");
                     addClassCodebase(codebases, "opensearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
                     addClassCodebase(codebases, "opensearch-rest-client", "org.elasticsearch.client.RestClient");

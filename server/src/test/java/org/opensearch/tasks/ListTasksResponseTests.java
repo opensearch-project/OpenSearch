@@ -120,7 +120,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         for (int i = 0; i < nodeFailures.size(); i++) {
             OpenSearchException newException = nodeFailures.get(i);
             OpenSearchException expectedException = expectedFailures.get(i);
-            assertThat(newException.getMetadata("es.node_id").get(0), equalTo(((FailedNodeException)expectedException).nodeId()));
+            assertThat(newException.getMetadata("opensearch.node_id").get(0), equalTo(((FailedNodeException)expectedException).nodeId()));
             assertThat(newException.getMessage(), equalTo("Elasticsearch exception [type=failed_node_exception, reason=error message]"));
             assertThat(newException.getCause(), instanceOf(OpenSearchException.class));
             OpenSearchException cause = (OpenSearchException) newException.getCause();

@@ -23,7 +23,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;

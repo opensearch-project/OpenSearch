@@ -21,8 +21,8 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.dissect.DissectException;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.CoreMatchers;
