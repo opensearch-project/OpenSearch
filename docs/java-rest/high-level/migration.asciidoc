@@ -19,7 +19,7 @@ but takes care of request marshalling and response un-marshalling.
 
 // TODO(OpenSearch): Correct the website url in this page
 If you're interested in knowing more about these changes, we wrote a blog post about the
-https://www.opensearch.org/blog/state-of-the-official-elasticsearch-java-clients[state of the official OpenSearch Java clients].
+https://www.opensearch.org/blog/state-of-the-official-opensearch-java-clients[state of the official OpenSearch Java clients].
 
 === Prerequisite
 
