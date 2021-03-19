@@ -163,7 +163,7 @@ public class Packages {
         verifyOssInstallation(installation, distribution, sh);
     }
 
-    private static void verifyOssInstallation(Installation es, Distribution distribution, Shell sh) {
+    private static void verifyOssInstallation(Installation opensearch, Distribution distribution, Shell sh) {
 
         sh.run("id opensearch");
         sh.run("getent group opensearch");
@@ -172,35 +172,35 @@ public class Packages {
         final Path homeDir = Paths.get(passwdResult.stdout.trim().split(":")[5]);
         assertThat("opensearch user home directory must not exist", homeDir, fileDoesNotExist());
 
-        Stream.of(es.home, es.plugins, es.modules).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
+        Stream.of(opensearch.home, opensearch.plugins, opensearch.modules).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
 
-        Stream.of(es.data, es.logs).forEach(dir -> assertThat(dir, file(Directory, "opensearch", "opensearch", p750)));
+        Stream.of(opensearch.data, opensearch.logs).forEach(dir -> assertThat(dir, file(Directory, "opensearch", "opensearch", p750)));
 
         // we shell out here because java's posix file permission view doesn't support special modes
-        assertThat(es.config, file(Directory, "root", "opensearch", p750));
-        assertThat(sh.run("find \"" + es.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        assertThat(opensearch.config, file(Directory, "root", "opensearch", p750));
+        assertThat(sh.run("find \"" + opensearch.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
-        final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
+        final Path jvmOptionsDirectory = opensearch.config.resolve("jvm.options.d");
         assertThat(jvmOptionsDirectory, file(Directory, "root", "opensearch", p750));
         assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
         Stream.of("opensearch.keystore", "opensearch.yml", "jvm.options", "log4j2.properties")
-            .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "opensearch", p660)));
-        assertThat(es.config(".opensearch.keystore.initial_md5sum"), file(File, "root", "opensearch", p644));
+            .forEach(configFile -> assertThat(opensearch.config(configFile), file(File, "root", "opensearch", p660)));
+        assertThat(opensearch.config(".opensearch.keystore.initial_md5sum"), file(File, "root", "opensearch", p644));
 
-        assertThat(sh.run("sudo -u opensearch " + es.bin("opensearch-keystore") + " list").stdout, containsString("keystore.seed"));
+        assertThat(sh.run("sudo -u opensearch " + opensearch.bin("opensearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
-        Stream.of(es.bin, es.lib).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
+        Stream.of(opensearch.bin, opensearch.lib).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
 
         Stream.of("opensearch", "opensearch-plugin", "opensearch-keystore", "opensearch-shard", "opensearch-shard")
-            .forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
+            .forEach(executable -> assertThat(opensearch.bin(executable), file(File, "root", "root", p755)));
 
-        Stream.of("NOTICE.txt", "README.asciidoc").forEach(doc -> assertThat(es.home.resolve(doc), file(File, "root", "root", p644)));
+        Stream.of("NOTICE.txt", "README.asciidoc").forEach(doc -> assertThat(opensearch.home.resolve(doc), file(File, "root", "root", p644)));
 
-        assertThat(es.envFile, file(File, "root", "opensearch", p660));
+        assertThat(opensearch.envFile, file(File, "root", "opensearch", p660));
 
         if (distribution.packaging == Distribution.Packaging.RPM) {
-            assertThat(es.home.resolve("LICENSE.txt"), file(File, "root", "root", p644));
+            assertThat(opensearch.home.resolve("LICENSE.txt"), file(File, "root", "root", p644));
         } else {
             Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/").stdout.trim());
             assertThat(copyrightDir, file(Directory, "root", "root", p755));

@@ -520,17 +520,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
         installModules();
 
-        if (credentials.isEmpty() == false) {
-            logToProcessStdout("Setting up " + credentials.size() + " users");
-
-            credentials.forEach(
-                paramMap -> runOpenSearchBinScript(
-                    "opensearch-users",
-                    paramMap.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).toArray(String[]::new)
-                )
-            );
-        }
-
         if (cliSetup.isEmpty() == false) {
             logToProcessStdout("Running " + cliSetup.size() + " setup commands");
 
@@ -674,18 +663,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     @Override
     public void user(Map<String, String> userSpec) {
-        // Set<String> keys = new HashSet<>(userSpec.keySet());
-        // keys.remove("username");
-        // keys.remove("password");
-        // keys.remove("role");
-        // if (keys.isEmpty() == false) {
-        // throw new TestClustersException("Unknown keys in user definition " + keys + " for " + this);
-        // }
-        // Map<String, String> cred = new LinkedHashMap<>();
-        // cred.put("useradd", userSpec.getOrDefault("username", "test_user"));
-        // cred.put("-p", userSpec.getOrDefault("password", "x-pack-test-password"));
-        // cred.put("-r", userSpec.getOrDefault("role", "superuser"));
-        // credentials.add(cred);
     }
 
     private void runOpenSearchBinScriptWithInput(String input, String tool, CharSequence... args) {
