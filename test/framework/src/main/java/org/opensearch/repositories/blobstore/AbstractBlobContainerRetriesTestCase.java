@@ -32,7 +32,7 @@ import org.opensearch.common.io.Streams;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.elasticsearch.mocksocket.MockHttpServer;
+import org.opensearch.mocksocket.MockHttpServer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;

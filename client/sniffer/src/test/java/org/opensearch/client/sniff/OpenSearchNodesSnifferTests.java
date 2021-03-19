@@ -35,7 +35,7 @@ import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientTestCase;
-import org.elasticsearch.mocksocket.MockHttpServer;
+import org.opensearch.mocksocket.MockHttpServer;
 import org.junit.After;
 import org.junit.Before;
 

@@ -42,7 +42,7 @@ import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.elasticsearch.mock.orig.Mockito;
+import org.opensearch.mock.orig.Mockito;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.test.OpenSearchTestCase;

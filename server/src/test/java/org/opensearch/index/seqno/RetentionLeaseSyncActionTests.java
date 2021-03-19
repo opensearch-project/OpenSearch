@@ -45,7 +45,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.opensearch.mock.orig.Mockito.when;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;

@@ -27,7 +27,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.mocksocket.MockSocket;
+import org.opensearch.mocksocket.MockSocket;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;

@@ -23,7 +23,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpHost;
-import org.elasticsearch.mocksocket.MockHttpServer;
+import org.opensearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

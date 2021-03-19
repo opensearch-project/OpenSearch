@@ -34,7 +34,7 @@ import org.opensearch.common.ssl.PemKeyConfig;
 import org.opensearch.common.ssl.PemTrustConfig;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.elasticsearch.mocksocket.MockHttpServer;
+import org.opensearch.mocksocket.MockHttpServer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matchers;

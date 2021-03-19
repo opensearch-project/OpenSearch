@@ -50,7 +50,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.mocksocket.MockServerSocket;
+import org.opensearch.mocksocket.MockServerSocket;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;

@@ -24,7 +24,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.mocksocket.MockHttpServer;
+import org.opensearch.mocksocket.MockHttpServer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;

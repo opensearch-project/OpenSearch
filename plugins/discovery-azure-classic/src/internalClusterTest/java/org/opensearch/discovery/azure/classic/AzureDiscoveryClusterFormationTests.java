@@ -33,7 +33,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
-import org.elasticsearch.mocksocket.MockHttpServer;
+import org.opensearch.mocksocket.MockHttpServer;
 import org.opensearch.node.Node;
 import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;

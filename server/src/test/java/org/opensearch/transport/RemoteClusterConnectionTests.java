@@ -49,7 +49,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.IndexNotFoundException;
-import org.elasticsearch.mocksocket.MockServerSocket;
+import org.opensearch.mocksocket.MockServerSocket;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;

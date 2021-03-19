@@ -22,7 +22,7 @@ package org.opensearch.common.settings;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.mock.orig.Mockito;
+import org.opensearch.mock.orig.Mockito;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;

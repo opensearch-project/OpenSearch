@@ -84,14 +84,14 @@ To for example start the open source distribution:
 Run a single test case (variants)
 
 ----------------------------------------------------------
-./gradlew test -Dtests.class=org.elasticsearch.package.ClassName
+./gradlew test -Dtests.class=org.opensearch.package.ClassName
 ./gradlew test "-Dtests.class=*.ClassName"
 ----------------------------------------------------------
 
 Run all tests in a package and its sub-packages
 
 ----------------------------------------------------
-./gradlew test "-Dtests.class=org.elasticsearch.package.*"
+./gradlew test "-Dtests.class=org.opensearch.package.*"
 ----------------------------------------------------
 
 Run any test methods that contain 'esi' (like: ...r*esi*ze...)
@@ -302,7 +302,7 @@ A specific test case can be run with the following command:
 
 ---------------------------------------------------------------------------
 ./gradlew ':rest-api-spec:yamlRestTest' \
-  --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT" \
+  --tests "org.opensearch.test.rest.ClientYamlTestSuiteIT" \
   -Dtests.method="test {p0=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
@@ -328,7 +328,7 @@ A specific test case can be run with the following syntax (fqn.test {params}):
 
 ---------------------------------------------------------------------------
 ./gradlew ':modules:mapper-extras:javaRestTest' \
-  --tests "org.elasticsearch.index.mapper.TokenCountFieldMapperIntegrationIT.testSearchByTokenCount {storeCountedFields=true loadCountedFields=false}"
+  --tests "org.opensearch.index.mapper.TokenCountFieldMapperIntegrationIT.testSearchByTokenCount {storeCountedFields=true loadCountedFields=false}"
 ---------------------------------------------------------------------------
 
 yamlRestTest's and javaRestTest's are easy to identify, since they are found in a
@@ -523,7 +523,7 @@ Use -Dtest.class and -Dtests.method to run a specific bwcTest test.
 For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
 -------------------------------------------------
 ./gradlew :x-pack:qa:rolling-upgrade:v7.7.0#bwcTest \
- -Dtests.class=org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT \
+ -Dtests.class=org.opensearch.upgrades.UpgradeClusterClientYamlTestSuiteIT \
  -Dtests.method="test {p0=*/40_ml_datafeed_crud/*}"
 -------------------------------------------------
 
