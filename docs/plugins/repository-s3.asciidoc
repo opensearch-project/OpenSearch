@@ -58,9 +58,9 @@ PUT _snapshot/my_s3_repository
 ----
 // TEST[skip:we don't have S3 setup while testing this]
 
-Most client settings can be added to the `elasticsearch.yml` configuration file
-with the exception of the secure settings, which you add to the {es} keystore.
-For more information about creating and updating the {es} keystore, see
+Most client settings can be added to the `opensearch.yml` configuration file
+with the exception of the secure settings, which you add to the {opensearch} keystore.
+For more information about creating and updating the {opensearch} keystore, see
 {ref}/secure-settings.html[Secure settings].
 
 For example, if you want to use specific credentials to access S3 then run the
@@ -100,7 +100,7 @@ built when the operation started.
 
 The following list contains the available client settings. Those that must be
 stored in the keystore are marked as "secure" and are *reloadable*; the other
-settings belong in the `elasticsearch.yml` file.
+settings belong in the `opensearch.yml` file.
 
 `access_key` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 

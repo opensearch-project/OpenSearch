@@ -585,7 +585,7 @@ template for all indexes that hold data that needs pre-index processing.
 The `if` conditional is implemented as a Painless script, which requires
 {painless}//painless-regexes.html[explicit support for regular expressions].
 
-`script.painless.regex.enabled: true` must be set in `elasticsearch.yml` to use regular
+`script.painless.regex.enabled: true` must be set in `opensearch.yml` to use regular
 expressions in the `if` condition.
 
 If regular expressions are enabled, operators such as `=~` can be used against a `/pattern/` for conditions.

@@ -14,7 +14,7 @@ This plugin can be installed using the plugin manager:
 
 ["source","sh",subs="attributes,callouts"]
 ----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install {plugin_name}
+sudo bin/opensearch-plugin install {plugin_name}
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -35,7 +35,7 @@ The plugin can be removed with the following command:
 
 ["source","sh",subs="attributes,callouts"]
 ----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove {plugin_name}
+sudo bin/opensearch-plugin remove {plugin_name}
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.

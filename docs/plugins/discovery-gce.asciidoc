@@ -101,7 +101,7 @@ network.host: _gce_
 * Create Google Compute Engine instance (with compute rw permissions)
 * Install OpenSearch
 * Install Google Compute Engine Cloud plugin
-* Modify `elasticsearch.yml` file
+* Modify `opensearch.yml` file
 * Start OpenSearch
 
 [[discovery-gce-usage-long]]
@@ -192,14 +192,14 @@ Install the plugin:
 [source,sh]
 --------------------------------------------------
 # Use Plugin Manager to install it
-sudo bin/elasticsearch-plugin install discovery-gce
+sudo bin/opensearch-plugin install discovery-gce
 --------------------------------------------------
 
-Open the `elasticsearch.yml` file:
+Open the `opensearch.yml` file:
 
 [source,sh]
 --------------------------------------------------
-sudo vi /etc/elasticsearch/elasticsearch.yml
+sudo vi /etc/opensearch/opensearch.yml
 --------------------------------------------------
 
 And add the following lines:
@@ -219,21 +219,21 @@ Start OpenSearch:
 
 [source,sh]
 --------------------------------------------------
-sudo /etc/init.d/elasticsearch start
+sudo /etc/init.d/opensearch start
 --------------------------------------------------
 
 If anything goes wrong, you should check logs:
 
 [source,sh]
 --------------------------------------------------
-tail -f /var/log/elasticsearch/elasticsearch.log
+tail -f /var/log/opensearch/opensearch.log
 --------------------------------------------------
 
 If needed, you can change log level to `trace` by opening `log4j2.properties`:
 
 [source,sh]
 --------------------------------------------------
-sudo vi /etc/elasticsearch/log4j2.properties
+sudo vi /etc/opensearch/log4j2.properties
 --------------------------------------------------
 
 and adding the following line:
@@ -351,7 +351,7 @@ gcloud compute instances create myesnode1 --project=es-cloud \
        --tags=elasticsearch,dev
 --------------------------------------------------
 
-Then, define it in `elasticsearch.yml`:
+Then, define it in `opensearch.yml`:
 
 [source,yaml]
 --------------------------------------------------
