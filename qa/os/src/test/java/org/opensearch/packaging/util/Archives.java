@@ -65,7 +65,7 @@ public class Archives {
 
     /** This is an arbitrarily chosen value that gives OpenSearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
-    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
+    public static final String OPENSEARCH_STARTUP_SLEEP_TIME_SECONDS = "10";
 
     public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
         return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
@@ -233,7 +233,7 @@ public class Archives {
             keystorePassword
         );
 
-        sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
+        sh.getEnv().put("OPENSEARCH_STARTUP_SLEEP_TIME", OPENSEARCH_STARTUP_SLEEP_TIME_SECONDS);
         return sh.runIgnoreExitCode(script);
     }
 
@@ -258,7 +258,7 @@ public class Archives {
             }
 
             // We need to give OpenSearch enough time to print failures to stderr before exiting
-            sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
+            sh.getEnv().put("OPENSEARCH_STARTUP_SLEEP_TIME", OPENSEARCH_STARTUP_SLEEP_TIME_SECONDS);
 
             List<String> command = new ArrayList<>();
             command.add("sudo -E -u ");
@@ -332,7 +332,7 @@ public class Archives {
                     + keystorePassword
                     + "'); "
                     + "Wait-Process -Timeout "
-                    + ES_STARTUP_SLEEP_TIME_SECONDS
+                    + OPENSEARCH_STARTUP_SLEEP_TIME_SECONDS
                     + " -Id $process.Id; "
                     + "$process.Id;"
             );

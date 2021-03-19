@@ -55,7 +55,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     @SuppressWarnings("unused")
     public SystemdPlugin() {
-        this(true, Build.CURRENT.type(), System.getenv("ES_SD_NOTIFY"));
+        this(true, Build.CURRENT.type(), System.getenv("OPENSEARCH_SD_NOTIFY"));
     }
 
     SystemdPlugin(final boolean assertIsPackageDistribution, final Build.Type buildType, final String esSDNotify) {
@@ -69,13 +69,13 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
             enabled = false;
             return;
         }
-        logger.trace("ES_SD_NOTIFY is set to [{}]", esSDNotify);
+        logger.trace("OPENSEARCH_SD_NOTIFY is set to [{}]", esSDNotify);
         if (esSDNotify == null) {
             enabled = false;
             return;
         }
         if (Boolean.TRUE.toString().equals(esSDNotify) == false && Boolean.FALSE.toString().equals(esSDNotify) == false) {
-            throw new RuntimeException("ES_SD_NOTIFY set to unexpected value [" + esSDNotify + "]");
+            throw new RuntimeException("OPENSEARCH_SD_NOTIFY set to unexpected value [" + esSDNotify + "]");
         }
         enabled = Boolean.TRUE.toString().equals(esSDNotify);
     }

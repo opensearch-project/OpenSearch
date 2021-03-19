@@ -303,7 +303,7 @@ public class PackageTests extends PackagingTestCase {
         stopOpenSearch();
 
         withCustomConfig(tempConf -> {
-            append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
+            append(installation.envFile, "OPENSEARCH_JAVA_OPTS=-XX:-UseCompressedOops");
 
             startOpenSearch();
 
