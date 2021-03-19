@@ -31,8 +31,8 @@ your local machine:
 
 . Set up a new {opensearch} instance.
 . Specify the name of the cluster with the `cluster.name` setting in
-`elasticsearch.yml`. For example, to add a node to the `logging-prod` cluster,
-add the line `cluster.name: "logging-prod"` to `elasticsearch.yml`.
+`opensearch.yml`. For example, to add a node to the `logging-prod` cluster,
+add the line `cluster.name: "logging-prod"` to `opensearch.yml`.
 . Start {opensearch}. The node automatically discovers and joins the specified cluster.
 
 To add a node to a cluster running on multiple machines, you must also

@@ -72,7 +72,7 @@ If specified, ensure the `{network,transport,http}.tcp.keep_idle` and
 `{network,transport,http}.tcp.keep_interval` settings do not exceed `300`
 seconds. Setting `{network,transport,http}.tcp.keep_idle` or
 `{network,transport,http}.tcp.keep_interval` to a value greater than `300`
-seconds in `elasticsearch.yml` will result in an error on startup.
+seconds in `opensearch.yml` will result in an error on startup.
 ====
 
 [discrete]

@@ -107,7 +107,7 @@ on failure is not enabled like explained above.
 The OpenSearch Nodes Info api doesn't return the protocol to use when
 connecting to the nodes but only their `host:port` key-pair, hence `http`
 is used by default. In case `https` should be used instead, the
-`ElasticsearchNodesSniffer` instance has to be manually created and provided
+`OpenSearchNodesSniffer` instance has to be manually created and provided
 as follows:
 
 ["source","java",subs="attributes,callouts,macros"]

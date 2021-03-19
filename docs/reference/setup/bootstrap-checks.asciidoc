@@ -56,7 +56,7 @@ If you are running a single node in production, it is possible to evade the
 bootstrap checks (either by not binding transport to an external interface, or
 by binding transport to an external interface and setting the discovery type to
 `single-node`). For this situation, you can force execution of the bootstrap
-checks by setting the system property `es.enforce.bootstrap.checks` to `true`
+checks by setting the system property `opensearch.enforce.bootstrap.checks` to `true`
 (set this in <<jvm-options>>, or by adding `-Des.enforce.bootstrap.checks=true`
 to the environment variable `OPENSEARCH_JAVA_OPTS`). We strongly encourage you to do
 this if you are in this specific situation. This system property can be used to
@@ -97,7 +97,7 @@ requesting the JVM to lock the heap in memory through `mlockall` (Unix)
 or virtual lock (Windows). This is done via the OpenSearch setting
 <<bootstrap-memory_lock,`bootstrap.memory_lock`>>. However, there are
 cases where this setting can be passed to OpenSearch but
-OpenSearch is not able to lock the heap (e.g., if the `elasticsearch`
+OpenSearch is not able to lock the heap (e.g., if the `opensearch`
 user does not have `memlock unlimited`). The memory lock check verifies
 that *if* the `bootstrap.memory_lock` setting is enabled, that the JVM
 was successfully able to lock the heap. To pass the memory lock check,

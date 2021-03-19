@@ -15,9 +15,10 @@ name `expert_scripts`. It implements a single script called `pure_df` which
 may be used as a search script to override each document's score as
 the document frequency of a provided term.
 
+// TODO(OpenSearch): Correct the path after renaming, or build will fail
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{plugins-examples-dir}/script-expert-scoring/src/main/java/org/opensearch/example/expertscript/ExpertScriptPlugin.java[expert_engine]
+include-tagged::{plugins-examples-dir}/script-expert-scoring/src/main/java/org/elasticsearch/example/expertscript/ExpertScriptPlugin.java[expert_engine]
 --------------------------------------------------
 
 You can execute the script by specifying its `lang` as `expert_scripts`, and the name
