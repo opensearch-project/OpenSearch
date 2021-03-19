@@ -7952,7 +7952,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * null utf8ToString()
 
 
-[role="exclude",id="painless-api-reference-shared-org-elasticsearch-common-geo"]
+[role="exclude",id="painless-api-reference-shared-org-opensearch-common-geo"]
 === Shared API for package org.opensearch.common.geo
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
@@ -7965,7 +7965,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * null {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
-[role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-fielddata"]
+[role="exclude",id="painless-api-reference-shared-org-opensearch-index-fielddata"]
 === Shared API for package org.opensearch.index.fielddata
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
@@ -8378,7 +8378,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * null {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
-[role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-mapper"]
+[role="exclude",id="painless-api-reference-shared-org-opensearch-index-mapper"]
 === Shared API for package org.opensearch.index.mapper
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
@@ -8439,7 +8439,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * null {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
-[role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-query"]
+[role="exclude",id="painless-api-reference-shared-org-opensearch-index-query"]
 === Shared API for package org.opensearch.index.query
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
@@ -8453,7 +8453,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * null {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
-[role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-similarity"]
+[role="exclude",id="painless-api-reference-shared-org-opensearch-index-similarity"]
 === Shared API for package org.opensearch.index.similarity
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
@@ -8493,7 +8493,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * null {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
-[role="exclude",id="painless-api-reference-shared-org-elasticsearch-painless-api"]
+[role="exclude",id="painless-api-reference-shared-org-opensearch-painless-api"]
 === Shared API for package org.opensearch.painless.api
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
@@ -8505,7 +8505,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * null {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
-[role="exclude",id="painless-api-reference-shared-org-elasticsearch-script"]
+[role="exclude",id="painless-api-reference-shared-org-opensearch-script"]
 === Shared API for package org.opensearch.script
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
@@ -8600,7 +8600,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * ZonedDateTime withZoneSameLocal(ZoneId)
 
 
-[role="exclude",id="painless-api-reference-shared-org-elasticsearch-search-lookup"]
+[role="exclude",id="painless-api-reference-shared-org-opensearch-search-lookup"]
 === Shared API for package org.opensearch.search.lookup
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 

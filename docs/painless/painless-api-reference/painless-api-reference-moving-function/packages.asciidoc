@@ -60,7 +60,7 @@ See the <<painless-api-reference-moving-function, Moving Function API>> for a hi
 * String {java11-javadoc}/java.base/java/lang/String.html#trim()[trim]()
 
 
-[role="exclude",id="painless-api-reference-moving-function-org-elasticsearch-search-aggregations-pipeline"]
+[role="exclude",id="painless-api-reference-moving-function-org-opensearch-search-aggregations-pipeline"]
 === Moving Function API for package org.opensearch.search.aggregations.pipeline
 See the <<painless-api-reference-moving-function, Moving Function API>> for a high-level overview of all packages and classes.
 
