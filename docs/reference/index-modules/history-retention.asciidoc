@@ -58,6 +58,6 @@ there>>.
 [discrete]
 === History retention settings
 
-include::{es-ref-dir}/index-modules.asciidoc[tag=index-soft-deletes-tag]
+include::{opensearch-ref-dir}/index-modules.asciidoc[tag=index-soft-deletes-tag]
 
-include::{es-ref-dir}/index-modules.asciidoc[tag=index-soft-deletes-retention-tag]
+include::{opensearch-ref-dir}/index-modules.asciidoc[tag=index-soft-deletes-retention-tag]

@@ -56,7 +56,7 @@ Name of the index to simulate.
 (Optional, string) The reason for running the simulation. 
 ////
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [role="child_attributes"]
 [[simulate-index-api-response-body]]
@@ -83,15 +83,15 @@ The settings, mappings, and aliases that would be applied to the index.
 .Properties of `template`
 [%collapsible%open]
 ====
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 +
 Response includes an empty object if no aliases would be applied. 
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 +
 Omitted from the response if no mappings would be applied.
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
 +
 Response includes an empty object if no settings would be applied. 
 ====

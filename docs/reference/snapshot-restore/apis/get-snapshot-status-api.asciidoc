@@ -88,7 +88,7 @@ Use the get snapshot status API to retrieve detailed information about snapshots
 
 If you specify both the repository name and snapshot, the request retrieves detailed status information for the given snapshot, even if not currently running.
 
-include::{es-ref-dir}/snapshot-restore/monitor-snapshot-restore.asciidoc[tag=get-snapshot-status-warning]
+include::{opensearch-ref-dir}/snapshot-restore/monitor-snapshot-restore.asciidoc[tag=get-snapshot-status-warning]
 
 [[get-snapshot-status-api-path-params]]
 ==== {api-path-parms-title}

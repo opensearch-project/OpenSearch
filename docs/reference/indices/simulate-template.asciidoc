@@ -89,7 +89,7 @@ Note that the template is not permanently added or updated in either case;
 it is only used for the simulation.
 Defaults to `false`.
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[simulate-template-api-request-body]]
 ==== {api-request-body-title}
@@ -119,11 +119,11 @@ Template to apply.
 .Properties of `template`
 [%collapsible%open]
 ====
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
 ====
 
 `version`::
@@ -160,11 +160,11 @@ The settings, mappings, and aliases that would be applied to matching indices.
 .Properties of `template`
 [%collapsible%open]
 ====
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{opensearch-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
 ====
 
 [[simulate-template-api-example]]
