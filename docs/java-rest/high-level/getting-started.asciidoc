@@ -52,7 +52,7 @@ If you are looking for a SNAPSHOT version, you should add our snapshot repositor
 --------------------------------------------------
 <repositories>
     <repository>
-        <id>es-snapshots</id>
+        <id>opensearch-snapshots</id>
         <name>opensearch snapshot repo</name>
         <url>https://snapshots.elastic.co/maven/</url>
     </repository>

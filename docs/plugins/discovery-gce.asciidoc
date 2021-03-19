@@ -113,7 +113,7 @@ network.host: _gce_
 
 Before starting, you need:
 
-* Your project ID, e.g. `es-cloud`. Get it from https://code.google.com/apis/console/[Google API Console].
+* Your project ID, e.g. `opensearch-cloud`. Get it from https://code.google.com/apis/console/[Google API Console].
 * To install https://developers.google.com/cloud/sdk/[Google Cloud SDK]
 
 If you did not set it yet, you can define your default project you will work on:
@@ -265,14 +265,14 @@ ls /tmp
 e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
 
 # Upload your image to Google Cloud Storage:
-# Create a bucket to hold your image, let's say `esimage`:
-gsutil mb gs://esimage
+# Create a bucket to hold your image, let's say `opensearchimage`:
+gsutil mb gs://opensearchimage
 
 # Copy your image to this bucket:
-gsutil cp /tmp/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz gs://esimage
+gsutil cp /tmp/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz gs://opensearchimage
 
 # Then add your image to images collection:
-gcloud compute images create elasticsearch-2-0-0 --source-uri gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
+gcloud compute images create elasticsearch-2-0-0 --source-uri gs://opensearchimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
 
 # If the previous command did not work for you, logout from your instance
 # and launch the same command from your local machine.
@@ -285,11 +285,11 @@ As you have now an image, you can create as many instances as you need:
 
 [source,sh]
 --------------------------------------------------
-# Just change node name (here myesnode2)
-gcloud compute instances create myesnode2 --image elasticsearch-2-0-0 --zone europe-west1-a
+# Just change node name (here myopensearchnode2)
+gcloud compute instances create myopensearchnode2 --image opensearch-2-0-0 --zone europe-west1-a
 
 # If you want to provide all details directly, you can use:
-gcloud compute instances create myesnode2 --image=elasticsearch-2-0-0 \
+gcloud compute instances create myopensearchnode2 --image=opensearch-2-0-0 \
        --zone europe-west1-a --machine-type f1-micro --scopes=compute-rw
 --------------------------------------------------
 
@@ -301,11 +301,11 @@ You can use https://cloud.google.com/console[Google Cloud Console] or CLI to man
 [source,sh]
 --------------------------------------------------
 # Stopping and removing instances
-gcloud compute instances delete myesnode1 myesnode2 \
+gcloud compute instances delete myopensearchnode1 myopensearchnode2 \
        --zone=europe-west1-a
 
 # Consider removing disk as well if you don't need them anymore
-gcloud compute disks delete boot-myesnode1 boot-myesnode2  \
+gcloud compute disks delete boot-myopensearchnode1 boot-myopensearchnode2  \
        --zone=europe-west1-a
 --------------------------------------------------
 
@@ -357,12 +357,12 @@ Then, define it in `opensearch.yml`:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
+      project_id: opensearch-cloud
       zone: europe-west1-a
 discovery:
       seed_providers: gce
       gce:
-            tags: elasticsearch, dev
+            tags: opensearch, dev
 --------------------------------------------------
 
 [[discovery-gce-usage-port]]
@@ -472,7 +472,7 @@ elasticsearch.yml with the following content:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
+      project_id: opensearch-cloud
       zone: europe-west1-a
 discovery:
       seed_providers: gce
@@ -484,5 +484,5 @@ To run test:
 
 [source,sh]
 --------------------------------------------------
-mvn -Dtests.gce=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
+mvn -Dtests.gce=true -Dtests.config=/path/to/config/file/opensearch.yml clean test
 --------------------------------------------------

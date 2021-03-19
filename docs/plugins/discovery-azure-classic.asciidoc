@@ -22,7 +22,7 @@ cloud:
     azure:
         management:
              subscription.id: XXX-XXX-XXX-XXX
-             cloud.service.name: es-demo-app
+             cloud.service.name: opensearch-demo-app
              keystore:
                    path: /path/to/azurekeystore.pkcs12
                    password: WHATEVER
