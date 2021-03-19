@@ -161,7 +161,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(runOpenSearchStartCommand(password, true, false));
+        awaitOpenSearchStartup(runOpenSearchStartCommand(password, true, false));
         ServerUtils.runOpenSearchTests();
         stopOpenSearch();
     }
@@ -192,7 +192,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(runOpenSearchStartCommand(password, false, true));
+        awaitOpenSearchStartup(runOpenSearchStartCommand(password, false, true));
         ServerUtils.runOpenSearchTests();
         stopOpenSearch();
     }

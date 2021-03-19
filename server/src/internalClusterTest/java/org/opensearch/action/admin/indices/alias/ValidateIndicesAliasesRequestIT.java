@@ -81,12 +81,12 @@ public class ValidateIndicesAliasesRequestIT extends OpenSearchSingleNodeTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(IndicesAliasopensearchplugin.class);
+        return Collections.singletonList(IndicesAliasesPlugin.class);
     }
 
     public void testAllowed() {
         final Settings settings = Settings.builder()
-                .putList(IndicesAliasopensearchplugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
+                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
                 .build();
         createIndex("index", settings);
         final IndicesAliasesRequest request = new IndicesAliasesRequest().origin("allowed");
@@ -102,7 +102,7 @@ public class ValidateIndicesAliasesRequestIT extends OpenSearchSingleNodeTestCas
 
     public void testNotAllowed() {
         final Settings settings = Settings.builder()
-                .putList(IndicesAliasopensearchplugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
+                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
                 .build();
         createIndex("index", settings);
         final String origin = randomFrom("", "not-allowed");
@@ -114,11 +114,11 @@ public class ValidateIndicesAliasesRequestIT extends OpenSearchSingleNodeTestCas
 
     public void testSomeAllowed() {
         final Settings fooIndexSettings = Settings.builder()
-                .putList(IndicesAliasopensearchplugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("foo_allowed"))
+                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("foo_allowed"))
                 .build();
         createIndex("foo", fooIndexSettings);
         final Settings barIndexSettings = Settings.builder()
-                .putList(IndicesAliasopensearchplugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("bar_allowed"))
+                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("bar_allowed"))
                 .build();
         createIndex("bar", barIndexSettings);
         final String origin = randomFrom("foo_allowed", "bar_allowed");

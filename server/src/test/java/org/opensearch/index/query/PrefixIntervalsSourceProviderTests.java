@@ -25,7 +25,7 @@ import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.IntervalsSourceProvider.Prefix;
+import static org.opensearch.index.query.IntervalsSourceProvider.Prefix;
 
 public class PrefixIntervalsSourceProviderTests extends AbstractSerializingTestCase<Prefix> {
 

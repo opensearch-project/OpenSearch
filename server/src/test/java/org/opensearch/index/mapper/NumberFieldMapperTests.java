@@ -25,9 +25,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
-import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.opensearch.index.termvectors.TermVectorsService;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -42,12 +42,12 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Set<String> types() {
-        return org.elasticsearch.common.collect.Set.of("byte", "short", "integer", "long", "float", "double", "half_float");
+        return org.opensearch.common.collect.Set.of("byte", "short", "integer", "long", "float", "double", "half_float");
     }
 
     @Override
     protected Set<String> wholeTypes() {
-        return org.elasticsearch.common.collect.Set.of("byte", "short", "integer", "long");
+        return org.opensearch.common.collect.Set.of("byte", "short", "integer", "long");
     }
 
     @Override

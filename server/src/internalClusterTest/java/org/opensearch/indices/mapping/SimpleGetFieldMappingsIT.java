@@ -64,7 +64,7 @@ public class SimpleGetFieldMappingsIT extends OpenSearchIntegTestCase {
         assertThat(response.mappings().size(), equalTo(1));
         assertThat(response.mappings().get("index").size(), equalTo(0));
 
-        assertThat(response.fieldMappings("index", "type", "field"), Matchers.nullValue());
+        assertThat(response.fieldMappings("index", "type", "field"), nullValue());
     }
 
     private XContentBuilder getMappingForType(String type) throws IOException {

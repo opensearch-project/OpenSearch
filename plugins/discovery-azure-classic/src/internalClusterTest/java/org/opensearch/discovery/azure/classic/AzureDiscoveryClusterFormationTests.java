@@ -33,7 +33,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
-import org.opensearch.mocksocket.MockHttpServer;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.node.Node;
 import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
@@ -125,14 +125,16 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
             .put(AzureComputeService.Management.ENDPOINT_SETTING.getKey(), "https://" + InetAddress.getLoopbackAddress().getHostAddress() +
                 ":" + httpsServer.getAddress().getPort())
             .put(AzureComputeService.Management.KEYSTORE_PATH_SETTING.getKey(), keyStoreFile.toAbsolutePath())
-            .put(AzureComputeService.Discovery.HOST_TYPE_SETTING.getKey(), AzureSeedHostsProvider.HostType.PUBLIC_IP.name())
+            .put(AzureComputeService.Discovery.HOST_TYPE_SETTING.getKey(),
+                org.opensearch.discovery.azure.classic.AzureSeedHostsProvider.HostType.PUBLIC_IP.name())
             .put(AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING.getKey(), "keypass")
             .put(AzureComputeService.Management.KEYSTORE_TYPE_SETTING.getKey(), "jks")
             .put(AzureComputeService.Management.SERVICE_NAME_SETTING.getKey(), "myservice")
             .put(AzureComputeService.Management.SUBSCRIPTION_ID_SETTING.getKey(), "subscription")
             .put(AzureComputeService.Discovery.DEPLOYMENT_NAME_SETTING.getKey(), "mydeployment")
             .put(AzureComputeService.Discovery.ENDPOINT_NAME_SETTING.getKey(), "myendpoint")
-            .put(AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING.getKey(), AzureSeedHostsProvider.Deployment.PRODUCTION.name())
+            .put(AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING.getKey(),
+                org.opensearch.discovery.azure.classic.AzureSeedHostsProvider.Deployment.PRODUCTION.name())
             .build();
     }
 

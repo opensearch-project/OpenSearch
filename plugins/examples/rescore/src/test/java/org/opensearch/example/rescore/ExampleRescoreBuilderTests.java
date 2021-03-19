@@ -48,7 +48,8 @@ public class ExampleRescoreBuilderTests extends AbstractWireSerializingTestCase<
         Supplier<ExampleRescoreBuilder> supplier = randomFrom(
                 () -> new ExampleRescoreBuilder(instance.factor(), instance.factorField())
                         .windowSize(randomValueOtherThan(instance.windowSize(), () -> between(0, Integer.MAX_VALUE))),
-                () -> new ExampleRescoreBuilder(randomValueOtherThan(instance.factor(), OpenSearchTestCase::randomFloat), instance.factorField())
+                () -> new ExampleRescoreBuilder(
+                    randomValueOtherThan(instance.factor(), OpenSearchTestCase::randomFloat), instance.factorField())
                         .windowSize(instance.windowSize()),
                 () -> new ExampleRescoreBuilder(
                             instance.factor(), randomValueOtherThan(instance.factorField(), () -> randomAlphaOfLength(5)))

@@ -21,7 +21,6 @@ package org.opensearch.rest;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.lease.Releasable;
 
 import java.util.ArrayList;
 import java.util.Collections;

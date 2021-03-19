@@ -50,7 +50,8 @@ public class ListenableFutureTests extends OpenSearchTestCase {
         AtomicInteger notifications = new AtomicInteger(0);
         final int numberOfListeners = scaledRandomIntBetween(1, 12);
         for (int i = 0; i < numberOfListeners; i++) {
-            future.addListener(ActionListener.wrap(notifications::incrementAndGet), OpenSearchExecutors.newDirectExecutorService(), threadContext);
+            future.addListener(
+                ActionListener.wrap(notifications::incrementAndGet), OpenSearchExecutors.newDirectExecutorService(), threadContext);
         }
 
         future.onResponse("");

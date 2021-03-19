@@ -27,9 +27,9 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.SourceToParse;
 
 import java.util.ArrayList;
 import java.util.List;

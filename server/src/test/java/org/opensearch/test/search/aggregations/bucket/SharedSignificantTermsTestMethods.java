@@ -48,7 +48,8 @@ public class SharedSignificantTermsTestMethods {
     public static final String TEXT_FIELD = "text";
     public static final String CLASS_FIELD = "class";
 
-    public static void aggregateAndCheckFromSeveralShards(OpenSearchIntegTestCase testCase) throws ExecutionException, InterruptedException {
+    public static void aggregateAndCheckFromSeveralShards(OpenSearchIntegTestCase testCase)
+        throws ExecutionException, InterruptedException {
         String type = OpenSearchTestCase.randomBoolean() ? "text" : "keyword";
         String settings = "{\"index.number_of_shards\": 7, \"index.number_of_routing_shards\": 7, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings, testCase);
@@ -76,7 +77,8 @@ public class SharedSignificantTermsTestMethods {
         }
     }
 
-    public static void index01Docs(String type, String settings, OpenSearchIntegTestCase testCase) throws ExecutionException, InterruptedException {
+    public static void index01Docs(String type, String settings, OpenSearchIntegTestCase testCase)
+        throws ExecutionException, InterruptedException {
         String textMappings = "type=" + type;
         if (type.equals("text")) {
             textMappings += ",fielddata=true";

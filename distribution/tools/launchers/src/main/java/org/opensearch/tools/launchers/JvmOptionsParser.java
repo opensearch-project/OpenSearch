@@ -79,7 +79,9 @@ final class JvmOptionsParser {
      */
     public static void main(final String[] args) throws InterruptedException, IOException {
         if (args.length != 1) {
-            throw new IllegalArgumentException("expected one argument specifying path to OPENSEARCH_PATH_CONF but was " + Arrays.toString(args));
+            throw new IllegalArgumentException(
+                "expected one argument specifying path to OPENSEARCH_PATH_CONF but was " + Arrays.toString(args)
+            );
         }
 
         final JvmOptionsParser parser = new JvmOptionsParser();

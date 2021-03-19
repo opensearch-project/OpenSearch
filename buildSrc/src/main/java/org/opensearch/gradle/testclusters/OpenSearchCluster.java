@@ -91,16 +91,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         this.bwcJdk = bwcJdk;
 
         this.nodes.add(
-            new OpenSearchNode(
-                path,
-                clusterName + "-0",
-                project,
-                reaper,
-                fileSystemOperations,
-                archiveOperations,
-                workingDirBase,
-                bwcJdk
-            )
+            new OpenSearchNode(path, clusterName + "-0", project, reaper, fileSystemOperations, archiveOperations, workingDirBase, bwcJdk)
         );
         // configure the cluster name eagerly so nodes know about it
         this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));

@@ -372,7 +372,8 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                         }
                     } else {
                         if (hasConsistentContent) {
-                            OpenSearchTestCase.assertArrayEquals("Tried to overwrite blob [" + blobName + "]", relevantActions.get(0).data, data);
+                            OpenSearchTestCase.assertArrayEquals(
+                                "Tried to overwrite blob [" + blobName + "]", relevantActions.get(0).data, data);
                             return; // No need to add a write for this since we didn't change content
                         }
                     }

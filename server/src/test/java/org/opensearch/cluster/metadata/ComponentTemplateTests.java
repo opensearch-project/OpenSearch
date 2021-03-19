@@ -156,7 +156,8 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
                         throw new IllegalStateException("illegal randomization branch");
                 }
             case 1:
-                return new ComponentTemplate(orig.template(), randomValueOtherThan(orig.version(), OpenSearchTestCase::randomNonNegativeLong),
+                return new ComponentTemplate(orig.template(),
+                    randomValueOtherThan(orig.version(), OpenSearchTestCase::randomNonNegativeLong),
                     orig.metadata());
             case 2:
                 return new ComponentTemplate(orig.template(), orig.version(),

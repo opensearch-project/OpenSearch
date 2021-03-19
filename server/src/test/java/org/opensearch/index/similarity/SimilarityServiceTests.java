@@ -26,7 +26,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;

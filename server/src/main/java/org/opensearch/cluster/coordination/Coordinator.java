@@ -1073,7 +1073,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     @Override
-    public void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, ClusterStatePublisher.AckListener ackListener) {
+    public void publish(ClusterChangedEvent clusterChangedEvent,
+                        ActionListener<Void> publishListener, ClusterStatePublisher.AckListener ackListener) {
         try {
             synchronized (mutex) {
                 if (mode != Mode.LEADER || getCurrentTerm() != clusterChangedEvent.state().term()) {
@@ -1302,7 +1303,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private boolean receivedJoinsProcessed;
 
         CoordinatorPublication(PublishRequest publishRequest, PublicationTransportHandler.PublicationContext publicationContext,
-                               ListenableFuture<Void> localNodeAckEvent, ClusterStatePublisher.AckListener ackListener, ActionListener<Void> publishListener) {
+                               ListenableFuture<Void> localNodeAckEvent, ClusterStatePublisher.AckListener ackListener,
+                               ActionListener<Void> publishListener) {
             super(publishRequest,
                 new ClusterStatePublisher.AckListener() {
                     @Override

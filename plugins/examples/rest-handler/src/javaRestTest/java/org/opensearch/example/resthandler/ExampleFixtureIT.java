@@ -19,7 +19,7 @@
 
 package org.opensearch.example.resthandler;
 
-import org.opensearch.mocksocket.MockSocket;
+import org.elasticsearch.mocksocket.MockSocket;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.BufferedReader;

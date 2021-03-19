@@ -19,12 +19,12 @@
 package org.opensearch.index.shard;
 
 import org.apache.lucene.index.Term;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.Engine;
+import org.opensearch.index.Index;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineTests;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.hamcrest.Matchers;
 import org.opensearch.test.OpenSearchTestCase;
 

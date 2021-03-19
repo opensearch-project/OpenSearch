@@ -20,9 +20,9 @@ package org.opensearch.index.shard;
 
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.Index;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

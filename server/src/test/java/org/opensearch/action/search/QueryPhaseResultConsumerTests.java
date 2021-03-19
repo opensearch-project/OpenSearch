@@ -72,7 +72,8 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
                 };
             });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
-        executor = OpenSearchExecutors.newFixed("test", 1, 10, OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        executor = OpenSearchExecutors.newFixed(
+            "test", 1, 10, OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
     }
 
     @After

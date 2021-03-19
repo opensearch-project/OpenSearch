@@ -22,8 +22,8 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;

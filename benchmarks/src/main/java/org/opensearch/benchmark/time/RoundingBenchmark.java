@@ -117,8 +117,10 @@ public class RoundingBenchmark {
         return timeUnitRoundingUtcDayOfMonthJoda.round(timestamp);
     }
 
-    private final org.opensearch.common.rounding.Rounding timeUnitRoundingUtcQuarterOfYearJoda =
-        org.opensearch.common.rounding.Rounding.builder(DateTimeUnit.QUARTER).timeZone(DateTimeZone.UTC).build();
+    private final org.opensearch.common.rounding.Rounding timeUnitRoundingUtcQuarterOfYearJoda = org.opensearch.common.rounding.Rounding
+        .builder(DateTimeUnit.QUARTER)
+        .timeZone(DateTimeZone.UTC)
+        .build();
     private final Rounding timeUnitRoundingUtcQuarterOfYearJava = Rounding.builder(QUARTER_OF_YEAR).timeZone(ZoneOffset.UTC).build();
 
     @Benchmark
@@ -147,8 +149,10 @@ public class RoundingBenchmark {
         return timeUnitRoundingUtcMonthOfYearJoda.round(timestamp);
     }
 
-    private final org.opensearch.common.rounding.Rounding timeUnitRoundingUtcYearOfCenturyJoda =
-        org.opensearch.common.rounding.Rounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(DateTimeZone.UTC).build();
+    private final org.opensearch.common.rounding.Rounding timeUnitRoundingUtcYearOfCenturyJoda = org.opensearch.common.rounding.Rounding
+        .builder(DateTimeUnit.YEAR_OF_CENTURY)
+        .timeZone(DateTimeZone.UTC)
+        .build();
     private final Rounding timeUnitRoundingUtcYearOfCenturyJava = Rounding.builder(YEAR_OF_CENTURY).timeZone(ZoneOffset.UTC).build();
 
     @Benchmark

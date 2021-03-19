@@ -29,7 +29,7 @@ import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
+import static org.opensearch.index.query.QueryBuilders.spanTermQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 

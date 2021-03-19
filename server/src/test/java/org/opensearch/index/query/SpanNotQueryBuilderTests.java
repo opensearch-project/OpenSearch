@@ -29,8 +29,8 @@ import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
-import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
+import static org.opensearch.index.query.QueryBuilders.spanNearQuery;
+import static org.opensearch.index.query.QueryBuilders.spanTermQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

@@ -29,8 +29,8 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.store.StoreFileMetadata;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

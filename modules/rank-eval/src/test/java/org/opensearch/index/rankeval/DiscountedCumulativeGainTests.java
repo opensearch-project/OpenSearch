@@ -312,7 +312,8 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         DiscountedCumulativeGain original = createTestItem();
-        DiscountedCumulativeGain deserialized = OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
+        DiscountedCumulativeGain deserialized =
+            OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
                 DiscountedCumulativeGain::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());

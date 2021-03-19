@@ -44,11 +44,11 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

@@ -25,8 +25,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.VersionUtils;
 

@@ -29,7 +29,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
-public class EvilOpenSearchCliTests extends BaseOpenSearchCliTestCase {
+public class EvilOpenSearchCliTests extends OpenSearchCliTestCase {
 
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testPathHome() throws Exception {

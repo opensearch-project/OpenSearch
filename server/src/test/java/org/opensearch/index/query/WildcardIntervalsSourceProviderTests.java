@@ -25,7 +25,7 @@ import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.IntervalsSourceProvider.Wildcard;
+import static org.opensearch.index.query.IntervalsSourceProvider.Wildcard;
 
 public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTestCase<Wildcard> {
 

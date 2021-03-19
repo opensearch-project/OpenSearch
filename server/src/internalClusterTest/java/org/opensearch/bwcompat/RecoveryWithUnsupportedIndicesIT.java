@@ -38,7 +38,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import static org.hamcrest.Matchers.containsString;
 
 @LuceneTestCase.SuppressCodecs("*")
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(
+    scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class RecoveryWithUnsupportedIndicesIT extends OpenSearchIntegTestCase {
 
     /**

@@ -49,7 +49,8 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
     private final ScheduledExecutorService timer;
 
     public PrioritizedOpenSearchThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-                                                   ThreadFactory threadFactory, ThreadContext contextHolder, ScheduledExecutorService timer) {
+                                                   ThreadFactory threadFactory, ThreadContext contextHolder,
+                                                   ScheduledExecutorService timer) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<>(), threadFactory, contextHolder);
         this.timer = timer;
     }

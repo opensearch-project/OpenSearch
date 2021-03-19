@@ -357,8 +357,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     /**
      * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
-     * {@link OpenSearchTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
-     * to filter out outstanding tasks that are expected to be there.
+     * {@link OpenSearchTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified
+     * filter is used to filter out outstanding tasks that are expected to be there.
      *
      * @param adminClient the admin client
      * @param taskFilter  predicate used to filter tasks that are expected to be there

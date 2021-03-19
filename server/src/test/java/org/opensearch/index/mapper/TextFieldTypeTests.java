@@ -39,7 +39,7 @@ import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.opensearch.index.mapper.FieldTypeTestCase;
 
 import java.io.IOException;
@@ -168,18 +168,18 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType fieldType = createFieldType();
         fieldType.setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
 
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(fieldType, "value"));
-        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(fieldType, 42L));
-        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(fieldType, true));
+        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(fieldType, "value"));
+        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(fieldType, 42L));
+        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(fieldType, true));
 
         TextFieldMapper.PrefixFieldType prefixFieldType = new TextFieldMapper.PrefixFieldType(fieldType, "field._index_prefix", 2, 10);
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(prefixFieldType, "value"));
-        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(prefixFieldType, 42L));
-        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(prefixFieldType, true));
+        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(prefixFieldType, "value"));
+        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(prefixFieldType, 42L));
+        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(prefixFieldType, true));
 
         TextFieldMapper.PhraseFieldType phraseFieldType = new TextFieldMapper.PhraseFieldType(fieldType);
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(phraseFieldType, "value"));
-        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(phraseFieldType, 42L));
-        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(phraseFieldType, true));
+        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(phraseFieldType, "value"));
+        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(phraseFieldType, 42L));
+        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(phraseFieldType, true));
     }
 }

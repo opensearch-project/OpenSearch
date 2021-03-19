@@ -25,7 +25,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.mocksocket.MockHttpServer;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 

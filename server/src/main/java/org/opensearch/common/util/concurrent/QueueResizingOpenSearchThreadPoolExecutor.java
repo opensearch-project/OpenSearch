@@ -61,8 +61,8 @@ public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchT
     QueueResizingOpenSearchThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
                                               ResizableBlockingQueue<Runnable> workQueue, int minQueueSize, int maxQueueSize,
                                               Function<Runnable, WrappedRunnable> runnableWrapper, final int tasksPerFrame,
-                                              TimeValue targetedResponseTime, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
-                                              ThreadContext contextHolder) {
+                                              TimeValue targetedResponseTime, ThreadFactory threadFactory,
+                                              XRejectedExecutionHandler handler, ThreadContext contextHolder) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit,
                 workQueue, threadFactory, handler, contextHolder);
         this.runnableWrapper = runnableWrapper;

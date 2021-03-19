@@ -97,9 +97,9 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
                 // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-                EmptyBucketInfo emptyBucketInfo = null;
+                InternalHistogram.EmptyBucketInfo emptyBucketInfo = null;
                 if (minDocCount == 0) {
-                    emptyBucketInfo = new EmptyBucketInfo(interval, offset, getEffectiveMin(extendedBounds),
+                    emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, getEffectiveMin(extendedBounds),
                         getEffectiveMax(extendedBounds), buildEmptySubAggregations());
                 }
                 return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());

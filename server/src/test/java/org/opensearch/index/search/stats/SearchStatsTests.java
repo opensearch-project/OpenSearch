@@ -19,7 +19,7 @@
 
 package org.opensearch.index.search.stats;
 
-import org.elasticsearch.index.search.stats.SearchStats.Stats;
+import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;

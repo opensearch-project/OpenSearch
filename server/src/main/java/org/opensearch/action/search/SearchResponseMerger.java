@@ -89,7 +89,8 @@ final class SearchResponseMerger {
 
     /**
      * Add a search response to the list of responses to be merged together into one.
-     * Merges currently happen at once when all responses are available and {@link #getMergedResponse(SearchResponse.Clusters)} )} is called.
+     * Merges currently happen at once when all responses are available and
+     * {@link #getMergedResponse(SearchResponse.Clusters)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
     void add(SearchResponse searchResponse) {

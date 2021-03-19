@@ -19,7 +19,7 @@
 
 package org.opensearch.index.fielddata;
 
-import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.opensearch.index.fielddata.ScriptDocValues.Longs;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

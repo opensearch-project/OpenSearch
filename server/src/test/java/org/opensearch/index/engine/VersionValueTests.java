@@ -20,7 +20,7 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.util.RamUsageTester;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class VersionValueTests extends OpenSearchTestCase {

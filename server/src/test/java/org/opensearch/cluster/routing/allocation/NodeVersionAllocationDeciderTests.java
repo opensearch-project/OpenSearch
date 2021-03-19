@@ -468,7 +468,8 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         RoutingNode newNode = new RoutingNode("newNode", newNode("newNode", Version.CURRENT));
         RoutingNode oldNode = new RoutingNode("oldNode", newNode("oldNode", VersionUtils.getPreviousVersion()));
 
-        final org.opensearch.cluster.ClusterName clusterName = org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
+        final org.opensearch.cluster.ClusterName clusterName =
+            org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
         ClusterState clusterState = ClusterState.builder(clusterName).metadata(metadata).routingTable(initialRoutingTable)
             .nodes(DiscoveryNodes.builder().add(newNode.node()).add(oldNode.node())).build();
 

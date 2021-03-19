@@ -124,7 +124,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                 System.out.println(ex.getMessage());
             }
 
-            if ((distribution.getType() == OpenSearchDistribution.Type.DEB || distribution.getType() == OpenSearchDistribution.Type.RPM) && distribution.getBundledJdk()) {
+            if ((distribution.getType() == OpenSearchDistribution.Type.DEB || distribution.getType() == OpenSearchDistribution.Type.RPM)
+                && distribution.getBundledJdk()) {
                 for (Version version : BuildParams.getBwcVersions().getIndexCompatible()) {
                     if (version.before("6.3.0")) {
                         continue; // before opening xpack
@@ -204,7 +205,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                         // auto-detection doesn't work.
                         //
                         // The shouldTestDocker property could be null, hence we use Boolean.TRUE.equals()
-                        boolean shouldExecute = (type != OpenSearchDistribution.Type.DOCKER) || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
+                        boolean shouldExecute = (type != OpenSearchDistribution.Type.DOCKER)
+                            || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
 
                         if (shouldExecute) {
                             distroTest.configure(t -> t.dependsOn(wrapperTask));
@@ -359,7 +361,11 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<OpenSearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            for (OpenSearchDistribution.Type type : Arrays.asList(OpenSearchDistribution.Type.DEB, OpenSearchDistribution.Type.RPM, OpenSearchDistribution.Type.DOCKER)) {
+            for (OpenSearchDistribution.Type type : Arrays.asList(
+                OpenSearchDistribution.Type.DEB,
+                OpenSearchDistribution.Type.RPM,
+                OpenSearchDistribution.Type.DOCKER
+            )) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     if (bundledJdk == false) {
                         // We'll never publish an ARM (aarch64) build without a bundled JDK.
@@ -380,7 +386,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         }
 
         for (Architecture architecture : Architecture.values()) {
-            for (OpenSearchDistribution.Platform platform : Arrays.asList(OpenSearchDistribution.Platform.LINUX, OpenSearchDistribution.Platform.WINDOWS)) {
+            for (OpenSearchDistribution.Platform platform : Arrays.asList(
+                OpenSearchDistribution.Platform.LINUX,
+                OpenSearchDistribution.Platform.WINDOWS
+            )) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     if (bundledJdk == false && architecture != Architecture.X64) {
                         // We will never publish distributions for non-x86 (amd64) platforms
@@ -389,7 +398,14 @@ public class DistroTestPlugin implements Plugin<Project> {
                     }
 
                     currentDistros.add(
-                        createDistro(distributions, architecture, OpenSearchDistribution.Type.ARCHIVE, platform, bundledJdk, VersionProperties.getOpenSearch())
+                        createDistro(
+                            distributions,
+                            architecture,
+                            OpenSearchDistribution.Type.ARCHIVE,
+                            platform,
+                            bundledJdk,
+                            VersionProperties.getOpenSearch()
+                        )
                     );
                 }
             }
@@ -434,10 +450,14 @@ public class DistroTestPlugin implements Plugin<Project> {
         return project.getName().contains("windows");
     }
 
-    private static String distroId(OpenSearchDistribution.Type type, OpenSearchDistribution.Platform platform, boolean bundledJdk, Architecture architecture) {
-        return (type == OpenSearchDistribution.Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk ? "" : "-no-jdk") + (architecture == Architecture.X64
-            ? ""
-            : "-" + architecture.toString().toLowerCase());
+    private static String distroId(
+        OpenSearchDistribution.Type type,
+        OpenSearchDistribution.Platform platform,
+        boolean bundledJdk,
+        Architecture architecture
+    ) {
+        return (type == OpenSearchDistribution.Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk ? "" : "-no-jdk")
+            + (architecture == Architecture.X64 ? "" : "-" + architecture.toString().toLowerCase());
     }
 
     private static String destructiveDistroTestTaskName(OpenSearchDistribution distro) {

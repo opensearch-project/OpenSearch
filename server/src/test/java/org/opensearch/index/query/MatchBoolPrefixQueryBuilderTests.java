@@ -30,7 +30,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.lucene.search.Queries;
-import org.elasticsearch.index.search.MatchQuery;
+import org.opensearch.index.search.MatchQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
