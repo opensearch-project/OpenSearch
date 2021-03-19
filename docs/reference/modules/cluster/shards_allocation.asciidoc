@@ -57,7 +57,7 @@ one of the active allocation ids in the cluster state.
 ==== Shard rebalancing settings
 
 A cluster is _balanced_ when it has an equal number of shards on each node
-without having a concentration of shards from any index on any node. {es} runs
+without having a concentration of shards from any index on any node. {opensearch} runs
 an automatic process called _rebalancing_ which moves shards between the nodes
 in your cluster to improve its balance. Rebalancing obeys all other shard
 allocation rules such as <<cluster-shard-allocation-filtering,allocation

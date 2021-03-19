@@ -40,7 +40,7 @@ you can stop indexing but don't want to wait for 5 minutes until all indices
 are marked as inactive and automatically sync-flushed.
 
 You can request a synced flush even if there is ongoing indexing activity, and
-{es} will perform the synced flush on a "best-effort" basis: shards that do not
+{opensearch} will perform the synced flush on a "best-effort" basis: shards that do not
 have any ongoing indexing activity will be successfully sync-flushed, and other
 shards will fail to sync-flush. The successfully sync-flushed shards will have
 faster recovery times as long as the `sync_id` marker is not removed by a
@@ -50,20 +50,20 @@ subsequent flush.
 [[synced-flush-overview]]
 ===== Synced flush overview
 
-{es} keeps track of which shards have received indexing activity recently, and
+{opensearch} keeps track of which shards have received indexing activity recently, and
 considers shards that have not received any indexing operations for 5 minutes to
 be inactive.
 
-When a shard becomes inactive {es} performs a special kind of flush
+When a shard becomes inactive {opensearch} performs a special kind of flush
 known as a *synced flush*. A synced flush performs a normal
 <<indices-flush,flush>> on each replica of the shard, and then adds a marker known
 as the `sync_id` to each replica to indicate that these copies have identical
 Lucene indices. Comparing the `sync_id` markers of the two copies is a very
 efficient way to check whether they have identical contents.
 
-When allocating shard replicas, {es} must ensure that each replica contains the
+When allocating shard replicas, {opensearch} must ensure that each replica contains the
 same data as the primary. If the shard copies have been synced-flushed and the
-replica shares a `sync_id` with the primary then {es} knows that the two copies
+replica shares a `sync_id` with the primary then {opensearch} knows that the two copies
 have identical contents. This means there is no need to copy any segment files
 from the primary to the replica, which saves a good deal of time during
 recoveries and restarts.
@@ -123,7 +123,7 @@ The API returns the following response:
 <1> the `sync id` marker
 
 NOTE: The `sync_id` marker is removed as soon as the shard is flushed again, and
-{es} may trigger an automatic flush of a shard at any time if there are
+{opensearch} may trigger an automatic flush of a shard at any time if there are
 unflushed operations in the shard's translog. In practice this means that one
 should consider any indexing operation on an index as having removed its
 `sync_id` markers.
@@ -132,7 +132,7 @@ should consider any indexing operation on an index as having removed its
 [[synced-flush-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
 To sync-flush all indices,
 omit this parameter
@@ -142,13 +142,13 @@ or use a value of `_all` or `*`.
 [[synced-flush-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 
 [[synced-flush-api-response-codes]]

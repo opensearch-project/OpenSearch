@@ -4,15 +4,15 @@ configured Docker logging driver. To access logs, run `docker logs`.
 // end::docker[]
 
 // tag::deb[]
-For <<deb,Debian installations>>, {es} writes logs to `/var/log/opensearch`.
+For <<deb,Debian installations>>, {opensearch} writes logs to `/var/log/opensearch`.
 // end::deb[]
 
 // tag::rpm[]
-For <<rpm,RPM installations>>, {es} writes logs to `/var/log/opensearch`.
+For <<rpm,RPM installations>>, {opensearch} writes logs to `/var/log/opensearch`.
 // end::rpm[]
 
 // tag::mac[]
-For <<targz,macOS `.tar.gz`>> installations, {es} writes logs to
+For <<targz,macOS `.tar.gz`>> installations, {opensearch} writes logs to
 `$OPENSEARCH_HOME/logs`.
 
 Files in `$OPENSEARCH_HOME` risk deletion during an upgrade. In production, we strongly
@@ -21,12 +21,12 @@ See <<path-settings>>.
 // end::mac[]
 
 // tag::brew[]
-For <<brew,macOS Homebrew>> installations, {es} writes logs to
+For <<brew,macOS Homebrew>> installations, {opensearch} writes logs to
 `/usr/local/var/log/opensearch`.
 // end::brew[]
 
 // tag::linux[]
-For <<targz,Linux `.tar.gz`>> installations, {es} writes logs to
+For <<targz,Linux `.tar.gz`>> installations, {opensearch} writes logs to
 `$OPENSEARCH_HOME/logs`.
 
 Files in `$OPENSEARCH_HOME` risk deletion during an upgrade. In production, we strongly
@@ -35,7 +35,7 @@ See <<path-settings>>.
 // end::linux[]
 
 // tag::win-zip[]
-For <<zip-windows,Windows `.zip`>> installations, {es} writes logs to
+For <<zip-windows,Windows `.zip`>> installations, {opensearch} writes logs to
 `%OPENSEARCH_HOME%\logs`.
 
 Files in `%OPENSEARCH_HOME%` risk deletion during an upgrade. In production, we strongly

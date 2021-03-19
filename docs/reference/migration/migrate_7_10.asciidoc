@@ -5,7 +5,7 @@
 ++++
 
 This section discusses the changes that you need to be aware of when migrating
-your application to {es} 7.10.
+your application to {opensearch} 7.10.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
@@ -21,7 +21,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 [[breaking-changes-7.10]]
 === Breaking changes
 
-The following changes in {es} 7.10 might affect your applications
+The following changes in {opensearch} 7.10 might affect your applications
 and prevent them from operating normally.
 Before upgrading to 7.10, review these changes and take the described steps
 to mitigate the impact.
@@ -101,7 +101,7 @@ If you use `inner_hits` or the `top_hits` aggregation, ensure
 [[deprecated-7.10]]
 === Deprecations
 
-The following functionality has been deprecated in {es} 7.10
+The following functionality has been deprecated in {opensearch} 7.10
 and will be removed in 8.0
 While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code

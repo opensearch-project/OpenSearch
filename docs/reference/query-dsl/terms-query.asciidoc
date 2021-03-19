@@ -39,7 +39,7 @@ The value of this parameter is an array of terms you wish to find in the
 provided field. To return a document, one or more terms must exactly match a
 field value, including whitespace and capitalization.
 
-By default, {es} limits the `terms` query to a maximum of 65,536
+By default, {opensearch} limits the `terms` query to a maximum of 65,536
 terms. You can change this limit using the <<index-max-terms-count,
 `index.max_terms_count`>> setting.
 
@@ -67,7 +67,7 @@ increases the relevance score.
 
 [[query-dsl-terms-query-highlighting]]
 ===== Highlighting `terms` queries
-<<highlighting,Highlighting>> is best-effort only. {es} may not
+<<highlighting,Highlighting>> is best-effort only. {opensearch} may not
 return highlight results for `terms` queries depending on:
 
 * Highlighter type
@@ -75,7 +75,7 @@ return highlight results for `terms` queries depending on:
 
 [[query-dsl-terms-lookup]]
 ===== Terms lookup
-Terms lookup fetches the field values of an existing document. {es} then uses
+Terms lookup fetches the field values of an existing document. {opensearch} then uses
 those values as search terms. This can be helpful when searching for a large set
 of terms.
 
@@ -84,7 +84,7 @@ Because terms lookup fetches values from a document, the <<mapping-source-field,
 field is enabled by default.
 
 [NOTE]
-By default, {es} limits the `terms` query to a maximum of 65,536
+By default, {opensearch} limits the `terms` query to a maximum of 65,536
 terms. This includes terms fetched using terms lookup. You can change
 this limit using the <<index-max-terms-count, `index.max_terms_count`>> setting.
 
@@ -102,7 +102,7 @@ field values.
 `path`::
 +
 --
-(Required, string) Name of the field from which to fetch field values. {es} uses
+(Required, string) Name of the field from which to fetch field values. {opensearch} uses
 these values as search terms for the query.
 
 If the field values include an array of nested inner objects, you can access
@@ -200,7 +200,7 @@ GET my-index-000001/_search?pretty
 // TEST[continued]
 
 Because document 2 and document 1 both contain `blue` as a value in the `color`
-field, {es} returns both documents.
+field, {opensearch} returns both documents.
 
 [source,console-result]
 ----

@@ -39,7 +39,7 @@ GET /_search
 `queries`::
 (Required, array of query objects) Contains one or more query clauses. Returned
 documents **must match one or more** of these queries. If a document matches
-multiple queries, {es} uses the highest <<query-filter-context, relevance
+multiple queries, {opensearch} uses the highest <<query-filter-context, relevance
 score>>.
 
 `tie_breaker`::

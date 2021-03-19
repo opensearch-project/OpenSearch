@@ -30,7 +30,7 @@ from the repository:
 DELETE /_snapshot/my_backup/snapshot_1
 ----
 
-When a snapshot is deleted from a repository, {es} deletes all files associated with the
+When a snapshot is deleted from a repository, {opensearch} deletes all files associated with the
 snapshot that are not in-use by other snapshots.
 
 If the delete snapshot operation starts while the snapshot is being

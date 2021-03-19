@@ -13,7 +13,7 @@ include::install_remove.asciidoc[]
 [[discovery-ec2-usage]]
 ==== Using the EC2 discovery plugin
 
-The `discovery-ec2` plugin allows {es} to find the master-eligible nodes in a
+The `discovery-ec2` plugin allows {opensearch} to find the master-eligible nodes in a
 cluster running on AWS EC2 by querying the
 https://github.com/aws/aws-sdk-java[AWS API] for the addresses of the EC2
 instances running these nodes.
@@ -31,7 +31,7 @@ role], or else custom credentials can be supplied.
 
 ===== Enabling EC2 discovery
 
-To enable EC2 discovery, configure {es} to use the `ec2` seed hosts provider:
+To enable EC2 discovery, configure {opensearch} to use the `ec2` seed hosts provider:
 
 [source,yaml]
 ----
@@ -41,7 +41,7 @@ discovery.seed_providers: ec2
 ===== Configuring EC2 discovery
 
 EC2 discovery supports a number of settings. Some settings are sensitive and
-must be stored in the {ref}/secure-settings.html[{es} keystore]. For example,
+must be stored in the {ref}/secure-settings.html[{opensearch} keystore]. For example,
 to authenticate using a particular access key and secret key, add these keys to
 the keystore by running the following commands:
 
@@ -57,18 +57,18 @@ The available settings for the EC2 discovery plugin are as follows.
 
     An EC2 access key. If set, you must also set `discovery.ec2.secret_key`.
     If unset, `discovery-ec2` will instead use the instance role. This setting
-    is sensitive and must be stored in the {es} keystore.
+    is sensitive and must be stored in the {opensearch} keystore.
 
 `discovery.ec2.secret_key` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     An EC2 secret key. If set, you must also set `discovery.ec2.access_key`.
-    This setting is sensitive and must be stored in the {es} keystore.
+    This setting is sensitive and must be stored in the {opensearch} keystore.
 
 `discovery.ec2.session_token` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     An EC2 session token. If set, you must also set `discovery.ec2.access_key`
     and `discovery.ec2.secret_key`. This setting is sensitive and must be
-    stored in the {es} keystore.
+    stored in the {opensearch} keystore.
 
 `discovery.ec2.endpoint`::
 
@@ -99,14 +99,14 @@ The available settings for the EC2 discovery plugin are as follows.
     When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`,
     this setting determines the username to use to connect to the proxy. When
     not set, no username is used. This setting is sensitive and must be stored
-    in the {es} keystore.
+    in the {opensearch} keystore.
 
 `discovery.ec2.proxy.password` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`,
     this setting determines the password to use to connect to the proxy. When
     not set, no password is used. This setting is sensitive and must be stored
-    in the {es} keystore.
+    in the {opensearch} keystore.
 
 `discovery.ec2.read_timeout`::
 
@@ -189,7 +189,7 @@ includes a colon.
 `discovery.ec2.node_cache_time`::
 
     Sets the length of time for which the collection of discovered instances is
-    cached. {es} waits at least this long between requests for discovery
+    cached. {opensearch} waits at least this long between requests for discovery
     information from the EC2 API. AWS may reject discovery requests if they are
     made too often, and this would cause discovery to fail. Defaults to `10s`.
 
@@ -254,7 +254,7 @@ installed.
 ===== Binding to the correct address
 
 It is important to define `network.host` correctly when deploying a cluster on
-EC2. By default each {es} node only binds to `localhost`, which will prevent it
+EC2. By default each {opensearch} node only binds to `localhost`, which will prevent it
 from being discovered by nodes running on any other instances.
 
 You can use the {ref}/modules-network.html[core network host settings] to bind
@@ -281,7 +281,7 @@ you to set `discovery.seed_providers: ec2`. However they do require that the
 ==== Best Practices in AWS
 
 This section contains some other information about designing and managing an
-{es} cluster on your own AWS infrastructure.
+{opensearch} cluster on your own AWS infrastructure.
 
 ===== Storage
 
@@ -289,10 +289,10 @@ EC2 instances offer a number of different kinds of storage. Please be aware of
 the following when selecting the storage for your cluster:
 
 * https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html[Instance
-Store] is recommended for {es} clusters as it offers excellent performance and
-is cheaper than EBS-based storage. {es} is designed to work well with this kind
+Store] is recommended for {opensearch} clusters as it offers excellent performance and
+is cheaper than EBS-based storage. {opensearch} is designed to work well with this kind
 of ephemeral storage because it replicates each shard across multiple nodes. If
-a node fails and its Instance Store is lost then {es} will rebuild any lost
+a node fails and its Instance Store is lost then {opensearch} will rebuild any lost
 shards from other copies.
 
 * https://aws.amazon.com/ebs/[EBS-based storage] may be acceptable
@@ -302,10 +302,10 @@ your cluster has satisfactory performance.
 * https://aws.amazon.com/efs/[EFS-based storage] is not
 recommended or supported as it does not offer satisfactory performance.
 Historically, shared network filesystems such as EFS have not always offered
-precisely the behaviour that {es} requires of its filesystem, and this has been
+precisely the behaviour that {opensearch} requires of its filesystem, and this has been
 known to lead to index corruption. Although EFS offers durability, shared
 storage, and the ability to grow and shrink filesystems dynamically, you can
-achieve the same benefits using {es} directly.
+achieve the same benefits using {opensearch} directly.
 
 ===== Choice of AMI
 
@@ -327,10 +327,10 @@ zones] and use {ref}/modules-cluster.html#shard-allocation-awareness[shard
 allocation awareness] to ensure that each shard has copies in more than one
 availability zone.
 
-* Do not span a cluster across regions. {es} expects that node-to-node
+* Do not span a cluster across regions. {opensearch} expects that node-to-node
 connections within a cluster are reasonably reliable and offer high bandwidth
 and low latency, and these properties do not hold for connections between
-regions. Although an {es} cluster will behave correctly when node-to-node
+regions. Although an {opensearch} cluster will behave correctly when node-to-node
 connections are unreliable or slow, it is not optimised for this case and its
 performance may suffer. If you wish to geographically distribute your data, you
 should provision multiple clusters and use features such as

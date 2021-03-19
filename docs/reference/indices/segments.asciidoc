@@ -37,15 +37,15 @@ To target all indices in a cluster, omit this parameter or use
 [[index-segments-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `verbose`::
 experimental:[]
@@ -60,39 +60,39 @@ Defaults to `false`.
 
 `<segment>`::
 (String)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=segment]
 
 `generation`::
 (Integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=generation]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=generation]
 
 `num_docs`::
 (Integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 
 `deleted_docs`::
 (Integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 
 `size_in_bytes`::
 (Integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
 
 `memory_in_bytes`::
 (Integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=memory]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=memory]
 
 `committed`::
 (Boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=committed]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=committed]
 
 `search`::
 (Boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-search]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-search]
 
 `version`::
 (String)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-version]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-version]
 
 `compound`::
 (Boolean)

@@ -19,7 +19,7 @@ PUT /my-index-000001
 
 [[indices-create-api-desc]]
 ==== {api-description-title}
-You can use the create index API to add a new index to an {es} cluster. When
+You can use the create index API to add a new index to an {opensearch} cluster. When
 creating an index, you can specify the following:
 
 * Settings for the index
@@ -52,11 +52,11 @@ Index names must meet the following criteria:
 [[indices-create-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[indices-create-api-request-body]]
@@ -66,9 +66,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 (Optional, <<indices-aliases,alias object>>) Index aliases which include the
 index. See <<indices-aliases>>.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 [[indices-create-api-example]]
 ==== {api-examples-title}

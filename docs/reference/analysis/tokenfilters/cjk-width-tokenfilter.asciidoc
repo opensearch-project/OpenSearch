@@ -12,7 +12,7 @@ characters
 * Folds half-width Katakana character variants into the equivalent Kana
 characters
 
-This filter is included in {es}'s built-in <<cjk-analyzer,CJK language
+This filter is included in {opensearch}'s built-in <<cjk-analyzer,CJK language
 analyzer>>. It uses Lucene's
 {lucene-analysis-docs}/cjk/CJKWidthFilter.html[CJKWidthFilter].
 

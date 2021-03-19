@@ -1,7 +1,7 @@
 [[docker]]
-=== Install {es} with Docker
+=== Install {opensearch} with Docker
 
-{es} is also available as Docker images.
+{opensearch} is also available as Docker images.
 The images use https://hub.docker.com/_/centos/[centos:8] as the base image.
 
 A list of all published Docker images and tags is available at
@@ -18,12 +18,12 @@ Elastic license levels.
 
 ==== Pulling the image
 
-Obtaining {es} for Docker is as simple as issuing a +docker pull+ command
+Obtaining {opensearch} for Docker is as simple as issuing a +docker pull+ command
 against the Elastic Docker registry.
 
 ifeval::["{release-state}"=="unreleased"]
 
-WARNING: Version {version} of {es} has not yet been released, so no
+WARNING: Version {version} of {opensearch} has not yet been released, so no
 Docker image is currently available for this version.
 
 endif::[]
@@ -46,13 +46,13 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-WARNING: Version {version} of the {es} Docker image has not yet been released.
+WARNING: Version {version} of the {opensearch} Docker image has not yet been released.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-To start a single-node {es} cluster for development or testing, specify
+To start a single-node {opensearch} cluster for development or testing, specify
 <<single-node-discovery,single-node discovery>> to bypass the <<bootstrap-checks,bootstrap checks>>:
 
 [source,sh,subs="attributes"]
@@ -65,14 +65,14 @@ endif::[]
 [[docker-compose-file]]
 ==== Starting a multi-node cluster with Docker Compose
 
-To get a three-node {es} cluster up and running in Docker,
+To get a three-node {opensearch} cluster up and running in Docker,
 you can use Docker Compose:
 
 . Create a `docker-compose.yml` file:
 ifeval::["{release-state}"=="unreleased"]
 +
 --
-WARNING: Version {version} of {es} has not yet been released, so a
+WARNING: Version {version} of {opensearch} has not yet been released, so a
 `docker-compose.yml` is not available for this version.
 
 endif::[]
@@ -88,10 +88,10 @@ This sample Docker Compose file brings up a three-node {opensearch} cluster.
 Node `opensearch01` listens on `localhost:9200` and `opensearch02` and `opensearch03` talk to `opensearch01` over a Docker network.
 
 Please note that this configuration exposes port 9200 on all network interfaces, and given how
-Docker manipulates `iptables` on Linux, this means that your {es} cluster is publically accessible,
+Docker manipulates `iptables` on Linux, this means that your {opensearch} cluster is publically accessible,
 potentially ignoring any firewall settings. If you don't want to expose port 9200 and instead use
 a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
-{es} will then only be accessible from the host machine itself.
+{opensearch} will then only be accessible from the host machine itself.
 
 The  https://docs.docker.com/storage/volumes[Docker named volumes]
 `data01`, `data02`, and `data03` store the node data directories so the data persists across restarts.
@@ -133,7 +133,7 @@ specify the `-v` option: `docker-compose down -v`.
 [[docker-prod-prerequisites]]
 ==== Using the Docker images in production
 
-The following requirements and recommendations apply when running {es} in Docker in production.
+The following requirements and recommendations apply when running {opensearch} in Docker in production.
 
 ===== Set `vm.max_map_count` to at least `262144`
 
@@ -207,7 +207,7 @@ sysctl -w vm.max_map_count=262144
 
 ===== Configuration files must be readable by the `opensearch` user
 
-By default, {es} runs inside the container as user `opensearch` using
+By default, {opensearch} runs inside the container as user `opensearch` using
 uid:gid `1000:0`.
 
 IMPORTANT: One exception is https://docs.openshift.com/container-platform/3.6/creating_images/guidelines.html#openshift-specific-guidelines[Openshift],
@@ -230,13 +230,13 @@ chgrp 0 esdatadir
 As a last resort, you can force the container to mutate the ownership of
 any bind-mounts used for the <<path-settings,data and log dirs>> through the
 environment variable `TAKE_FILE_OWNERSHIP`. When you do this, they will be owned by
-uid:gid `1000:0`, which provides the required read/write access to the {es} process.
+uid:gid `1000:0`, which provides the required read/write access to the {opensearch} process.
 
 
 ===== Increase ulimits for nofile and nproc
 
 Increased ulimits for <<setting-system-settings,nofile>> and <<max-number-threads-check,nproc>>
-must be available for the {es} containers.
+must be available for the {opensearch} containers.
 Verify the https://github.com/moby/moby/tree/ea4d1243953e6b652082305a9c3cda8656edab26/contrib/init[init system]
 for the Docker daemon sets them to acceptable values.
 
@@ -297,16 +297,16 @@ memory access] to the container.
 
 ===== Pin deployments to a specific image version
 
-Pin your deployments to a specific version of the {es} Docker image. For
+Pin your deployments to a specific version of the {opensearch} Docker image. For
 example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
 
 ===== Always bind data volumes
 
 You should use a volume bound on `/usr/share/opensearch/data` for the following reasons:
 
-.  The data of your {es} node won't be lost if the container is killed
+.  The data of your {opensearch} node won't be lost if the container is killed
 
-. {es} is I/O sensitive and the Docker storage driver is not ideal for fast I/O
+. {opensearch} is I/O sensitive and the Docker storage driver is not ideal for fast I/O
 
 . It allows the use of advanced
 https://docs.docker.com/engine/extend/plugins/#volume-plugins[Docker volume plugins]
@@ -325,23 +325,23 @@ note that the default json-file logging driver is not ideally suited for
 production use.
 
 [[docker-configuration-methods]]
-==== Configuring {es} with Docker
+==== Configuring {opensearch} with Docker
 
-When you run in Docker, the <<config-files-location,{es} configuration files>> are loaded from
+When you run in Docker, the <<config-files-location,{opensearch} configuration files>> are loaded from
 `/usr/share/opensearch/config/`.
 
 To use custom configuration files, you <<docker-config-bind-mount, bind-mount the files>>
 over the configuration files in the image.
 
-You can set individual {es} configuration parameters using Docker environment variables.
+You can set individual {opensearch} configuration parameters using Docker environment variables.
 The <<docker-compose-file, sample compose file>> and the
 <<docker-cli-run-dev-mode, single-node example>> use this method.
 
 To use the contents of a file to set an environment variable, suffix the environment
-variable name with `_FILE`. This is useful for passing secrets such as passwords to {es}
+variable name with `_FILE`. This is useful for passing secrets such as passwords to {opensearch}
 without specifying them directly.
 
-For example, to set the {es} bootstrap password from a file, you can bind mount the
+For example, to set the {opensearch} bootstrap password from a file, you can bind mount the
 file and set the `ELASTIC_PASSWORD_FILE` environment variable to the mount location.
 If you mount the password file to `/run/secrets/bootstrapPassword.txt`, specify:
 
@@ -350,7 +350,7 @@ If you mount the password file to `/run/secrets/bootstrapPassword.txt`, specify:
 -e ELASTIC_PASSWORD_FILE=/run/secrets/bootstrapPassword.txt
 --------------------------------------------
 
-You can also override the default command for the image to pass {es} configuration
+You can also override the default command for the image to pass {opensearch} configuration
 parameters as command line options. For example:
 
 [source,sh]
@@ -363,7 +363,7 @@ you can also <<_c_customized_image, create a custom Docker image>>
 that contains your configuration.
 
 [[docker-config-bind-mount]]
-===== Mounting {es} configuration files
+===== Mounting {opensearch} configuration files
 
 Create custom config files and bind-mount them over the corresponding files in the Docker image.
 For example, to bind-mount `custom_opensearch.yml` with `docker run`, specify:
@@ -373,14 +373,14 @@ For example, to bind-mount `custom_opensearch.yml` with `docker run`, specify:
 -v full_path_to/custom_opensearch.yml:/usr/share/opensearch/config/opensearch.yml
 --------------------------------------------
 
-IMPORTANT: The container **runs {es} as user `opensearch` using
+IMPORTANT: The container **runs {opensearch} as user `opensearch` using
 uid:gid `1000:0`**. Bind mounted host directories and files must be accessible by this user,
 and the data and log directories must be writable by this user.
 
 [[docker-keystore-bind-mount]]
-===== Mounting an {es} keystore
+===== Mounting an {opensearch} keystore
 
-By default, {es} will auto-generate a keystore file for secure settings. This
+By default, {opensearch} will auto-generate a keystore file for secure settings. This
 file is obfuscated but not encrypted. If you want to encrypt your
 <<secure-settings,secure settings>> with a password, you must use the
 `opensearch-keystore` utility to create a password-protected keystore and

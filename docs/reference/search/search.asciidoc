@@ -49,7 +49,7 @@ IMPORTANT: Several options for this API can be specified using a query parameter
 or a request body parameter. If both parameters are specified, only the query
 parameter is used.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
@@ -79,7 +79,7 @@ coordinating node and the remote clusters are minimized when executing
 (Optional, string) A comma-separated list of fields to return as the docvalue
 representation of a field for each hit.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -87,7 +87,7 @@ Defaults to `open`.
 (Optional, Boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 --
 By default, you cannot page through more than 10,000 documents using the `from`
@@ -109,7 +109,7 @@ As an alternative to deep paging, we recommend using
 (Optional, Boolean) If `true`, concrete, expanded or aliased indices will be
 ignored when frozen. Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `max_concurrent_shard_requests`::
 (Optional, integer) Defines the number of concurrent shard requests per node
@@ -132,7 +132,7 @@ When unspecified, the pre-filter phase is executed if any of these conditions is
 [[search-preference]]
 `preference`::
 (Optional, string)
-Nodes and shards used for the search. By default, {es} selects from eligible
+Nodes and shards used for the search. By default, {opensearch} selects from eligible
 nodes and shards using <<search-adaptive-replica,adaptive replica selection>>,
 accounting for <<shard-allocation-awareness,allocation awareness>>.
 +
@@ -169,10 +169,10 @@ to the same shards in the same order.
 
 
 [[search-api-query-params-q]]
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 +
 You can use the `q` parameter to run a query parameter search. Query parameter
-searches do not support the full {es} <<query-dsl,Query DSL>> but are handy for
+searches do not support the full {opensearch} <<query-dsl,Query DSL>> but are handy for
 testing.
 +
 IMPORTANT: The `q` parameter overrides the <<request-body-search-query,`query`>>
@@ -188,7 +188,7 @@ level settings.
 (Optional, Boolean) Indicates whether hits.total should be rendered as an
 integer or an object in the rest search response. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 [[search-api-scroll-query-param]]
 `scroll`::
@@ -274,9 +274,9 @@ Comma-separated list of source fields to return.
 Wildcard (`*`) patterns are supported.
 ====
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 `stats`::
 (Optional, string) Specific `tag` of the request for logging and statistical
@@ -298,7 +298,7 @@ stored fields in the search response.
 (Optional, string) The source text for which the suggestions should be
 returned.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
 Defaults to `0`, which does not terminate query execution early.
 
@@ -391,7 +391,7 @@ For other field data types, this parameter is not supported.
 (Optional, Boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 --
 By default, you cannot page through more than 10,000 documents using the `from`
@@ -517,7 +517,7 @@ Stats groups to associate with the search. Each group maintains a statistics
 aggregation for its associated searches. You can retrieve these stats using the
 <<indices-stats,indices stats API>>.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
 Defaults to `0`, which does not terminate query execution early.
 
@@ -551,7 +551,7 @@ query parameter>> is specified in the request.
 +
 --
 (integer)
-Milliseconds it took {es} to execute the request.
+Milliseconds it took {opensearch} to execute the request.
 
 This value is calculated by measuring the time elapsed
 between receipt of a request on the coordinating node
@@ -566,7 +566,7 @@ Took time includes:
 
 Took time does *not* include:
 
-* Time needed to send the request to {es}
+* Time needed to send the request to {opensearch}
 * Time needed to serialize the JSON response
 * Time needed to send the response to a client
 --

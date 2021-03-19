@@ -111,29 +111,29 @@ using metrics.
     * `warmer`
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
 
 `types`::
     (Optional, string) A comma-separated list of document types for the
     `indexing` index metric.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
@@ -226,11 +226,11 @@ node.
 =======
 `count`::
 (integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 
 `deleted`::
 (integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 =======
 
 `store`::
@@ -1082,12 +1082,12 @@ Contains statistics about `cpuacct` control group for the node.
 ========
 `control_group` (Linux only)::
 (string)
-The `cpuacct` control group to which the {es} process belongs.
+The `cpuacct` control group to which the {opensearch} process belongs.
 
 `usage_nanos` (Linux only)::
 (integer)
 The total CPU time (in nanoseconds) consumed by all tasks in the same cgroup
-as the {es} process.
+as the {opensearch} process.
 ========
 
 `cpu` (Linux only)::
@@ -1099,18 +1099,18 @@ Contains statistics about `cpu` control group for the node.
 ========
 `control_group` (Linux only)::
 (string)
-The `cpu` control group to which the {es} process belongs.
+The `cpu` control group to which the {opensearch} process belongs.
 
 `cfs_period_micros` (Linux only)::
 (integer)
 The period of time (in microseconds) for how regularly all tasks in the same
-cgroup as the {es} process should have their access to CPU resources
+cgroup as the {opensearch} process should have their access to CPU resources
 reallocated.
 
 `cfs_quota_micros` (Linux only)::
 (integer)
 The total amount of time (in microseconds) for which all tasks in
-the same cgroup as the {es} process can run during one period
+the same cgroup as the {opensearch} process can run during one period
 `cfs_period_micros`.
 
 `stat` (Linux only)::
@@ -1127,13 +1127,13 @@ The number of reporting periods (as specified by
 
 `number_of_times_throttled` (Linux only)::
 (integer)
-The number of times all tasks in the same cgroup as the {es} process have
+The number of times all tasks in the same cgroup as the {opensearch} process have
 been throttled.
 
 `time_throttled_nanos` (Linux only)::
 (integer)
 The total amount of time (in nanoseconds) for which all tasks in the same
-cgroup as the {es} process have been throttled.
+cgroup as the {opensearch} process have been throttled.
 =========
 ========
 
@@ -1146,12 +1146,12 @@ Contains statistics about the `memory` control group for the node.
 ========
 `control_group` (Linux only)::
 (string)
-The `memory` control group to which the {es} process belongs.
+The `memory` control group to which the {opensearch} process belongs.
 
 `limit_in_bytes` (Linux only)::
 (string)
 The maximum amount of user memory (including file cache) allowed for all
-tasks in the same cgroup as the {es} process. This value can be too big to
+tasks in the same cgroup as the {opensearch} process. This value can be too big to
 store in a `long`, so is returned as a string so that the value returned can
 exactly match what the underlying operating system interface returns. Any
 value that is too large to parse into a `long` almost certainly means no
@@ -1160,7 +1160,7 @@ limit has been set for the cgroup.
 `usage_in_bytes` (Linux only)::
 (string)
 The total current memory usage by processes in the cgroup (in bytes) by all
-tasks in the same cgroup as the {es} process. This value is stored as a
+tasks in the same cgroup as the {opensearch} process. This value is stored as a
 string for consistency with `limit_in_bytes`.
 ========
 =======
@@ -1679,14 +1679,14 @@ Total number of unallocated bytes in all file stores.
 Total disk space available to this Java virtual machine on all file
 stores. Depending on OS or process level restrictions, this might appear
 less than `free`. This is the actual amount of free disk
-space the {es} node can utilise.
+space the {opensearch} node can utilise.
 
 `available_in_bytes`::
 (integer)
 Total number of bytes available to this Java virtual machine on all file
 stores. Depending on OS or process level restrictions, this might appear
 less than `free_in_bytes`. This is the actual amount of free disk
-space the {es} node can utilise.
+space the {opensearch} node can utilise.
 =======
 
 [[cluster-nodes-stats-fs-data]]
@@ -1745,7 +1745,7 @@ Contains I/O statistics for the node.
 =======
 `devices` (Linux only)::
 (array)
-Array of disk metrics for each device that is backing an {es} data path.
+Array of disk metrics for each device that is backing an {opensearch} data path.
 These disk metrics are probed periodically and averages between the last
 probe and the current probe are computed.
 +
@@ -1759,51 +1759,51 @@ The Linux device name.
 `operations` (Linux only)::
 (integer)
 The total number of read and write operations for the device completed since
-starting {es}.
+starting {opensearch}.
 
 `read_operations` (Linux only)::
 (integer)
 The total number of read operations for the device completed since starting
-{es}.
+{opensearch}.
 
 `write_operations` (Linux only)::
 (integer)
 The total number of write operations for the device completed since starting
-{es}.
+{opensearch}.
 
 `read_kilobytes` (Linux only)::
 (integer)
-The total number of kilobytes read for the device since starting {es}.
+The total number of kilobytes read for the device since starting {opensearch}.
 
 `write_kilobytes` (Linux only)::
 (integer)
-The total number of kilobytes written for the device since starting {es}.
+The total number of kilobytes written for the device since starting {opensearch}.
 ========
 
 `operations` (Linux only)::
     (integer)
     The total number of read and write operations across all devices used by
-    {es} completed since starting {es}.
+    {opensearch} completed since starting {opensearch}.
 
 `read_operations` (Linux only)::
     (integer)
-    The total number of read operations for across all devices used by {es}
-    completed since starting {es}.
+    The total number of read operations for across all devices used by {opensearch}
+    completed since starting {opensearch}.
 
 `write_operations` (Linux only)::
     (integer)
-    The total number of write operations across all devices used by {es}
-    completed since starting {es}.
+    The total number of write operations across all devices used by {opensearch}
+    completed since starting {opensearch}.
 
 `read_kilobytes` (Linux only)::
     (integer)
-    The total number of kilobytes read across all devices used by {es} since
-    starting {es}.
+    The total number of kilobytes read across all devices used by {opensearch} since
+    starting {opensearch}.
 
 `write_kilobytes` (Linux only)::
     (integer)
-    The total number of kilobytes written across all devices used by {es} since
-    starting {es}.
+    The total number of kilobytes written across all devices used by {opensearch} since
+    starting {opensearch}.
 =======
 ======
 

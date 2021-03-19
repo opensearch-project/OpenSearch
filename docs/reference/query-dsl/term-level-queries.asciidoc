@@ -24,7 +24,7 @@ Term-level queries still normalize search terms for `keyword` fields with the
 Returns documents that contain any indexed value for a field.
 
 <<query-dsl-fuzzy-query,`fuzzy` query>>::
-Returns documents that contain terms similar to the search term. {es} measures
+Returns documents that contain terms similar to the search term. {opensearch} measures
 similarity, or fuzziness, using a
 {wikipedia}/Levenshtein_distance[Levenshtein edit distance].
 

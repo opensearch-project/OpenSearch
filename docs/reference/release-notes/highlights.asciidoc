@@ -1,7 +1,7 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-Here are the highlights of what's new and improved in {es} {minor-version}!
+Here are the highlights of what's new and improved in {opensearch} {minor-version}!
 ifeval::["{release-state}"!="unreleased"]
 For detailed information about this release, see the
 <<release-notes-{elasticsearch_version}, Release notes >> and
@@ -16,7 +16,7 @@ Other versions:
 [[indexing-speed-improvement]]
 ===  Indexing speed improvement
 
-{es} 7.10 improves indexing speed by up to 20%. We've reduced the coordination
+{opensearch} 7.10 improves indexing speed by up to 20%. We've reduced the coordination
 needed to add entries to the {ref}/index-modules-translog.html[transaction log].
 This reduction allows for more concurrency and increases the transaction
 log buffer size from `8KB` to `1MB`. However, performance gains are lower for
@@ -28,7 +28,7 @@ fields, ingest pipelines or full-text indexing will see lower gains.
 [[more-space-efficient-indices]]
 === More space-efficient indices
 
-{es} 7.10 depends on Apache Lucene 8.7, which introduces higher compression of
+{opensearch} 7.10 depends on Apache Lucene 8.7, which introduces higher compression of
 stored fields, the part of the index that notably stores the
 {ref}/mapping-source-field.html[`_source`]. On the various data sets that we 
 benchmark against, we noticed space reductions between 0% and 10%. This change 
@@ -39,7 +39,7 @@ data on every document.
 
 OpenSearch offers the ability to configure the
 {ref}/index-modules.html#index-codec[`index.codec`] setting to tell
-{es} how aggressively to compress stored fields. Both supported values
+{opensearch} how aggressively to compress stored fields. Both supported values
 `default` and `best_compression` will get better compression with this change.
 
 [discrete]
@@ -88,7 +88,7 @@ implementation and will not return the deprecation warning:
 * `GET {index}/_shard_stores`
 * `GET _cat/[indices,aliases,health,recovery,shards,segments]`
 
-We are also adding a new metadata flag to track indices. {es} will automatically
+We are also adding a new metadata flag to track indices. {opensearch} will automatically
 add this flag to any existing system indices during upgrade.
 
 [discrete]

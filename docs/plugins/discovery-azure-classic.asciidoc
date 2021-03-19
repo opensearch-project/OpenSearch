@@ -331,7 +331,7 @@ scp /tmp/azurekeystore.pkcs12 azure-opensearch-cluster.cloudapp.net:/home/opense
 ssh azure-opensearch-cluster.cloudapp.net
 ----
 
-Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {es}]:
+Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {opensearch}]:
 
 Check that OpenSearch is running:
 
