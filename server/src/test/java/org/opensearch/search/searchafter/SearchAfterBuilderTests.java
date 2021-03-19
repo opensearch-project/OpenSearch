@@ -34,7 +34,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.BucketedSort;

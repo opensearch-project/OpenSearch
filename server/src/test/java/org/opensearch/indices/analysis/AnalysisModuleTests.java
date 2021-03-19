@@ -35,24 +35,24 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.Analysis;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
-import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
-import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
-import org.elasticsearch.index.analysis.StandardTokenizerFactory;
-import org.elasticsearch.index.analysis.StopTokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.Analysis;
+import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.analysis.CharFilterFactory;
+import org.opensearch.index.analysis.CustomAnalyzer;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.analysis.PreConfiguredCharFilter;
+import org.opensearch.index.analysis.PreConfiguredTokenFilter;
+import org.opensearch.index.analysis.PreConfiguredTokenizer;
+import org.opensearch.index.analysis.StandardTokenizerFactory;
+import org.opensearch.index.analysis.StopTokenFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.MyFilterTokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
@@ -269,7 +269,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                                 tokenStream -> new AppendCharFilter(tokenStream, "no_version")),
                         PreConfiguredCharFilter.luceneVersion("lucene_version", luceneVersionSupportsMultiTerm,
                                 (tokenStream, luceneVersion) -> new AppendCharFilter(tokenStream, luceneVersion.toString())),
-                        PreConfiguredCharFilter.elasticsearchVersion("elasticsearch_version", elasticsearchVersionSupportsMultiTerm,
+                        PreConfiguredCharFilter.openSearchVersion("elasticsearch_version", elasticsearchVersionSupportsMultiTerm,
                                 (tokenStream, esVersion) -> new AppendCharFilter(tokenStream, esVersion.toString()))
                         );
             }
@@ -321,7 +321,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                                 tokenStream -> new AppendTokenFilter(tokenStream, "no_version")),
                         PreConfiguredTokenFilter.luceneVersion("lucene_version", luceneVersionSupportsMultiTerm,
                                 (tokenStream, luceneVersion) -> new AppendTokenFilter(tokenStream, luceneVersion.toString())),
-                        PreConfiguredTokenFilter.elasticsearchVersion("elasticsearch_version", elasticsearchVersionSupportsMultiTerm,
+                        PreConfiguredTokenFilter.openSearchVersion("elasticsearch_version", elasticsearchVersionSupportsMultiTerm,
                                 (tokenStream, esVersion) -> new AppendTokenFilter(tokenStream, esVersion.toString()))
                         );
             }
@@ -392,7 +392,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                         PreConfiguredTokenizer.singleton("no_version", () -> new FixedTokenizer("no_version")),
                         PreConfiguredTokenizer.luceneVersion("lucene_version",
                             luceneVersion -> new FixedTokenizer(luceneVersion.toString())),
-                        PreConfiguredTokenizer.elasticsearchVersion("elasticsearch_version",
+                        PreConfiguredTokenizer.openSearchVersion("elasticsearch_version",
                             esVersion -> new FixedTokenizer(esVersion.toString()))
                     );
                 }

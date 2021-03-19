@@ -24,7 +24,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.test.AbstractNamedWriteableTestCase;
 

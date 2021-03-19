@@ -23,7 +23,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
+import org.opensearch.index.VersionType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.rest.FakeRestRequest;

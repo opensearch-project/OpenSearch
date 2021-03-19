@@ -22,7 +22,7 @@ import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.utils.GeographyValidator;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.opensearch.index.mapper.GeoShapeIndexer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.OpenSearchGeoAssertions;
 import org.locationtech.jts.geom.Geometry;

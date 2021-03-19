@@ -29,10 +29,10 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.Closeable;

@@ -32,7 +32,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;

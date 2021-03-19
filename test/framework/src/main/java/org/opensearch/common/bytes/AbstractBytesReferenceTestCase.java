@@ -29,7 +29,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ByteArray;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.EOFException;

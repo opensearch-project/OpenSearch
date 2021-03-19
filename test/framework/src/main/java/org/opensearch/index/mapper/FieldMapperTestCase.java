@@ -29,9 +29,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;

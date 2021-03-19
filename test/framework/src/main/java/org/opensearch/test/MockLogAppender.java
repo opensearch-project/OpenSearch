@@ -36,7 +36,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
  */
 public class MockLogAppender extends AbstractAppender {
 
-    private static final String COMMON_PREFIX = System.getProperty("opensearch.logger.prefix", "org.elasticsearch.");
+    private static final String COMMON_PREFIX = System.getProperty("opensearch.logger.prefix", "org.opensearch.");
 
     private List<LoggingExpectation> expectations;
 
@@ -191,8 +191,8 @@ public class MockLogAppender extends AbstractAppender {
     }
 
     private static String getLoggerName(String name) {
-        if (name.startsWith("org.elasticsearch.")) {
-            name = name.substring("org.elasticsearch.".length());
+        if (name.startsWith("org.opensearch.")) {
+            name = name.substring("org.opensearch.".length());
         }
         return COMMON_PREFIX + name;
     }

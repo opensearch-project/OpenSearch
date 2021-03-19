@@ -32,7 +32,7 @@ import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchModule;

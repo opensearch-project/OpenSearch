@@ -66,24 +66,24 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
-import org.elasticsearch.index.seqno.RetentionLease;
-import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
-import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
-import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.shard.IndexShard;
+import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
+import org.opensearch.index.seqno.RetentionLease;
+import org.opensearch.index.seqno.RetentionLeaseSyncAction;
+import org.opensearch.index.seqno.RetentionLeaseSyncer;
+import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.opensearch.index.shard.PrimaryReplicaSyncer;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -680,7 +680,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             }
 
             @Override
-            public org.elasticsearch.index.shard.ReplicationGroup getReplicationGroup() {
+            public org.opensearch.index.shard.ReplicationGroup getReplicationGroup() {
                 return getPrimaryShard().getReplicationGroup();
             }
 

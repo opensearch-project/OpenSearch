@@ -23,8 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.apache.logging.log4j.message.SimpleMessage;
-import org.elasticsearch.common.logging.JsonLogLine;
-import org.elasticsearch.common.logging.JsonLogsStream;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 

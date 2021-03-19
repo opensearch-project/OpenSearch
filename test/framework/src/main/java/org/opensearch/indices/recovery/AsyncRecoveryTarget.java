@@ -23,11 +23,11 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.index.seqno.ReplicationTracker;
+import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.translog.Translog;
 
 import java.util.List;
 import java.util.concurrent.Executor;

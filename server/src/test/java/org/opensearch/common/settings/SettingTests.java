@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.Loggers;

@@ -19,10 +19,10 @@
 package org.opensearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.InternalEngine;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.engine.InternalEngine;
 
 import java.io.IOException;
 import java.util.function.Function;

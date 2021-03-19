@@ -34,7 +34,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.opensearch.test.OpenSearchTestCase;
 

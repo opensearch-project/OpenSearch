@@ -35,8 +35,8 @@ import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.MasterService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool;
 

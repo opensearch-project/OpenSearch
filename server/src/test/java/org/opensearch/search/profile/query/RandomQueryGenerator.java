@@ -21,13 +21,13 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.util.English;
 import org.opensearch.common.unit.Fuzziness;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.DisMaxQueryBuilder;
-import org.elasticsearch.index.query.FuzzyQueryBuilder;
-import org.elasticsearch.index.query.IdsQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.DisMaxQueryBuilder;
+import org.opensearch.index.query.FuzzyQueryBuilder;
+import org.opensearch.index.query.IdsQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.RangeQueryBuilder;
 
 import java.util.ArrayList;
 import java.util.List;

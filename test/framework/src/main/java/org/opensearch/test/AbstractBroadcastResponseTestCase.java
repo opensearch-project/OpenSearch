@@ -27,8 +27,8 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

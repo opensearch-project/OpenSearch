@@ -20,15 +20,15 @@ package org.opensearch.indices.analyze;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.analysis.HunspellService;
+import org.opensearch.env.Environment;
+import org.opensearch.indices.analysis.HunspellService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.indices.analysis.HunspellService.HUNSPELL_IGNORE_CASE;
-import static org.elasticsearch.indices.analysis.HunspellService.HUNSPELL_LAZY_LOAD;
+import static org.opensearch.indices.analysis.HunspellService.HUNSPELL_IGNORE_CASE;
+import static org.opensearch.indices.analysis.HunspellService.HUNSPELL_LAZY_LOAD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;

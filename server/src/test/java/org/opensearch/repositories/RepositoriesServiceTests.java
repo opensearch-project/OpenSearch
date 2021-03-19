@@ -42,12 +42,12 @@ import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.store.Store;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -84,7 +84,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
         Map<String, Repository.Factory> typesRegistry =
-            org.elasticsearch.common.collect.Map.of(TestRepository.TYPE, TestRepository::new,
+            org.opensearch.common.collect.Map.of(TestRepository.TYPE, TestRepository::new,
                 MeteredRepositoryTypeA.TYPE, metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
                 MeteredRepositoryTypeB.TYPE, metadata -> new MeteredRepositoryTypeB(metadata, clusterService));
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
@@ -331,7 +331,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
 
     private static class MeteredRepositoryTypeA extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-a";
-        private static final RepositoryStats STATS = new RepositoryStats(org.elasticsearch.common.collect.Map.of("GET", 10L));
+        private static final RepositoryStats STATS = new RepositoryStats(org.opensearch.common.collect.Map.of("GET", 10L));
 
         private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
             super(metadata,
@@ -339,7 +339,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
                 mock(NamedXContentRegistry.class),
                 clusterService,
                 mock(RecoverySettings.class),
-                org.elasticsearch.common.collect.Map.of("bucket", "bucket-a"));
+                org.opensearch.common.collect.Map.of("bucket", "bucket-a"));
         }
 
         @Override
@@ -360,7 +360,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
 
     private static class MeteredRepositoryTypeB extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-b";
-        private static final RepositoryStats STATS = new RepositoryStats(org.elasticsearch.common.collect.Map.of("LIST", 20L));
+        private static final RepositoryStats STATS = new RepositoryStats(org.opensearch.common.collect.Map.of("LIST", 20L));
 
         private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
             super(metadata,
@@ -368,7 +368,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
                 mock(NamedXContentRegistry.class),
                 clusterService,
                 mock(RecoverySettings.class),
-                org.elasticsearch.common.collect.Map.of("bucket", "bucket-b"));
+                org.opensearch.common.collect.Map.of("bucket", "bucket-b"));
         }
 
         @Override

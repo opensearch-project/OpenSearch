@@ -24,7 +24,7 @@ import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;

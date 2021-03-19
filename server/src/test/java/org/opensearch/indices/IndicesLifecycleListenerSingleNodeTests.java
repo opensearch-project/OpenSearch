@@ -26,16 +26,16 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
-import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexShard;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.seqno.RetentionLeaseSyncer;
+import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Arrays;
@@ -45,7 +45,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNodeTestCase {

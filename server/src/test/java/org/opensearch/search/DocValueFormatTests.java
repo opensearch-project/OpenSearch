@@ -28,7 +28,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.time.DateFormatter;
-import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.opensearch.index.mapper.DateFieldMapper.Resolution;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.ZoneOffset;

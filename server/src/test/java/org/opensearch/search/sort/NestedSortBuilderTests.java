@@ -27,11 +27,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
+import org.opensearch.index.query.ConstantScoreQueryBuilder;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.MatchNoneQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.search.SearchModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
@@ -150,7 +150,7 @@ public class NestedSortBuilderTests extends OpenSearchTestCase {
     public void testRewrite() throws IOException {
         QueryBuilder filterThatRewrites = new MatchNoneQueryBuilder() {
             @Override
-            protected QueryBuilder doRewrite(org.elasticsearch.index.query.QueryRewriteContext queryShardContext) throws IOException {
+            protected QueryBuilder doRewrite(org.opensearch.index.query.QueryRewriteContext queryShardContext) throws IOException {
                 return new MatchAllQueryBuilder();
             }
         };

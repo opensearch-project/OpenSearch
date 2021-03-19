@@ -19,7 +19,6 @@
 
 package org.opensearch.common.xcontent.cbor;
 
-import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;

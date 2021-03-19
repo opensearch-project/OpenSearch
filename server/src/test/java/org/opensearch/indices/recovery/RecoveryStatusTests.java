@@ -21,9 +21,9 @@ package org.opensearch.indices.recovery;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.store.StoreFileMetadata;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;

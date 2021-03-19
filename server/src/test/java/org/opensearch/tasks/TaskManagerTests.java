@@ -20,7 +20,7 @@
 package org.opensearch.tasks;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
+import org.opensearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;

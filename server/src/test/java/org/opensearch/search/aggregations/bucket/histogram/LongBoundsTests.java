@@ -31,9 +31,9 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.test.OpenSearchTestCase;
 

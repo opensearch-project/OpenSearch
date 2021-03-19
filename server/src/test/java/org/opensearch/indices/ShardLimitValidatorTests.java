@@ -32,7 +32,7 @@ import org.opensearch.common.ValidationException;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
 import static org.opensearch.cluster.metadata.MetadataIndexStateServiceTests.addOpenedIndex;
 import static org.opensearch.cluster.shards.ShardCounts.forDataNodeCount;
-import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

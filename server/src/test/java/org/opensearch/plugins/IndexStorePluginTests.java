@@ -119,11 +119,11 @@ public class IndexStorePluginTests extends OpenSearchTestCase {
         if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
             assertThat(e, hasToString(matches(
                     "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values " +
-                            "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ " +
-                            "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)")));
+                            "org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+ " +
+                            "and org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)")));
         } else {
             assertThat(e, hasToString(matches(
-                    "java.lang.IllegalStateException: Duplicate key org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+")));
+                    "java.lang.IllegalStateException: Duplicate key org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+")));
         }
     }
 

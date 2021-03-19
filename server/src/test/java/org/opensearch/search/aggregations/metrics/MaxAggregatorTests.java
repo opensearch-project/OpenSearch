@@ -48,8 +48,8 @@ import org.apache.lucene.util.FutureArrays;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
@@ -91,7 +91,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MaxAggregatorTests extends AggregatorTestCase {

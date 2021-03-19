@@ -21,7 +21,7 @@ package org.opensearch.index;
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.opensearch.common.settings.Setting;
-import org.elasticsearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.engine.MockEngineFactory;
