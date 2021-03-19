@@ -7,7 +7,7 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to {es} 7.10.
 
-See also <<release-highlights>> and <<es-release-notes>>.
+See also <<release-highlights>> and <<opensearch-release-notes>>.
 
 // * <<breaking_710_blah_changes>>
 // * <<breaking_710_blah_changes>>

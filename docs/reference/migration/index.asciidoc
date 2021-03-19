@@ -23,7 +23,7 @@ To give you insight into what deprecated features you're using, {es}:
 - <<deprecation-logging, Logs deprecation warnings>> when deprecated functionality is used.
 
 For more information about {minor-version}, 
-see the <<release-highlights>> and <<es-release-notes>>.
+see the <<release-highlights>> and <<opensearch-release-notes>>.
 For information about how to upgrade your cluster, see <<setup-upgrade>>.
 
 * <<breaking-changes-7.10,Migrating to 7.10>>

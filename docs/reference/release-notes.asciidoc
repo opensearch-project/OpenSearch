@@ -1,4 +1,4 @@
-[[es-release-notes]]
+[[opensearch-release-notes]]
 = Release notes
 
 [partintro]
