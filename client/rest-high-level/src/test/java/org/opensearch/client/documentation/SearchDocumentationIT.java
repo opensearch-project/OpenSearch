@@ -845,7 +845,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         RestHighLevelClient client = highLevelClient();
 
         // tag::multi-search-template-request-inline
-        String [] searchTerms = {"opensearch", "logstash", "dashboards"};
+        String [] searchTerms = {"opensearch", "opensearch-dashboards"};
 
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest(); // <1>
         for (String searchTerm : searchTerms) {
@@ -903,7 +903,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         // tag::multi-search-template-request-stored
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 
-        String [] searchTerms = {"opensearch", "logstash", "dashboards"};
+        String [] searchTerms = {"opensearch", "dashboards"};
         for (String searchTerm : searchTerms) {
 
             SearchTemplateRequest request = new SearchTemplateRequest();
