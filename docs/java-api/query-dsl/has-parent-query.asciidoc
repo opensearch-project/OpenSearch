@@ -7,7 +7,7 @@ When using the `has_parent` query it is important to use the `PreBuiltTransportC
 
 [source,java]
 --------------------------------------------------
-Settings settings = Settings.builder().put("cluster.name", "elasticsearch").build();
+Settings settings = Settings.builder().put("cluster.name", "opensearch").build();
 TransportClient client = new PreBuiltTransportClient(settings);
 client.addTransportAddress(new TransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300)));
 --------------------------------------------------

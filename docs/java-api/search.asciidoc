@@ -76,7 +76,7 @@ documentation
 [source,java]
 --------------------------------------------------
 SearchRequestBuilder srb1 = client
-    .prepareSearch().setQuery(QueryBuilders.queryStringQuery("elasticsearch")).setSize(1);
+    .prepareSearch().setQuery(QueryBuilders.queryStringQuery("opensearch")).setSize(1);
 SearchRequestBuilder srb2 = client
     .prepareSearch().setQuery(QueryBuilders.matchQuery("name", "kimchy")).setSize(1);
 
