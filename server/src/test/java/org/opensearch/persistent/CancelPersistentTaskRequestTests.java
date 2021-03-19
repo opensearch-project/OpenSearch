@@ -19,7 +19,7 @@
 package org.opensearch.persistent;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.persistent.RemovePersistentTaskAction.Request;
+import org.opensearch.persistent.RemovePersistentTaskAction.Request;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
