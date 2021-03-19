@@ -55,7 +55,7 @@
                     "type":"synonym",
                     "synonyms":[
                         "kimchy => shay",
-                        "dude => elasticsearch",
+                        "dude => opensearch",
                         "abides => man!"
                     ]
                 },
@@ -89,13 +89,13 @@
                 },
                 "stop_within_synonym":{
                     "type": "stop",
-                    "stopwords":["kimchy", "elasticsearch"]
+                    "stopwords":["kimchy", "opensearch"]
                 },
                 "synonym_expand":{
                     "type":"synonym",
                     "synonyms":[
                         "kimchy , shay",
-                        "dude , elasticsearch",
+                        "dude , opensearch",
                         "abides , man!"
                     ]
                 }

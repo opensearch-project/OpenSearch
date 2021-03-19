@@ -16,7 +16,7 @@ services:
       timeout: 1s
       retries: 5
 
-  elasticsearch:
+  opensearch:
     image: opensearch:test
     environment:
       discovery.type: single-node

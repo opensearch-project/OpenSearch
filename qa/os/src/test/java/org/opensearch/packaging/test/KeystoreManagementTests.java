@@ -410,8 +410,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         // We need a local shell to put the correct permissions on our mounted directory.
         Shell localShell = new Shell();
-        localShell.run("docker exec --tty " + Docker.getContainerId() + " chown elasticsearch:root " + dockerTemp);
-        localShell.run("docker exec --tty " + Docker.getContainerId() + " chown elasticsearch:root " + dockerTemp.resolve("set-pass.sh"));
+        localShell.run("docker exec --tty " + Docker.getContainerId() + " chown opensearch:root " + dockerTemp);
+        localShell.run("docker exec --tty " + Docker.getContainerId() + " chown opensearch:root " + dockerTemp.resolve("set-pass.sh"));
 
         sh.run("bash " + dockerTemp.resolve("set-pass.sh"));
 
@@ -488,7 +488,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 break;
             case DEB:
             case RPM:
-                assertThat(keystore, file(File, "root", "elasticsearch", p660));
+                assertThat(keystore, file(File, "root", "opensearch", p660));
                 break;
             case DOCKER:
                 assertPermissionsAndOwnership(keystore, p660);

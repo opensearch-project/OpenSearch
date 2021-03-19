@@ -92,7 +92,7 @@ public class Shell {
     }
 
     public void chown(Path path) throws Exception {
-        Platforms.onLinux(() -> run("chown -R elasticsearch:elasticsearch " + path));
+        Platforms.onLinux(() -> run("chown -R opensearch:opensearch " + path));
         Platforms.onWindows(
             () -> run(
                 String.format(

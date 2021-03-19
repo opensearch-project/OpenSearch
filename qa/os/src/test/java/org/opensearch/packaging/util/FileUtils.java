@@ -304,7 +304,7 @@ public class FileUtils {
     }
 
     public static Path getDefaultArchiveInstallPath() {
-        return getRootTempDir().resolve("elasticsearch");
+        return getRootTempDir().resolve("opensearch");
     }
 
     private static final Pattern VERSION_REGEX = Pattern.compile("(\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?)");

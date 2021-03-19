@@ -17,7 +17,7 @@
                   filter:
                     synonym:
                       type: synonym
-                      synonyms: ["<p>kimchy</p> => shay", "dude => <html>elasticsearch</html>", "<font>abides</font> => man!"]
+                      synonyms: ["<p>kimchy</p> => shay", "dude => <html>opensearch</html>", "<font>abides</font> => man!"]
 
     - do:
         indices.analyze:

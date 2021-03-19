@@ -102,7 +102,7 @@ public class PackageTests extends PackagingTestCase {
             Files.write(installation.envFile, originalEnvFile);
         }
 
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "elasticsearch*.log.gz"), containsString(systemJavaHome));
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "opensearch*.log.gz"), containsString(systemJavaHome));
     }
 
     public void test32JavaHomeOverride() throws Exception {
