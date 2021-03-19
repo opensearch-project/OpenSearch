@@ -23,7 +23,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

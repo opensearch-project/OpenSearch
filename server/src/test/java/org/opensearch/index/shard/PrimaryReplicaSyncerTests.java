@@ -39,12 +39,12 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.mapper.SourceToParse;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.TestTranslog;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 

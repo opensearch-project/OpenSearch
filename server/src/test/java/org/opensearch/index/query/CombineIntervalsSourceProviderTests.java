@@ -28,7 +28,7 @@ import org.opensearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.IntervalsSourceProvider.Combine;
+import static org.opensearch.index.query.IntervalsSourceProvider.Combine;
 
 public class CombineIntervalsSourceProviderTests extends AbstractSerializingTestCase<Combine> {
 

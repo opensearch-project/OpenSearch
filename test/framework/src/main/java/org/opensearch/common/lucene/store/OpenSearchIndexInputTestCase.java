@@ -43,7 +43,8 @@ public class OpenSearchIndexInputTestCase extends OpenSearchTestCase {
     @BeforeClass
     public static void createExecutor() {
         final String name = "TEST-" + getTestClass().getSimpleName() + "#randomReadAndSlice";
-        executor = OpenSearchExecutors.newFixed(name, 10, 0, OpenSearchExecutors.daemonThreadFactory(name), new ThreadContext(Settings.EMPTY));
+        executor = OpenSearchExecutors.newFixed(
+            name, 10, 0, OpenSearchExecutors.daemonThreadFactory(name), new ThreadContext(Settings.EMPTY));
     }
 
     @AfterClass

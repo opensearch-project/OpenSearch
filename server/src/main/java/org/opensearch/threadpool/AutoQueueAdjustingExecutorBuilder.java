@@ -160,7 +160,8 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
         int maxQueueSize = settings.maxQueueSize;
         int frameSize = settings.frameSize;
         TimeValue targetedResponseTime = settings.targetedResponseTime;
-        final ThreadFactory threadFactory = OpenSearchExecutors.daemonThreadFactory(OpenSearchExecutors.threadName(settings.nodeName, name()));
+        final ThreadFactory threadFactory =
+            OpenSearchExecutors.daemonThreadFactory(OpenSearchExecutors.threadName(settings.nodeName, name()));
         final ExecutorService executor =
             OpenSearchExecutors.newAutoQueueFixed(
                         settings.nodeName + "/" + name(),

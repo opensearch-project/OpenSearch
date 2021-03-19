@@ -27,7 +27,7 @@ import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.IntervalsSourceProvider.Match;
+import static org.opensearch.index.query.IntervalsSourceProvider.Match;
 
 public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCase<Match> {
 

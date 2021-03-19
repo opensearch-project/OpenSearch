@@ -47,7 +47,8 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
 
     OpenSearchThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
                                  BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {
-        this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new OpenSearchAbortPolicy(), contextHolder);
+        this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory,
+            new OpenSearchAbortPolicy(), contextHolder);
     }
 
     @SuppressForbidden(reason = "properly rethrowing errors, see OpenSearchExecutors.rethrowErrors")

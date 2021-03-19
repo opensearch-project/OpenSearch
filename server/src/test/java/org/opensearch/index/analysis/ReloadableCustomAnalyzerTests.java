@@ -26,7 +26,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.junit.BeforeClass;
@@ -38,7 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.index.analysis.AnalyzerComponents.createComponents;
+import static org.opensearch.index.analysis.AnalyzerComponents.createComponents;
 
 public class ReloadableCustomAnalyzerTests extends OpenSearchTestCase {
 

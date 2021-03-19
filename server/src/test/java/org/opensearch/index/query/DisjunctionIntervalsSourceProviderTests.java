@@ -28,7 +28,7 @@ import org.opensearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.IntervalsSourceProvider.Disjunction;
+import static org.opensearch.index.query.IntervalsSourceProvider.Disjunction;
 
 public class DisjunctionIntervalsSourceProviderTests extends AbstractSerializingTestCase<Disjunction> {
 

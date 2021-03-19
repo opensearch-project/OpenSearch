@@ -70,8 +70,8 @@
  *      |  |  |- snap-20131011.dat - SMILE serialized {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} for
  *      |  |  |                      snapshot "20131011"
  *      |  |  |- index-123         - SMILE serialized {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} for
- *      |  |  |                      the shard (files with numeric suffixes were created by older versions, newer OpenSearch versions use a uuid
- *      |  |  |                      suffix instead)
+ *      |  |  |                      the shard (files with numeric suffixes were created by older versions, newer OpenSearch
+ *      |  |  |                      versions use a uuid suffix instead)
  *      |  |
  *      |  |- 1/ - data for shard "1" of index "foo"
  *      |  |  |- __1

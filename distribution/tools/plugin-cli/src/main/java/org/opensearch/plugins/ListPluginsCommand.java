@@ -65,7 +65,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
         PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin));
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
-        if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+        if (info.getOpenSearchVersion().equals(Version.CURRENT) == false) {
             terminal.errorPrintln(
                 "WARNING: plugin ["
                     + info.getName()

@@ -35,10 +35,10 @@ import java.net.InetAddress;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
+import static org.opensearch.index.query.RangeQueryBuilder.GTE_FIELD;
+import static org.opensearch.index.query.RangeQueryBuilder.GT_FIELD;
+import static org.opensearch.index.query.RangeQueryBuilder.LTE_FIELD;
+import static org.opensearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 

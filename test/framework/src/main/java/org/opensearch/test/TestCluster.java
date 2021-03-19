@@ -43,8 +43,6 @@ import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.Set;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-
 /**
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
  * (e.g. number of nodes) is predefined and cannot be changed during the tests execution

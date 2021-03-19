@@ -180,7 +180,7 @@ public final class AnalysisModule {
         preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
         // Add "standard" for old indices (bwc)
         preConfiguredTokenFilters.register( "standard",
-            PreConfiguredTokenFilter.opensearchVersion("standard", true, (reader, version) -> {
+            PreConfiguredTokenFilter.openSearchVersion("standard", true, (reader, version) -> {
                 // This was originally removed in 7_0_0 but due to a cacheing bug it was still possible
                 // in certain circumstances to create a new index referencing the standard token filter
                 // until version 7_5_2

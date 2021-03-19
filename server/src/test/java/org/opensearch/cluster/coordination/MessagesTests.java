@@ -88,7 +88,8 @@ public class MessagesTests extends OpenSearchTestCase {
                 switch (randomInt(1)) {
                     case 0:
                         // change term
-                        return new PublishResponse(randomValueOtherThan(publishResponse.getTerm(), OpenSearchTestCase::randomNonNegativeLong),
+                        return new PublishResponse(
+                            randomValueOtherThan(publishResponse.getTerm(), OpenSearchTestCase::randomNonNegativeLong),
                             publishResponse.getVersion());
                     case 1:
                         // change version
@@ -164,7 +165,8 @@ public class MessagesTests extends OpenSearchTestCase {
                     case 1:
                         // change term
                         return new ApplyCommitRequest(applyCommit.getSourceNode(),
-                            randomValueOtherThan(applyCommit.getTerm(), OpenSearchTestCase::randomNonNegativeLong), applyCommit.getVersion());
+                            randomValueOtherThan(applyCommit.getTerm(), OpenSearchTestCase::randomNonNegativeLong),
+                            applyCommit.getVersion());
                     case 2:
                         // change version
                         return new ApplyCommitRequest(applyCommit.getSourceNode(), applyCommit.getTerm(),

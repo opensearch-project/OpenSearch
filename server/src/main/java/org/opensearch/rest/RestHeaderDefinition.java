@@ -19,7 +19,6 @@
 
 package org.opensearch.rest;
 
-import org.opensearch.common.util.concurrent.ThreadContext;
 
 /**
  * A definition for an http header that should be copied to the {@link org.opensearch.common.util.concurrent.ThreadContext} when

@@ -21,6 +21,7 @@ package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
@@ -111,10 +112,10 @@ public class TransportGetFieldMappingsIndexAction
             }
         }
 
-        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> typeMappings = new HashMap<>();
+        Map<String, Map<String, FieldMappingMetadata>> typeMappings = new HashMap<>();
         for (String type : typeIntersection) {
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldMapping = findFieldMappingsByType(fieldPredicate, documentMapper, request);
+            Map<String, FieldMappingMetadata> fieldMapping = findFieldMappingsByType(fieldPredicate, documentMapper, request);
             if (!fieldMapping.isEmpty()) {
                 typeMappings.put(type, fieldMapping);
             }
@@ -169,10 +170,10 @@ public class TransportGetFieldMappingsIndexAction
         }
     };
 
-    private static Map<String, GetFieldMappingsResponse.FieldMappingMetadata> findFieldMappingsByType(Predicate<String> fieldPredicate,
-                                                                                                      DocumentMapper documentMapper,
-                                                                                                      GetFieldMappingsIndexRequest request) {
-        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldMappings = new HashMap<>();
+    private static Map<String, FieldMappingMetadata> findFieldMappingsByType(Predicate<String> fieldPredicate,
+                                                                             DocumentMapper documentMapper,
+                                                                             GetFieldMappingsIndexRequest request) {
+        Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
         final MappingLookup allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
@@ -192,7 +193,7 @@ public class TransportGetFieldMappingsIndexAction
                 if (fieldMapper != null) {
                     addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
                 } else if (request.probablySingleFieldRequest()) {
-                    fieldMappings.put(field, GetFieldMappingsResponse.FieldMappingMetadata.NULL);
+                    fieldMappings.put(field, FieldMappingMetadata.NULL);
                 }
             }
         }
@@ -200,7 +201,7 @@ public class TransportGetFieldMappingsIndexAction
     }
 
     private static void addFieldMapper(Predicate<String> fieldPredicate,
-                                       String field, Mapper fieldMapper, Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldMappings,
+                                       String field, Mapper fieldMapper, Map<String, FieldMappingMetadata> fieldMappings,
                                        boolean includeDefaults) {
         if (fieldMappings.containsKey(field)) {
             return;
@@ -209,7 +210,7 @@ public class TransportGetFieldMappingsIndexAction
             try {
                 BytesReference bytes = XContentHelper.toXContent(fieldMapper, XContentType.JSON,
                         includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS, false);
-                fieldMappings.put(field, new GetFieldMappingsResponse.FieldMappingMetadata(fieldMapper.name(), bytes));
+                fieldMappings.put(field, new FieldMappingMetadata(fieldMapper.name(), bytes));
             } catch (IOException e) {
                 throw new OpenSearchException("failed to serialize XContent of field [" + field + "]", e);
             }

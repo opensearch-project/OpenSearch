@@ -28,9 +28,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
 import org.opensearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

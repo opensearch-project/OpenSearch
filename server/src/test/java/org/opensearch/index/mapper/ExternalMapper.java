@@ -25,9 +25,9 @@ import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.builders.PointBuilder;
 import org.opensearch.geometry.Point;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

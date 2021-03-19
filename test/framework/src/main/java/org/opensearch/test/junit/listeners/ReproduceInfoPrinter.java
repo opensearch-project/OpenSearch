@@ -176,7 +176,8 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         public ReproduceErrorMessageBuilder appendClientYamlSuiteProperties() {
-            return appendProperties(OpenSearchClientYamlSuiteTestCase.REST_TESTS_SUITE, OpenSearchClientYamlSuiteTestCase.REST_TESTS_BLACKLIST);
+            return appendProperties(OpenSearchClientYamlSuiteTestCase.REST_TESTS_SUITE,
+                OpenSearchClientYamlSuiteTestCase.REST_TESTS_BLACKLIST);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

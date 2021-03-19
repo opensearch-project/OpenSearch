@@ -470,8 +470,8 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         // finish relocation
         ShardRouting relocationTarget = clusterService.state().getRoutingTable().shardRoutingTable(shardId)
             .shardsWithState(ShardRoutingState.INITIALIZING).get(0);
-        AllocationService allocationService = ESAllocationTestCase.createAllocationService();
-        ClusterState updatedState = ESAllocationTestCase.startShardsAndReroute(allocationService, state, relocationTarget);
+        AllocationService allocationService = OpenSearchAllocationTestCase.createAllocationService();
+        ClusterState updatedState = OpenSearchAllocationTestCase.startShardsAndReroute(allocationService, state, relocationTarget);
 
         setState(clusterService, updatedState);
         logger.debug("--> relocation complete state:\n{}", clusterService.state());

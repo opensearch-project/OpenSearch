@@ -23,8 +23,8 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.index.seqno.RetentionLease;
-import org.elasticsearch.index.seqno.RetentionLeases;
+import org.opensearch.index.seqno.RetentionLease;
+import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 

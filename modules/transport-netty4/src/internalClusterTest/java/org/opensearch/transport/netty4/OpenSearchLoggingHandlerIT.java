@@ -71,7 +71,8 @@ public class OpenSearchLoggingHandlerIT extends OpenSearchNetty4IntegTestCase {
                         "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
 
         final MockLogAppender.LoggingExpectation flushExpectation =
-                new MockLogAppender.SeenEventExpectation("flush", OpenSearchLoggingHandler.class.getCanonicalName(), Level.TRACE, "*FLUSH*");
+                new MockLogAppender.SeenEventExpectation(
+                    "flush", OpenSearchLoggingHandler.class.getCanonicalName(), Level.TRACE, "*FLUSH*");
 
         final String readPattern =
                 ".*\\[length: \\d+" +

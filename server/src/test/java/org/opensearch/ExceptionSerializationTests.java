@@ -709,7 +709,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(32, org.opensearch.indices.InvalidIndexNameException.class);
         ids.put(33, org.opensearch.indices.IndexPrimaryShardNotAllocatedException.class);
         ids.put(34, org.opensearch.transport.TransportException.class);
-        ids.put(35, org.opensearch.OpenearchParseException.class);
+        ids.put(35, org.opensearch.OpenSearchParseException.class);
         ids.put(36, org.opensearch.search.SearchException.class);
         ids.put(37, org.opensearch.index.mapper.MapperException.class);
         ids.put(38, org.opensearch.indices.InvalidTypeNameException.class);

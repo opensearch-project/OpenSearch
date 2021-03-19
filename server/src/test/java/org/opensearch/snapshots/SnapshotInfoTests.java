@@ -96,7 +96,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(), instance.userMetadata());
             case 4:
                 return new SnapshotInfo(instance.snapshotId(), instance.indices(), instance.dataStreams(),
-                    instance.startTime(), instance.reason(), randomValueOtherThan(instance.endTime(), OpenSearchTestCase::randomNonNegativeLong),
+                    instance.startTime(), instance.reason(), randomValueOtherThan(instance.endTime(),
+                    OpenSearchTestCase::randomNonNegativeLong),
                     instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(), instance.userMetadata());
             case 5:
                 int totalShards = randomValueOtherThan(instance.totalShards(), () -> randomIntBetween(0, 100));

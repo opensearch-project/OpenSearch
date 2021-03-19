@@ -30,7 +30,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 import org.hamcrest.Matchers;
-import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
+import org.opensearch.index.reindex.BulkByScrollTask.Status;
 
 import java.io.IOException;
 import java.util.HashMap;

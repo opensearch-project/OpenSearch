@@ -1023,10 +1023,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             () -> assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, true)
         );
         assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
-        assertThat(
-            e,
-            hasToString(containsString("attempted to install release build of official plugin on snapshot build of OpenSearch"))
-        );
+        assertThat(e, hasToString(containsString("attempted to install release build of official plugin on snapshot build of OpenSearch")));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")

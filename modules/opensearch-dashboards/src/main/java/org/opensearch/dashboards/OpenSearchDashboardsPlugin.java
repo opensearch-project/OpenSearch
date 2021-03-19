@@ -66,7 +66,15 @@ public class OpenSearchDashboardsPlugin extends Plugin implements SystemIndexPlu
 
     public static final Setting<List<String>> OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING = Setting.listSetting(
         "opensearch_dashboards.system_indices",
-        unmodifiableList(Arrays.asList(".opensearch_dashboards", ".opensearch_dashboards_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link")),
+        unmodifiableList(
+            Arrays.asList(
+                ".opensearch_dashboards",
+                ".opensearch_dashboards_*",
+                ".reporting-*",
+                ".apm-agent-configuration",
+                ".apm-custom-link"
+            )
+        ),
         Function.identity(),
         Property.NodeScope
     );

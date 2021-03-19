@@ -21,15 +21,13 @@ package org.opensearch.action.admin.indices.validate.query;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
-import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
+public class TransportValidateQueryActionTests extends OpenSearchSingleNodeTestCase {
 
     /*
      * This test covers a fallthrough bug that we had, where if the index we were validating against did not exist, we would invoke the

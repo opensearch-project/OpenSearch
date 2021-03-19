@@ -125,7 +125,8 @@ public class TransportNodesListGatewayStartedShards extends
                     if (request.getCustomDataPath() != null) {
                         customDataPath = request.getCustomDataPath();
                     } else {
-                        // TODO: Fallback for BWC with older OpenSearch versions. Remove once request.getCustomDataPath() always returns non-null
+                        // TODO: Fallback for BWC with older OpenSearch versions.
+                        // Remove once request.getCustomDataPath() always returns non-null
                         final IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
                         if (metadata != null) {
                             customDataPath = new IndexSettings(metadata, settings).customDataPath();

@@ -97,7 +97,8 @@ public class OpenSearchExecutors {
     }
 
     public static PrioritizedOpenSearchThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory,
-                                                                                ThreadContext contextHolder, ScheduledExecutorService timer) {
+                                                                                ThreadContext contextHolder,
+                                                                                ScheduledExecutorService timer) {
         return new PrioritizedOpenSearchThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
@@ -105,7 +106,8 @@ public class OpenSearchExecutors {
                                                           ThreadFactory threadFactory, ThreadContext contextHolder) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
         OpenSearchThreadPoolExecutor executor =
-            new OpenSearchThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy(), contextHolder);
+            new OpenSearchThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory,
+                new ForceQueuePolicy(), contextHolder);
         queue.executor = executor;
         return executor;
     }

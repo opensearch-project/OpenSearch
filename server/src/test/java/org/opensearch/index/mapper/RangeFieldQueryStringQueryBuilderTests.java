@@ -35,8 +35,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.time.DateMathParser;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
