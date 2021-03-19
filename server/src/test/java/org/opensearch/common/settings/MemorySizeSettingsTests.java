@@ -28,7 +28,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.notNullValue;

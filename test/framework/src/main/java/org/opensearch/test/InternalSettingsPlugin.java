@@ -25,7 +25,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.monitor.fs.FsService;
+import org.opensearch.monitor.fs.FsService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.transport.RemoteConnectionStrategy;
 
