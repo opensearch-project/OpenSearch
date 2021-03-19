@@ -903,7 +903,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         // tag::multi-search-template-request-stored
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 
-        String [] searchTerms = {"opensearch", "logstash", "kibana"};
+        String [] searchTerms = {"opensearch", "logstash", "dashboards"};
         for (String searchTerm : searchTerms) {
 
             SearchTemplateRequest request = new SearchTemplateRequest();
