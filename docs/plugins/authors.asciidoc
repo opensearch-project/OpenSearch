@@ -52,7 +52,7 @@ can fill in the necessary values in the `build.gradle` file for your plugin.
 Use the system property `java.specification.version`. Version string must be a sequence
 of nonnegative decimal integers separated by "."'s and may have leading zeros.
 
-|`elasticsearch.version`    |String  | version of OpenSearch compiled against.
+|`opensearch.version`    |String  | version of OpenSearch compiled against.
 
 |=======================================================================
 
@@ -65,7 +65,7 @@ If you need other resources, package them into a resources jar.
 
 You will have to release a new version of the plugin for each new OpenSearch release.
 This version is checked when the plugin is loaded so OpenSearch will refuse to start
-in the presence of plugins with the incorrect `elasticsearch.version`.
+in the presence of plugins with the incorrect `opensearch.version`.
 
 ==============================================
 
@@ -74,7 +74,7 @@ in the presence of plugins with the incorrect `elasticsearch.version`.
 === Testing your plugin
 
 When testing a Java plugin, it will only be auto-loaded if it is in the
-`plugins/` directory.  Use `bin/elasticsearch-plugin install file:///path/to/your/plugin`
+`plugins/` directory.  Use `bin/opensearch-plugin install file:///path/to/your/plugin`
 to install your plugin for testing.
 
 You may also load your plugin within the test framework for integration tests.

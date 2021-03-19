@@ -16,7 +16,7 @@ bulkRequest.add(client.prepareIndex("twitter", "_doc", "1")
                     .startObject()
                         .field("user", "kimchy")
                         .field("postDate", new Date())
-                        .field("message", "trying out Elasticsearch")
+                        .field("message", "trying out OpenSearch")
                     .endObject()
                   )
         );
@@ -78,7 +78,7 @@ BulkProcessor bulkProcessor = BulkProcessor.builder(
             BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(100), 3)) <9>
         .build();
 --------------------------------------------------
-<1> Add your Elasticsearch client
+<1> Add your OpenSearch client
 <2> This method is called just before bulk is executed. You can for example see the numberOfActions with
     `request.numberOfActions()`
 <3> This method is called after bulk execution. You can for example check if there was some failing requests
@@ -90,7 +90,7 @@ BulkProcessor bulkProcessor = BulkProcessor.builder(
 <8> Set the number of concurrent requests. A value of 0 means that only a single request will be allowed to be
     executed. A value of 1 means 1 concurrent request is allowed to be executed while accumulating new bulk requests.
 <9> Set a custom backoff policy which will initially wait for 100ms, increase exponentially and retries up to three
-    times. A retry is attempted whenever one or more bulk item requests have failed with an `EsRejectedExecutionException`
+    times. A retry is attempted whenever one or more bulk item requests have failed with an `OpenSearchRejectedExecutionException`
     which indicates that there were too little compute resources available for processing the request. To disable backoff,
     pass `BackoffPolicy.noBackoff()`.
 
@@ -138,7 +138,7 @@ all bulk requests to complete then returns `true`; if the specified waiting time
 [[java-docs-bulk-processor-tests]]
 ==== Using Bulk Processor in tests
 
-If you are running tests with Elasticsearch and are using the `BulkProcessor` to populate your dataset
+If you are running tests with OpenSearch and are using the `BulkProcessor` to populate your dataset
 you should better set the number of concurrent requests to `0` so the flush operation of the bulk will be executed
 in a synchronous manner:
 

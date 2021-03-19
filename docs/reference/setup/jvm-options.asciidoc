@@ -11,10 +11,10 @@ files. When installing from the tar or zip distributions, the root `jvm.options`
 configuration file is `config/jvm.options` and custom JVM options files can be
 added to `config/jvm.options.d/`. When installing from the Debian or RPM
 packages, the root `jvm.options` configuration file is
-`/etc/elasticsearch/jvm.options` and custom JVM options files can be added to
-`/etc/elasticsearch/jvm.options.d/`. When using the <<docker, Docker
+`/etc/opensearch/jvm.options` and custom JVM options files can be added to
+`/etc/opensearch/jvm.options.d/`. When using the <<docker, Docker
 distribution of {opensearch}>> you can bind mount custom JVM options files into
-`/usr/share/elasticsearch/config/jvm.options.d/`. You should never need to
+`/usr/share/opensearch/config/jvm.options.d/`. You should never need to
 modify the root `jvm.options` file instead preferring to use custom JVM options
 files. The processing ordering of custom JVM options is lexicographic.
 
@@ -71,7 +71,7 @@ An alternative mechanism for setting Java Virtual Machine options is via the
 [source,sh]
 ---------------------------------
 export OPENSEARCH_JAVA_OPTS="$OPENSEARCH_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
-./bin/elasticsearch
+./bin/opensearch
 ---------------------------------
 
 When using the RPM or Debian packages, `OPENSEARCH_JAVA_OPTS` can be specified in the

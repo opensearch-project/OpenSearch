@@ -101,7 +101,7 @@ network.host: _gce_
 * Create Google Compute Engine instance (with compute rw permissions)
 * Install OpenSearch
 * Install Google Compute Engine Cloud plugin
-* Modify `elasticsearch.yml` file
+* Modify `opensearch.yml` file
 * Start OpenSearch
 
 [[discovery-gce-usage-long]]
@@ -113,14 +113,14 @@ network.host: _gce_
 
 Before starting, you need:
 
-* Your project ID, e.g. `es-cloud`. Get it from https://code.google.com/apis/console/[Google API Console].
+* Your project ID, e.g. `opensearch-cloud`. Get it from https://code.google.com/apis/console/[Google API Console].
 * To install https://developers.google.com/cloud/sdk/[Google Cloud SDK]
 
 If you did not set it yet, you can define your default project you will work on:
 
 [source,sh]
 --------------------------------------------------
-gcloud config set project es-cloud
+gcloud config set project opensearch-cloud
 --------------------------------------------------
 
 [[discovery-gce-usage-long-login]]
@@ -151,7 +151,7 @@ When done, a report like this one should appears:
 
 [source,text]
 --------------------------------------------------
-Created [https://www.googleapis.com/compute/v1/projects/es-cloud-1070/zones/us-central1-f/instances/myesnode1].
+Created [https://www.googleapis.com/compute/v1/projects/opensearch-cloud-1070/zones/us-central1-f/instances/myesnode1].
 NAME      ZONE          MACHINE_TYPE  PREEMPTIBLE INTERNAL_IP   EXTERNAL_IP   STATUS
 myesnode1 us-central1-f n1-standard-1             10.240.133.54 104.197.94.25 RUNNING
 --------------------------------------------------
@@ -192,14 +192,14 @@ Install the plugin:
 [source,sh]
 --------------------------------------------------
 # Use Plugin Manager to install it
-sudo bin/elasticsearch-plugin install discovery-gce
+sudo bin/opensearch-plugin install discovery-gce
 --------------------------------------------------
 
-Open the `elasticsearch.yml` file:
+Open the `opensearch.yml` file:
 
 [source,sh]
 --------------------------------------------------
-sudo vi /etc/elasticsearch/elasticsearch.yml
+sudo vi /etc/opensearch/opensearch.yml
 --------------------------------------------------
 
 And add the following lines:
@@ -208,7 +208,7 @@ And add the following lines:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
+      project_id: opensearch-cloud
       zone: europe-west1-a
 discovery:
       seed_providers: gce
@@ -219,21 +219,21 @@ Start OpenSearch:
 
 [source,sh]
 --------------------------------------------------
-sudo /etc/init.d/elasticsearch start
+sudo /etc/init.d/opensearch start
 --------------------------------------------------
 
 If anything goes wrong, you should check logs:
 
 [source,sh]
 --------------------------------------------------
-tail -f /var/log/elasticsearch/elasticsearch.log
+tail -f /var/log/opensearch/opensearch.log
 --------------------------------------------------
 
 If needed, you can change log level to `trace` by opening `log4j2.properties`:
 
 [source,sh]
 --------------------------------------------------
-sudo vi /etc/elasticsearch/log4j2.properties
+sudo vi /etc/opensearch/log4j2.properties
 --------------------------------------------------
 
 and adding the following line:
@@ -265,14 +265,14 @@ ls /tmp
 e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
 
 # Upload your image to Google Cloud Storage:
-# Create a bucket to hold your image, let's say `esimage`:
-gsutil mb gs://esimage
+# Create a bucket to hold your image, let's say `opensearchimage`:
+gsutil mb gs://opensearchimage
 
 # Copy your image to this bucket:
-gsutil cp /tmp/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz gs://esimage
+gsutil cp /tmp/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz gs://opensearchimage
 
 # Then add your image to images collection:
-gcloud compute images create elasticsearch-2-0-0 --source-uri gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
+gcloud compute images create elasticsearch-2-0-0 --source-uri gs://opensearchimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
 
 # If the previous command did not work for you, logout from your instance
 # and launch the same command from your local machine.
@@ -285,11 +285,11 @@ As you have now an image, you can create as many instances as you need:
 
 [source,sh]
 --------------------------------------------------
-# Just change node name (here myesnode2)
-gcloud compute instances create myesnode2 --image elasticsearch-2-0-0 --zone europe-west1-a
+# Just change node name (here myopensearchnode2)
+gcloud compute instances create myopensearchnode2 --image opensearch-2-0-0 --zone europe-west1-a
 
 # If you want to provide all details directly, you can use:
-gcloud compute instances create myesnode2 --image=elasticsearch-2-0-0 \
+gcloud compute instances create myopensearchnode2 --image=opensearch-2-0-0 \
        --zone europe-west1-a --machine-type f1-micro --scopes=compute-rw
 --------------------------------------------------
 
@@ -301,11 +301,11 @@ You can use https://cloud.google.com/console[Google Cloud Console] or CLI to man
 [source,sh]
 --------------------------------------------------
 # Stopping and removing instances
-gcloud compute instances delete myesnode1 myesnode2 \
+gcloud compute instances delete myopensearchnode1 myopensearchnode2 \
        --zone=europe-west1-a
 
 # Consider removing disk as well if you don't need them anymore
-gcloud compute disks delete boot-myesnode1 boot-myesnode2  \
+gcloud compute disks delete boot-myopensearchnode1 boot-myopensearchnode2  \
        --zone=europe-west1-a
 --------------------------------------------------
 
@@ -346,23 +346,23 @@ Add your tag when building the new instance:
 
 [source,sh]
 --------------------------------------------------
-gcloud compute instances create myesnode1 --project=es-cloud \
+gcloud compute instances create myesnode1 --project=opensearch-cloud \
        --scopes=compute-rw \
        --tags=elasticsearch,dev
 --------------------------------------------------
 
-Then, define it in `elasticsearch.yml`:
+Then, define it in `opensearch.yml`:
 
 [source,yaml]
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
+      project_id: opensearch-cloud
       zone: europe-west1-a
 discovery:
       seed_providers: gce
       gce:
-            tags: elasticsearch, dev
+            tags: opensearch, dev
 --------------------------------------------------
 
 [[discovery-gce-usage-port]]
@@ -410,7 +410,7 @@ If you don't want to repeat the project id each time, you can save it in the loc
 
 [source,sh]
 --------------------------------------------------
-gcloud config set project es-cloud
+gcloud config set project opensearch-cloud
 --------------------------------------------------
 
 [[discovery-gce-usage-tips-permissions]]
@@ -472,7 +472,7 @@ elasticsearch.yml with the following content:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
+      project_id: opensearch-cloud
       zone: europe-west1-a
 discovery:
       seed_providers: gce
@@ -484,5 +484,5 @@ To run test:
 
 [source,sh]
 --------------------------------------------------
-mvn -Dtests.gce=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
+mvn -Dtests.gce=true -Dtests.config=/path/to/config/file/opensearch.yml clean test
 --------------------------------------------------

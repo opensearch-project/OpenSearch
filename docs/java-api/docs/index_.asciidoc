@@ -38,7 +38,7 @@ dates according to the
 String json = "{" +
         "\"user\":\"kimchy\"," +
         "\"postDate\":\"2013-01-30\"," +
-        "\"message\":\"trying out Elasticsearch\"" +
+        "\"message\":\"trying out OpenSearch\"" +
     "}";
 --------------------------------------------------
 
@@ -53,7 +53,7 @@ Map is a key:values pair collection. It represents a JSON structure:
 Map<String, Object> json = new HashMap<String, Object>();
 json.put("user","kimchy");
 json.put("postDate",new Date());
-json.put("message","trying out Elasticsearch");
+json.put("message","trying out OpenSearch");
 --------------------------------------------------
 
 
@@ -77,9 +77,9 @@ byte[] json = mapper.writeValueAsBytes(yourbeaninstance);
 
 
 [[java-docs-index-generate-helpers]]
-===== Use Elasticsearch helpers
+===== Use OpenSearch helpers
 
-Elasticsearch provides built-in helpers to generate JSON content.
+OpenSearch provides built-in helpers to generate JSON content.
 
 [source,java]
 --------------------------------------------------
@@ -89,7 +89,7 @@ XContentBuilder builder = jsonBuilder()
     .startObject()
         .field("user", "kimchy")
         .field("postDate", new Date())
-        .field("message", "trying out Elasticsearch")
+        .field("message", "trying out OpenSearch")
     .endObject()
 --------------------------------------------------
 
@@ -124,7 +124,7 @@ IndexResponse response = client.prepareIndex("twitter", "_doc", "1")
                     .startObject()
                         .field("user", "kimchy")
                         .field("postDate", new Date())
-                        .field("message", "trying out Elasticsearch")
+                        .field("message", "trying out OpenSearch")
                     .endObject()
                   )
         .get();
@@ -138,7 +138,7 @@ don't have to give an ID:
 String json = "{" +
         "\"user\":\"kimchy\"," +
         "\"postDate\":\"2013-01-30\"," +
-        "\"message\":\"trying out Elasticsearch\"" +
+        "\"message\":\"trying out OpenSearch\"" +
     "}";
 
 IndexResponse response = client.prepareIndex("twitter", "_doc")

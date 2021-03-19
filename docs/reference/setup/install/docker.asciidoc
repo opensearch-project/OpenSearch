@@ -86,7 +86,7 @@ include::docker-compose.yml[]
 endif::[]
 
 This sample Docker Compose file brings up a three-node {opensearch} cluster.
-Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
+Node `opensearch01` listens on `localhost:9200` and `opensearch02` and `opensearch03` talk to `opensearch01` over a Docker network.
 
 Please note that this configuration exposes port 9200 on all network interfaces, and given how
 Docker manipulates `iptables` on Linux, this means that your {opensearch} cluster is publically accessible,

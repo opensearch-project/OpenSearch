@@ -8,7 +8,7 @@ seconds. OpenSearch overrides this behavior with default values to cache
 positive lookups for sixty seconds, and to cache negative lookups for ten
 seconds. These values should be suitable for most environments, including
 environments where DNS resolutions vary with time. If not, you can edit the
-values `es.networkaddress.cache.ttl` and `es.networkaddress.cache.negative.ttl`
+values `opensearch.networkaddress.cache.ttl` and `opensearch.networkaddress.cache.negative.ttl`
 in the <<jvm-options,JVM options>>. Note that the values
 https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`]
 and
@@ -16,4 +16,4 @@ https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`netw
 in the
 https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
 security policy] are ignored by OpenSearch unless you remove the settings for
-`es.networkaddress.cache.ttl` and `es.networkaddress.cache.negative.ttl`.
+`opensearch.networkaddress.cache.ttl` and `opensearch.networkaddress.cache.negative.ttl`.

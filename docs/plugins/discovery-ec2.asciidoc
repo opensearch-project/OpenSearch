@@ -47,8 +47,8 @@ the keystore by running the following commands:
 
 [source,sh]
 ----
-bin/elasticsearch-keystore add discovery.ec2.access_key
-bin/elasticsearch-keystore add discovery.ec2.secret_key
+bin/opensearch-keystore add discovery.ec2.access_key
+bin/opensearch-keystore add discovery.ec2.secret_key
 ----
 
 The available settings for the EC2 discovery plugin are as follows.
@@ -146,9 +146,9 @@ instance's address for discovery. Instances which do not have this tag set will
 be ignored by the discovery process.
 
 For example if you tag some EC2 instances with a tag named
-`elasticsearch-host-name` and set `host_type: tag:elasticsearch-host-name` then
+`opensearch-host-name` and set `host_type: tag:opensearch-host-name` then
 the `discovery-ec2` plugin will read each instance's host name from the value
-of the `elasticsearch-host-name` tag.
+of the `opensearch-host-name` tag.
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html[Read more
 about EC2 Tags].
 

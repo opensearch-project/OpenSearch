@@ -48,7 +48,7 @@ client.close();
 --------------------------------------------------
 
 Note that you have to set the cluster name if you use one different than
-"elasticsearch":
+"opensearch":
 
 [source,java]
 --------------------------------------------------

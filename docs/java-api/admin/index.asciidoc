@@ -1,7 +1,7 @@
 [[java-admin]]
 == Java API Administration
 
-Elasticsearch provides a full Java API to deal with administration tasks.
+OpenSearch provides a full Java API to deal with administration tasks.
 
 To access them, you need to call `admin()` method from a client to get an `AdminClient`:
 
