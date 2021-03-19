@@ -20,7 +20,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.IndexSettings;
 
 public class TranslogDeletionPolicies {
 

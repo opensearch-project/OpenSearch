@@ -37,10 +37,10 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
@@ -279,7 +279,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             BytesRef cBytes = new BytesRef("c");
             int n = 0;
             for (long d = start; d < end; d += anHour) {
-                docs.add(org.elasticsearch.common.collect.List.of(
+                docs.add(org.opensearch.common.collect.List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
                     new SortedSetDocValuesField("k1", aBytes),
                     new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
@@ -343,7 +343,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             List<List<IndexableField>> docs = new ArrayList<>();
             int n = 0;
             for (long d = start; d < end; d += anHour) {
-                docs.add(org.elasticsearch.common.collect.List.of(
+                docs.add(org.opensearch.common.collect.List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
                     new SortedNumericDocValuesField("n", n % 100)
                 ));

@@ -23,12 +23,12 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.IndexingMemoryController;
-import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.indices.IndicesRequestCache;
-import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.indices.IndexingMemoryController;
+import org.opensearch.indices.IndicesQueryCache;
+import org.opensearch.indices.IndicesRequestCache;
+import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.notNullValue;

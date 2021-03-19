@@ -144,9 +144,9 @@ public class BootstrapForTesting {
                 if (System.getProperty("tests.gradle") == null) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
                     addClassCodebase(codebases,"plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
-                    addClassCodebase(codebases,"opensearch-nio", "org.elasticsearch.nio.ChannelFactory");
-                    addClassCodebase(codebases, "opensearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
-                    addClassCodebase(codebases, "opensearch-rest-client", "org.elasticsearch.client.RestClient");
+                    addClassCodebase(codebases,"opensearch-nio", "org.opensearch.nio.ChannelFactory");
+                    addClassCodebase(codebases, "opensearch-secure-sm", "org.opensearch.secure_sm.SecureSM");
+                    addClassCodebase(codebases, "opensearch-rest-client", "org.opensearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 final Policy opensearchPolicy = new OpenSearchPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());

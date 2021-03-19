@@ -18,8 +18,8 @@
  */
 package org.opensearch.test;
 
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.GeoShapeFieldMapper;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 
@@ -28,7 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Some tests depend on the {@link org.elasticsearch.index.mapper.GeoShapeFieldMapper}.
+ * Some tests depend on the {@link org.opensearch.index.mapper.GeoShapeFieldMapper}.
  * This mapper is registered in the spatial-extras module, but used in many integration
  * tests in server code. The goal is to migrate all of the spatial/geo pieces to the spatial-extras
  * module such that no tests in server depend on this test plugin

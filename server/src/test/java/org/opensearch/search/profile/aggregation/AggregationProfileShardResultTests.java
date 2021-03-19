@@ -74,7 +74,7 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
         breakdown.put("timing2", 4000L);
         Map<String, Object> debug = new LinkedHashMap<>();
         debug.put("stuff", "stuff");
-        debug.put("other_stuff", org.elasticsearch.common.collect.List.of("foo", "bar"));
+        debug.put("other_stuff", org.opensearch.common.collect.List.of("foo", "bar"));
         ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug,6000L, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);

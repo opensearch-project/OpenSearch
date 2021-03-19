@@ -1020,7 +1020,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
     }
 
     @TestLogging(
-        value = "org.elasticsearch.transport.TransportService.tracer:trace",
+        value = "org.opensearch.transport.TransportService.tracer:trace",
         reason = "to ensure we log network events on TRACE level")
     public void testTracerLog() throws Exception {
         TransportRequestHandler<TransportRequest> handler = (request, channel, task) -> channel.sendResponse(new StringMessageResponse(""));
@@ -1078,23 +1078,23 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
         MockLogAppender appender = new MockLogAppender();
         try {
             appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+            Loggers.addAppender(LogManager.getLogger("org.opensearch.transport.TransportService.tracer"), appender);
             final String requestSent = ".*\\[internal:test].*sent to.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation requestSentExpectation =
                 new MockLogAppender.PatternSeenEventExpectation(
-                    "sent request", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, requestSent);
+                    "sent request", "org.opensearch.transport.TransportService.tracer", Level.TRACE, requestSent);
             final String requestReceived = ".*\\[internal:test].*received request.*";
             final MockLogAppender.LoggingExpectation requestReceivedExpectation =
                 new MockLogAppender.PatternSeenEventExpectation(
-                    "received request", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, requestReceived);
+                    "received request", "org.opensearch.transport.TransportService.tracer", Level.TRACE, requestReceived);
             final String responseSent = ".*\\[internal:test].*sent response.*";
             final MockLogAppender.LoggingExpectation responseSentExpectation =
                 new MockLogAppender.PatternSeenEventExpectation(
-                    "sent response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, responseSent);
+                    "sent response", "org.opensearch.transport.TransportService.tracer", Level.TRACE, responseSent);
             final String responseReceived = ".*\\[internal:test].*received response from.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation responseReceivedExpectation =
                 new MockLogAppender.PatternSeenEventExpectation(
-                    "received response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, responseReceived);
+                    "received response", "org.opensearch.transport.TransportService.tracer", Level.TRACE, responseReceived);
 
             appender.addExpectation(requestSentExpectation);
             appender.addExpectation(requestReceivedExpectation);
@@ -1109,12 +1109,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             final String errorResponseSent = ".*\\[internal:testError].*sent error response.*";
             final MockLogAppender.LoggingExpectation errorResponseSentExpectation =
                 new MockLogAppender.PatternSeenEventExpectation(
-                    "sent error response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, errorResponseSent);
+                    "sent error response", "org.opensearch.transport.TransportService.tracer", Level.TRACE, errorResponseSent);
 
             final String errorResponseReceived = ".*\\[internal:testError].*received response from.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation errorResponseReceivedExpectation =
                 new MockLogAppender.PatternSeenEventExpectation(
-                    "received error response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, errorResponseReceived);
+                    "received error response", "org.opensearch.transport.TransportService.tracer", Level.TRACE, errorResponseReceived);
 
             appender.addExpectation(errorResponseSentExpectation);
             appender.addExpectation(errorResponseReceivedExpectation);
@@ -1126,11 +1126,11 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             final String notSeenSent = "*[internal:testNotSeen]*sent to*";
             final MockLogAppender.LoggingExpectation notSeenSentExpectation =
                 new MockLogAppender.UnseenEventExpectation(
-                    "not seen request sent", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenSent);
+                    "not seen request sent", "org.opensearch.transport.TransportService.tracer", Level.TRACE, notSeenSent);
             final String notSeenReceived = ".*\\[internal:testNotSeen].*received request.*";
             final MockLogAppender.LoggingExpectation notSeenReceivedExpectation =
                 new MockLogAppender.PatternSeenEventExpectation(
-                    "not seen request received", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenReceived);
+                    "not seen request received", "org.opensearch.transport.TransportService.tracer", Level.TRACE, notSeenReceived);
 
             appender.addExpectation(notSeenSentExpectation);
             appender.addExpectation(notSeenReceivedExpectation);
@@ -1141,7 +1141,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
 
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+            Loggers.removeAppender(LogManager.getLogger("org.opensearch.transport.TransportService.tracer"), appender);
             appender.stop();
         }
     }

@@ -19,7 +19,7 @@
 
 package org.opensearch.common.settings;
 
-import org.elasticsearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;

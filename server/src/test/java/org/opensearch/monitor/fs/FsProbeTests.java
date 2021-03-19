@@ -21,8 +21,8 @@ package org.opensearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.collect.Tuple;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeEnvironment.NodePath;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.env.NodeEnvironment.NodePath;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

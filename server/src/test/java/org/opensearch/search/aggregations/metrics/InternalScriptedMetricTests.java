@@ -256,7 +256,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         // A single element list looks like a fully reduced agg
         InternalScriptedMetric original = new InternalScriptedMetric(
             "test",
-            org.elasticsearch.common.collect.List.of("foo"),
+            org.opensearch.common.collect.List.of("foo"),
             new Script("test"),
             null
         );
@@ -272,7 +272,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         // A multi-element list looks like a non-reduced agg
         InternalScriptedMetric unreduced = new InternalScriptedMetric(
             "test",
-            org.elasticsearch.common.collect.List.of("foo", "bar"),
+            org.opensearch.common.collect.List.of("foo", "bar"),
             new Script("test"),
             null
         );

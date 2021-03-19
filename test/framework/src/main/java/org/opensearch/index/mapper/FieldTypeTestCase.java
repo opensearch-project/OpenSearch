@@ -18,7 +18,7 @@
  */
 package org.opensearch.index.mapper;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -52,7 +52,7 @@ public abstract class FieldTypeTestCase extends OpenSearchTestCase {
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
         String field = fieldType.name();
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
+        when(mapperService.sourcePath(field)).thenReturn(org.opensearch.common.collect.Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(mapperService, null, format);
         SourceLookup lookup = new SourceLookup();

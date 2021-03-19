@@ -21,8 +21,8 @@ package org.opensearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.Nullable;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.action.support.replication.TransportWriteAction;
 
 import java.util.concurrent.CountDownLatch;
