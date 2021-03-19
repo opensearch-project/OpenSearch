@@ -36,7 +36,7 @@ import java.util.List;
 
 /**
  * This test verifies that OpenSearch can startup successfully with a custom logging config using variables introduced in
- * <code>ESJsonLayout</code>
+ * <code>OpenSearchJsonLayout</code>
  * The intention is to confirm that users can still run their OpenSearch instances with previous configurations.
  */
 public class CustomLoggingConfigIT extends OpenSearchRestTestCase {

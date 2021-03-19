@@ -62,22 +62,22 @@ import java.util.stream.Stream;
  * <p>
  * It is possible to add more or override them with <code>esmessagefield</code>
  * <code>appender.logger.layout.esmessagefields=message,took,took_millis,total_hits,types,stats,search_type,total_shards,source,id</code>
- * Each of these will be expanded into a json field with a value taken {@link ESLogMessage} field. In the example above
+ * Each of these will be expanded into a json field with a value taken {@link OpenSearchLogMessage} field. In the example above
  * <code>... "message":  %ESMessageField{message}, "took": %ESMessageField{took} ...</code>
  * the message passed to a logger will be overriden with a value from %ESMessageField{message}
  * <p>
  * The value taken from %ESMessageField{message} has to be a simple escaped JSON value and is populated in subclasses of
- * <code>ESLogMessage</code>
+ * <code>OpenSearchLogMessage</code>
  */
-@Plugin(name = "ESJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
-public class ESJsonLayout extends AbstractStringLayout {
+@Plugin(name = "OpenSearchJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
+public class OpenSearchJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
 
-    protected ESJsonLayout(String typeName, Charset charset, String[] esmessagefields) {
+    protected OpenSearchJsonLayout(String typeName, Charset charset, String[] opensearchMessageFields) {
         super(charset);
         this.patternLayout = PatternLayout.newBuilder()
-                                          .withPattern(pattern(typeName, esmessagefields))
+                                          .withPattern(pattern(typeName, opensearchMessageFields))
                                           .withAlwaysWriteExceptions(false)
                                           .build();
     }
@@ -146,18 +146,18 @@ public class ESJsonLayout extends AbstractStringLayout {
     }
 
     @PluginFactory
-    public static ESJsonLayout createLayout(String type,
-                                            Charset charset,
-                                            String[] esmessagefields) {
-        return new ESJsonLayout(type, charset, esmessagefields);
+    public static OpenSearchJsonLayout createLayout(String type,
+                                                    Charset charset,
+                                                    String[] esmessagefields) {
+        return new OpenSearchJsonLayout(type, charset, esmessagefields);
     }
 
     PatternLayout getPatternLayout() {
         return patternLayout;
     }
 
-    public static class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
-        implements org.apache.logging.log4j.core.util.Builder<ESJsonLayout> {
+    public static class Builder<B extends OpenSearchJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
+        implements org.apache.logging.log4j.core.util.Builder<OpenSearchJsonLayout> {
 
         @PluginAttribute("type_name")
         String type;
@@ -173,9 +173,9 @@ public class ESJsonLayout extends AbstractStringLayout {
         }
 
         @Override
-        public ESJsonLayout build() {
+        public OpenSearchJsonLayout build() {
             String[] split = Strings.isNullOrEmpty(esMessageFields) ? new String[]{} : esMessageFields.split(",");
-            return ESJsonLayout.createLayout(type, charset, split);
+            return OpenSearchJsonLayout.createLayout(type, charset, split);
         }
 
         public Charset getCharset() {
@@ -207,8 +207,8 @@ public class ESJsonLayout extends AbstractStringLayout {
     }
 
     @PluginBuilderFactory
-    public static <B extends ESJsonLayout.Builder<B>> B newBuilder() {
-        return new ESJsonLayout.Builder<B>().asBuilder();
+    public static <B extends OpenSearchJsonLayout.Builder<B>> B newBuilder() {
+        return new OpenSearchJsonLayout.Builder<B>().asBuilder();
     }
 
     @Override
@@ -228,7 +228,7 @@ public class ESJsonLayout extends AbstractStringLayout {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("ESJsonLayout{");
+        final StringBuilder sb = new StringBuilder("OpenSearchJsonLayout{");
         sb.append("patternLayout=").append(patternLayout);
         sb.append('}');
         return sb.toString();

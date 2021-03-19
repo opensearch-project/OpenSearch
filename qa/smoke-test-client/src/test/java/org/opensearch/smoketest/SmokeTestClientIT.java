@@ -26,7 +26,7 @@ import org.opensearch.client.Client;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class SmokeTestClientIT extends ESSmokeClientTestCase {
+public class SmokeTestClientIT extends OpenSearchSmokeClientTestCase {
 
     /**
      * Check that we are connected to a cluster named "opensearch".

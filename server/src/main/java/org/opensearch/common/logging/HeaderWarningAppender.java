@@ -40,11 +40,11 @@ public class HeaderWarningAppender extends AbstractAppender {
     public void append(LogEvent event) {
         final Message message = event.getMessage();
 
-        if (message instanceof ESLogMessage) {
-            final ESLogMessage esLogMessage = (ESLogMessage) message;
+        if (message instanceof OpenSearchLogMessage) {
+            final OpenSearchLogMessage opensearchLogMessage = (OpenSearchLogMessage) message;
 
-            String messagePattern = esLogMessage.getMessagePattern();
-            Object[] arguments = esLogMessage.getArguments();
+            String messagePattern = opensearchLogMessage.getMessagePattern();
+            Object[] arguments = opensearchLogMessage.getArguments();
 
             HeaderWarning.addWarning(messagePattern, arguments);
         } else {
