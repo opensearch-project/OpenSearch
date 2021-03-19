@@ -71,7 +71,7 @@ For Gradle:
 --------------------------------------------------
 maven {
     name "lucene-snapshots"
-    url 'https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9'
+    url 'https://s3.amazonaws.com/download.opensearch.org/lucenesnapshots/00142c9'
 }
 --------------------------------------------------
 

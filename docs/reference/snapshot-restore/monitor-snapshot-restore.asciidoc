@@ -54,7 +54,7 @@ GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
 
 This request retrieves basic information about the snapshot, including start and end time, version of
-{es} that created the snapshot, the list of included indices, the current state of the
+{opensearch} that created the snapshot, the list of included indices, the current state of the
 snapshot and the list of failures that occurred during the snapshot.
 
 Similar to repositories, you can retrieve information about multiple snapshots in a single request, and wildcards are supported:
@@ -136,11 +136,11 @@ GET /_snapshot/my_backup/snapshot_1/_status
 === Monitoring restore operations
 
 The restore process piggybacks on the standard recovery mechanism of
-{es}. As a result, standard recovery monitoring services can be used
+{opensearch}. As a result, standard recovery monitoring services can be used
 to monitor the state of restore. When the restore operation starts, the
 cluster typically goes into `yellow` state because the restore operation works
 by recovering primary shards of the restored indices. After the recovery of the
-primary shards is completed, {es} switches to the standard replication
+primary shards is completed, {opensearch} switches to the standard replication
 process that creates the required number of replicas. When all required
 replicas are created, the cluster switches to the `green` states.
 

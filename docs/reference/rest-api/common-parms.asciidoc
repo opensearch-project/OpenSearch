@@ -148,7 +148,7 @@ lower than the number of delete operations you have performed. This number
 excludes deletes that were performed recently and do not yet belong to a
 segment. Deleted documents are cleaned up by the
 <<index-modules-merge,automatic merge process>> if it makes sense to do so.
-Also, {es} creates extra deleted documents to internally track the recent
+Also, {opensearch} creates extra deleted documents to internally track the recent
 history of operations on a shard.
 end::docs-deleted[]
 
@@ -240,8 +240,8 @@ tag::flat-settings[]
 end::flat-settings[]
 
 tag::generation[]
-Generation number, such as `0`. {es} increments this generation number
-for each segment written. {es} then uses this number to derive the segment name.
+Generation number, such as `0`. {opensearch} increments this generation number
+for each segment written. {opensearch} then uses this number to derive the segment name.
 end::generation[]
 
 tag::http-format[]
@@ -257,8 +257,8 @@ tag::from[]
 end::from[]
 
 tag::generation[]
-Generation number, such as `0`. {es} increments this generation number
-for each segment written. {es} then uses this number to derive the segment name.
+Generation number, such as `0`. {opensearch} increments this generation number
+for each segment written. {opensearch} then uses this number to derive the segment name.
 end::generation[]
 
 tag::group-by[]
@@ -530,7 +530,7 @@ tag::memory[]
 Bytes of segment data stored in memory for efficient search,
 such as `1264`.
 +
-A value of `-1` indicates {es} was unable to compute this number.
+A value of `-1` indicates {opensearch} was unable to compute this number.
 end::memory[]
 
 tag::bulk-require-alias[]
@@ -642,7 +642,7 @@ end::realtime[]
 
 tag::refresh[]
 `refresh`::
-(Optional, enum) If `true`, {es} refreshes the affected shards to make this
+(Optional, enum) If `true`, {opensearch} refreshes the affected shards to make this
 operation visible to search, if `wait_for` then wait for a refresh to make
 this operation visible to search, if `false` do nothing with refreshes.
 Valid values: `true`, `false`, `wait_for`. Default: `false`.
@@ -797,7 +797,7 @@ tag::target-index[]
 (Required, string)
 Name of the target index to create.
 
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{opensearch-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 --
 end::target-index[]
 

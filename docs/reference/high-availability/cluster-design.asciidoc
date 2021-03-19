@@ -1,12 +1,12 @@
 [[high-availability-cluster-design]]
 == Designing for resilience
 
-Distributed systems like {es} are designed to keep working even if some of
+Distributed systems like {opensearch} are designed to keep working even if some of
 their components have failed. As long as there are enough well-connected
-nodes to take over their responsibilities, an {es} cluster can continue
+nodes to take over their responsibilities, an {opensearch} cluster can continue
 operating normally if some of its nodes are unavailable or disconnected.
 
-There is a limit to how small a resilient cluster can be. All {es} clusters
+There is a limit to how small a resilient cluster can be. All {opensearch} clusters
 require:
 
 * One <<modules-discovery-quorums,elected master node>> node
@@ -28,7 +28,7 @@ Similarly, redundancy of nodes of each role means that if a node for a
 particular role fails, another node can take on its responsibilities.
 
 Finally, a resilient cluster should have at least two copies of each shard. If
-one copy fails then there should be another good copy to take over. {es}
+one copy fails then there should be another good copy to take over. {opensearch}
 automatically rebuilds any failed shard copies on the remaining nodes in order
 to restore the cluster to full health after a failure.
 
@@ -37,7 +37,7 @@ after a failure the cluster must perform additional background activities to
 restore itself to health. You should make sure that your cluster has the
 capacity to handle your workload even if some nodes fail.
 
-Depending on your needs and budget, an {es} cluster can consist of a single
+Depending on your needs and budget, an {opensearch} cluster can consist of a single
 node, hundreds of nodes, or any number in between. When designing a smaller
 cluster, you should typically focus on making it resilient to single-node
 failures. Designers of larger clusters must also consider cases where multiple
@@ -58,7 +58,7 @@ as possible to the failure of an individual node.
 ==== One-node clusters
 
 If your cluster consists of one node, that single node must do everything.
-To accommodate this, {es} assigns nodes every role by default.
+To accommodate this, {opensearch} assigns nodes every role by default.
 
 A single node cluster is not resilient. If the node fails, the cluster will
 stop working. Because there are no replicas in a one-node cluster, you cannot
@@ -114,12 +114,12 @@ Because master elections are majority-based, the two-node cluster described
 above is tolerant to the loss of one of its nodes but not the
 other one. You cannot configure a two-node cluster so that it can tolerate
 the loss of _either_ node because this is theoretically impossible. You might
-expect that if either node fails then {es} can elect the remaining node as the
+expect that if either node fails then {opensearch} can elect the remaining node as the
 master, but it is impossible to tell the difference between the failure of a
 remote node and a mere loss of connectivity between the nodes. If both nodes
 were capable of running independent elections, a loss of connectivity would
 lead to a {wikipedia}/Split-brain_(computing)[split-brain
-problem] and therefore data loss. {es} avoids this and
+problem] and therefore data loss. {opensearch} avoids this and
 protects your data by electing neither node as master until that node can be
 sure that it has the latest cluster state and that there is no other master in
 the cluster. This could result in the cluster having no master until
@@ -211,10 +211,10 @@ infrastructure and ensure that such a failure would not affect too many of your
 nodes. It is common practice to group all the nodes sharing some infrastructure
 into _zones_ and to plan for the failure of any whole zone at once.
 
-Your cluster’s zones should all be contained within a single data centre. {es}
+Your cluster’s zones should all be contained within a single data centre. {opensearch}
 expects its node-to-node connections to be reliable and have low latency and
 high bandwidth. Connections between data centres typically do not meet these
-expectations. Although {es} will behave correctly on an unreliable or slow
+expectations. Although {opensearch} will behave correctly on an unreliable or slow
 network, it will not necessarily behave optimally. It may take a considerable
 length of time for a cluster to fully recover from a network partition since it
 must resynchronize any missing data and rebalance the cluster once the
@@ -264,13 +264,13 @@ The two-zone deployment described above is tolerant to the loss of one of its
 zones but not to the loss of the other one because master elections are
 majority-based. You cannot configure a two-zone cluster so that it can tolerate
 the loss of _either_ zone because this is theoretically impossible. You might
-expect that if either zone fails then {es} can elect a node from the remaining
+expect that if either zone fails then {opensearch} can elect a node from the remaining
 zone as the master but it is impossible to tell the difference between the
 failure of a remote zone and a mere loss of connectivity between the zones. If
 both zones were capable of running independent elections then a loss of
 connectivity would lead to a
 {wikipedia}/Split-brain_(computing)[split-brain problem] and
-therefore data loss. {es} avoids this and protects your data by not electing
+therefore data loss. {opensearch} avoids this and protects your data by not electing
 a node from either zone as master until that node can be sure that it has the
 latest cluster state and that there is no other master in the cluster. This may
 mean there is no master at all until connectivity is restored.

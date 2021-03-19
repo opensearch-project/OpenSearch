@@ -1,9 +1,9 @@
 [[search-shard-routing]]
 == Search shard routing
 
-To protect against hardware failure and increase search capacity, {es} can store
+To protect against hardware failure and increase search capacity, {opensearch} can store
 copies of an index's data across multiple shards on multiple nodes. When running
-a search request, {es} selects a node containing a copy of the index's data and
+a search request, {opensearch} selects a node containing a copy of the index's data and
 forwards the search request to that node's shards. This process is known as
 _search shard routing_ or _routing_.
 
@@ -11,7 +11,7 @@ _search shard routing_ or _routing_.
 [[search-adaptive-replica]]
 === Adaptive replica selection
 
-By default, {es} uses _adaptive replica selection_ to route search requests.
+By default, {opensearch} uses _adaptive replica selection_ to route search requests.
 This method selects an eligible node using <<shard-allocation-awareness,shard
 allocation awareness>> and the following criteria:
 
@@ -23,7 +23,7 @@ and the eligible node
 Adaptive replica selection is designed to decrease search latency. However, you
 can disable adaptive replica selection by setting
 `cluster.routing.use_adaptive_replica_selection` to `false` using the
-<<cluster-update-settings,cluster settings API>>. If disabled, {es} routes
+<<cluster-update-settings,cluster settings API>>. If disabled, {opensearch} routes
 search requests using a round-robin method, which may result in slower searches.
 
 [discrete]
@@ -91,7 +91,7 @@ GET /my-index-000001/_search?preference=my-custom-shard-string
 NOTE: If the cluster state or selected shards change, the same `preference`
 string may not route searches to the same shards in the same order. This can
 occur for a number of reasons, including shard relocations and shard failures. A
-node can also reject a search request, which {es} would re-route to another
+node can also reject a search request, which {opensearch} would re-route to another
 node.
 
 [discrete]
@@ -153,7 +153,7 @@ GET /my-index-000001/_search?routing=my-routing-value,my-routing-value-2
 [[search-concurrency-and-parallelism]]
 === Search concurrency and parallelism
 
-By default, {es} doesn't reject search requests based on the number of shards
+By default, {opensearch} doesn't reject search requests based on the number of shards
 the request hits. However, hitting a large number of shards can significantly
 increase CPU and memory usage.
 

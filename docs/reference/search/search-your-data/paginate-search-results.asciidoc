@@ -42,7 +42,7 @@ As an alternative to deep paging, we recommend using
 <<scroll-search-results,scroll>> or the
 <<search-after,`search_after`>> parameter.
 
-WARNING: {es} uses Lucene's internal doc IDs as tie-breakers. These internal
+WARNING: {opensearch} uses Lucene's internal doc IDs as tie-breakers. These internal
 doc IDs can be completely different across replicas of the same
 data. When paginating, you might occasionally see that documents with the same
 sort values are not ordered consistently.
@@ -159,7 +159,7 @@ GET /_search?scroll=1m
 A scroll returns all the documents which matched the search at the time of the
 initial search request. It ignores any subsequent changes to these documents.
 The `scroll_id` identifies a _search context_ which keeps track of everything
-that {es} needs to return the correct documents. The search context is created
+that {opensearch} needs to return the correct documents. The search context is created
 by the initial request and kept alive by subsequent requests.
 
 The `scroll` parameter (passed to the `search` request and to every `scroll`

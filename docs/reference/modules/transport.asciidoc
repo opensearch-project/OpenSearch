@@ -1,13 +1,13 @@
 [[modules-transport]]
 === Transport
 
-REST clients send requests to your {es} cluster over <<modules-http,HTTP>>, but
+REST clients send requests to your {opensearch} cluster over <<modules-http,HTTP>>, but
 the node that receives a client request cannot always handle it alone and must
 normally pass it on to other nodes for further processing. It does this using
 the transport networking layer. The transport layer is used for all internal
 communication between nodes within a cluster, all communication with the nodes
 of a <<modules-remote-clusters,remote cluster>>, and also by the
-`TransportClient` in the {es} Java API.
+`TransportClient` in the {opensearch} Java API.
 
 [[transport-settings]]
 ==== Transport settings
@@ -180,9 +180,9 @@ request compression, you can set it on a per-remote cluster basis using the
 [[response-compression]]
 ===== Response compression
 
-The compression settings do not configure compression for responses. {es} will
+The compression settings do not configure compression for responses. {opensearch} will
 compress a response if the inbound request was compressed--even when compression
-is not enabled. Similarly, {es} will not compress a response if the inbound
+is not enabled. Similarly, {opensearch} will not compress a response if the inbound
 request was uncompressed--even when compression is enabled.
 
 

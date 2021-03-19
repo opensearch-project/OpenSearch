@@ -18,7 +18,7 @@ NOTE: All changes to configuration files are done by manually editing the files
 or using command line utilities, but *not* through APIs. In practice, these
 changes are infrequent after the initial setup.
 
-We recommend that you take regular (ideally, daily) backups of your {es} config
+We recommend that you take regular (ideally, daily) backups of your {opensearch} config
 (`$OPENSEARCH_PATH_CONF`) directory using the file backup software of your choice.
 
 TIP: We recommend that you have a configuration management plan for these
@@ -49,7 +49,7 @@ configuration files.
 
 * Transient settings are not considered for backup.
 * Other OpenSearch components, like OpenSearch Dashboards, store their configuration
-data inside other dedicated indices. From the {es} perspective these are just data
+data inside other dedicated indices. From the {opensearch} perspective these are just data
 so you can use the regular <<backup-cluster-data, data backup>> process.
 
 ====

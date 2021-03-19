@@ -2,7 +2,7 @@
 === Japanese (kuromoji) Analysis Plugin
 
 The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis
-module into {es}.
+module into {opensearch}.
 
 :plugin_name: analysis-kuromoji
 include::install_remove.asciidoc[]

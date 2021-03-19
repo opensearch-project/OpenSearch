@@ -3,7 +3,7 @@
 === Path settings
 
 For <<targz,macOS `.tar.gz`>>, <<targz,Linux `.tar.gz`>>, and
-<<zip-windows,Windows `.zip`>> installations, {es} writes data and logs to the
+<<zip-windows,Windows `.zip`>> installations, {opensearch} writes data and logs to the
 respective `data` and `logs` subdirectories of `$OPENSEARCH_HOME` by default.
 However, files in `$OPENSEARCH_HOME` risk deletion during an upgrade.
 
@@ -15,18 +15,18 @@ installations write data and log to locations outside of `$OPENSEARCH_HOME` by d
 
 Supported `path.data` and `path.logs` values vary by platform:
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
+include::{opensearch-repo-dir}/tab-widgets/code.asciidoc[]
 
-include::{es-repo-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]
+include::{opensearch-repo-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]
 
-If needed, you can specify multiple paths in `path.data`. {es} stores the node's
+If needed, you can specify multiple paths in `path.data`. {opensearch} stores the node's
 data across all provided paths but keeps each shard's data on the same path.
 
-WARNING: {es} does not balance shards across a node's data paths. High disk
+WARNING: {opensearch} does not balance shards across a node's data paths. High disk
 usage in a single path can trigger a <<disk-based-shard-allocation,high disk
-usage watermark>> for the entire node. If triggered, {es} will not add shards to
+usage watermark>> for the entire node. If triggered, {opensearch} will not add shards to
 the node, even if the node’s other paths have available disk space. If you need
 additional disk space, we recommend you add a new node rather than additional
 data paths. 
 
-include::{es-repo-dir}/tab-widgets/multi-data-path-widget.asciidoc[]
+include::{opensearch-repo-dir}/tab-widgets/multi-data-path-widget.asciidoc[]

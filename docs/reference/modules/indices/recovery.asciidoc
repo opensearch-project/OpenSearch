@@ -3,7 +3,7 @@
 
 Peer recovery syncs data from a primary shard to a new or existing shard copy.
 
-Peer recovery automatically occurs when {es}:
+Peer recovery automatically occurs when {opensearch}:
 
 * Recreates a shard lost during node failure
 * Relocates a shard to another node due to a cluster rebalance or changes to the

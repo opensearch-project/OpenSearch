@@ -4,8 +4,8 @@
 [partintro]
 --
 Your data is important to you. Keeping it safe and available is important
-to {es}. Sometimes your cluster may experience hardware failure or a power
-loss. To help you plan for this, {es} offers a number of features
+to {opensearch}. Sometimes your cluster may experience hardware failure or a power
+loss. To help you plan for this, {opensearch} offers a number of features
 to achieve high availability despite failures.
 
 * With proper planning, a cluster can be

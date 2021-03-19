@@ -1,9 +1,9 @@
 [[setup-upgrade]]
-= Upgrade {es}
+= Upgrade {opensearch}
 
 [partintro]
 --
-{es} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
+{opensearch} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
 process so upgrading does not interrupt service. Rolling upgrades are supported:
 
 * Between minor versions
@@ -46,20 +46,21 @@ endif::[]
 |6.0–6.7
 a|
 
-. https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
+// TODO(OpenSearch): Correct the website url in this page
+. https://www.opensearch.org/guide/en/opensearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
 . <<rolling-upgrades,Rolling upgrade>> to {version}
 
 |5.6
 a|
 
-. https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
+. https://www.opensearch.org/guide/en/opensearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
 . <<rolling-upgrades,Rolling upgrade>> to {version}
 
 |5.0–5.5
 a|
 
-. https://www.elastic.co/guide/en/elasticsearch/reference/5.6/rolling-upgrades.html[Rolling upgrade] to 5.6
-. https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
+. https://www.opensearch.org/guide/en/opensearch/reference/5.6/rolling-upgrades.html[Rolling upgrade] to 5.6
+. https://www.opensearch.org/guide/en/opensearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
 . <<rolling-upgrades,Rolling upgrade>> to {version}
 |====
 
@@ -80,9 +81,9 @@ earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
 to the version upgrade.
 ====
 
-{es} can read indices created in the previous major version. If you
+{opensearch} can read indices created in the previous major version. If you
 have indices created in 5.x or before, you must reindex or delete them
-before upgrading to {version}. {es} nodes will fail to start if
+before upgrading to {version}. {opensearch} nodes will fail to start if
 incompatible indices are present. Snapshots of 5.x or earlier indices cannot be
 restored to a 7.x cluster even if they were created by a 6.x cluster. For
 information about upgrading old indices, see <<reindex-upgrade, Reindex to upgrade>>.

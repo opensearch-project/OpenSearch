@@ -88,7 +88,7 @@ curly brackets `"{{ }}"`. For example, `{{_index}}` retrieves the name of a
 document's index.
 
 WARNING: If you <<create-document-ids-automatically,automatically generate>>
-document IDs, you cannot use the `{{_id}}` value in an ingest processor. {es}
+document IDs, you cannot use the `{{_id}}` value in an ingest processor. {opensearch}
 assigns auto-generated `_id` values after ingest.
 
 [discrete]
@@ -613,7 +613,7 @@ PUT _ingest/pipeline/check_url
 POST test/_doc/1?pipeline=check_url
 {
   "href": {
-    "url": "http://www.elastic.co/"
+    "url": "http://www.opensearch.org/"
   }
 }
 --------------------------------------------------
@@ -643,7 +643,7 @@ GET test/_doc/1
   "_source": {
     "href": {
       "insecure": true,
-      "url": "http://www.elastic.co/"
+      "url": "http://www.opensearch.org/"
     }
   }
 }

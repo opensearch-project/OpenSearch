@@ -81,7 +81,7 @@ Transport statistics about sent and received bytes in cluster communication.
 ====
 
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-info-api-response-body]]
@@ -112,7 +112,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 		Host and port where transport HTTP connections are accepted.
 
 `version`::
-		{es} version running on this node.
+		{opensearch} version running on this node.
 
 The `os` flag can be set to retrieve information that concern the operating
 system:
@@ -154,9 +154,9 @@ running process:
 [[cluster-nodes-info-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[cluster-nodes-info-api-example]]
@@ -206,7 +206,7 @@ The API returns the following response:
     "USpTGYaBSIKbgSUJR2Z9lg": {
       "name": "node-0",
       "transport_address": "192.168.17:9300",
-      "host": "node-0.elastic.co",
+      "host": "node-0.opensearch.org",
       "ip": "192.168.17",
       "version": "{version}",
       "build_type": "{build_type}",
@@ -244,7 +244,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"USpTGYaBSIKbgSUJR2Z9lg"/\$node_name/]
 // TESTRESPONSE[s/"name": "node-0"/"name": $body.$_path/]
 // TESTRESPONSE[s/"transport_address": "192.168.17:9300"/"transport_address": $body.$_path/]
-// TESTRESPONSE[s/"host": "node-0.elastic.co"/"host": $body.$_path/]
+// TESTRESPONSE[s/"host": "node-0.opensearch.org"/"host": $body.$_path/]
 // TESTRESPONSE[s/"ip": "192.168.17"/"ip": $body.$_path/]
 // TESTRESPONSE[s/"build_hash": "587409e"/"build_hash": $body.$_path/]
 // TESTRESPONSE[s/"roles": \[[^\]]*\]/"roles": $body.$_path/]
@@ -276,7 +276,7 @@ The API returns the following response:
     "USpTGYaBSIKbgSUJR2Z9lg": {
       "name": "node-0",
       "transport_address": "192.168.17:9300",
-      "host": "node-0.elastic.co",
+      "host": "node-0.opensearch.org",
       "ip": "192.168.17",
       "version": "{version}",
       "build_type": "{build_type}",
@@ -338,7 +338,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"USpTGYaBSIKbgSUJR2Z9lg"/\$node_name/]
 // TESTRESPONSE[s/"name": "node-0"/"name": $body.$_path/]
 // TESTRESPONSE[s/"transport_address": "192.168.17:9300"/"transport_address": $body.$_path/]
-// TESTRESPONSE[s/"host": "node-0.elastic.co"/"host": $body.$_path/]
+// TESTRESPONSE[s/"host": "node-0.opensearch.org"/"host": $body.$_path/]
 // TESTRESPONSE[s/"ip": "192.168.17"/"ip": $body.$_path/]
 // TESTRESPONSE[s/"build_hash": "587409e"/"build_hash": $body.$_path/]
 // TESTRESPONSE[s/"roles": \[[^\]]*\]/"roles": $body.$_path/]

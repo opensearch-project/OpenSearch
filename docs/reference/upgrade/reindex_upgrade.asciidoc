@@ -1,9 +1,9 @@
 [[reindex-upgrade]]
 == Reindex before upgrading
 
-{es} can read indices created in the previous major version. If you
+{opensearch} can read indices created in the previous major version. If you
 have indices created in 5.x or before, you must reindex or delete them
-before upgrading to {version}. {es} nodes will fail to start if
+before upgrading to {version}. {opensearch} nodes will fail to start if
 incompatible indices are present. Snapshots of 5.x or earlier indices cannot be
 restored to a 7.x cluster even if they were created by a 6.x cluster.
 Any index created in 6.x is compatible with 7.x and does not require a reindex.
@@ -17,7 +17,7 @@ You have two options for reindexing old indices:
 
 * <<reindex-upgrade-inplace, Reindex in place>> on your 6.x cluster before upgrading.
 * Create a new {version} cluster and <<reindex-upgrade-remote, Reindex from remote>>.
-This enables you to reindex indices that reside on clusters running any version of {es}.
+This enables you to reindex indices that reside on clusters running any version of {opensearch}.
 
 .Upgrading time-based indices
 *******************************************
@@ -66,12 +66,12 @@ your old cluster to a new {version} cluster. This enables you to move to
 [WARNING]
 =============================================
 
-{es} provides backwards compatibility support that enables
+{opensearch} provides backwards compatibility support that enables
 indices from the previous major version to be upgraded to the
 current major version. Skipping a major version means that you must
 resolve any backward compatibility issues yourself.
 
-{es} does not support forward compatibility across major versions.
+{opensearch} does not support forward compatibility across major versions.
 For example, you cannot reindex from a 7.x cluster into a 6.x cluster.
 
 =============================================

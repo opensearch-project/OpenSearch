@@ -1,62 +1,63 @@
 [[getting-started]]
-= Getting started with {es}
+= Getting started with {opensearch}
 
 [partintro]
 --
-Ready to take {es} for a test drive and see for yourself how you can use the
+Ready to take {opensearch} for a test drive and see for yourself how you can use the
 REST APIs to store, search, and analyze data?
 
 Step through this getting started tutorial to:
 
-. Get an {es} cluster up and running
+. Get an {opensearch} cluster up and running
 . Index some sample documents
-. Search for documents using the {es} query language
+. Search for documents using the {opensearch} query language
 . Analyze the results using bucket and metrics aggregations
 
 
 Need more context?
 
 Check out the <<opensearch-intro,
-{es} Introduction>> to learn the lingo and understand the basics of
-how {es} works.
+{opensearch} Introduction>> to learn the lingo and understand the basics of
+how {opensearch} works.
 --
 
 [[getting-started-install]]
-== Get {es} up and running
+== Get {opensearch} up and running
 
-To take {es} for a test drive, you can set up a multi-node {es} cluster on your own
+To take {opensearch} for a test drive, you can set up a multi-node {opensearch} cluster on your own
 Linux, macOS, or Windows machine.
 
 [discrete]
 [[run-elasticsearch-local]]
-=== Run {es} locally on Linux, macOS, or Windows
+=== Run {opensearch} locally on Linux, macOS, or Windows
 
 By installing from the tar or zip 
-archive, you can start multiple instances of {es} locally to see how a multi-node 
+archive, you can start multiple instances of {opensearch} locally to see how a multi-node 
 cluster behaves.
 
-To run a three-node {es} cluster locally:
+To run a three-node {opensearch} cluster locally:
 
-. Download the {es} archive for your OS:
+// TODO(OpenSearch): Correct the website url in this page
+. Download the {opensearch} archive for your OS:
 +
-Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz[elasticsearch-{version}-linux-x86_64.tar.gz]
+Linux: https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-linux-x86_64.tar.gz[opensearch-{version}-linux-x86_64.tar.gz]
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
+curl -L -O https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
 // NOTCONSOLE
 +
-macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz[elasticsearch-{version}-darwin-x86_64.tar.gz]
+macOS: https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-darwin-x86_64.tar.gz[opensearch-{version}-darwin-x86_64.tar.gz]
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
+curl -L -O https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-darwin-x86_64.tar.gz
 --------------------------------------------------
 // NOTCONSOLE
 +
 Windows:
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip[elasticsearch-{version}-windows-x86_64.zip]
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-windows-x86_64.zip[opensearch-{version}-windows-x86_64.zip]
 
 . Extract the archive:
 +
@@ -81,7 +82,7 @@ Windows PowerShell:
 Expand-Archive opensearch-{version}-windows-x86_64.zip
 --------------------------------------------------
 
-. Start {es} from the `bin` directory:
+. Start {opensearch} from the `bin` directory:
 +
 Linux and macOS:
 +
@@ -99,9 +100,9 @@ cd opensearch-{version}\bin
 .\opensearch.bat
 --------------------------------------------------
 +
-You now have a single-node {es} cluster up and running!
+You now have a single-node {opensearch} cluster up and running!
 
-. Start two more instances of {es} so you can see how a typical multi-node
+. Start two more instances of {opensearch} so you can see how a typical multi-node
 cluster behaves. You need to specify unique data and log paths
 for each node.
 +
@@ -129,12 +130,12 @@ The cat APIs return information about your cluster and indices in a
 format that's easier to read than raw JSON.
 +
 You can interact directly with your cluster by submitting HTTP requests to
-the {es} REST API. If you have OpenSearch Dashboards installed and running, you can also
+the {opensearch} REST API. If you have OpenSearch Dashboards installed and running, you can also
 open OpenSearch Dashboards and submit requests through the Dev Console.
 +
 TIP: You'll want to check out the
-https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
-clients] when you're ready to start using {es} in your own applications.
+https://www.opensearch.org/guide/en/opensearch/client/index.html[{opensearch} language
+clients] when you're ready to start using {opensearch} in your own applications.
 +
 [source,console]
 --------------------------------------------------
@@ -155,17 +156,17 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 // TESTRESPONSE[non_json]
 +
 NOTE: The cluster status will remain yellow if you are only running a single
-instance of {es}. A single node cluster is fully functional, but data
+instance of {opensearch}. A single node cluster is fully functional, but data
 cannot be replicated to another node to provide resiliency. Replica shards must
 be available for the cluster status to be green. If the cluster status is red,
 some data is unavailable.
 
 [discrete]
 [[gs-curl]]
-=== Talking to {es} with cURL commands
+=== Talking to {opensearch} with cURL commands
 
 Most of the examples in this guide enable you to copy the appropriate cURL
-command and submit the request to your local {es} instance from the command line.
+command and submit the request to your local {opensearch} instance from the command line.
 
 A request to OpenSearch consists of the same parts as any HTTP request:
 
@@ -180,26 +181,26 @@ This example uses the following variables:
 `<VERB>`:: The appropriate HTTP method or verb. For example, `GET`, `POST`,
 `PUT`, `HEAD`, or `DELETE`.
 `<PROTOCOL>`:: Either `http` or `https`. Use the latter if you have an HTTPS
-proxy in front of {es}.
-`<HOST>`:: The hostname of any node in your {es} cluster. Alternatively, use
+proxy in front of {opensearch}.
+`<HOST>`:: The hostname of any node in your {opensearch} cluster. Alternatively, use
 +localhost+ for a node on your local machine.
-`<PORT>`:: The port running the {es} HTTP service, which defaults to `9200`.
+`<PORT>`:: The port running the {opensearch} HTTP service, which defaults to `9200`.
 `<PATH>`:: The API endpoint, which can contain multiple components, such as
 `_cluster/stats` or `_nodes/stats/jvm`.
 `<QUERY_STRING>`:: Any optional query-string parameters. For example, `?pretty`
 will _pretty-print_  the JSON response to make it easier to read.
 `<BODY>`:: A JSON-encoded request body (if necessary).
 
-{es} responds to each API request with an HTTP status code like `200 OK`. With
+{opensearch} responds to each API request with an HTTP status code like `200 OK`. With
 the exception of `HEAD` requests, it also returns a JSON-encoded response body. 
 
 [discrete]
 [[gs-other-install]]
 === Other installation options
 
-Installing {es} from an archive file enables you to easily install and run
+Installing {opensearch} from an archive file enables you to easily install and run
 multiple instances locally so you can try things out. To run a single instance,
-you can  run {es} in a Docker container, install {es} using the DEB or RPM
+you can  run {opensearch} in a Docker container, install {opensearch} using the DEB or RPM
 packages on Linux, install using Homebrew on macOS, or install using the zip
 package on Windows. See <<install-opensearch>> for more information.
 
@@ -207,8 +208,8 @@ package on Windows. See <<install-opensearch>> for more information.
 == Index some documents
 
 Once you have a cluster up and running, you're ready to index some data.
-There are a variety of ingest options for {es}, but in the end they all
-do the same thing: put JSON documents into an {es} index.
+There are a variety of ingest options for {opensearch}, but in the end they all
+do the same thing: put JSON documents into an {opensearch} index.
 
 You can do this directly with a simple PUT request that specifies
 the index you want to add the document, a unique document ID, and one or more
@@ -293,7 +294,7 @@ The optimal batch size depends on a number of factors: the document size and com
 and a total payload between 5MB and 15MB. From there, you can experiment
 to find the sweet spot.
 
-To get some data into {es} that you can start searching and analyzing:
+To get some data into {opensearch} that you can start searching and analyzing:
 
 . Download the https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[`accounts.json`] sample data set. The documents in this randomly-generated data set represent user accounts with the following information:
 +
@@ -348,9 +349,9 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 [[getting-started-search]]
 == Start searching
 
-Once you have ingested some data into an {es} index, you can search it
+Once you have ingested some data into an {opensearch} index, you can search it
 by sending requests to the `_search` endpoint. To access the full suite of
-search capabilities, you use the {es} Query DSL to specify the
+search capabilities, you use the {opensearch} Query DSL to specify the
 search criteria in the request body. You specify the name of the index you 
 want to search in the request URI.
 
@@ -413,7 +414,7 @@ that match the search criteria:
 
 The response also provides the following information about the search request:
 
-* `took` – how long it took {es} to run the query, in milliseconds
+* `took` – how long it took {opensearch} to run the query, in milliseconds
 * `timed_out` – whether or not the search request timed out
 * `_shards` – how many shards were searched and a breakdown of how many shards
 succeeded, failed, or were skipped. 
@@ -422,7 +423,7 @@ succeeded, failed, or were skipped.
 * `hits.sort` - the document's sort position (when not sorting by relevance score)
 * `hits._score` - the document's relevance score (not applicable when using `match_all`)
 
-Each search request is self-contained: {es} does not maintain any
+Each search request is self-contained: {opensearch} does not maintain any
 state information across requests. To page through the search hits, specify
 the `from` and `size` parameters in your request. 
 
@@ -500,7 +501,7 @@ GET /bank/_search
 Each `must`, `should`, and `must_not` element in a Boolean query is referred
 to as a query clause. How well a document meets the criteria in each `must` or
 `should` clause contributes to the document's _relevance score_. The higher the
-score, the better the document matches your search criteria. By default, {es}
+score, the better the document matches your search criteria. By default, {opensearch}
 returns documents ranked by these relevance scores. 
 
 The criteria in a `must_not` clause is treated as a _filter_. It affects whether
@@ -535,7 +536,7 @@ GET /bank/_search
 [[getting-started-aggregations]]
 == Analyze results with aggregations
 
-{es} aggregations enable you to get meta-information about your search results
+{opensearch} aggregations enable you to get meta-information about your search results
 and answer questions like, "How many account holders are in Texas?" or 
 "What's the average balance of accounts in Tennessee?" You can search 
 documents, filter hits, and use aggregations to analyze the results all in one
@@ -684,7 +685,7 @@ GET /bank/_search
 --------------------------------------------------
 // TEST[continued]
 
-In addition to basic bucketing and metrics aggregations like these, {es}
+In addition to basic bucketing and metrics aggregations like these, {opensearch}
 provides specialized aggregations for operating on multiple fields and 
 analyzing particular types of data such as dates, IP addresses, and geo 
 data. You can also feed the results of individual aggregations into pipeline
@@ -700,4 +701,4 @@ Now that you've set up a cluster, indexed some documents, and run some
 searches and aggregations, you might want to:
 
 * {kibana-ref}/add-sample-data.html[Load one of the sample data sets into OpenSearch Dashboards]
-to see how you can use {es} and OpenSearch Dashboards together to visualize your data.
+to see how you can use {opensearch} and OpenSearch Dashboards together to visualize your data.

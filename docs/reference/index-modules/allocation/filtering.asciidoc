@@ -1,7 +1,7 @@
 [[shard-allocation-filtering]]
 === Index-level shard allocation filtering
 
-You can use shard allocation filters to control where {es} allocates shards of
+You can use shard allocation filters to control where {opensearch} allocates shards of
 a particular index. These per-index filters are applied in conjunction with
 <<cluster-shard-allocation-filtering, cluster-wide allocation filtering>> and
 <<shard-allocation-awareness, allocation awareness>>.
@@ -43,7 +43,7 @@ You can also set custom attributes when you start a node:
 
 . Add a routing allocation filter to the index. The `index.routing.allocation`
 settings support three types of filters: `include`, `exclude`, and `require`.
-For example, to tell {es} to allocate shards from the `test` index to either
+For example, to tell {opensearch} to allocate shards from the `test` index to either
 `big` or `medium` nodes, use `index.routing.allocation.include`:
 +
 --

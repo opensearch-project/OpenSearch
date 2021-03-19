@@ -4,7 +4,7 @@
 <titleabbrev>Concepts</titleabbrev>
 ++++
 
-This section explains the fundamental concepts of text analysis in {es}.
+This section explains the fundamental concepts of text analysis in {opensearch}.
 
 * <<analyzer-anatomy>>
 * <<analysis-index-search-time>>

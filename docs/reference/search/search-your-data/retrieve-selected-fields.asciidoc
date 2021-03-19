@@ -45,7 +45,7 @@ get the values for specific stored fields (fields that use the
 
 If needed, you can use the <<script-fields,`script_field`>> parameter to
 transform field values in the response using a script. However, scripts can’t
-make use of {es}'s index structures or related optimizations. This can sometimes
+make use of {opensearch}'s index structures or related optimizations. This can sometimes
 result in slower search speeds.
 
 You can find more detailed information on each of these methods in the
@@ -162,7 +162,7 @@ the `_source`. Other mapping options are also respected, including
 <<null-value, `null_value`>>.
 
 NOTE: The `fields` response always returns an array of values for each field,
-even when there is a single value in the `_source`. This is because {es} has
+even when there is a single value in the `_source`. This is because {opensearch} has
 no dedicated array type, and any field could contain multiple values. The
 `fields` parameter also does not guarantee that array values are returned in
 a specific order. See the mapping documentation on <<array, arrays>> for more
@@ -179,7 +179,7 @@ You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
 
 Doc values store the same values as the `_source` but in an on-disk,
 column-based structure that's optimized for sorting and aggregations. Since each
-field is stored separately, {es} only reads the field values that were requested
+field is stored separately, {opensearch} only reads the field values that were requested
 and can avoid loading the whole document `_source`.
 
 Doc values are stored for supported fields by default. However, doc values are

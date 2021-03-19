@@ -39,6 +39,7 @@ The javadoc for the REST high level client can be found at {rest-high-level-clie
 [[java-rest-high-getting-started-maven]]
 === Maven Repository
 
+// TODO(OpenSearch): Correct the website url in this page
 The high-level Java REST client is hosted on
 https://search.maven.org/search?q=g:org.opensearch.client[Maven
 Central]. The minimum Java version required is `1.8`.
@@ -54,7 +55,7 @@ If you are looking for a SNAPSHOT version, you should add our snapshot repositor
     <repository>
         <id>es-snapshots</id>
         <name>opensearch snapshot repo</name>
-        <url>https://snapshots.elastic.co/maven/</url>
+        <url>https://snapshots.opensearch.org/maven/</url>
     </repository>
 </repositories>
 --------------------------------------------------
@@ -64,7 +65,7 @@ or in Gradle:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 maven {
-        url "https://snapshots.elastic.co/maven/"
+        url "https://snapshots.opensearch.org/maven/"
 }
 --------------------------------------------------
 
@@ -124,7 +125,7 @@ For Gradle:
 --------------------------------------------------
 maven {
     name 'lucene-snapshots'
-    url 'https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/83f9835'
+    url 'https://s3.amazonaws.com/download.opensearch.org/lucenesnapshots/83f9835'
 }
 --------------------------------------------------
 

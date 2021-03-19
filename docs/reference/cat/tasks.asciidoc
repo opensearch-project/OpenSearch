@@ -28,13 +28,13 @@ of the JSON <<tasks,task management>> API.
 [[cat-tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
 `nodes`::
 (Optional, string)
@@ -45,17 +45,17 @@ wildcard (`*`) expressions.
 (Optional, string)
 Parent task ID used to limit the response.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-tasks-api-response-codes]]
 ==== {api-response-codes-title}
 
-include::{es-repo-dir}/cluster/tasks.asciidoc[tag=tasks-api-404]
+include::{opensearch-repo-dir}/cluster/tasks.asciidoc[tag=tasks-api-404]
 
 
 [[cat-tasks-api-examples]]

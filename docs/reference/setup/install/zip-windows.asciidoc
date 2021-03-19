@@ -5,9 +5,9 @@ OpenSearch can be installed on Windows using the Windows `.zip` archive.  This
 comes with a `opensearch-service.bat` command which will setup OpenSearch to run as a
 service.
 
-// TODO(Opensearch): Correct the links
+// TODO(OpenSearch): Correct the website url in this page
 The latest stable version of OpenSearch can be found on the
-link:/downloads/elasticsearch[Download OpenSearch] page.
+link:/downloads/opensearch[Download OpenSearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
@@ -26,11 +26,11 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-Download the `.zip` archive for OpenSearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
+Download the `.zip` archive for OpenSearch v{version} from: https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-windows-x86_64.zip
 
 Alternatively, you can download the following package, which contains only 
 features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-windows-x86_64.zip
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-oss-{version}-windows-x86_64.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
 +opensearch-{version}+, which we will refer to as `%OPENSEARCH_HOME%`. In a terminal
@@ -143,11 +143,11 @@ The OpenSearch service can be configured prior to installation by setting the fo
 
 `SERVICE_DISPLAY_NAME`::
 
-  The name of the service.  Defaults to `Elasticsearch <version> %SERVICE_ID%`.
+  The name of the service.  Defaults to `OpenSearch <version> %SERVICE_ID%`.
 
 `SERVICE_DESCRIPTION`::
 
-  The description of the service.  Defaults to `Elasticsearch <version> Windows Service - https://elastic.co`.
+  The description of the service.  Defaults to `OpenSearch <version> Windows Service - https://opensearch.org`.
 
 `JAVA_HOME`::
 
