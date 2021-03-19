@@ -289,7 +289,7 @@ The above request returns:
       "start_offset": 113,
       "end_offset": 115,
       "type": "word",
-      "position": 44
+      "position": 34
     },
     {
       "token": "帮助",
@@ -324,7 +324,7 @@ The above request returns:
       "start_offset": 124,
       "end_offset": 126,
       "type": "word",
-      "position": 39
+      "position": 40
     },
     {
       "token": "力量",
