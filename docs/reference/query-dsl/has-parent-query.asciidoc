@@ -86,7 +86,7 @@ its child documents.
 score>> of a matching parent document is aggregated into its child documents.
 Defaults to `false`.
 
-If `false`, {es} ignores the relevance score of the parent document. {es} also
+If `false`, {opensearch} ignores the relevance score of the parent document. {opensearch} also
 assigns each child document a relevance score equal to the `query`'s `boost`,
 which defaults to `1`.
 
@@ -100,7 +100,7 @@ into its child documents' relevance scores.
 (Optional, Boolean) Indicates whether to ignore an unmapped `parent_type` and
 not return any documents instead of an error. Defaults to `false`.
 
-If `false`, {es} returns an error if the `parent_type` is unmapped.
+If `false`, {opensearch} returns an error if the `parent_type` is unmapped.
 
 You can use this parameter to query multiple indices that may not contain the
 `parent_type`.

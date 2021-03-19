@@ -1,7 +1,7 @@
 [[api-conventions]]
 == API conventions
 
-The *Elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
+The *OpenSearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
 
 The conventions listed in this chapter can be applied throughout the REST
 API, unless otherwise specified.
@@ -34,18 +34,18 @@ an index alias, the pattern `test*,-test3` still targets the indices for
 Multi-target APIs that can target indices support the following query
 string parameters:
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
 Some multi-target APIs that can target indices also support the following query
 string parameter:
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 NOTE: Single index APIs, such as the <<docs>> and
 <<indices-aliases,single-index `alias` APIs>>, do not support multi-target
@@ -65,7 +65,7 @@ Global index templates that match all indices are not applied to hidden indices.
 [[system-indices]]
 ==== System indices
 
-{es} modules and plugins can store configuration and state information in internal _system indices_. 
+{opensearch} modules and plugins can store configuration and state information in internal _system indices_. 
 You should not directly access or modify system indices 
 as they contain data essential to the operation of the system.
 
@@ -241,7 +241,7 @@ Assuming `now` is `2001-01-01 12:00:00`, some examples are:
 ==== Response Filtering
 
 All REST APIs accept a `filter_path` parameter that can be used to reduce
-the response returned by Elasticsearch. This parameter takes a comma
+the response returned by OpenSearch. This parameter takes a comma
 separated list of filters expressed with the dot notation:
 
 [source,console]
@@ -360,7 +360,7 @@ Responds:
 }
 --------------------------------------------------
 
-Note that Elasticsearch sometimes returns directly the raw value of a field,
+Note that OpenSearch sometimes returns directly the raw value of a field,
 like the `_source` field. If you want to filter `_source` fields, you should
 consider combining the already existing `_source` parameter (see
 <<get-source-filtering,Get API>> for more details) with the `filter_path`
@@ -589,7 +589,7 @@ the default values are 3 and 6, equivalent to `AUTO:3,6` that make for lengths:
 [[common-options-error-options]]
 ==== Enabling stack traces
 
-By default when a request returns an error Elasticsearch doesn't include the
+By default when a request returns an error OpenSearch doesn't include the
 stack trace of the error. You can enable that behavior by setting the
 `error_trace` url parameter to `true`. For example, by default when you send an
 invalid `size` parameter to the `_search` API:
@@ -687,7 +687,7 @@ string parameter.
 === URL-based access control
 
 Many users use a proxy with URL-based access control to secure access to
-{es} indices. For <<search-multi-search,multi-search>>,
+{opensearch} indices. For <<search-multi-search,multi-search>>,
 <<docs-multi-get,multi-get>>, and <<docs-bulk,bulk>> requests, the user has
 the choice of specifying an index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
@@ -696,5 +696,5 @@ To prevent the user from overriding the data stream or index specified in the
 URL, set `rest.action.multi.allow_explicit_index` to `false` in `opensearch.yml`.
 
 
-This causes  {es} to
+This causes  {opensearch} to
 reject requests that explicitly specify an index in the request body.

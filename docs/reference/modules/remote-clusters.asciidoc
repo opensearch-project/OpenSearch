@@ -1,7 +1,7 @@
 [[modules-remote-clusters]]
 == Remote clusters
 
-You can connect a local cluster to other {es} clusters, known as _remote
+You can connect a local cluster to other {opensearch} clusters, known as _remote
 clusters_. Once connected, you can search remote clusters using
 <<modules-cross-cluster-search,{ccs}>>.
 
@@ -14,7 +14,7 @@ remote cluster using one of two connection modes:
 Your local cluster uses the <<modules-transport,transport layer>> to establish
 communication with remote clusters. The coordinating nodes in the local cluster
 establish <<long-lived-connections,long-lived>> TCP connections with specific
-nodes in the remote cluster. {es} requires these connections to remain open,
+nodes in the remote cluster. {opensearch} requires these connections to remain open,
 even if the connections are idle for an extended period.
 
 You can use the <<cluster-remote-info, remote cluster info API>> to get
@@ -287,7 +287,7 @@ separately.
   Per cluster boolean setting that enables you to configure compression for
   requests to a specific remote cluster. This setting impacts only requests
   sent to the remote cluster. If the inbound request is compressed,
-  Elasticsearch compresses the response. If unset, the global
+  OpenSearch compresses the response. If unset, the global
   `transport.compress` is used as the fallback setting.
 
 [discrete]

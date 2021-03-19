@@ -5,7 +5,7 @@
 [[relevance-scores]]
 === Relevance scores
 
-By default, Elasticsearch sorts matching search results by **relevance
+By default, OpenSearch sorts matching search results by **relevance
 score**, which measures how well each document matches a query.
 
 The relevance score is a positive floating point number, returned in the
@@ -37,7 +37,7 @@ data, e.g.
 *  __Does this +timestamp+ fall into the range 2015 to 2016?__
 *  __Is the +status+  field set to ++"published"++__?
 
-Frequently used filters will be cached automatically by Elasticsearch, to
+Frequently used filters will be cached automatically by OpenSearch, to
 speed up performance.
 
 Filter context is in effect whenever a query clause is passed to a `filter`

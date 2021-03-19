@@ -1,71 +1,71 @@
 [[elasticsearch-intro]]
-== What is {es}?
+== What is {opensearch}?
 _**You know, for search (and analysis)**_
 
-{es} is the distributed search and analytics engine at the heart of
+{opensearch} is the distributed search and analytics engine at the heart of
 the {stack}. {ls} and {beats} facilitate collecting, aggregating, and
-enriching your data and storing it in {es}. {kib} enables you to
+enriching your data and storing it in {opensearch}. {kib} enables you to
 interactively explore, visualize, and share insights into your data and manage
-and monitor the stack. {es} is where the indexing, search, and analysis
+and monitor the stack. {opensearch} is where the indexing, search, and analysis
 magic happens.
 
-{es} provides near real-time search and analytics for all types of data. Whether you
+{opensearch} provides near real-time search and analytics for all types of data. Whether you
 have structured or unstructured text, numerical data, or geospatial data,
-{es} can efficiently store and index it in a way that supports fast searches.
+{opensearch} can efficiently store and index it in a way that supports fast searches.
 You can go far beyond simple data retrieval and aggregate information to discover
 trends and patterns in your data. And as your data and query volume grows, the
-distributed nature of {es} enables your deployment to grow seamlessly right
+distributed nature of {opensearch} enables your deployment to grow seamlessly right
 along with it.
 
-While not _every_ problem is a search problem, {es} offers speed and flexibility
+While not _every_ problem is a search problem, {opensearch} offers speed and flexibility
 to handle data in a wide variety of use cases:
 
 * Add a search box to an app or website
 * Store and analyze logs, metrics, and security event data
 * Use machine learning to automatically model the behavior of your data in real
   time
-* Automate business workflows using {es} as a storage engine
-* Manage, integrate, and analyze spatial information using {es} as a geographic
+* Automate business workflows using {opensearch} as a storage engine
+* Manage, integrate, and analyze spatial information using {opensearch} as a geographic
   information system (GIS)
-* Store and process genetic data using {es} as a bioinformatics research tool
+* Store and process genetic data using {opensearch} as a bioinformatics research tool
 
 We’re continually amazed by the novel ways people use search. But whether
-your use case is similar to one of these, or you're using {es} to tackle a new
-problem, the way you work with your data, documents, and indices in {es} is
+your use case is similar to one of these, or you're using {opensearch} to tackle a new
+problem, the way you work with your data, documents, and indices in {opensearch} is
 the same.
 
 [[documents-indices]]
 === Data in: documents and indices
 
-{es} is a distributed document store. Instead of storing information as rows of
-columnar data, {es} stores complex data structures that have been serialized
-as JSON documents. When you have multiple {es} nodes in a cluster, stored
+{opensearch} is a distributed document store. Instead of storing information as rows of
+columnar data, {opensearch} stores complex data structures that have been serialized
+as JSON documents. When you have multiple {opensearch} nodes in a cluster, stored
 documents are distributed across the cluster and can be accessed immediately
 from any node.
 
-When a document is stored, it is indexed and fully searchable in <<near-real-time,near real-time>>--within 1 second. {es} uses a data structure called an
+When a document is stored, it is indexed and fully searchable in <<near-real-time,near real-time>>--within 1 second. {opensearch} uses a data structure called an
 inverted index that supports very fast full-text searches. An inverted index
 lists every unique word that appears in any document and identifies all of the
 documents each word occurs in.
 
 An index can be thought of as an optimized collection of documents and each
 document is a collection of fields, which are the key-value pairs that contain
-your data. By default, {es} indexes all data in every field and each indexed
+your data. By default, {opensearch} indexes all data in every field and each indexed
 field has a dedicated, optimized data structure. For example, text fields are
 stored in inverted indices, and numeric and geo fields are stored in BKD trees.
 The ability to use the per-field data structures to assemble and return search
-results is what makes {es} so fast.
+results is what makes {opensearch} so fast.
 
-{es} also has the ability to be schema-less, which means that documents can be
+{opensearch} also has the ability to be schema-less, which means that documents can be
 indexed without explicitly specifying how to handle each of the different fields
-that might occur in a document. When dynamic mapping is enabled, {es}
+that might occur in a document. When dynamic mapping is enabled, {opensearch}
 automatically detects and adds new fields to the index. This default
 behavior makes it easy to index and explore your data--just start
-indexing documents and {es} will detect and map booleans, floating point and
-integer values, dates, and strings to the appropriate {es} data types.
+indexing documents and {opensearch} will detect and map booleans, floating point and
+integer values, dates, and strings to the appropriate {opensearch} data types.
 
 Ultimately, however, you know more about your data and how you want to use it
-than {es} can. You can define rules to control dynamic mapping and explicitly
+than {opensearch} can. You can define rules to control dynamic mapping and explicitly
 define mappings to take full control of how fields are stored and indexed.
 
 Defining your own mappings enables you to:
@@ -90,15 +90,16 @@ the same analysis before the terms are looked up in the index.
 [[search-analyze]]
 === Information out: search and analyze
 
-While you can use {es} as a document store and retrieve documents and their
+While you can use {opensearch} as a document store and retrieve documents and their
 metadata, the real power comes from being able to easily access the full suite
 of search capabilities built on the Apache Lucene search engine library.
 
-{es} provides a simple, coherent REST API for managing your cluster and indexing
+// TODO(OpenSearch): Correct the website url
+{opensearch} provides a simple, coherent REST API for managing your cluster and indexing
 and searching your data.  For testing purposes, you can easily submit requests
 directly from the command line or through the Developer Console in {kib}. From
 your applications, you can use the
-https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} client]
+https://www.opensearch.org/guide/en/opensearch/client/index.html[{opensearch} client]
 for your language of choice: Java, JavaScript, Go, .NET, PHP, Perl, Python
 or Ruby.
 
@@ -106,7 +107,7 @@ or Ruby.
 [[search-data]]
 ==== Searching your data
 
-The {es} REST APIs support structured queries, full text queries, and complex
+The {opensearch} REST APIs support structured queries, full text queries, and complex
 queries that combine the two. Structured queries are
 similar to the types of queries you can construct in SQL. For example, you
 could search the `gender` and `age` fields in your `employee` index and sort the
@@ -117,21 +118,21 @@ match they are for your search terms.
 In addition to searching for individual terms, you can perform phrase searches,
 similarity searches, and prefix searches, and get autocomplete suggestions.
 
-Have geospatial or other numerical data that you want to search? {es} indexes
+Have geospatial or other numerical data that you want to search? {opensearch} indexes
 non-textual data in optimized data structures that support
 high-performance geo and numerical queries.
 
-You can access all of these search capabilities using {es}'s
+You can access all of these search capabilities using {opensearch}'s
 comprehensive JSON-style query language (<<query-dsl, Query DSL>>). You can also
 construct SQL-style queries to search and aggregate data
-inside {es} through plugins, and JDBC and ODBC drivers enable a broad range of
-third-party applications to interact with {es} via SQL.
+inside {opensearch} through plugins, and JDBC and ODBC drivers enable a broad range of
+third-party applications to interact with {opensearch} via SQL.
 
 [discrete]
 [[analyze-data]]
 ==== Analyzing your data
 
-{es} aggregations enable you to build complex summaries of your data and gain
+{opensearch} aggregations enable you to build complex summaries of your data and gain
 insight into key metrics, patterns, and trends. Instead of just finding the
 proverbial “needle in a haystack”, aggregations enable you to answer questions
 like:
@@ -165,20 +166,20 @@ embroidery_ needles.
 <titleabbrev>Scalability and resilience</titleabbrev>
 ++++
 
-{es} is built to be always available and to scale with your needs. It does this
+{opensearch} is built to be always available and to scale with your needs. It does this
 by being distributed by nature. You can add servers (nodes) to a cluster to
-increase capacity and {es} automatically distributes your data and query load
-across all of the available nodes. No need to overhaul your application, {es}
+increase capacity and {opensearch} automatically distributes your data and query load
+across all of the available nodes. No need to overhaul your application, {opensearch}
 knows how to balance multi-node clusters to provide scale and high availability.
 The more nodes, the merrier.
 
-How does this work? Under the covers, an {es} index is really just a logical
+How does this work? Under the covers, an {opensearch} index is really just a logical
 grouping of one or more physical shards, where each shard is actually a
 self-contained index. By distributing the documents in an index across multiple
-shards, and distributing those shards across multiple nodes, {es} can ensure
+shards, and distributing those shards across multiple nodes, {opensearch} can ensure
 redundancy, which both protects against hardware failures and increases
 query capacity as nodes are added to a cluster. As the cluster grows (or shrinks),
-{es} automatically migrates shards to rebalance the cluster.
+{opensearch} automatically migrates shards to rebalance the cluster.
 
 There are two types of shards: primaries and replicas. Each document in an index
 belongs to one primary shard. A replica shard is a copy of a primary shard.
@@ -197,7 +198,7 @@ interrupting indexing or query operations.
 There are a number of performance considerations and trade offs with respect
 to shard size and the number of primary shards configured for an index. The more
 shards, the more overhead there is simply in maintaining those indices. The
-larger the shard size, the longer it takes to move shards around when {es}
+larger the shard size, the longer it takes to move shards around when {opensearch}
 needs to rebalance a cluster.
 
 Querying lots of small shards makes the processing per shard faster, but more
@@ -219,6 +220,6 @@ As a starting point:
 ==== Care and feeding
 
 As with any enterprise system, you need tools to secure, manage, and
-monitor your {es} clusters. Security, monitoring, and administrative features
-that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{kib}]
+monitor your {opensearch} clusters. Security, monitoring, and administrative features
+that are integrated into {opensearch} enable you to use {kibana-ref}/introduction.html[{kib}]
 as a control center for managing a cluster.

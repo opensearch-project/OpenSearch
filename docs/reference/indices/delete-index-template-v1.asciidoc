@@ -6,7 +6,7 @@
 
 IMPORTANT: This documentation is about <<indices-templates-v1,legacy index
 templates>>, which are deprecated and will be replaced by the composable
-templates introduced in {es} 7.8. For information about composable templates,
+templates introduced in {opensearch} 7.8. For information about composable templates,
 see <<index-templates>>.
 
 Deletes a legacy index template.
@@ -49,4 +49,4 @@ expressions are supported.
 [[delete-template-api-v1-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

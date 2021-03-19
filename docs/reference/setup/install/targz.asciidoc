@@ -1,16 +1,17 @@
 [[targz]]
-=== Install Elasticsearch from archive on Linux or MacOS
+=== Install OpenSearch from archive on Linux or MacOS
 
-Elasticsearch is as a `.tar.gz` archive for Linux and MacOS. 
+OpenSearch is as a `.tar.gz` archive for Linux and MacOS. 
 
 include::license.asciidoc[]
 
-The latest stable version of Elasticsearch can be found on the
-link:/downloads/elasticsearch[Download Elasticsearch] page.
+// TODO(OpenSearch): Correct the website url in this page
+The latest stable version of OpenSearch can be found on the
+link:/downloads/opensearch[Download OpenSearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
+NOTE: OpenSearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
@@ -19,18 +20,18 @@ see the <<jvm-version, JVM version requirements>>
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+Version {version} of OpenSearch has not yet been released.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The Linux archive for Elasticsearch v{version} can be downloaded and installed as follows:
+The Linux archive for OpenSearch v{version} can be downloaded and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz.sha512
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-linux-x86_64.tar.gz
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-linux-x86_64.tar.gz.sha512
 shasum -a 512 -c opensearch-{version}-linux-x86_64.tar.gz.sha512 <1>
 tar -xzf opensearch-{version}-linux-x86_64.tar.gz
 cd opensearch-{version}/ <2>
@@ -41,7 +42,7 @@ cd opensearch-{version}/ <2>
 
 Alternatively, you can download the following package, which includes only 
 Apache 2.0 licensed code: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-linux-x86_64.tar.gz
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-oss-{version}-linux-x86_64.tar.gz
 
 endif::[]
 
@@ -50,18 +51,18 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+Version {version} of OpenSearch has not yet been released.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The MacOS archive for Elasticsearch v{version} can be downloaded and installed as follows:
+The MacOS archive for OpenSearch v{version} can be downloaded and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz.sha512
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-darwin-x86_64.tar.gz
+wget https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-darwin-x86_64.tar.gz.sha512
 shasum -a 512 -c opensearch-{version}-darwin-x86_64.tar.gz.sha512 <1>
 tar -xzf opensearch-{version}-darwin-x86_64.tar.gz
 cd opensearch-{version}/ <2>
@@ -72,7 +73,7 @@ cd opensearch-{version}/ <2>
 
 Alternatively, you can download the following package, which includes only 
 Apache 2.0 licensed code: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-darwin-x86_64.tar.gz
+https://artifacts.opensearch.org/downloads/opensearch/opensearch-oss-{version}-darwin-x86_64.tar.gz
 
 endif::[]
 
@@ -88,9 +89,9 @@ option on the command line.
 include::targz-daemon.asciidoc[]
 
 [[targz-configuring]]
-==== Configuring Elasticsearch on the command line
+==== Configuring OpenSearch on the command line
 
-Elasticsearch loads its configuration from the `$OPENSEARCH_HOME/config/opensearch.yml`
+OpenSearch loads its configuration from the `$OPENSEARCH_HOME/config/opensearch.yml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -114,7 +115,7 @@ directories are, by default, contained within `$OPENSEARCH_HOME` -- the director
 created when unpacking the archive.
 
 This is very convenient because you don't have to create any directories to
-start using Elasticsearch, and uninstalling Elasticsearch is as easy as
+start using OpenSearch, and uninstalling OpenSearch is as easy as
 removing the `$OPENSEARCH_HOME` directory.  However, it is advisable to change the
 default locations of the config directory, the data directory, and the logs
 directory so that you do not delete important data later on.
@@ -124,7 +125,7 @@ directory so that you do not delete important data later on.
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `$OPENSEARCH_HOME`
+  | OpenSearch home directory or `$OPENSEARCH_HOME`
  d| Directory created by unpacking the archive
   |
 

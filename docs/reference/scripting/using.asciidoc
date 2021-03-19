@@ -1,7 +1,7 @@
 [[modules-scripting-using]]
 == How to use scripts
 
-Wherever scripting is supported in the Elasticsearch API, the syntax follows
+Wherever scripting is supported in the OpenSearch API, the syntax follows
 the same pattern:
 
 [source,js]
@@ -68,7 +68,7 @@ GET my-index-000001/_search
 .Prefer parameters
 ========================================
 
-The first time Elasticsearch sees a new script, it compiles it and stores the
+The first time OpenSearch sees a new script, it compiles it and stores the
 compiled version in a cache. Compilation can be a heavy process.
 
 If you need to pass variables into the script, you should pass them in as
@@ -97,7 +97,7 @@ The first version has to be recompiled every time the multiplier changes.  The
 second version is only compiled once.
 
 If you compile too many unique scripts within a small amount of time,
-Elasticsearch will reject the new dynamic scripts with a
+OpenSearch will reject the new dynamic scripts with a
 `circuit_breaking_exception` error. For most contexts, you can compile up to 75
 scripts per 5 minutes by default. For ingest contexts, the default script
 compilation rate is unlimited. You can change these settings dynamically by
@@ -255,7 +255,7 @@ limit, but if scripts are really large then a
 [[scripts-and-search-speed]]
 === Scripts and search speed
 
-Scripts can't make use of {es}'s index structures or related optimizations. This
+Scripts can't make use of {opensearch}'s index structures or related optimizations. This
 can sometimes result in slower search speeds.
 
 If you often use scripts to transform indexed data, you can speed up search by
@@ -415,7 +415,7 @@ in production.
 [discrete]
 [[modules-scripting-errors]]
 === Script errors
-Elasticsearch returns error details when there is a compliation or runtime
+OpenSearch returns error details when there is a compliation or runtime
 exception.  The contents of this response are useful for tracking down the
 problem.
 

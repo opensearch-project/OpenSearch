@@ -11,7 +11,7 @@ instance, a character filter could be used to convert Hindu-Arabic numerals
 elements like `<b>` from the stream.
 
 
-Elasticsearch has a number of built in character filters which can be used to build
+OpenSearch has a number of built in character filters which can be used to build
 <<analysis-custom-analyzer,custom analyzers>>.
 
 <<analysis-htmlstrip-charfilter,HTML Strip Character Filter>>::

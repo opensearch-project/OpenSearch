@@ -1,7 +1,7 @@
 [[modules-discovery-voting]]
 === Voting configurations
 
-Each {es} cluster has a _voting configuration_, which is the set of
+Each {opensearch} cluster has a _voting configuration_, which is the set of
 <<master-node,master-eligible nodes>> whose responses are counted when making
 decisions such as electing a new master or committing a new cluster state.
 Decisions are made only after a majority (more than half) of the nodes in the
@@ -18,7 +18,7 @@ example, if there are three or four master-eligible nodes, the cluster
 can tolerate one unavailable node. If there are two or fewer master-eligible
 nodes, they must all remain available.
 
-After a node joins or leaves the cluster, {es} reacts by automatically making
+After a node joins or leaves the cluster, {opensearch} reacts by automatically making
 corresponding changes to the voting configuration in order to ensure that the
 cluster is as resilient as possible. It is important to wait for this adjustment
 to complete before you remove more nodes from the cluster. For more information,
@@ -40,7 +40,7 @@ where the most resilient configuration includes unavailable nodes or does not
 include some available nodes. In these situations, the voting configuration
 differs from the set of available master-eligible nodes in the cluster.
 
-Larger voting configurations are usually more resilient, so Elasticsearch
+Larger voting configurations are usually more resilient, so OpenSearch
 normally prefers to add master-eligible nodes to the voting configuration after
 they join the cluster. Similarly, if a node in the voting configuration
 leaves the cluster and there is another master-eligible node in the cluster that
@@ -57,17 +57,17 @@ shrinks by using the
 
 NOTE: If `cluster.auto_shrink_voting_configuration` is set to `true` (which is
 the default and recommended value) and there are at least three master-eligible
-nodes in the cluster, Elasticsearch remains capable of processing cluster state
+nodes in the cluster, OpenSearch remains capable of processing cluster state
 updates as long as all but one of its master-eligible nodes are healthy.
 
-There are situations in which Elasticsearch might tolerate the loss of multiple
+There are situations in which OpenSearch might tolerate the loss of multiple
 nodes, but this is not guaranteed under all sequences of failures. If the
 `cluster.auto_shrink_voting_configuration` setting is `false`, you must remove
 departed nodes from the voting configuration manually. Use the
 <<voting-config-exclusions,voting exclusions API>> to achieve the desired level
 of resilience.
 
-No matter how it is configured, Elasticsearch will not suffer from a 
+No matter how it is configured, OpenSearch will not suffer from a 
 "split-brain" inconsistency. The `cluster.auto_shrink_voting_configuration`
 setting affects only its availability in the event of the failure of some of its
 nodes and the administrative tasks that must be performed as nodes join and
@@ -77,7 +77,7 @@ leave the cluster.
 ==== Even numbers of master-eligible nodes
 
 There should normally be an odd number of master-eligible nodes in a cluster.
-If there is an even number, Elasticsearch leaves one of them out of the voting
+If there is an even number, OpenSearch leaves one of them out of the voting
 configuration to ensure that it has an odd size. This omission does not decrease
 the failure-tolerance of the cluster. In fact, improves it slightly: if the
 cluster suffers from a network partition that divides it into two equally-sized

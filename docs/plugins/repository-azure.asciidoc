@@ -83,8 +83,8 @@ account with `7` retries before failing. The endpoint suffix is
 retries.
 
 The `account`, `key`, and `sas_token` storage settings are reloadable secure
-settings, which you add to the {es} keystore. For more information about
-creating and updating the {es} keystore, see
+settings, which you add to the {opensearch} keystore. For more information about
+creating and updating the {opensearch} keystore, see
 {ref}/secure-settings.html[Secure settings]. After you reload the settings, the
 internal Azure clients, which are used to transfer the snapshot, utilize the
 latest settings from the keystore.
@@ -138,7 +138,7 @@ stored in the keystore are marked as "secure"; the other settings belong in the
 `timeout`::
   The client side timeout for any single request to Azure. The value should
   specify the time unit. For example, a value of `5s` specifies a 5 second
-  timeout. There is no default value, which means that {es} uses the
+  timeout. There is no default value, which means that {opensearch} uses the
   https://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
   set by the Azure client (known as 5 minutes). This setting can be defined
   globally, per account, or both.

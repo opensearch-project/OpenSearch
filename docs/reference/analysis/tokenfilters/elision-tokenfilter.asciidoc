@@ -13,7 +13,7 @@ When not customized, the filter removes the following French elisions by default
 `l'`, `m'`, `t'`, `qu'`, `n'`, `s'`, `j'`, `d'`, `c'`, `jusqu'`, `quoiqu'`,
 `lorsqu'`, `puisqu'`
 
-Customized versions of this filter are included in several of {es}'s built-in
+Customized versions of this filter are included in several of {opensearch}'s built-in
 <<analysis-lang-analyzer,language analyzers>>:
 
 * <<catalan-analyzer, Catalan analyzer>>

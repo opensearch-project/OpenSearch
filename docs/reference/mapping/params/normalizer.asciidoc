@@ -10,7 +10,7 @@ search-time when the `keyword` field is searched via a query parser such as
 the <<query-dsl-match-query,`match`>> query or via a term-level query
 such as the <<query-dsl-term-query,`term`>> query.
 
-A simple normalizer called `lowercase` ships with {opensearch} and can be used.
+A simple normalizer called `lowercase` ships with OpenSearch and can be used.
 Custom normalizers can be defined as part of analysis settings as follows.
 
 

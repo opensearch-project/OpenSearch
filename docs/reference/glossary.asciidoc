@@ -18,7 +18,7 @@ also be analyzed to the terms `foo`,`bar` and will thus match the
 terms stored in the index.
 
 It is this process of analysis (both at index time and at search time)
-that allows Elasticsearch to perform full text queries.
+that allows OpenSearch to perform full text queries.
 
 Also see <<glossary-text,text>> and <<glossary-term,term>>.
 // end::analysis-def[]
@@ -26,7 +26,7 @@ Also see <<glossary-text,text>> and <<glossary-term,term>>.
 
 [[glossary-api-key]] API key ::
 // tag::api-key-def[]
-A unique identifier that you can use for authentication when submitting {es} requests.
+A unique identifier that you can use for authentication when submitting {opensearch} requests.
 When TLS is enabled, all requests must be authenticated using either basic authentication
 (user name and password) or an API key.
 // end::api-key-def[]
@@ -46,7 +46,7 @@ A building block for constructing <<index-templates,index templates>> that speci
 
 [[glossary-document]] document ::
 
-A document is a JSON document which is stored in Elasticsearch. It is
+A document is a JSON document which is stored in OpenSearch. It is
 like a row in a table in a relational database. Each document is
 stored in an <<glossary-index,index>> and has a <<glossary-type,type>> and an
 <<glossary-id,id>>.
@@ -87,7 +87,7 @@ In most cases, the goal of filtering is to reduce the number of documents that h
 // tag::flush-def[]
 Peform a Lucene commit to write index updates in the transaction log (translog) to disk.
 Because a Lucene commit is a relatively expensive operation,
-{es} records index and delete operations in the translog and
+{opensearch} records index and delete operations in the translog and
 automatically flushes changes to disk in batches.
 To recover from a crash, operations that have been acknowledged but not yet committed
 can be replayed from the translog.
@@ -143,7 +143,7 @@ An index is a logical namespace which maps to one or more
 An index alias is a secondary name
 used to refer to one or more existing indices.
 
-Most {es} APIs accept an index alias
+Most {opensearch} APIs accept an index alias
 in place of an index name.
 // end::index-alias-desc[]
 
@@ -154,7 +154,7 @@ See {ref}/indices-add-alias.html[Add index alias].
 [[glossary-index-pattern]] index pattern ::
 // tag::index-pattern-def[]
 A string that can contain the `*` wildcard to match multiple index names.
-In most cases, the index parameter in an {es} request can be the name of a specific index,
+In most cases, the index parameter in an {opensearch} request can be the name of a specific index,
 a list of index names, or an index pattern.
 For example, if you have the indices `datastream-000001`, `datastream-000002`, and `datastream-000003`,
 to search across all three you could use the `datastream-*` index pattern.
@@ -188,7 +188,7 @@ automatically when a document is indexed.
 
 [[glossary-node]] node ::
 
-A node is a running instance of Elasticsearch which belongs to a
+A node is a running instance of OpenSearch which belongs to a
 <<glossary-cluster,cluster>>. Multiple nodes can be started on a single
 server for testing purposes, but usually you should have one node per
 server.
@@ -214,8 +214,8 @@ See also <<glossary-routing,routing>>
 
 [[glossary-query]] query ::
 
-A request for information from {es}. You can think of a query as a question,
-written in a way {es} understands. A search consists of one or more queries
+A request for information from {opensearch}. You can think of a query as a question,
+written in a way {opensearch} understands. A search consists of one or more queries
 combined.
 +
 There are two types of queries: _scoring queries_ and _filters_. For more
@@ -253,7 +253,7 @@ You can reindex all documents from a source or select a subset of documents to
 copy. You can also reindex to a destination in a remote cluster.
 
 A reindex is often performed to update mappings, change static index settings,
-or upgrade {es} between incompatible versions.
+or upgrade {opensearch} between incompatible versions.
 // end::reindex-def[]
 --
 
@@ -328,7 +328,7 @@ reliably stored outside the cluster.
 --
 // tag::shard-def[]
 A shard is a single Lucene instance. It is a low-level “worker” unit
-which is managed automatically by Elasticsearch. An index is a logical
+which is managed automatically by OpenSearch. An index is a logical
 namespace which points to <<glossary-primary-shard,primary>> and
 <<glossary-replica-shard,replica>> shards.
 +
@@ -336,7 +336,7 @@ Other than defining the number of primary and replica shards that an
 index should have, you never need to refer to shards directly.
 Instead, your code should deal only with an index.
 +
-Elasticsearch distributes shards amongst all <<glossary-node,nodes>> in the
+OpenSearch distributes shards amongst all <<glossary-node,nodes>> in the
 <<glossary-cluster,cluster>>, and can move shards automatically from one
 node to another in the case of node failure, or the addition of new
 nodes.
@@ -386,7 +386,7 @@ You should not directly access or modify system indices.
 
 [[glossary-term]] term ::
 
-A term is an exact value that is indexed in Elasticsearch. The terms
+A term is an exact value that is indexed in OpenSearch. The terms
 `foo`, `Foo`, `FOO` are NOT equivalent. Terms (i.e. exact values) can
 be searched for using _term_ queries.
 +

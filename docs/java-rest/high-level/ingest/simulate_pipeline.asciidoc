@@ -4,8 +4,9 @@
 [[java-rest-high-ingest-simulate-pipeline-request]]
 ==== Simulate Pipeline Request
 
+// TODO(OpenSearch): Correct the website url in this page
 A `SimulatePipelineRequest` requires a source and a `XContentType`. The source consists
-of the request body. See the https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html[docs]
+of the request body. See the https://www.opensearch.org/guide/en/opensearch/reference/master/simulate-pipeline-api.html[docs]
 for more details on the request body.
 
 ["source","java",subs="attributes,callouts,macros"]

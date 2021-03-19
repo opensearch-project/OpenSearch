@@ -59,8 +59,8 @@ PUT _snapshot/my_s3_repository
 // TEST[skip:we don't have S3 setup while testing this]
 
 Most client settings can be added to the `elasticsearch.yml` configuration file
-with the exception of the secure settings, which you add to the {es} keystore.
-For more information about creating and updating the {es} keystore, see
+with the exception of the secure settings, which you add to the {opensearch} keystore.
+For more information about creating and updating the {opensearch} keystore, see
 {ref}/secure-settings.html[Secure settings].
 
 For example, if you want to use specific credentials to access S3 then run the
@@ -68,10 +68,10 @@ following commands to add these credentials to the keystore:
 
 [source,sh]
 ----
-bin/elasticsearch-keystore add s3.client.default.access_key
-bin/elasticsearch-keystore add s3.client.default.secret_key
+bin/opensearch-keystore add s3.client.default.access_key
+bin/opensearch-keystore add s3.client.default.secret_key
 # a session token is optional so the following command may not be needed
-bin/elasticsearch-keystore add s3.client.default.session_token
+bin/opensearch-keystore add s3.client.default.session_token
 ----
 
 If instead you want to use the instance role or container role to access S3
@@ -81,10 +81,10 @@ removing these settings from the keystore as follows:
 
 [source,sh]
 ----
-bin/elasticsearch-keystore remove s3.client.default.access_key
-bin/elasticsearch-keystore remove s3.client.default.secret_key
+bin/opensearch-keystore remove s3.client.default.access_key
+bin/opensearch-keystore remove s3.client.default.secret_key
 # a session token is optional so the following command may not be needed
-bin/elasticsearch-keystore remove s3.client.default.session_token
+bin/opensearch-keystore remove s3.client.default.session_token
 ----
 
 *All* client secure settings of this plugin are
@@ -216,10 +216,10 @@ include a port. For example, the endpoint may be `172.17.0.2` or
 `http` if the endpoint does not support HTTPS.
 
 https://minio.io[Minio] is an example of a storage system that provides an
-S3-compatible API. The `repository-s3` plugin allows {es} to work with
+S3-compatible API. The `repository-s3` plugin allows {opensearch} to work with
 Minio-backed repositories as well as repositories stored on AWS S3. Other
-S3-compatible storage systems may also work with {es}, but these are not
-covered by the {es} test suite.
+S3-compatible storage systems may also work with {opensearch}, but these are not
+covered by the {opensearch} test suite.
 
 Note that some storage systems claim to be S3-compatible without correctly
 supporting the full S3 API. The `repository-s3` plugin requires full
@@ -362,7 +362,7 @@ This sets up a repository that uses all client settings from the client
 [[repository-s3-permissions]]
 ===== Recommended S3 Permissions
 
-In order to restrict the Elasticsearch snapshot process to the minimum required
+In order to restrict the OpenSearch snapshot process to the minimum required
 resources, we recommend using Amazon IAM in conjunction with pre-existing S3
 buckets. Here is an example policy which will allow the snapshot access to an S3
 bucket named "snaps.example.com". This may be configured through the AWS IAM
@@ -456,7 +456,7 @@ create the bucket then the repository registration will fail.
 [discrete]
 ==== AWS VPC Bandwidth Settings
 
-AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch
+AWS instances resolve S3 endpoints to a public IP. If the OpenSearch
 instances reside in a private subnet in an AWS VPC then all traffic to S3 will
 go through the VPC's NAT instance. If your VPC's NAT instance is a smaller
 instance size (e.g. a t2.micro) or is handling a high volume of network traffic

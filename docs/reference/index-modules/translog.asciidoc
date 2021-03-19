@@ -15,7 +15,7 @@ In the event of a crash, recent operations that have been acknowledged but not
 yet included in the last Lucene commit are instead recovered from the translog
 when the shard recovers.
 
-An {es} <<indices-flush,flush>> is the process of performing a Lucene commit and
+An {opensearch} <<indices-flush,flush>> is the process of performing a Lucene commit and
 starting a new translog generation. Flushes are performed automatically in the
 background in order to make sure the translog does not grow too large, which
 would make replaying its operations take a considerable amount of time during
@@ -31,10 +31,10 @@ system crash or a JVM crash or a shard failure, any data written since the
 previous translog commit will be lost.
 
 By default, `index.translog.durability` is set to `request` meaning that
-Elasticsearch will only report success of an index, delete, update, or bulk
+OpenSearch will only report success of an index, delete, update, or bulk
 request to the client after the translog has been successfully ++fsync++ed and
 committed on the primary and on every allocated replica. If
-`index.translog.durability` is set to `async` then Elasticsearch ++fsync++s and
+`index.translog.durability` is set to `async` then OpenSearch ++fsync++s and
 commits the translog only every `index.translog.sync_interval` which means that
 any operations that were performed just before a crash may be lost when the node
 recovers.
@@ -83,7 +83,7 @@ update, or bulk request. This setting accepts the following parameters:
 deprecated::[7.4.0, "Translog retention settings are deprecated in favor of <<index-modules-history-retention,soft deletes>>. These settings are effectively ignored since 7.4 and will be removed in a future version."]
 
 If an index is not using <<index-modules-history-retention,soft deletes>> to
-retain historical operations then {es} recovers each replica shard by replaying
+retain historical operations then {opensearch} recovers each replica shard by replaying
 operations from the primary's translog. This means it is important for the
 primary to preserve extra operations in its translog in case it needs to
 rebuild a replica. Moreover it is important for each replica to preserve extra
@@ -98,7 +98,7 @@ translog is retained for peer recoveries.
   based sync when recovering a replica. If the translog files are not
   sufficient, replica recovery will fall back to a file based sync. Defaults to
   `512mb`. This setting is ignored, and should not be set, if soft deletes are
-  enabled. Soft deletes are enabled by default in indices created in {es}
+  enabled. Soft deletes are enabled by default in indices created in {opensearch}
   versions 7.0.0 and later.
 
 `index.translog.retention.age`::
@@ -108,5 +108,5 @@ translog is retained for peer recoveries.
   operation based sync when recovering replicas. If the translog files are not
   sufficient, replica recovery will fall back to a file based sync. Defaults to
   `12h`. This setting is ignored, and should not be set, if soft deletes are
-  enabled. Soft deletes are enabled by default in indices created in {es}
+  enabled. Soft deletes are enabled by default in indices created in {opensearch}
   versions 7.0.0 and later.

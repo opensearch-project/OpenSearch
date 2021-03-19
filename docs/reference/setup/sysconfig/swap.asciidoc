@@ -18,7 +18,7 @@ minimizing swappiness versus memory locking is dependent on your environment.
 [[disable-swap-files]]
 ==== Disable all swap files
 
-Usually Elasticsearch is the only service running on a box, and its memory usage
+Usually OpenSearch is the only service running on a box, and its memory usage
 is controlled by the JVM options. There should be no need to have swap enabled.
 
 On Linux systems, you can disable swap temporarily by running:
@@ -28,7 +28,7 @@ On Linux systems, you can disable swap temporarily by running:
 sudo swapoff -a
 --------------
 
-This doesn't require a restart of Elasticsearch.
+This doesn't require a restart of OpenSearch.
 
 To disable it permanently, you will need to edit the `/etc/fstab` file and
 comment out any lines that contain the word `swap`.
@@ -52,7 +52,7 @@ http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] on
 Linux/Unix systems, or
 https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx[VirtualLock]
 on Windows, to try to lock the process address space into RAM, preventing any
-{es} heap memory from being swapped out.
+{opensearch} heap memory from being swapped out.
 
 NOTE: Some platforms still swap off-heap memory when using a memory lock. To
 prevent off-heap memory swaps, <<disable-swap-files,disable all swap files>>
@@ -69,7 +69,7 @@ bootstrap.memory_lock: true
 WARNING: `mlockall` might cause the JVM or shell session to exit if it tries to
 allocate more memory than is available!
 
-After starting Elasticsearch, you can see whether this setting was applied
+After starting OpenSearch, you can see whether this setting was applied
 successfully by checking the value of `mlockall` in the output from this
 request:
 
@@ -83,11 +83,11 @@ request has failed.  You will also see a line with more information in the logs
 with the words `Unable to lock JVM Memory`.
 
 The most probable reason, on Linux/Unix systems, is that the user running
-Elasticsearch doesn't have permission to lock memory.  This can be granted as
+OpenSearch doesn't have permission to lock memory.  This can be granted as
 follows:
 
 `.zip` and `.tar.gz`::
-Set <<ulimit,`ulimit -l unlimited`>> as root before starting {es}.
+Set <<ulimit,`ulimit -l unlimited`>> as root before starting {opensearch}.
 Alternatively, set `memlock` to `unlimited` in `/etc/security/limits.conf`:
 +
 [source,sh]

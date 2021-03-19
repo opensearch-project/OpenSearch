@@ -80,7 +80,7 @@ to customize scoring:
 * <<decay-functions-date-fields>>
 
 We suggest using these predefined functions instead of writing your own.
-These functions take advantage of efficiencies from {es}' internal mechanisms.
+These functions take advantage of efficiencies from {opensearch}' internal mechanisms.
 
 [[script-score-saturation]]
 ====== Saturation

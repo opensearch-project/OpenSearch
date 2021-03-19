@@ -50,37 +50,37 @@ Only a single index name can be provided to this parameter.
 [[search-explain-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
 `stored_fields`::
   (Optional, string) A comma-separated list of stored fields to return in the 
   response.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 
 [[search-explain-api-request-body]]
 ==== {api-request-body-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
 
 
 [[search-explain-api-example]]

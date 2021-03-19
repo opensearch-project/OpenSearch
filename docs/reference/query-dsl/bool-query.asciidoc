@@ -156,12 +156,12 @@ GET /_search
   "query": {
     "bool": {
       "should": [
-        { "match": { "name.first": { "query": "shay", "_name": "first" } } },
-        { "match": { "name.last": { "query": "banon", "_name": "last" } } }
+        { "match": { "name.first": { "query": "john", "_name": "first" } } },
+        { "match": { "name.last": { "query": "doe", "_name": "last" } } }
       ],
       "filter": {
         "terms": {
-          "name.last": [ "banon", "kimchy" ],
+          "name.last": [ "doe", "roe" ],
           "_name": "test"
         }
       }

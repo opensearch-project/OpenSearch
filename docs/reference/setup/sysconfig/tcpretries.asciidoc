@@ -18,7 +18,7 @@ corresponds with a timeout of around 6 seconds.
 
 The Linux default allows for communication over networks that may experience
 very long periods of packet loss, but this default is excessive for production
-networks within a single data centre as is the case for most {es} clusters.
+networks within a single data centre as is the case for most {opensearch} clusters.
 Highly-available clusters must be able to detect node failures quickly so that
 they can react promptly by reallocating lost shards, rerouting searches and
 perhaps electing a new master node. Linux users should therefore reduce the
@@ -41,11 +41,11 @@ IMPORTANT: This setting applies to all TCP connections and will affect the
 reliability of communication with systems outside your cluster too. If your
 cluster communicates with external systems over an unreliable network then you
 may need to select a higher value for `net.ipv4.tcp_retries2`. For this reason,
-{es} does not adjust this setting automatically.
+{opensearch} does not adjust this setting automatically.
 
 ==== Related configuration
 
-{es} also implements its own internal health checks with timeouts that are much
+{opensearch} also implements its own internal health checks with timeouts that are much
 shorter than the default retransmission timeout on Linux. Since these are
 application-level health checks their timeouts must allow for application-level
 effects such as garbage collection pauses. You should not reduce any timeouts
@@ -54,6 +54,6 @@ related to these application-level health checks.
 You must also ensure your network infrastructure does not interfere with the
 long-lived connections between nodes, <<long-lived-connections,even if those
 connections appear to be idle>>. Devices which drop connections when they reach
-a certain age are a common source of problems to Elasticsearch clusters, and
+a certain age are a common source of problems to OpenSearch clusters, and
 must not be used.
 

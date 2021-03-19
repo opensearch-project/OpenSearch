@@ -55,9 +55,9 @@ To retrieve all index templates, omit this parameter or use a value of `*`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 

@@ -67,8 +67,8 @@ GET /_search
 [[prefix-query-index-prefixes]]
 ===== Speed up prefix queries
 You can speed up prefix queries using the <<index-prefixes,`index_prefixes`>>
-mapping parameter. If enabled, {es} indexes prefixes between 2 and 5
-characters in a separate field. This lets {es} run prefix queries more
+mapping parameter. If enabled, {opensearch} indexes prefixes between 2 and 5
+characters in a separate field. This lets {opensearch} run prefix queries more
 efficiently at the cost of a larger index.
 
 [[prefix-query-allow-expensive-queries]]

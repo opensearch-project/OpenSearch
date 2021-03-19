@@ -6,7 +6,7 @@ be used to write scripts that need to use advanced internals of scripting. For e
 a script that wants to use term frequencies while scoring.
 
 The plugin {plugins}/plugin-authors.html[documentation] has more information on
-how to write a plugin so that Elasticsearch will properly load it. To register
+how to write a plugin so that OpenSearch will properly load it. To register
 the `ScriptEngine`, your plugin should implement the `ScriptPlugin` interface
 and override the `getScriptEngine(Settings settings)` method.
 

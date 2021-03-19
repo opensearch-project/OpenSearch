@@ -139,9 +139,9 @@ better GET scaling we will have.
 You can use the `version` parameter to retrieve the document only if
 its current version is equal to the specified one.
 
-Internally, Elasticsearch has marked the old document as deleted and added an
+Internally, OpenSearch has marked the old document as deleted and added an
 entirely new document. The old version of the document doesn’t disappear
-immediately, although you won’t be able to access it. Elasticsearch cleans up
+immediately, although you won’t be able to access it. OpenSearch cleans up
 deleted documents in the background as you continue to index more data.
 
 [[docs-get-api-path-params]]
@@ -156,28 +156,28 @@ deleted documents in the background as you continue to index more data.
 [[docs-get-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
 `refresh`::
 (Optional, Boolean)
-If `true`, {es} refreshes the affected shards to make this operation visible to
+If `true`, {opensearch} refreshes the affected shards to make this operation visible to
 search. If `false`, do nothing with refreshes. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stored_fields]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=stored_fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
 [[docs-get-api-response-body]]
 ==== {api-response-body-title}
@@ -186,7 +186,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 The name of the index the document belongs to.
 
 `_type`::
-The document type. {es} indices now support a single document type, `_doc`.
+The document type. {opensearch} indices now support a single document type, `_doc`.
 
 `_id`::
 The unique identifier for the document.
@@ -273,7 +273,7 @@ HEAD my-index-000001/_doc/0
 --------------------------------------------------
 // TEST[setup:my_index]
 
-{es} returns a status code of `200 - OK` if the document exists, or
+{opensearch} returns a status code of `200 - OK` if the document exists, or
 `404 - Not Found` if it doesn't.
 
 [discrete]

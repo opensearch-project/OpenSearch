@@ -57,7 +57,7 @@ GET /_search
 --
 (Optional, string) Date format used to convert `date` values in the query.
 
-By default, {es} uses the <<mapping-date-format,date `format`>> provided in the
+By default, {opensearch} uses the <<mapping-date-format,date `format`>> provided in the
 `<field>`'s mapping. This value overrides that mapping format.
 
 For valid syntax, see <<mapping-date-format,`format`>>.
@@ -165,7 +165,7 @@ GET /_search
 ====== Missing date components
 
 For range queries and <<search-aggregations-bucket-daterange-aggregation,date
-range>> aggregations, {es} replaces missing date components with the following
+range>> aggregations, {opensearch} replaces missing date components with the following
 values. Missing year components are not replaced.
 
 [source,text]
@@ -178,14 +178,14 @@ SECOND_OF_MINUTE: 59
 NANO_OF_SECOND:   999_999_999
 ----
 
-For example, if the format is `yyyy-MM`, {es} converts a `gt` value of `2099-12`
+For example, if the format is `yyyy-MM`, {opensearch} converts a `gt` value of `2099-12`
 to `2099-12-01T23:59:59.999_999_999Z`. This date uses the provided year (`2099`)
 and month (`12`) but uses the default day (`01`), hour (`23`), minute (`59`),
 second (`59`), and nanosecond (`999_999_999`).
 
 [[range-query-date-math-rounding]]
 ====== Date math and rounding
-{es} rounds <<date-math,date math>> values in parameters as follows:
+{opensearch} rounds <<date-math,date math>> values in parameters as follows:
 
 `gt`::
 +
@@ -247,6 +247,6 @@ GET /_search
 // TEST[continued]
 
 <1> Indicates that `date` values use a UTC offset of `+01:00`.
-<2> With a UTC offset of `+01:00`, {es} converts this date to
+<2> With a UTC offset of `+01:00`, {opensearch} converts this date to
 `2019-12-31T23:00:00 UTC`.
 <3> The `time_zone` parameter does not affect the `now` value.

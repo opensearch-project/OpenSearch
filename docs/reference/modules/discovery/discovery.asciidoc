@@ -3,7 +3,7 @@
 
 Discovery is the process by which the cluster formation module finds other
 nodes with which to form a cluster. This process runs when you start an
-Elasticsearch node or when a node believes the master node failed and continues
+OpenSearch node or when a node believes the master node failed and continues
 until the master node is found or a new master node is elected.
 
 This process starts with a list of _seed_ addresses from one or more
@@ -41,7 +41,7 @@ ways to find the seed hosts for your cluster.
 
 Each seed hosts provider yields the IP addresses or hostnames of the seed
 nodes. If it returns any hostnames then these are resolved to IP addresses
-using a DNS lookup. If a hostname resolves to multiple IP addresses then {es}
+using a DNS lookup. If a hostname resolves to multiple IP addresses then {opensearch}
 tries to find a seed node at all of these addresses. If the hosts provider does
 not explicitly give the TCP port of the node by then, it will implicitly use the
 first port in the port range given by `transport.profiles.default.port`, or by
@@ -73,7 +73,7 @@ discovery.seed_hosts:
 --------------------------------------------------
 <1> The port will default to `transport.profiles.default.port` and fallback to
     `transport.port` if not specified.
-<2> If a hostname resolves to multiple IP addresses, {es} will attempt to
+<2> If a hostname resolves to multiple IP addresses, {opensearch} will attempt to
     connect to every resolved address.
 
 [discrete]
@@ -81,9 +81,9 @@ discovery.seed_hosts:
 ===== File-based seed hosts provider
 
 The file-based seed hosts provider configures a list of hosts via an external
-file.  {es} reloads this file when it changes, so that the list of seed nodes
+file.  {opensearch} reloads this file when it changes, so that the list of seed nodes
 can change dynamically without needing to restart each node. For example, this
-gives a convenient mechanism for an {es} instance that is run in a Docker
+gives a convenient mechanism for an {opensearch} instance that is run in a Docker
 container to be dynamically supplied with a list of IP addresses to connect to
 when those IP addresses may not be known at node startup.
 
@@ -97,18 +97,18 @@ discovery.seed_providers: file
 
 Then create a file at `$OPENSEARCH_PATH_CONF/unicast_hosts.txt` in the format described
 below. Any time a change is made to the `unicast_hosts.txt` file the new
-changes will be picked up by {es} and the new hosts list will be used.
+changes will be picked up by {opensearch} and the new hosts list will be used.
 
 Note that the file-based discovery plugin augments the unicast hosts list in
 `opensearch.yml`: if there are valid seed addresses in
-`discovery.seed_hosts` then {es} uses those addresses in addition to those
+`discovery.seed_hosts` then {opensearch} uses those addresses in addition to those
 supplied in `unicast_hosts.txt`.
 
 The `unicast_hosts.txt` file contains one node entry per line. Each node entry
 consists of the host (host name or IP address) and an optional transport port
 number. If the port number is specified, is must come immediately after the
 host (on the same line) separated by a `:`.  If the port number is not
-specified, {es} will implicitly use the first port in the port range given by
+specified, {opensearch} will implicitly use the first port in the port range given by
 `transport.profiles.default.port`, or by `transport.port` if
 `transport.profiles.default.port` is not set.
 

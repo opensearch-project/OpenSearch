@@ -94,7 +94,7 @@ PUT my-index-000001
 Malformed fields are silently ignored at indexing time when `ignore_malformed`
 is turned on. Whenever possible it is recommended to keep the number of
 documents that have a malformed field contained, or queries on this field will
-become meaningless. Elasticsearch makes it easy to check how many documents
+become meaningless. OpenSearch makes it easy to check how many documents
 have malformed fields by using `exists`,`term` or `terms` queries on the special
 <<mapping-ignored-field,`_ignored`>> field.
 
@@ -110,5 +110,5 @@ You also can't use `ignore_malformed` to ignore JSON objects submitted to fields
 of the wrong data type. A JSON object is any data surrounded by curly brackets
 `"{}"` and includes data mapped to the nested, object, and range data types.
 
-If you submit a JSON object to an unsupported field, {es} will return an error
+If you submit a JSON object to an unsupported field, {opensearch} will return an error
 and reject the entire document regardless of the `ignore_malformed` setting.

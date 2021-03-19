@@ -37,7 +37,7 @@ index that make warmers not necessary anymore.
 
 [role="exclude",id="index-apis"]
 === Index APIs
-{es} index APIs are now documented in <<indices>>.
+{opensearch} index APIs are now documented in <<indices>>.
 
 [role="exclude",id="search-request-docvalue-fields"]
 === Doc value fields parameter for request body search API
@@ -230,7 +230,7 @@ See <<getting-started-next-steps>>.
 See <<ccs-works>>.
 
 [role="exclude",id="administer-elasticsearch"]
-=== Administering {es}
+=== Administering {opensearch}
 See <<high-availability>>.
 
 [role="exclude",id="docker-cli-run"]
@@ -292,21 +292,21 @@ See:
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[#55257]) from the {es} Reference
+({es-issue}55257[#55257]) from the {opensearch} Reference
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
-for providing general testing guidance for applications that communicate with {es}.
+for providing general testing guidance for applications that communicate with {opensearch}.
 
 [role="exclude",id="testing-framework"]
 === Java testing framework
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference because it was out of date and
+({es-issue}55257[55257]) from the {opensearch} Reference because it was out of date and
 erroneously implied that it should be used by application developers.
 
 There is an issue ({es-issue}55258[#55258]) for providing general testing
-guidance for applications that communicate with {es}.
+guidance for applications that communicate with {opensearch}.
 
 
 [role="exclude",id="why-randomized-testing"]
@@ -314,21 +314,21 @@ guidance for applications that communicate with {es}.
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {opensearch} Reference
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}[#55258])
-for providing general testing guidance for applications that communicate with {es}.
+for providing general testing guidance for applications that communicate with {opensearch}.
 
 
 [role="exclude",id="using-elasticsearch-test-classes"]
-=== Using the {es} test classes
+=== Using the {opensearch} test classes
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {opensearch} Reference
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
-for providing general testing guidance for applications that communicate with {es}.
+for providing general testing guidance for applications that communicate with {opensearch}.
 
 
 [role="exclude",id="unit-tests"]
@@ -336,10 +336,10 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {opensearch} Reference
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
-for providing general testing guidance for applications that communicate with {es}.
+for providing general testing guidance for applications that communicate with {opensearch}.
 
 
 [role="exclude",id="integration-tests"]
@@ -347,10 +347,10 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {opensearch} Reference
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
-for providing general testing guidance for applications that communicate with {es}.
+for providing general testing guidance for applications that communicate with {opensearch}.
 
 
 [role="exclude",id="number-of-shards"]
@@ -443,7 +443,7 @@ See <<misc-cluster-settings>>.
 
 This page has been removed.
 
-See <<settings,Configuring Elasticsearch>> for settings information:
+See <<settings,Configuring OpenSearch>> for settings information:
 
 * <<circuit-breaker>>
 * <<modules-cluster>>

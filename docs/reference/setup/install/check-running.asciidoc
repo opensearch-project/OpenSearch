@@ -1,6 +1,6 @@
-==== Checking that Elasticsearch is running
+==== Checking that OpenSearch is running
 
-You can test that your Elasticsearch node is running by sending an HTTP
+You can test that your OpenSearch node is running by sending an HTTP
 request to port `9200` on `localhost`:
 
 [source,console]

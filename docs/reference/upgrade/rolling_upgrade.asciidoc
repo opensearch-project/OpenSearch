@@ -1,9 +1,9 @@
 [[rolling-upgrades]]
 == Rolling upgrades
 
-A rolling upgrade allows an {es} cluster to be upgraded one node at
+A rolling upgrade allows an {opensearch} cluster to be upgraded one node at
 a time so upgrading does not interrupt service. Running multiple versions of
-{es} in the same cluster beyond the duration of an upgrade is
+{opensearch} in the same cluster beyond the duration of an upgrade is
 not supported, as shards cannot be replicated from upgraded nodes to nodes
 running the older version.
 
@@ -88,7 +88,7 @@ must configure <<built-in-hosts-providers,either `discovery.seed_hosts` or
 . *Upgrade any plugins.*
 +
 Use the `opensearch-plugin` script to install the upgraded version of each
-installed {es} plugin. All plugins must be upgraded when you upgrade
+installed {opensearch} plugin. All plugins must be upgraded when you upgrade
 a node.
 
 . *Start the upgraded node.*

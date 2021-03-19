@@ -14,15 +14,15 @@ Returns information about a cluster's nodes.
 [[cat-nodes-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 `full_id`::
 (Optional, Boolean) If `true`, return the full node ID.  If `false`, return the
 shortened node ID. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
 If you do not specify which columns to include, the API returns the default columns in the order listed below. If you explicitly specify one or more columns, it only returns the specified columns.
@@ -68,10 +68,10 @@ Bound transport port, such as `9300`.
 Bound http address, such as `127.0.0.1:9200`.
 
 `version`, `v`::
-Elasticsearch version, such as {version}.
+OpenSearch version, such as {version}.
 
 `build`, `b`::
-Elasticsearch build hash, such as `5c03844`.
+OpenSearch build hash, such as `5c03844`.
 
 `jdk`, `j`::
 Java version, such as `1.8.0`.
@@ -288,7 +288,7 @@ Time spent in suggest, such as `0`.
 Number of suggest operations, such as `0`.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
 `local`::
 (Optional, boolean) 
@@ -299,13 +299,13 @@ computed from the cluster state on the master node. In either case the
 coordinating node sends a request for further information to each selected
 node.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-nodes-api-example]]

@@ -1,13 +1,13 @@
 [[modules-transport]]
 === Transport
 
-REST clients send requests to your {es} cluster over <<modules-http,HTTP>>, but
+REST clients send requests to your {opensearch} cluster over <<modules-http,HTTP>>, but
 the node that receives a client request cannot always handle it alone and must
 normally pass it on to other nodes for further processing. It does this using
 the transport networking layer. The transport layer is used for all internal
 communication between nodes within a cluster, all communication with the nodes
 of a <<modules-remote-clusters,remote cluster>>, and also by the
-`TransportClient` in the {es} Java API.
+`TransportClient` in the {opensearch} Java API.
 
 [[transport-settings]]
 ==== Transport settings
@@ -116,7 +116,7 @@ Defaults to `network.tcp.receive_buffer_size`.
 [[transport-profiles]]
 ===== Transport profiles
 
-Elasticsearch allows you to bind to multiple ports on different interfaces by
+OpenSearch allows you to bind to multiple ports on different interfaces by
 the use of transport profiles. See this example configuration
 
 [source,yaml]
@@ -150,15 +150,15 @@ configured, and defaults otherwise to `transport.tcp.reuse_address`.
 
 A transport connection between two nodes is made up of a number of long-lived
 TCP connections, some of which may be idle for an extended period of time.
-Nonetheless, Elasticsearch requires these connections to remain open, and it
+Nonetheless, OpenSearch requires these connections to remain open, and it
 can disrupt the operation of your cluster if any inter-node connections are
 closed by an external influence such as a firewall. It is important to
 configure your network to preserve long-lived idle connections between
-Elasticsearch nodes, for instance by leaving `tcp.keep_alive` enabled and
+OpenSearch nodes, for instance by leaving `tcp.keep_alive` enabled and
 ensuring that the keepalive interval is shorter than any timeout that might
 cause idle connections to be closed, or by setting `transport.ping_schedule` if
 keepalives cannot be configured. Devices which drop connections when they reach
-a certain age are a common source of problems to Elasticsearch clusters, and
+a certain age are a common source of problems to OpenSearch clusters, and
 must not be used.
 
 [[request-compression]]
@@ -180,9 +180,9 @@ request compression, you can set it on a per-remote cluster basis using the
 [[response-compression]]
 ===== Response compression
 
-The compression settings do not configure compression for responses. {es} will
+The compression settings do not configure compression for responses. {opensearch} will
 compress a response if the inbound request was compressed--even when compression
-is not enabled. Similarly, {es} will not compress a response if the inbound
+is not enabled. Similarly, {opensearch} will not compress a response if the inbound
 request was uncompressed--even when compression is enabled.
 
 

@@ -4,7 +4,7 @@
 <titleabbrev>Size your shards</titleabbrev>
 ++++
 
-To protect against hardware failure and increase capacity, {es} stores copies of
+To protect against hardware failure and increase capacity, {opensearch} stores copies of
 an index’s data across multiple shards on multiple nodes. The number and size of
 these shards can have a significant impact on your cluster's health. One common
 problem is _oversharding_, a situation in which a cluster with a large number of
@@ -54,7 +54,7 @@ Every shard uses memory and CPU resources. In most cases, a small
 set of large shards uses fewer resources than many small shards.
 
 Segments play a big role in a shard's resource usage. Most shards contain
-several segments, which store its index data. {es} keeps segment metadata in
+several segments, which store its index data. {opensearch} keeps segment metadata in
 <<heap-size,heap memory>> so it can be quickly retrieved for searches. As a
 shard grows, its segments are <<index-modules-merge,merged>> into fewer, larger
 segments. This decreases the number of segments, which means less metadata is
@@ -62,14 +62,14 @@ kept in heap memory.
 
 [discrete]
 [[shard-auto-balance]]
-==== {es} automatically balances shards across nodes
+==== {opensearch} automatically balances shards across nodes
 
-By default, {es} attempts to spread an index's shards across as many nodes as
-possible. When a node fails or you add a new node, {es} automatically rebalances
+By default, {opensearch} attempts to spread an index's shards across as many nodes as
+possible. When a node fails or you add a new node, {opensearch} automatically rebalances
 shards across the remaining nodes.
 
 You can use <<shard-allocation-awareness,shard allocation awareness>> to ensure
-shards for particular indices only move to specified nodes. If you use {es} for
+shards for particular indices only move to specified nodes. If you use {opensearch} for
 time series data, you can use shard allocation to decrease storage costs by
 assigning shards for older indices to nodes with less expensive hardware.
 
@@ -84,12 +84,12 @@ sharding strategy.
 [[delete-indices-not-documents]]
 ==== Delete indices, not documents
 
-Deleted documents aren't immediately removed from {es}'s file system.
-Instead, {es} marks the document as deleted on each related shard. The marked
+Deleted documents aren't immediately removed from {opensearch}'s file system.
+Instead, {opensearch} marks the document as deleted on each related shard. The marked
 document will continue to use resources until it's removed during a periodic
 <<index-modules-merge,segment merge>>.
 
-When possible, delete entire indices instead. {es} can immediately remove
+When possible, delete entire indices instead. {opensearch} can immediately remove
 deleted indices directly from the file system and free up resources.
 
 [discrete]
@@ -97,7 +97,7 @@ deleted indices directly from the file system and free up resources.
 ==== Aim for shard sizes between 10GB and 50GB
 
 Shards larger than 50GB may make a cluster less likely to recover from failure.
-When a node fails, {es} rebalances the node's shards across the data tier's
+When a node fails, {opensearch} rebalances the node's shards across the data tier's
 remaining nodes. Shards larger than 50GB can be harder to move across a network
 and may tax node resources.
 

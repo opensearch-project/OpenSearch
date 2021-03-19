@@ -4,7 +4,7 @@
 [discrete]
 === Disable the features you do not need
 
-By default Elasticsearch indexes and adds doc values to most fields so that they
+By default OpenSearch indexes and adds doc values to most fields so that they
 can be searched and aggregated out of the box. For instance if you have a numeric
 field called `foo` that you need to run histograms on but that you never need to
 filter on, you can safely disable indexing on this field in your
@@ -27,7 +27,7 @@ PUT index
 
 <<text,`text`>> fields store normalization factors in the index in order to be
 able to score documents. If you only need matching capabilities on a `text`
-field but do not care about the produced scores, you can configure Elasticsearch
+field but do not care about the produced scores, you can configure OpenSearch
 to not write norms to the index:
 
 [source,console]
@@ -48,7 +48,7 @@ PUT index
 <<text,`text`>> fields also store frequencies and positions in the index by
 default. Frequencies are used to compute scores and positions are used to run
 phrase queries. If you do not need to run phrase queries, you can tell
-Elasticsearch to not index positions:
+OpenSearch to not index positions:
 
 [source,console]
 --------------------------------------------------
@@ -66,7 +66,7 @@ PUT index
 --------------------------------------------------
 
 Furthermore if you do not care about scoring either, you can configure
-Elasticsearch to just index matching documents for every term. You will
+OpenSearch to just index matching documents for every term. You will
 still be able to search on this field, but phrase queries will raise errors
 and scoring will assume that terms appear only once in every document.
 
@@ -145,7 +145,7 @@ space. They can be compressed more aggressively by using the `best_compression`
 [discrete]
 === Force Merge
 
-Indices in Elasticsearch are stored in one or more shards. Each shard is a Lucene index and made up of one or more segments - the actual files on disk. Larger segments are more efficient for storing data.
+Indices in OpenSearch are stored in one or more shards. Each shard is a Lucene index and made up of one or more segments - the actual files on disk. Larger segments are more efficient for storing data.
 
 The <<indices-forcemerge,`_forcemerge` API>> can be used to reduce the number of segments per shard. In many cases, the number of segments can be reduced to one per shard by setting `max_num_segments=1`.
 
@@ -167,7 +167,7 @@ save storage.
 [discrete]
 === Use index sorting to colocate similar documents
 
-When Elasticsearch stores `_source`, it compresses multiple documents at once
+When OpenSearch stores `_source`, it compresses multiple documents at once
 in order to improve the overall compression ratio. For instance it is very
 common that documents share the same field names, and quite common that they
 share some field values, especially on fields that have a low cardinality or

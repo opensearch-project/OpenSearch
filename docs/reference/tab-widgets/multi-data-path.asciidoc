@@ -1,3 +1,4 @@
+// TODO(OpenSearch): Correct the path
 // tag::unix[]
 Linux and macOS installations support multiple Unix-style paths in `path.data`:
 
@@ -19,8 +20,8 @@ Windows installations support multiple DOS paths in `path.data`:
 ----
 path:
   data:
-    - "C:\\Elastic\\Elasticsearch_1"
-    - "E:\\Elastic\\Elasticsearch_1"
-    - "F:\\Elastic\\Elasticsearch_3"
+    - "C:\\OpenSearch\\OpenSearch_1"
+    - "E:\\OpenSearch\\OpenSearch_1"
+    - "F:\\OpenSearch\\OpenSearch_3"
 ----
 // end::win[]
