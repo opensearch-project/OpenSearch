@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.not;
  * <code>node.name</code>, <code>cluster.name</code>, <code>node.id</code>, <code>cluster.uuid</code>
  * should not change across all log lines
  *
- * Note that this won't pass for nodes in clusters that don't have the node name defined in elasticsearch.yml <strong>and</strong> start
+ * Note that this won't pass for nodes in clusters that don't have the node name defined in opensearch.yml <strong>and</strong> start
  * with DEBUG or TRACE level logging. Those nodes log a few lines before the node.name is set by <code>LogConfigurator.setNodeName</code>.
  */
 public abstract class JsonLogsIntegTestCase extends OpenSearchRestTestCase {

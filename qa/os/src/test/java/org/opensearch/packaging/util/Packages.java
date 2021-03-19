@@ -55,7 +55,7 @@ public class Packages {
 
     private static final Logger logger = LogManager.getLogger(Packages.class);
 
-    public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/elasticsearch");
+    public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/opensearch");
     public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/opensearch.service");
 
     public static void assertInstalled(Distribution distribution) throws Exception {
@@ -163,44 +163,46 @@ public class Packages {
         verifyOssInstallation(installation, distribution, sh);
     }
 
-    private static void verifyOssInstallation(Installation es, Distribution distribution, Shell sh) {
+    private static void verifyOssInstallation(Installation opensearch, Distribution distribution, Shell sh) {
 
-        sh.run("id elasticsearch");
-        sh.run("getent group elasticsearch");
+        sh.run("id opensearch");
+        sh.run("getent group opensearch");
 
-        final Result passwdResult = sh.run("getent passwd elasticsearch");
+        final Result passwdResult = sh.run("getent passwd opensearch");
         final Path homeDir = Paths.get(passwdResult.stdout.trim().split(":")[5]);
-        assertThat("elasticsearch user home directory must not exist", homeDir, fileDoesNotExist());
+        assertThat("opensearch user home directory must not exist", homeDir, fileDoesNotExist());
 
-        Stream.of(es.home, es.plugins, es.modules).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
+        Stream.of(opensearch.home, opensearch.plugins, opensearch.modules)
+            .forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
 
-        Stream.of(es.data, es.logs).forEach(dir -> assertThat(dir, file(Directory, "elasticsearch", "elasticsearch", p750)));
+        Stream.of(opensearch.data, opensearch.logs).forEach(dir -> assertThat(dir, file(Directory, "opensearch", "opensearch", p750)));
 
         // we shell out here because java's posix file permission view doesn't support special modes
-        assertThat(es.config, file(Directory, "root", "elasticsearch", p750));
-        assertThat(sh.run("find \"" + es.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        assertThat(opensearch.config, file(Directory, "root", "opensearch", p750));
+        assertThat(sh.run("find \"" + opensearch.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
-        final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
-        assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
+        final Path jvmOptionsDirectory = opensearch.config.resolve("jvm.options.d");
+        assertThat(jvmOptionsDirectory, file(Directory, "root", "opensearch", p750));
         assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
         Stream.of("opensearch.keystore", "opensearch.yml", "jvm.options", "log4j2.properties")
-            .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
-        assertThat(es.config(".opensearch.keystore.initial_md5sum"), file(File, "root", "elasticsearch", p644));
+            .forEach(configFile -> assertThat(opensearch.config(configFile), file(File, "root", "opensearch", p660)));
+        assertThat(opensearch.config(".opensearch.keystore.initial_md5sum"), file(File, "root", "opensearch", p644));
 
-        assertThat(sh.run("sudo -u elasticsearch " + es.bin("opensearch-keystore") + " list").stdout, containsString("keystore.seed"));
+        assertThat(sh.run("sudo -u opensearch " + opensearch.bin("opensearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
-        Stream.of(es.bin, es.lib).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
+        Stream.of(opensearch.bin, opensearch.lib).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
 
-        Stream.of("elasticsearch", "opensearch-plugin", "opensearch-keystore", "opensearch-shard", "opensearch-shard")
-            .forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
+        Stream.of("opensearch", "opensearch-plugin", "opensearch-keystore", "opensearch-shard", "opensearch-shard")
+            .forEach(executable -> assertThat(opensearch.bin(executable), file(File, "root", "root", p755)));
 
-        Stream.of("NOTICE.txt", "README.asciidoc").forEach(doc -> assertThat(es.home.resolve(doc), file(File, "root", "root", p644)));
+        Stream.of("NOTICE.txt", "README.asciidoc")
+            .forEach(doc -> assertThat(opensearch.home.resolve(doc), file(File, "root", "root", p644)));
 
-        assertThat(es.envFile, file(File, "root", "elasticsearch", p660));
+        assertThat(opensearch.envFile, file(File, "root", "opensearch", p660));
 
         if (distribution.packaging == Distribution.Packaging.RPM) {
-            assertThat(es.home.resolve("LICENSE.txt"), file(File, "root", "root", p644));
+            assertThat(opensearch.home.resolve("LICENSE.txt"), file(File, "root", "root", p644));
         } else {
             Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/").stdout.trim());
             assertThat(copyrightDir, file(Directory, "root", "root", p755));
@@ -208,11 +210,8 @@ public class Packages {
         }
 
         if (isSystemd()) {
-            Stream.of(
-                SYSTEMD_SERVICE,
-                Paths.get("/usr/lib/tmpfiles.d/elasticsearch.conf"),
-                Paths.get("/usr/lib/sysctl.d/elasticsearch.conf")
-            ).forEach(confFile -> assertThat(confFile, file(File, "root", "root", p644)));
+            Stream.of(SYSTEMD_SERVICE, Paths.get("/usr/lib/tmpfiles.d/opensearch.conf"), Paths.get("/usr/lib/sysctl.d/opensearch.conf"))
+                .forEach(confFile -> assertThat(confFile, file(File, "root", "root", p644)));
 
             final String sysctlExecutable = (distribution.packaging == Distribution.Packaging.RPM) ? "/usr/sbin/sysctl" : "/sbin/sysctl";
             assertThat(sh.run(sysctlExecutable + " vm.max_map_count").stdout, containsString("vm.max_map_count = 262144"));

@@ -37,29 +37,29 @@ public class Cleanup {
 
     private static final List<String> ELASTICSEARCH_FILES_LINUX = Arrays.asList(
         "/usr/share/opensearch",
-        "/etc/elasticsearch/opensearch.keystore",
-        "/etc/elasticsearch",
-        "/var/lib/elasticsearch",
-        "/var/log/elasticsearch",
-        "/etc/default/elasticsearch",
-        "/etc/sysconfig/elasticsearch",
-        "/var/run/elasticsearch",
-        "/usr/share/doc/elasticsearch",
-        "/usr/lib/systemd/system/elasticsearch.conf",
-        "/usr/lib/tmpfiles.d/elasticsearch.conf",
-        "/usr/lib/sysctl.d/elasticsearch.conf"
+        "/etc/opensearch/opensearch.keystore",
+        "/etc/opensearch",
+        "/var/lib/opensearch",
+        "/var/log/opensearch",
+        "/etc/default/opensearch",
+        "/etc/sysconfig/opensearch",
+        "/var/run/opensearch",
+        "/usr/share/doc/opensearch",
+        "/usr/lib/systemd/system/opensearch.conf",
+        "/usr/lib/tmpfiles.d/opensearch.conf",
+        "/usr/lib/sysctl.d/opensearch.conf"
     );
 
     // todo
-    private static final List<String> ELASTICSEARCH_FILES_WINDOWS = Collections.emptyList();
+    private static final List<String> OPENSEARCH_FILES_WINDOWS = Collections.emptyList();
 
     public static void cleanEverything() throws Exception {
         final Shell sh = new Shell();
 
-        // kill elasticsearch processes
+        // kill opensearch processes
         Platforms.onLinux(() -> {
-            sh.runIgnoreExitCode("pkill -u elasticsearch");
-            sh.runIgnoreExitCode("ps aux | grep -i 'org.opensearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
+            sh.runIgnoreExitCode("pkill -u opensearch");
+            sh.runIgnoreExitCode("ps aux | grep -i 'org.opensearch.bootstrap.OpenSearch' | awk {'print $2'} | xargs kill -9");
         });
 
         Platforms.onWindows(
@@ -67,7 +67,7 @@ public class Cleanup {
                 // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
                 sh.runIgnoreExitCode(
                     "Get-WmiObject Win32_Process | "
-                        + "Where-Object { $_.CommandLine -Match 'org.opensearch.bootstrap.Elasticsearch' } | "
+                        + "Where-Object { $_.CommandLine -Match 'org.opensearch.bootstrap.OpenSearch' } | "
                         + "ForEach-Object { $_.Terminate() }"
                 );
             }
@@ -75,21 +75,21 @@ public class Cleanup {
 
         Platforms.onLinux(Cleanup::purgePackagesLinux);
 
-        // remove elasticsearch users
+        // remove opensearch users
         Platforms.onLinux(() -> {
-            sh.runIgnoreExitCode("userdel elasticsearch");
-            sh.runIgnoreExitCode("groupdel elasticsearch");
+            sh.runIgnoreExitCode("userdel opensearch");
+            sh.runIgnoreExitCode("groupdel opensearch");
         });
         // when we run es as a role user on windows, add the equivalent here
 
         // delete files that may still exist
-        lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
-        final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
+        lsGlob(getRootTempDir(), "opensearch*").forEach(FileUtils::rm);
+        final List<String> filesToDelete = Platforms.WINDOWS ? OPENSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
         // windows needs leniency due to asinine releasing of file locking async from a process exiting
         Consumer<? super Path> rm = Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm;
         filesToDelete.stream().map(Paths::get).filter(Files::exists).forEach(rm);
 
-        // disable elasticsearch service
+        // disable opensearch service
         // todo add this for windows when adding tests for service intallation
         if (Platforms.LINUX && isSystemd()) {
             sh.run("systemctl unmask systemd-sysctl.service");
@@ -101,13 +101,13 @@ public class Cleanup {
 
         if (isRPM()) {
             // Doing rpm erase on both packages in one command will remove neither since both cannot be installed
-            // this may leave behind config files in /etc/elasticsearch, but a later step in this cleanup will get them
-            sh.runIgnoreExitCode("rpm --quiet -e elasticsearch");
+            // this may leave behind config files in /etc/opensearch, but a later step in this cleanup will get them
+            sh.runIgnoreExitCode("rpm --quiet -e opensearch");
             sh.runIgnoreExitCode("rpm --quiet -e opensearch-oss");
         }
 
         if (isDPKG()) {
-            sh.runIgnoreExitCode("dpkg --purge elasticsearch opensearch-oss");
+            sh.runIgnoreExitCode("dpkg --purge opensearch opensearch-oss");
         }
     }
 }

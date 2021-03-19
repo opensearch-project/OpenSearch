@@ -321,8 +321,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return Build.CURRENT.isSnapshot();
     }
 
-    /** Returns the url for an official elasticsearch plugin. */
-    private String getElasticUrl(
+    /** Returns the url for an official opensearch plugin. */
+    private String getOpenSearchUrl(
         final Terminal terminal,
         final String stagingHash,
         final Version version,
@@ -334,7 +334,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (isSnapshot && stagingHash == null) {
             throw new UserException(
                 ExitCodes.CONFIG,
-                "attempted to install release build of official plugin on snapshot build of Elasticsearch"
+                "attempted to install release build of official plugin on snapshot build of OpenSearch"
             );
         }
         if (stagingHash != null) {
@@ -344,6 +344,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 baseUrl = nonReleaseUrl("staging", version, stagingHash, pluginId);
             }
         } else {
+            // TODO (URL) replace w/ opensearch artifacts URL
             baseUrl = String.format(Locale.ROOT, "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
         }
         final String platformUrl = String.format(
@@ -361,6 +362,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
+        // TODO (URL) replace w/ opensearch non-release URL
         return String.format(
             Locale.ROOT,
             "https://%s.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s",

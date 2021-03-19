@@ -79,7 +79,7 @@ public class ArchiveTests extends PackagingTestCase {
             if (distribution().hasJdk) {
                 mv(installation.bundledJdk, relocatedJdk);
             }
-            // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
+            // ask for opensearch version to quickly exit if java is actually found (ie test failure)
             final Result runResult = sh.runIgnoreExitCode(bin.opensearch.toString() + " -v");
             assertThat(runResult.exitCode, is(1));
             assertThat(runResult.stderr, containsString("could not find java in bundled jdk"));
@@ -94,7 +94,7 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         sh.getEnv().put("JAVA_HOME", "doesnotexist");
 
-        // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
+        // ask for opensearch version to quickly exit if java is actually found (ie test failure)
         final Result runResult = sh.runIgnoreExitCode(bin.opensearch.toString() + " -V");
         assertThat(runResult.exitCode, is(1));
         assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME"));
@@ -110,7 +110,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         try {
             mv(installation.bundledJdk, relocatedJdk);
-            // ask for elasticsearch version to avoid starting the app
+            // ask for opensearch version to avoid starting the app
             final Result runResult = sh.run(bin.opensearch.toString() + " -V");
             assertThat(runResult.stdout, startsWith("Version: "));
         } finally {
