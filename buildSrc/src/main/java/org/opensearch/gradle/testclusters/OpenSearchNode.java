@@ -525,7 +525,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
             credentials.forEach(
                 paramMap -> runOpenSearchBinScript(
-                    getVersion().onOrAfter("6.3.0") ? "elasticsearch-users" : "x-pack/users",
+                    "opensearch-users",
                     paramMap.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).toArray(String[]::new)
                 )
             );

@@ -257,7 +257,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             // provided repository settings
             deprecationLogger.deprecate("s3_repository_secret_settings",
                     "Using s3 access/secret key from repository settings. Instead "
-                    + "store these in named clients and the elasticsearch keystore for secure settings.");
+                    + "store these in named clients and the opensearch keystore for secure settings.");
         }
 
         coolDown = COOLDOWN_PERIOD.get(metadata.settings());

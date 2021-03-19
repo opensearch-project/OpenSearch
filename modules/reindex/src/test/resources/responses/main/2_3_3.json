@@ -1,6 +1,6 @@
 {
   "name" : "Ezekiel Stane",
-  "cluster_name" : "elasticsearch",
+  "cluster_name" : "opensearch",
   "version" : {
     "number" : "2.3.3",
     "build_hash" : "218bdf10790eef486ff2c41a3df5cfa32dadcfde",

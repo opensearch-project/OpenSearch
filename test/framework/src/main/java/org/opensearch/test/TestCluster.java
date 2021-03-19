@@ -44,7 +44,7 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
+ * Base test cluster that exposes the basis to run tests against any opensearch cluster, whose layout
  * (e.g. number of nodes) is predefined and cannot be changed during the tests execution
  */
 public abstract class TestCluster implements Closeable {

@@ -46,7 +46,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin");
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
@@ -90,7 +90,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "name", "my_plugin",
             "version", "1.0");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
-        assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
+        assertThat(e.getMessage(), containsString("[opensearch.version] is missing"));
     }
 
     public void testReadFromPropertiesJavaVersionMissing() throws Exception {
@@ -98,7 +98,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
         PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
             "name", "my_plugin",
-            "elasticsearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "version", "1.0");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[java.version] is missing"));
@@ -110,7 +110,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
         PluginTestUtil.writePluginProperties(pluginDir,
                 "description", "fake desc",
                 "name", pluginName,
-                "elasticsearch.version", Version.CURRENT.toString(),
+                "opensearch.version", Version.CURRENT.toString(),
                 "java.version", "1.7.0_80",
                 "classname", "FakePlugin",
                 "version", "1.0");
@@ -125,7 +125,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "description", "fake desc",
             "version", "1.0",
             "name", "my_plugin",
-            "elasticsearch.version", "bogus");
+            "opensearch.version", "bogus");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("version needs to contain major, minor, and revision"));
     }
@@ -136,7 +136,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("property [classname] is missing"));
@@ -148,7 +148,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin",
             "extended.plugins", "foo");
@@ -162,7 +162,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin",
             "extended.plugins", "foo,bar,baz");
@@ -176,7 +176,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin",
             "extended.plugins", "");
@@ -224,7 +224,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "classname", "Foo",
             "name", "my_plugin",
             "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("Unknown properties in plugin descriptor"));

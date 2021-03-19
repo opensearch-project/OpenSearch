@@ -184,7 +184,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
 
         // Script logic is
         // 1) New accounts take balance from "balance" in upsert doc and first payment is charged at 50%
-        // 2) Existing accounts subtract full payment from balance stored in elasticsearch
+        // 2) Existing accounts subtract full payment from balance stored in opensearch
 
         int openingBalance=10;
 

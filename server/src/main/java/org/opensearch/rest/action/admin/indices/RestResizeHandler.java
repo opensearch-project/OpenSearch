@@ -56,7 +56,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public final RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
         resizeRequest.setResizeType(getResizeType());
-        // copy_settings should be removed in Elasticsearch 8.0.0; cf. https://github.com/elastic/elasticsearch/issues/28347
+        // copy_settings should be removed in OpenSearch 1.0.0; cf. https://github.com/elastic/elasticsearch/issues/28347
         assert Version.CURRENT.major < 8;
         final String rawCopySettings = request.param("copy_settings");
         final Boolean copySettings;
