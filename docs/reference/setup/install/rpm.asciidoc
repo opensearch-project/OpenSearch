@@ -204,7 +204,7 @@ locations for an RPM-based system:
 | bin
   | Binary scripts including `opensearch` to start a node
     and `opensearch-plugin` to install plugins
-  | /usr/share/elasticsearch/bin
+  | /usr/share/opensearch/bin
  d|
 
 | conf

@@ -29,19 +29,19 @@ For the archive distributions, the config directory location defaults to
 
 [source,sh]
 -------------------------------
-OPENSEARCH_PATH_CONF=/path/to/my/config ./bin/elasticsearch
+OPENSEARCH_PATH_CONF=/path/to/my/config ./bin/opensearch
 -------------------------------
 
 Alternatively, you can `export` the `OPENSEARCH_PATH_CONF` environment variable via the
 command line or via your shell profile.
 
 For the package distributions, the config directory location defaults to
-`/etc/elasticsearch`. The location of the config directory can also be changed
+`/etc/opensearch`. The location of the config directory can also be changed
 via the `OPENSEARCH_PATH_CONF` environment variable, but note that setting this in your
 shell is not sufficient. Instead, this variable is sourced from
-`/etc/default/elasticsearch` (for the Debian package) and
-`/etc/sysconfig/elasticsearch` (for the RPM package). You will need to edit the
-`OPENSEARCH_PATH_CONF=/etc/elasticsearch` entry in one of these files accordingly to
+`/etc/default/opensearch` (for the Debian package) and
+`/etc/sysconfig/opensearch` (for the RPM package). You will need to edit the
+`OPENSEARCH_PATH_CONF=/etc/opensearch` entry in one of these files accordingly to
 change the config directory location.
 
 
@@ -54,16 +54,16 @@ example of changing the path of the data and logs directories:
 [source,yaml]
 --------------------------------------------------
 path:
-    data: /var/lib/elasticsearch
-    logs: /var/log/elasticsearch
+    data: /var/lib/opensearch
+    logs: /var/log/opensearch
 --------------------------------------------------
 
 Settings can also be flattened as follows:
 
 [source,yaml]
 --------------------------------------------------
-path.data: /var/lib/elasticsearch
-path.logs: /var/log/elasticsearch
+path.data: /var/lib/opensearch
+path.logs: /var/log/opensearch
 --------------------------------------------------
 
 In YAML, you can format non-scalar values as sequences:
