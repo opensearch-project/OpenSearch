@@ -11,7 +11,7 @@ Aggregations help you answer questions like:
 * What would be considered a large file on my network?
 * How many products are in each product category?
 
-{es} organizes aggregations into three categories:
+{opensearch} organizes aggregations into three categories:
 
 * <<search-aggregations-metrics,Metric>> aggregations that calculate metrics,
 such as a sum or average, from field values.
@@ -408,13 +408,13 @@ GET /my-index-000001/_search
 [[agg-caches]]
 === Aggregation caches
 
-For faster responses, {es} caches the results of frequently run aggregations in
+For faster responses, {opensearch} caches the results of frequently run aggregations in
 the <<shard-request-cache,shard request cache>>. To get cached results, use the
 same <<shard-and-node-preference,`preference` string>> for each search. If you
 don't need search hits, <<return-only-agg-results,set `size` to `0`>> to avoid
 filling the cache.
 
-{es} routes searches with the same preference string to the same shards. If the
+{opensearch} routes searches with the same preference string to the same shards. If the
 shards' data doesn’t change between searches, the shards return cached
 aggregation results.
 
@@ -422,7 +422,7 @@ aggregation results.
 [[limits-for-long-values]]
 === Limits for `long` values
 
-When running aggregations, {es} uses <<number,`double`>> values to hold and
+When running aggregations, {opensearch} uses <<number,`double`>> values to hold and
 represent numeric data. As a result, aggregations on <<number,`long`>> numbers
 greater than +2^53^+ are approximate.
 --

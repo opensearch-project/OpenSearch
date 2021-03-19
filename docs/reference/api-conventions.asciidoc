@@ -34,18 +34,18 @@ an index alias, the pattern `test*,-test3` still targets the indices for
 Multi-target APIs that can target indices support the following query
 string parameters:
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
 Some multi-target APIs that can target indices also support the following query
 string parameter:
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 NOTE: Single index APIs, such as the <<docs>> and
 <<indices-aliases,single-index `alias` APIs>>, do not support multi-target
@@ -65,7 +65,7 @@ Global index templates that match all indices are not applied to hidden indices.
 [[system-indices]]
 ==== System indices
 
-{es} modules and plugins can store configuration and state information in internal _system indices_. 
+{opensearch} modules and plugins can store configuration and state information in internal _system indices_. 
 You should not directly access or modify system indices 
 as they contain data essential to the operation of the system.
 
@@ -687,7 +687,7 @@ string parameter.
 === URL-based access control
 
 Many users use a proxy with URL-based access control to secure access to
-{es} indices. For <<search-multi-search,multi-search>>,
+{opensearch} indices. For <<search-multi-search,multi-search>>,
 <<docs-multi-get,multi-get>>, and <<docs-bulk,bulk>> requests, the user has
 the choice of specifying an index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
@@ -696,5 +696,5 @@ To prevent the user from overriding the data stream or index specified in the
 URL, set `rest.action.multi.allow_explicit_index` to `false` in `opensearch.yml`.
 
 
-This causes  {es} to
+This causes  {opensearch} to
 reject requests that explicitly specify an index in the request body.

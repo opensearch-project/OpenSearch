@@ -145,11 +145,11 @@ The OpenSearch service can be configured prior to installation by setting the fo
 
 `SERVICE_DISPLAY_NAME`::
 
-  The name of the service.  Defaults to `Elasticsearch <version> %SERVICE_ID%`.
+  The name of the service.  Defaults to `OpenSearch <version> %SERVICE_ID%`.
 
 `SERVICE_DESCRIPTION`::
 
-  The description of the service.  Defaults to `Elasticsearch <version> Windows Service - https://elastic.co`.
+  The description of the service.  Defaults to `OpenSearch <version> Windows Service - https://elastic.co`.
 
 `JAVA_HOME`::
 

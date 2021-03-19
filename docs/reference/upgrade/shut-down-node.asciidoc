@@ -1,18 +1,18 @@
-* If you are running {es} with `systemd`:
+* If you are running {opensearch} with `systemd`:
 +
 [source,sh]
 --------------------------------------------------
 sudo systemctl stop opensearch.service
 --------------------------------------------------
 
-* If you are running {es} with SysV `init`:
+* If you are running {opensearch} with SysV `init`:
 +
 [source,sh]
 --------------------------------------------------
 sudo -i service opensearch stop
 --------------------------------------------------
 
-* If you are running {es} as a daemon:
+* If you are running {opensearch} as a daemon:
 +
 [source,sh]
 --------------------------------------------------

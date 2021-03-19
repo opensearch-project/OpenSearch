@@ -26,7 +26,7 @@ This filter uses Lucene's
 A payload is user-defined binary data associated with a token position and
 stored as base64-encoded bytes.
 
-{es} does not store token payloads by default. To store payloads, you must:
+{opensearch} does not store token payloads by default. To store payloads, you must:
 
 * Set the <<term-vector,`term_vector`>> mapping parameter to
   `with_positions_payloads` or `with_positions_offsets_payloads` for any field

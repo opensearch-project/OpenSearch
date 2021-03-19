@@ -39,23 +39,23 @@ To target all indices in a cluster, omit this parameter or use
 [[update-index-settings-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `preserve_existing`::
 (Optional, Boolean) If `true`, existing index settings remain unchanged.
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[update-index-settings-api-request-body]]

@@ -19,10 +19,10 @@ GET /_dangling
 ==== {api-description-title}
 
 // tag::dangling-index-description[]
-If {es} encounters index data that is absent from the current cluster
+If {opensearch} encounters index data that is absent from the current cluster
 state, those indices are considered to be dangling. For example,
 this can happen if you delete more than
-`cluster.indices.tombstones.size` indices while an {es} node is offline.
+`cluster.indices.tombstones.size` indices while an {opensearch} node is offline.
 // end::dangling-index-description[]
 
 Use this API to list dangling indices, which you can then

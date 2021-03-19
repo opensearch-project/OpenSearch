@@ -341,7 +341,7 @@ cannot specify this parameter and `keywords` or `keywords_pattern`.
 
 [WARNING]
 ====
-Poorly written regular expressions can cause {es} to run slowly or result
+Poorly written regular expressions can cause {opensearch} to run slowly or result
 in stack overflow errors, causing the running node to suddenly exit.
 ====
 --

@@ -43,10 +43,10 @@ that specify index mappings, settings, and aliases.
 [[delete-component-template-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=component-template]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=component-template]
 
 
 [[delete-component-template-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

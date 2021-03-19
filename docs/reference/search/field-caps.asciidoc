@@ -53,17 +53,17 @@ To target all indices in a cluster, omit this parameter or use
 Comma-separated list of fields to retrieve capabilities for. Wildcard (`*`)
 expressions are supported.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 --
 Defaults to `open`.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `include_unmapped`::
   (Optional, Boolean) If `true`, unmapped fields are included in the response.

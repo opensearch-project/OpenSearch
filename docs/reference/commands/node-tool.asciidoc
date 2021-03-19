@@ -47,8 +47,8 @@ This tool has a number of modes:
 
 * `opensearch-node override-version` enables you to start up a node
   even if the data in the data path was written by an incompatible version of
-  {es}. This may sometimes allow you to downgrade to an earlier version of
-  {es}.
+  {opensearch}. This may sometimes allow you to downgrade to an earlier version of
+  {opensearch}.
 
 [[node-tool-repurpose]]
 [discrete]
@@ -124,7 +124,7 @@ The intended use is:
 [discrete]
 ==== Recovering data after a disaster
 
-Sometimes {es} nodes are temporarily stopped, perhaps because of the need to
+Sometimes {opensearch} nodes are temporarily stopped, perhaps because of the need to
 perform some maintenance activity or perhaps because of a hardware failure.
 After you resolve the temporary condition and restart the node,
 it will rejoin the cluster and continue normally. Depending on your
@@ -134,7 +134,7 @@ while one or more of its nodes are stopped.
 Sometimes it might not be possible to restart a node after it has stopped. For
 example, the node's host may suffer from a hardware problem that cannot be
 repaired. If the cluster is still available then you can start up a fresh node
-on another host and {es} will bring this node into the cluster in place of the
+on another host and {opensearch} will bring this node into the cluster in place of the
 failed node.
 
 Each node stores its data in the data directories defined by the
@@ -142,7 +142,7 @@ Each node stores its data in the data directories defined by the
 also restart a node by moving its data directories to another host, presuming
 that those data directories can be recovered from the faulty host.
 
-{es} <<modules-discovery-quorums,requires a response from a majority of the
+{opensearch} <<modules-discovery-quorums,requires a response from a majority of the
 master-eligible nodes>> in order to elect a master and to update the cluster
 state. This means that if you have three master-eligible nodes then the cluster
 will remain available even if one of them has failed. However if two of the
@@ -164,21 +164,21 @@ data from the failed cluster.
 [discrete]
 ==== Bypassing version checks
 
-The data that {es} writes to disk is designed to be read by the current version
+The data that {opensearch} writes to disk is designed to be read by the current version
 and a limited set of future versions. It cannot generally be read by older
 versions, nor by versions that are more than one major version newer. The data
-stored on disk includes the version of the node that wrote it, and {es} checks
+stored on disk includes the version of the node that wrote it, and {opensearch} checks
 that it is compatible with this version when starting up.
 
 In rare circumstances it may be desirable to bypass this check and start up an
-{es} node using data that was written by an incompatible version. This may not
+{opensearch} node using data that was written by an incompatible version. This may not
 work if the format of the stored data has changed, and it is a risky process
-because it is possible for the format to change in ways that {es} may
+because it is possible for the format to change in ways that {opensearch} may
 misinterpret, silently leading to data loss.
 
 To bypass this check, you can use the `opensearch-node override-version`
 tool to overwrite the version number stored in the data path with the current
-version, causing {es} to believe that it is compatible with the on-disk data.
+version, causing {opensearch} to believe that it is compatible with the on-disk data.
 
 [[node-tool-unsafe-bootstrap]]
 [discrete]
@@ -409,7 +409,7 @@ you can run the following commands to remove one or more cluster settings.
 // TODO(OpenSearch): Add new example to replace <setting_name>
 [source,txt]
 ----
-node$ ./bin/elasticsearch-node remove-settings <setting_name>
+node$ ./bin/opensearch-node remove-settings <setting_name>
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
@@ -431,7 +431,7 @@ You can also use wildcards to remove multiple settings, for example using
 
 [source,txt]
 ----
-node$ ./bin/elasticsearch-node remove-settings <setting_name>
+node$ ./bin/opensearch-node remove-settings <setting_name>
 ----
 
 [discrete]
@@ -444,7 +444,7 @@ commands to remove this custom metadata.
 // TODO(OpenSearch): Add new example to replace <custom-metadata>
 [source,txt]
 ----
-node$ ./bin/elasticsearch-node remove-customs <custom-metadata>
+node$ ./bin/opensearch-node remove-customs <custom-metadata>
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 

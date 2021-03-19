@@ -92,7 +92,7 @@ You can unregister a repository using the
 DELETE /_snapshot/my_backup
 -----------------------------------
 
-When a repository is unregistered, {es} only removes the reference to the
+When a repository is unregistered, {opensearch} only removes the reference to the
 location where the repository is storing the snapshots. The snapshots themselves
 are left untouched and in place.
 
@@ -116,9 +116,9 @@ configuration to account for this.
 
 Supported `path.repo` values vary by platform:
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
+include::{opensearch-repo-dir}/tab-widgets/code.asciidoc[]
 
-include::{es-repo-dir}/tab-widgets/register-fs-repo-widget.asciidoc[]
+include::{opensearch-repo-dir}/tab-widgets/register-fs-repo-widget.asciidoc[]
 
 [discrete]
 [[snapshots-read-only-repository]]

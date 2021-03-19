@@ -57,7 +57,7 @@ must be supplied in the body of the request, rather than as request parameters.
 [discrete]
 [[create-snapshot-process-details]]
 === Snapshot process details
-The snapshot process is incremental. In the process of making the snapshot, {es} analyses
+The snapshot process is incremental. In the process of making the snapshot, {opensearch} analyses
 the list of the index files that are already stored in the repository and copies only files that were created or
 changed since the last snapshot. This process allows multiple snapshots to be preserved in the repository in a compact form.
 
@@ -66,7 +66,7 @@ that is being snapshotted. However, a snapshot represents a point-in-time view
 at the moment when snapshot was created, so no records that were added to the index after the snapshot process was started
 will be included in the snapshot.
 
-The snapshot process starts immediately for the primary shards that have been started and are not relocating at the moment. {es} waits for
+The snapshot process starts immediately for the primary shards that have been started and are not relocating at the moment. {opensearch} waits for
 relocation or initialization of shards to complete before snapshotting them.
 
 Besides creating a copy of each index, the snapshot process can also store global cluster metadata, which includes persistent
@@ -75,7 +75,7 @@ the snapshot.
 
 While a snapshot of a particular shard is being
 created, this shard cannot be moved to another node, which can interfere with rebalancing and allocation
-filtering. {es} can only move a shard to another node (according to the current allocation
+filtering. {opensearch} can only move a shard to another node (according to the current allocation
 filtering settings and rebalancing algorithm) after the snapshot process
 is finished.
 

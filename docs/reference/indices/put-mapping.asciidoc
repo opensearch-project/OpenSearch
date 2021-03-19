@@ -49,19 +49,19 @@ To target all indices in a cluster, omit this parameter or use
 [[put-mapping-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `write_index_only`::
 (Optional, Boolean)
