@@ -30,7 +30,7 @@ import java.util.Objects;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * HTTP Request to Elasticsearch.
+ * HTTP Request to OpenSearch.
  */
 public final class Request {
     private final String method;
@@ -122,8 +122,8 @@ public final class Request {
     }
 
     /**
-     * Set the portion of an HTTP request to Elasticsearch that can be
-     * manipulated without changing Elasticsearch's behavior.
+     * Set the portion of an HTTP request to OpenSearch that can be
+     * manipulated without changing OpenSearch's behavior.
      */
     public void setOptions(RequestOptions options) {
         Objects.requireNonNull(options, "options cannot be null");
@@ -131,8 +131,8 @@ public final class Request {
     }
 
     /**
-     * Set the portion of an HTTP request to Elasticsearch that can be
-     * manipulated without changing Elasticsearch's behavior.
+     * Set the portion of an HTTP request to OpenSearch that can be
+     * manipulated without changing OpenSearch's behavior.
      */
     public void setOptions(RequestOptions.Builder options) {
         Objects.requireNonNull(options, "options cannot be null");
@@ -140,8 +140,8 @@ public final class Request {
     }
 
     /**
-     * Get the portion of an HTTP request to Elasticsearch that can be
-     * manipulated without changing Elasticsearch's behavior.
+     * Get the portion of an HTTP request to OpenSearch that can be
+     * manipulated without changing OpenSearch's behavior.
      */
     public RequestOptions getOptions() {
         return options;

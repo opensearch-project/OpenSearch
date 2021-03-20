@@ -30,7 +30,7 @@ import java.util.Set;
 /**
  * A secure setting.
  *
- * This class allows access to settings from the Elasticsearch keystore.
+ * This class allows access to settings from the OpenSearch keystore.
  */
 public abstract class SecureSetting<T> extends Setting<T> {
 
@@ -87,7 +87,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
         if (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false) {
             if (super.exists(settings)) {
                 throw new IllegalArgumentException("Setting [" + getKey() + "] is a secure setting" +
-                    " and must be stored inside the Elasticsearch keystore, but was found inside opensearch.yml");
+                    " and must be stored inside the OpenSearch keystore, but was found inside opensearch.yml");
             }
             return getFallback(settings);
         }

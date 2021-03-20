@@ -107,7 +107,7 @@ public class SettingsModule implements Module {
                 builder.append(System.lineSeparator());
                 builder.append(System.lineSeparator());
                 int count = 0;
-                for (String word : ("Since elasticsearch 5.x index level settings can NOT be set on the nodes configuration like " +
+                for (String word : ("Index level settings can NOT be set on the nodes configuration like " +
                     "the opensearch.yaml, in system properties or command line arguments." +
                     "In order to upgrade all indices the settings must be updated via the /${index}/_settings API. " +
                     "Unless all settings are dynamic all indices must be closed in order to apply the upgrade" +

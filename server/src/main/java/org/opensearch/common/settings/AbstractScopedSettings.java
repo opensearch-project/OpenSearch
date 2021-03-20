@@ -570,7 +570,7 @@ public abstract class AbstractScopedSettings {
                             "can not update internal setting [" + setting.getKey() + "]; this setting is managed via a dedicated API");
                 } else if (setting.isPrivateIndex()) {
                     throw new IllegalArgumentException(
-                            "can not update private setting [" + setting.getKey() + "]; this setting is managed by Elasticsearch");
+                            "can not update private setting [" + setting.getKey() + "]; this setting is managed by OpenSearch");
                 }
             }
         }

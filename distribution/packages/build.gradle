@@ -278,15 +278,13 @@ apply plugin: 'nebula.ospackage-base'
 
 // this is package indepdendent configuration
 ospackage {
-  maintainer 'Elasticsearch Team <info@elastic.co>'
+  maintainer 'OpenSearch Team'
   summary 'Distributed RESTful search engine built for the cloud'
   packageDescription '''
     Reference documentation can be found at
-    https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
-    and the 'Elasticsearch: The Definitive Guide' book can be found at
-    https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
+    https://github.com/opensearch-project/OpenSearch
   '''.stripIndent().trim()
-  url 'https://www.elastic.co/'
+  url 'https://github.com/opensearch-project/OpenSearch'
 
   // signing setup
   if (project.hasProperty('signing.password') && BuildParams.isSnapshotBuild() == false) {

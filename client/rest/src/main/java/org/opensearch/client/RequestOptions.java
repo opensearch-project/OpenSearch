@@ -31,8 +31,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * The portion of an HTTP request to Elasticsearch that can be
- * manipulated without changing Elasticsearch's behavior.
+ * The portion of an HTTP request to OpenSearch that can be
+ * manipulated without changing OpenSearch's behavior.
  */
 public final class RequestOptions {
     /**

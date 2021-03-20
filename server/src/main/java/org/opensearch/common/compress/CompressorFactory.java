@@ -56,7 +56,7 @@ public class CompressorFactory {
         return null;
     }
 
-    /** true if the bytes were compressed with LZF: only used before elasticsearch 2.0 */
+    /** true if the bytes were compressed with LZF*/
     private static boolean isAncient(BytesReference bytes) {
         return bytes.length() >= 3 &&
                bytes.get(0) == 'Z' &&

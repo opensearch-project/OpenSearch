@@ -66,7 +66,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
     /**
      * Registers internal distribution resolutions.
      * <p>
-     * Elasticsearch distributions are resolved as project dependencies either representing
+     * OpenSearch distributions are resolved as project dependencies either representing
      * the current version pointing to a project either under `:distribution:archives` or :distribution:packages`.
      * <p>
      * BWC versions are resolved as project to projects under `:distribution:bwc`.

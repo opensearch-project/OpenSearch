@@ -223,7 +223,7 @@ public class Packages {
     }
 
     /**
-     * Starts Elasticsearch, without checking that startup is successful.
+     * Starts OpenSearch, without checking that startup is successful.
      */
     public static Shell.Result runOpenSearchStartCommand(Shell sh) throws IOException {
         if (isSystemd()) {
@@ -265,7 +265,7 @@ public class Packages {
 
     /**
      * A small wrapper for retrieving only recent journald logs for the
-     * Elasticsearch service. It works by creating a cursor for the logs
+     * OpenSearch service. It works by creating a cursor for the logs
      * when instantiated, and advancing that cursor when the {@code clear()}
      * method is called.
      */
@@ -274,7 +274,7 @@ public class Packages {
         private String cursor;
 
         /**
-         * Create a new wrapper for Elasticsearch JournalD logs.
+         * Create a new wrapper for OpenSearch JournalD logs.
          * @param sh A shell with appropriate permissions.
          */
         public JournaldWrapper(Shell sh) {
@@ -284,7 +284,7 @@ public class Packages {
 
         /**
          * "Clears" the journaled messages by retrieving the latest cursor
-         * for Elasticsearch logs and storing it in class state.
+         * for OpenSearch logs and storing it in class state.
          */
         public void clear() {
             final String script = "sudo journalctl --unit=opensearch.service --lines=0 --show-cursor -o cat | sed -e 's/-- cursor: //'";
@@ -293,7 +293,7 @@ public class Packages {
 
         /**
          * Retrieves all log messages coming after the stored cursor.
-         * @return Recent journald logs for the Elasticsearch service.
+         * @return Recent journald logs for the OpenSearch service.
          */
         public Result getLogs() {
             return sh.run("journalctl -u opensearch.service --after-cursor='" + this.cursor + "'");

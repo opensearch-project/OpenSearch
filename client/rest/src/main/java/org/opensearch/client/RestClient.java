@@ -86,7 +86,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
 
 /**
- * Client that connects to an Elasticsearch cluster through HTTP.
+ * Client that connects to an OpenSearch cluster through HTTP.
  * <p>
  * Must be created using {@link RestClientBuilder}, which allows to set all the different options or just rely on defaults.
  * The hosts that are part of the cluster need to be provided at creation time, but can also be replaced later
@@ -241,7 +241,7 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the Elasticsearch cluster that the client points to.
+     * Sends a request to the OpenSearch cluster that the client points to.
      * Blocks until the request is completed and returns its response or fails
      * by throwing an exception. Selects a host out of the provided ones in a
      * round-robin fashion. Failing hosts are marked dead and retried after a
@@ -260,10 +260,10 @@ public class RestClient implements Closeable {
      * {@link Exception#getCause()}.
      *
      * @param request the request to perform
-     * @return the response returned by Elasticsearch
+     * @return the response returned by OpenSearch
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * @throws ResponseException in case OpenSearch responded with a status code that indicated an error
      */
     public Response performRequest(Request request) throws IOException {
         InternalRequest internalRequest = new InternalRequest(request);
@@ -335,7 +335,7 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the Elasticsearch cluster that the client points to.
+     * Sends a request to the OpenSearch cluster that the client points to.
      * The request is executed asynchronously and the provided
      * {@link ResponseListener} gets notified upon request completion or
      * failure. Selects a host out of the provided ones in a round-robin

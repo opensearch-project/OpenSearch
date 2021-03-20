@@ -89,7 +89,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
  * started in client mode (only connects, no bind).
  *
  * @deprecated {@link TransportClient} is deprecated in favour of the High Level REST client and will
- * be removed in Elasticsearch 8.0.
+ * be removed in OpenSearch 1.0.0.
  */
 @Deprecated
 public abstract class TransportClient extends AbstractClient {

@@ -83,7 +83,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("[version] is missing"));
     }
 
-    public void testReadFromPropertiesElasticsearchVersionMissing() throws Exception {
+    public void testReadFromPropertiesOpenSearchVersionMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
@@ -119,7 +119,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
                                            " by \".\"'s and may have leading zeros but was 1.7.0_80"));
     }
 
-    public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {
+    public void testReadFromPropertiesBogusOpenSearchVersion() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",

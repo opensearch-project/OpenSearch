@@ -135,7 +135,7 @@ public abstract class AbstractObjectParser<Value, Context> {
      * </code>
      * </pre>
      *
-     * This is because json doesn't enforce ordering. Elasticsearch reads it in
+     * This is because json doesn't enforce ordering. OpenSearch reads it in
      * the order sent but tools that generate json are free to put object
      * members in an unordered Map, jumbling them. Thus, if you care about order
      * you can send the object in the second way.

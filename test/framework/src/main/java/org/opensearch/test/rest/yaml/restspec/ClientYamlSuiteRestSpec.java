@@ -62,15 +62,15 @@ public class ClientYamlSuiteRestSpec {
     }
 
     /**
-     * Returns whether the provided parameter is one of those parameters that are supported by all Elasticsearch api
+     * Returns whether the provided parameter is one of those parameters that are supported by all OpenSearch api
      */
     public boolean isGlobalParameter(String param) {
         return globalParameters.contains(param);
     }
 
     /**
-     * Returns whether the provided parameter is one of those parameters that are supported by the Elasticsearch language clients, meaning
-     * that they influence the client behaviour and don't get sent to Elasticsearch
+     * Returns whether the provided parameter is one of those parameters that are supported by the OpenSearch language clients, meaning
+     * that they influence the client behaviour and don't get sent to OpenSearch
      */
     public boolean isClientParameter(String name) {
         return "ignore".equals(name);

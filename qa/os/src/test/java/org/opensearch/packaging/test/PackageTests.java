@@ -168,12 +168,12 @@ public class PackageTests extends PackagingTestCase {
             "journalctl _SYSTEMD_UNIT=opensearch.service "
                 + "--since \""
                 + start
-                + "\" --output cat | grep -v \"future versions of Elasticsearch will require Java 11\" | wc -l"
+                + "\" --output cat | grep -v \"future versions of OpenSearch will require Java 11\" | wc -l"
         ).stdout.trim();
         assertThat(journalEntries, equalTo("0"));
 
         assertPathsExist(installation.pidDir.resolve("opensearch.pid"));
-        assertPathsExist(installation.logs.resolve("elasticsearch_server.json"));
+        assertPathsExist(installation.logs.resolve("opensearch_server.json"));
 
         runOpenSearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
@@ -187,7 +187,7 @@ public class PackageTests extends PackagingTestCase {
         remove(distribution());
 
         // removing must stop the service
-        assertThat(sh.run("ps aux").stdout, not(containsString("org.opensearch.bootstrap.Elasticsearch")));
+        assertThat(sh.run("ps aux").stdout, not(containsString("org.opensearch.bootstrap.OpenSearch")));
 
         if (isSystemd()) {
 

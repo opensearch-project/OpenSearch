@@ -32,14 +32,14 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * Provides factory methods for producing reproducible sources of
  * randomness. Reproducible sources of randomness contribute to
- * reproducible tests. When running the Elasticsearch test suite, the
+ * reproducible tests. When running the OpenSearch test suite, the
  * test runner will establish a global random seed accessible via the
  * system property "tests.seed". By seeding a random number generator
  * with this global seed, we ensure that instances of Random produced
  * with this class produce reproducible sources of randomness under
- * when running under the Elasticsearch test suite. Alternatively,
+ * when running under the OpenSearch test suite. Alternatively,
  * a reproducible source of randomness can be produced by providing a
- * setting a reproducible seed. When running the Elasticsearch server
+ * setting a reproducible seed. When running the OpenSearch server
  * process, non-reproducible sources of randomness are provided (unless
  * a setting is provided for a module that exposes a seed setting (e.g.,
  * NodeEnvironment#NODE_ID_SEED_SETTING)).
@@ -83,7 +83,7 @@ public final class Randomness {
 
     /**
      * Provides a source of randomness that is reproducible when
-     * running under the Elasticsearch test suite, and otherwise
+     * running under the OpenSearch test suite, and otherwise
      * produces a non-reproducible source of randomness. Reproducible
      * sources of randomness are created when the system property
      * "tests.seed" is set and the security policy allows reading this

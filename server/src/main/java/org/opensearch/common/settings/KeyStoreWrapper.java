@@ -73,7 +73,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * A disk based container for sensitive settings in Elasticsearch.
+ * A disk based container for sensitive settings in OpenSearch.
  *
  * Loading a keystore has 2 phases. First, call {@link #load(Path)}. Then call
  * {@link #decrypt(char[])} with the keystore password, or an empty char array if
@@ -205,7 +205,7 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /**
-     * Loads information about the Elasticsearch keystore from the provided config directory.
+     * Loads information about the OpenSearch keystore from the provided config directory.
      *
      * {@link #decrypt(char[])} must be called before reading or writing any entries.
      * Returns {@code null} if no keystore exists.
@@ -223,10 +223,10 @@ public class KeyStoreWrapper implements SecureSettings {
             try {
                 formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
             } catch (IndexFormatTooOldException e) {
-                throw new IllegalStateException("The Elasticsearch keystore [" + keystoreFile + "] format is too old. " +
+                throw new IllegalStateException("The OpenSearch keystore [" + keystoreFile + "] format is too old. " +
                     "You should delete and recreate it in order to upgrade.", e);
             } catch (IndexFormatTooNewException e) {
-                throw new IllegalStateException("The Elasticsearch keystore [" + keystoreFile + "] format is too new. " +
+                throw new IllegalStateException("The OpenSearch keystore [" + keystoreFile + "] format is too new. " +
                     "Are you trying to downgrade? You should delete and recreate it in order to downgrade.", e);
             }
             byte hasPasswordByte = input.readByte();

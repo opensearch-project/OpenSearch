@@ -39,8 +39,6 @@ import java.util.List;
 /**
  * A mapper that indexes the field names of a document under <code>_field_names</code>. This mapper is typically useful in order
  * to have fast <code>exists</code> and <code>missing</code> queries/filters.
- *
- * Added in Elasticsearch 1.3.
  */
 public class FieldNamesFieldMapper extends MetadataFieldMapper {
 

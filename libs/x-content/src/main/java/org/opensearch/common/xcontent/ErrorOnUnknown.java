@@ -23,7 +23,7 @@ import java.util.ServiceLoader;
 
 /**
  * Extension point to customize the error message for unknown fields. We expect
- * Elasticsearch to plug a fancy implementation that uses Lucene's spelling
+ * OpenSearch to plug a fancy implementation that uses Lucene's spelling
  * correction infrastructure to suggest corrections.
  */
 public interface ErrorOnUnknown {

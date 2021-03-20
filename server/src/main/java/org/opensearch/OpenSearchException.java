@@ -94,7 +94,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     private static final String ROOT_CAUSE = "root_cause";
 
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends OpenSearchException, IOException>> ID_TO_SUPPLIER;
-    private static final Map<Class<? extends OpenSearchException>, OpenSearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
+    private static final Map<Class<? extends OpenSearchException>, OpenSearchExceptionHandle> CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE;
     private final Map<String, List<String>> metadata = new HashMap<>();
     private final Map<String, List<String>> headers = new HashMap<>();
 
@@ -299,7 +299,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
      * Returns <code>true</code> iff the given class is a registered for an exception to be read.
      */
     public static boolean isRegistered(Class<? extends Throwable> exception, Version version) {
-        OpenSearchExceptionHandle openSearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
+        OpenSearchExceptionHandle openSearchExceptionHandle = CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE.get(exception);
         if (openSearchExceptionHandle != null) {
             return version.onOrAfter(openSearchExceptionHandle.versionAdded);
         }
@@ -307,14 +307,14 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     }
 
     static Set<Class<? extends OpenSearchException>> getRegisteredKeys() { // for testing
-        return CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.keySet();
+        return CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE.keySet();
     }
 
     /**
      * Returns the serialization id the given exception.
      */
     public static int getId(Class<? extends OpenSearchException> exception) {
-        return CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception).id;
+        return CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE.get(exception).id;
     }
 
     @Override
@@ -742,7 +742,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.common.util.CancellableThreads.ExecutionCancelledException::new, 2, UNKNOWN_VERSION_ADDED),
         MASTER_NOT_DISCOVERED_EXCEPTION(org.opensearch.discovery.MasterNotDiscoveredException.class,
                 org.opensearch.discovery.MasterNotDiscoveredException::new, 3, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_SECURITY_EXCEPTION(org.opensearch.OpenSearchSecurityException.class,
+        OPENSEARCH_SECURITY_EXCEPTION(org.opensearch.OpenSearchSecurityException.class,
                 org.opensearch.OpenSearchSecurityException::new, 4, UNKNOWN_VERSION_ADDED),
         INDEX_SHARD_RESTORE_EXCEPTION(org.opensearch.index.snapshots.IndexShardRestoreException.class,
                 org.opensearch.index.snapshots.IndexShardRestoreException::new, 5, UNKNOWN_VERSION_ADDED),
@@ -776,7 +776,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.ResourceNotFoundException::new, 19, UNKNOWN_VERSION_ADDED),
         ACTION_TRANSPORT_EXCEPTION(org.opensearch.transport.ActionTransportException.class,
                 org.opensearch.transport.ActionTransportException::new, 20, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_GENERATION_EXCEPTION(org.opensearch.OpenSearchGenerationException.class,
+        OPENSEARCH_GENERATION_EXCEPTION(org.opensearch.OpenSearchGenerationException.class,
                 org.opensearch.OpenSearchGenerationException::new, 21, UNKNOWN_VERSION_ADDED),
         //      22 was CreateFailedEngineException
         INDEX_SHARD_STARTED_EXCEPTION(org.opensearch.index.shard.IndexShardStartedException.class,
@@ -801,7 +801,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.indices.IndexPrimaryShardNotAllocatedException::new, 33, UNKNOWN_VERSION_ADDED),
         TRANSPORT_EXCEPTION(org.opensearch.transport.TransportException.class,
                 org.opensearch.transport.TransportException::new, 34, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_PARSE_EXCEPTION(org.opensearch.OpenSearchParseException.class,
+        OPENSEARCH_PARSE_EXCEPTION(org.opensearch.OpenSearchParseException.class,
                 org.opensearch.OpenSearchParseException::new, 35, UNKNOWN_VERSION_ADDED),
         SEARCH_EXCEPTION(org.opensearch.search.SearchException.class,
                 org.opensearch.search.SearchException::new, 36, UNKNOWN_VERSION_ADDED),
@@ -859,7 +859,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         INDEX_SHARD_NOT_RECOVERING_EXCEPTION(org.opensearch.index.shard.IndexShardNotRecoveringException.class,
                 org.opensearch.index.shard.IndexShardNotRecoveringException::new, 66, UNKNOWN_VERSION_ADDED),
         HTTP_EXCEPTION(org.opensearch.http.HttpException.class, org.opensearch.http.HttpException::new, 67, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_EXCEPTION(OpenSearchException.class,
+        OPENSEARCH_EXCEPTION(OpenSearchException.class,
                 OpenSearchException::new, 68, UNKNOWN_VERSION_ADDED),
         SNAPSHOT_MISSING_EXCEPTION(org.opensearch.snapshots.SnapshotMissingException.class,
                 org.opensearch.snapshots.SnapshotMissingException::new, 69, UNKNOWN_VERSION_ADDED),
@@ -948,7 +948,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException::new, 116, UNKNOWN_VERSION_ADDED),
         RETRY_ON_PRIMARY_EXCEPTION(ReplicationOperation.RetryOnPrimaryException.class,
                 ReplicationOperation.RetryOnPrimaryException::new, 117, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_TIMEOUT_EXCEPTION(org.opensearch.OpenSearchTimeoutException.class,
+        OPENSEARCH_TIMEOUT_EXCEPTION(org.opensearch.OpenSearchTimeoutException.class,
                 org.opensearch.OpenSearchTimeoutException::new, 118, UNKNOWN_VERSION_ADDED),
         QUERY_PHASE_EXECUTION_EXCEPTION(org.opensearch.search.query.QueryPhaseExecutionException.class,
                 org.opensearch.search.query.QueryPhaseExecutionException::new, 119, UNKNOWN_VERSION_ADDED),
@@ -1094,7 +1094,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     static {
         ID_TO_SUPPLIER = unmodifiableMap(Arrays
                 .stream(OpenSearchExceptionHandle.values()).collect(Collectors.toMap(e -> e.id, e -> e.constructor)));
-        CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE = unmodifiableMap(Arrays
+        CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE = unmodifiableMap(Arrays
                 .stream(OpenSearchExceptionHandle.values()).collect(Collectors.toMap(e -> e.exceptionClass, e -> e)));
     }
 

@@ -22,7 +22,7 @@ package org.opensearch;
 import java.security.BasicPermission;
 
 /**
- * Elasticsearch-specific permission to check before entering
+ * OpenSearch-specific permission to check before entering
  * {@code AccessController.doPrivileged()} blocks.
  * <p>
  * We try to avoid these blocks in our code and keep security simple,

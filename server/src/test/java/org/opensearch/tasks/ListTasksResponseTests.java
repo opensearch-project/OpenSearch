@@ -121,10 +121,10 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
             OpenSearchException newException = nodeFailures.get(i);
             OpenSearchException expectedException = expectedFailures.get(i);
             assertThat(newException.getMetadata("opensearch.node_id").get(0), equalTo(((FailedNodeException)expectedException).nodeId()));
-            assertThat(newException.getMessage(), equalTo("Elasticsearch exception [type=failed_node_exception, reason=error message]"));
+            assertThat(newException.getMessage(), equalTo("OpenSearch exception [type=failed_node_exception, reason=error message]"));
             assertThat(newException.getCause(), instanceOf(OpenSearchException.class));
             OpenSearchException cause = (OpenSearchException) newException.getCause();
-            assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=connect_exception, reason=null]"));
+            assertThat(cause.getMessage(), equalTo("OpenSearch exception [type=connect_exception, reason=null]"));
         }
     }
 
@@ -139,7 +139,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
             assertThat(newFailure.getStatus(), equalTo(expectedFailure.getStatus()));
             assertThat(newFailure.getCause(), instanceOf(OpenSearchException.class));
             OpenSearchException cause = (OpenSearchException) newFailure.getCause();
-            assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=illegal_state_exception, reason=null]"));
+            assertThat(cause.getMessage(), equalTo("OpenSearch exception [type=illegal_state_exception, reason=null]"));
         }
     }
 

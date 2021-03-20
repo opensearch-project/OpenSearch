@@ -62,7 +62,7 @@ public class PrivateSettingsIT extends OpenSearchIntegTestCase {
                         .prepareUpdateSettings("test")
                         .setSettings(Settings.builder().put("index.private", "private-update"))
                         .get());
-        final String message = "can not update private setting [index.private]; this setting is managed by Elasticsearch";
+        final String message = "can not update private setting [index.private]; this setting is managed by OpenSearch";
         assertThat(e, hasToString(containsString(message)));
         final GetSettingsResponse responseAfterAttemptedUpdate = client().admin().indices().prepareGetSettings("test").get();
         assertNull(responseAfterAttemptedUpdate.getSetting("test", "index.private"));

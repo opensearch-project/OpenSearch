@@ -32,11 +32,11 @@ import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 /**
- * Information about a build of Elasticsearch.
+ * Information about a build of OpenSearch.
  */
 public class Build {
     /**
-     * The current build of Elasticsearch. Filled with information scanned at
+     * The current build of OpenSearch. Filled with information scanned at
      * startup from the jar.
      */
     public static final Build CURRENT;
@@ -106,8 +106,8 @@ public class Build {
                 Manifest manifest = jar.getManifest();
                 hash = manifest.getMainAttributes().getValue("Change");
                 date = manifest.getMainAttributes().getValue("Build-Date");
-                isSnapshot = "true".equals(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Snapshot"));
-                version = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+                isSnapshot = "true".equals(manifest.getMainAttributes().getValue("X-Compile-OpenSearch-Snapshot"));
+                version = manifest.getMainAttributes().getValue("X-Compile-OpenSearch-Version");
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -131,15 +131,15 @@ public class Build {
         }
         if (hash == null) {
             throw new IllegalStateException("Error finding the build hash. " +
-                    "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+                    "Stopping OpenSearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
         if (date == null) {
             throw new IllegalStateException("Error finding the build date. " +
-                    "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+                    "Stopping OpenSearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
         if (version == null) {
             throw new IllegalStateException("Error finding the build version. " +
-                "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+                "Stopping OpenSearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
 
         CURRENT = new Build(type, hash, date, isSnapshot, version);
