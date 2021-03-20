@@ -51,4 +51,4 @@ As we've been working, we've come up with a bunch of questions that we wanted to
 
 ### Questions?  Feedback?
 
-Let us know in the forums.
+Let us know in the [forums](https://discuss.opendistrocommunity.dev/).
