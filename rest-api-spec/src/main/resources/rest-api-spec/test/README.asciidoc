@@ -5,8 +5,8 @@ Test Suite:
 .Required settings
 =======================================
 Certain tests require specific settings to be applied to the
-Elasticsearch instance in order to pass.  You should run
-Elasticsearch as follows:
+OpenSearch instance in order to pass.  You should run
+OpenSearch as follows:
 
 [source,sh]
 ---------------------
@@ -84,7 +84,7 @@ in the `indices.get_settings` API.
 
 Skipping tests:
 ---------------
-If a test section should only be run on certain versions of Elasticsearch,
+If a test section should only be run on certain versions of OpenSearch,
 then the first entry in the section (after the title) should be called
 `skip`, and should contain the range of versions to be
 skipped, and the reason why the tests are skipped.  For instance:
@@ -196,7 +196,7 @@ somevalue with whatever is the response in the same position."
 
 === `warnings`
 
-The runner can assert the warnings headers returned by Elasticsearch through the `warning:` assertations
+The runner can assert the warnings headers returned by OpenSearch through the `warning:` assertations
 under `do:`  operations.
 
 === `yaml`

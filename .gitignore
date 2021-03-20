@@ -8,7 +8,6 @@ build-idea/
 out/
 
 # include shared intellij config
-!.idea/scopes/x_pack.xml
 !.idea/inspectionProfiles/Project_Default.xml
 !.idea/runConfigurations/Debug_Elasticsearch.xml
 
