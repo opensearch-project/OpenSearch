@@ -18,6 +18,6 @@
  */
 
 /**
- * Specification of REST endpoints used to convert YAML {@code do} sections into actual calls to Elasticsearch.
+ * Specification of REST endpoints used to convert YAML {@code do} sections into actual calls to OpenSearch.
  */
 package org.opensearch.test.rest.yaml.restspec;

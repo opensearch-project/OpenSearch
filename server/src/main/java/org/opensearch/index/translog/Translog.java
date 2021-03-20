@@ -76,7 +76,7 @@ import static org.opensearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER
 /**
  * A Translog is a per index shard component that records all non-committed index operations in a durable manner.
  * In OpenSearch there is one Translog instance per {@link org.opensearch.index.engine.InternalEngine}.
- * Additionally, since Elasticsearch 2.0 the engine also records a {@link #TRANSLOG_UUID_KEY} with each commit to ensure a strong
+ * Additionally, the engine also records a {@link #TRANSLOG_UUID_KEY} with each commit to ensure a strong
  * association between the lucene index an the transaction log file. This UUID is used to prevent accidental recovery from a transaction
  * log that belongs to a
  * different engine.

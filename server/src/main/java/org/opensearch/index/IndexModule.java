@@ -288,7 +288,7 @@ public final class IndexModule {
      * Registers the given {@link Similarity} with the given name.
      * The function takes as parameters:<ul>
      *   <li>settings for this similarity
-     *   <li>version of Elasticsearch when the index was created
+     *   <li>version of OpenSearch when the index was created
      *   <li>ScriptService, for script-based similarities
      * </ul>
      *
