@@ -61,7 +61,7 @@ RUN chmod 0660 config/opensearch.yml config/log4j2.properties
 
 FROM ${base_image}
 
-ENV ELASTIC_CONTAINER true
+ENV OPENSEARCH_CONTAINER true
 
 RUN for iter in {1..10}; do \\
       ${package_manager} update --setopt=tsflags=nodocs -y && \\
@@ -103,22 +103,22 @@ EXPOSE 9200 9300
 
 LABEL org.label-schema.build-date="${build_date}" \\
   org.label-schema.license="${license}" \\
-  org.label-schema.name="Elasticsearch" \\
+  org.label-schema.name="OpenSearch" \\
   org.label-schema.schema-version="1.0" \\
-  org.label-schema.url="https://www.elastic.co/products/elasticsearch" \\
-  org.label-schema.usage="https://www.elastic.co/guide/en/elasticsearch/reference/index.html" \\
+  org.label-schema.url="https://www.opensearch.org" \\
+  org.label-schema.usage="https://www.opensearch.org/guide/en/opensearch/reference/index.html" \\
   org.label-schema.vcs-ref="${git_revision}" \\
-  org.label-schema.vcs-url="https://github.com/elastic/elasticsearch" \\
-  org.label-schema.vendor="Elastic" \\
+  org.label-schema.vcs-url="https://github.com/opensearch-project/OpenSearch" \\
+  org.label-schema.vendor="OpenSearch" \\
   org.label-schema.version="${version}" \\
   org.opencontainers.image.created="${build_date}" \\
-  org.opencontainers.image.documentation="https://www.elastic.co/guide/en/elasticsearch/reference/index.html" \\
+  org.opencontainers.image.documentation="https://www.opensearch.org/guide/en/opensearch/reference/index.html" \\
   org.opencontainers.image.licenses="${license}" \\
   org.opencontainers.image.revision="${git_revision}" \\
-  org.opencontainers.image.source="https://github.com/elastic/elasticsearch" \\
-  org.opencontainers.image.title="Elasticsearch" \\
-  org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
-  org.opencontainers.image.vendor="Elastic" \\
+  org.opencontainers.image.source="https://github.com/opensearch-project/OpenSearch" \\
+  org.opencontainers.image.title="OpenSearch" \\
+  org.opencontainers.image.url="https://www.opensearch.org" \\
+  org.opencontainers.image.vendor="OpenSearch" \\
   org.opencontainers.image.version="${version}"
 
 ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
