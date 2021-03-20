@@ -4,6 +4,5 @@
     - is_true:    name
     - is_true:    cluster_name
     - is_true:    cluster_uuid
-    - is_true:    tagline
     - is_true:    version
     - is_true:    version.number
