@@ -51,7 +51,6 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * Class responsible for sniffing the http hosts from opensearch through the nodes info api and returning them back.
- * Compatible with elasticsearch 2.x+.
  */
 public final class OpenSearchNodesSniffer implements NodesSniffer {
 

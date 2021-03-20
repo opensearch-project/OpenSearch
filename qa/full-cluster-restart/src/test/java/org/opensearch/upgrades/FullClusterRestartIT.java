@@ -1121,7 +1121,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 && getOldClusterVersion().onOrAfter(Version.V_6_1_0) && getOldClusterVersion().before(Version.V_6_5_0)) {
                 for (String warning : e.getResponse().getWarnings()) {
                     assertThat(warning, containsString(
-                        "setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        "setting was deprecated and will be removed in a future release! "
                             + "See the breaking changes documentation for the next major version."));
                     assertThat(warning, startsWith("[search.remote."));
                 }

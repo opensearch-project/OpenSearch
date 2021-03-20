@@ -110,7 +110,7 @@ public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
                 .build();
 
         // TODO (URL) replace w/ opensearch url
-        HttpRequest request = client.getRequestFactory().buildRequest("Get", new GenericUrl("http://elasticsearch.com"), null);
+        HttpRequest request = client.getRequestFactory().buildRequest("Get", new GenericUrl("https://github.com/opensearch-project/OpenSearch"), null);
         HttpResponse response = request.execute();
 
         assertThat(mockSleeper.getCount(), equalTo(3));
@@ -143,7 +143,7 @@ public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
                 .build();
 
         // TODO (URL) replace w/ opensearch URL
-        HttpRequest request1 = client.getRequestFactory().buildRequest("Get", new GenericUrl("http://elasticsearch.com"), null);
+        HttpRequest request1 = client.getRequestFactory().buildRequest("Get", new GenericUrl("https://github.com/opensearch-project/OpenSearch"), null);
         try {
             request1.execute();
             fail("Request should fail if wait too long");
@@ -170,7 +170,7 @@ public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
                 .build();
 
         // TODO (URL) replace w/ opensearch URL
-        HttpRequest request = client.getRequestFactory().buildRequest("Get", new GenericUrl("http://elasticsearch.com"), null);
+        HttpRequest request = client.getRequestFactory().buildRequest("Get", new GenericUrl("https://github.com/opensearch-project/OpenSearch"), null);
         HttpResponse response = request.execute();
 
         assertThat(mockSleeper.getCount(), equalTo(1));

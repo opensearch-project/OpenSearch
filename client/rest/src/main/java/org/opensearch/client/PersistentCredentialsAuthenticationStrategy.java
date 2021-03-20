@@ -33,10 +33,10 @@ import org.apache.http.protocol.HttpContext;
  * any special handling if authentication fails.
  * The default handler in Apache HTTP client mimics standard browser behaviour of clearing authentication
  * credentials if it receives a 401 response from the server. While this can be useful for browser, it is
- * rarely the desired behaviour with the Elasticsearch REST API.
+ * rarely the desired behaviour with the OpenSearch REST API.
  * If the code using the REST client has configured credentials for the REST API, then we can and should
  * assume that this is intentional, and those credentials represent the best possible authentication
- * mechanism to the Elasticsearch node.
+ * mechanism to the OpenSearch node.
  * If we receive a 401 status, a probably cause is that the authentication mechanism in place was unable
  * to perform the requisite password checks (the node has not yet recovered its state, or an external
  * authentication provider was unavailable).

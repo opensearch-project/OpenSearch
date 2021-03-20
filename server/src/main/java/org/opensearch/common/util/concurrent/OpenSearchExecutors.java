@@ -61,7 +61,7 @@ public class OpenSearchExecutors {
     /**
      * Setting to manually control the number of allocated processors. This setting is used to adjust thread pool sizes per node. The
      * default value is {@link Runtime#availableProcessors()} but should be manually controlled if not all processors on the machine are
-     * available to Elasticsearch (e.g., because of CPU limits).
+     * available to OpenSearch (e.g., because of CPU limits).
      */
     public static final Setting<Integer> NODE_PROCESSORS_SETTING = new Setting<>(
         "node.processors",

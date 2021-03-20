@@ -189,7 +189,7 @@ import static org.junit.Assert.fail;
  * <p>
  * The Cluster is bound to a test lifecycle where tests must call {@link #beforeTest(java.util.Random, double)} and
  * {@link #afterTest()} to initialize and reset the cluster in order to be more reproducible. The term "more" relates
- * to the async nature of Elasticsearch in combination with randomized testing. Once Threads and asynchronous calls
+ * to the async nature of OpenSearch in combination with randomized testing. Once Threads and asynchronous calls
  * are involved reproducibility is very limited. This class should only be used through {@link OpenSearchIntegTestCase}.
  * </p>
  */

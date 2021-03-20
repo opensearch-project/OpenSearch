@@ -39,7 +39,7 @@ public abstract class EnvironmentAwareCommand extends Command {
     private final OptionSpec<KeyValuePair> settingOption;
 
     /**
-     * Construct the command with the specified command description. This command will have logging configured without reading Elasticsearch
+     * Construct the command with the specified command description. This command will have logging configured without reading OpenSearch
      * configuration files.
      *
      * @param description the command description

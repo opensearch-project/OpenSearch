@@ -71,7 +71,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public static final String ERROR_INCORRECT_PASSWORD = "Provided keystore password was incorrect";
     public static final String ERROR_CORRUPTED_KEYSTORE = "Keystore has been corrupted or tampered with";
     public static final String ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED = "ERROR: Keystore is not password-protected";
-    public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: Elasticsearch keystore not found";
+    public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: OpenSearch keystore not found";
 
     /** Test initial archive state */
     public void test10InstallArchiveDistribution() throws Exception {
@@ -177,7 +177,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     /**
-     * This test simulates a user starting Elasticsearch on the command line without daemonizing
+     * This test simulates a user starting OpenSearch on the command line without daemonizing
      */
     public void test42KeystorePasswordOnTtyRunningInForeground() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
@@ -358,7 +358,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     /**
      * Check that if we provide the wrong password for a mounted and password-protected
-     * keystore, Elasticsearch doesn't start.
+     * keystore, OpenSearch doesn't start.
      */
     public void test62DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
@@ -494,7 +494,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 assertPermissionsAndOwnership(keystore, p660);
                 break;
             default:
-                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+                throw new IllegalStateException("Unknown OpenSearch packaging type.");
         }
     }
 }

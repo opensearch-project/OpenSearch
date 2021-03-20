@@ -80,7 +80,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     /**
      * Reads how much of the source to log. The user can specify any value they
      * like and numbers are interpreted the maximum number of characters to log
-     * and everything else is interpreted as Elasticsearch interprets booleans
+     * and everything else is interpreted as OpenSearch interprets booleans
      * which is then converted to 0 for false and Integer.MAX_VALUE for true.
      */
     public static final Setting<Integer> INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING =

@@ -231,9 +231,8 @@ public class GatewayMetaState implements Closeable {
     }
 
     /**
-     * Elasticsearch 2.0 removed several deprecated features and as well as support for Lucene 3.x. This method calls
-     * {@link MetadataIndexUpgradeService} to makes sure that indices are compatible with the current version. The
-     * MetadataIndexUpgradeService might also update obsolete settings if needed.
+     * This method calls {@link MetadataIndexUpgradeService} to makes sure that indices are compatible with the current
+     * version. The MetadataIndexUpgradeService might also update obsolete settings if needed.
      *
      * @return input <code>metadata</code> if no upgrade is needed or an upgraded metadata
      */

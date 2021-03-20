@@ -41,7 +41,7 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
         assertThat(credentialsProvider, instanceOf(DefaultAWSCredentialsProviderChain.class));
     }
 
-    public void testAWSCredentialsWithElasticsearchAwsSettings() {
+    public void testAWSCredentialsWithOpenSearchAwsSettings() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.access_key", "aws_key");
         secureSettings.setString("discovery.ec2.secret_key", "aws_secret");
@@ -51,7 +51,7 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
         assertThat(credentials.getAWSSecretKey(), is("aws_secret"));
     }
 
-    public void testAWSSessionCredentialsWithElasticsearchAwsSettings() {
+    public void testAWSSessionCredentialsWithOpenSearchAwsSettings() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.access_key", "aws_key");
         secureSettings.setString("discovery.ec2.secret_key", "aws_secret");

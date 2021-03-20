@@ -18,6 +18,6 @@
  */
 
 /**
- * Classes for streaming objects from one Elasticsearch node to another over its binary internode protocol.
+ * Classes for streaming objects from one OpenSearch node to another over its binary internode protocol.
  */
 package org.opensearch.common.io.stream;

@@ -65,6 +65,6 @@ public class ScoreFunctionBuilderTests extends OpenSearchTestCase {
         Mockito.when(mapperService.fieldType(Mockito.anyString())).thenReturn(ft);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
         builder.toFunction(context);
-        assertWarnings("As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
+        assertWarnings("OpenSearch requires that a [field] parameter is provided when a [seed] is set");
     }
 }

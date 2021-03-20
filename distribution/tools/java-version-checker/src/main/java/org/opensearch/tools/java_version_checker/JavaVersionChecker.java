@@ -51,7 +51,7 @@ final class JavaVersionChecker {
         if (JavaVersion.compare(JavaVersion.CURRENT, JavaVersion.JAVA_11) < 0) {
             final String message = String.format(
                 Locale.ROOT,
-                "future versions of Elasticsearch will require Java 11; your Java version from [%s] does not meet this requirement",
+                "future versions of OpenSearch will require Java 11; your Java version from [%s] does not meet this requirement",
                 System.getProperty("java.home")
             );
             errPrintln(message);

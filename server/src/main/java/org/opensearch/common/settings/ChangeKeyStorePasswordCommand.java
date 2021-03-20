@@ -39,7 +39,7 @@ class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
         try (SecureString newPassword = readPassword(terminal, true)) {
             final KeyStoreWrapper keyStore = getKeyStore();
             keyStore.save(env.configFile(), newPassword.getChars());
-            terminal.println("Elasticsearch keystore password changed successfully.");
+            terminal.println("OpenSearch keystore password changed successfully.");
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         }

@@ -54,7 +54,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * Utilities for running packaging tests against the Elasticsearch Docker images.
+ * Utilities for running packaging tests against the OpenSearch Docker images.
  */
 public class Docker {
     private static final Log logger = LogFactory.getLog(Docker.class);
@@ -90,7 +90,7 @@ public class Docker {
     }
 
     /**
-     * Runs an Elasticsearch Docker container.
+     * Runs an OpenSearch Docker container.
      * @param distribution details about the docker image being tested.
      */
     public static Installation runContainer(Distribution distribution) {
@@ -98,7 +98,7 @@ public class Docker {
     }
 
     /**
-     * Runs an Elasticsearch Docker container, with options for overriding the config directory
+     * Runs an OpenSearch Docker container, with options for overriding the config directory
      * through a bind mount, and passing additional environment variables.
      *
      * @param distribution details about the docker image being tested.
@@ -110,7 +110,7 @@ public class Docker {
     }
 
     /**
-     * Runs an Elasticsearch Docker container, with options for overriding the config directory
+     * Runs an OpenSearch Docker container, with options for overriding the config directory
      * through a bind mount, and passing additional environment variables.
      * @param distribution details about the docker image being tested.
      * @param volumes a map that declares any volume mappings to apply, or null
@@ -133,7 +133,7 @@ public class Docker {
     }
 
     /**
-     * Similar to {@link #runContainer(Distribution, Map, Map)} in that it runs an Elasticsearch Docker
+     * Similar to {@link #runContainer(Distribution, Map, Map)} in that it runs an OpenSearch Docker
      * container, expect that the container expecting it to exit e.g. due to configuration problem.
      *
      * @param distribution details about the docker image being tested.
@@ -219,7 +219,7 @@ public class Docker {
     }
 
     /**
-     * Waits for the Elasticsearch process to start executing in the container.
+     * Waits for the OpenSearch process to start executing in the container.
      * This is called every time a container is started.
      */
     public static void waitForOpenSearchToStart() {
@@ -235,7 +235,7 @@ public class Docker {
 
                 psOutput = dockerShell.run("ps -ww ax").stdout;
 
-                if (psOutput.contains("org.opensearch.bootstrap.Elasticsearch")) {
+                if (psOutput.contains("org.opensearch.bootstrap.OpenSearch")) {
                     isOpenSearchRunning = true;
                     break;
                 }
@@ -247,7 +247,7 @@ public class Docker {
         if (isOpenSearchRunning == false) {
             final Shell.Result dockerLogs = getContainerLogs();
             fail(
-                "Elasticsearch container did not start successfully.\n\nps output:\n"
+                "OpenSearch container did not start successfully.\n\nps output:\n"
                     + psOutput
                     + "\n\nStdout:\n"
                     + dockerLogs.stdout
@@ -258,7 +258,7 @@ public class Docker {
     }
 
     /**
-     * Waits for the Elasticsearch container to exit.
+     * Waits for the OpenSearch container to exit.
      */
     private static void waitForOpenSearchToExit() {
         boolean isOpenSearchRunning = true;
@@ -280,7 +280,7 @@ public class Docker {
 
         if (isOpenSearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
-            fail("Elasticsearch container did exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
+            fail("OpenSearch container did exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
         }
     }
 
@@ -545,7 +545,7 @@ public class Docker {
             r.run();
         } catch (Exception e) {
             final Shell.Result logs = getContainerLogs();
-            logger.warn("Elasticsearch container failed to start.\n\nStdout:\n" + logs.stdout + "\n\nStderr:\n" + logs.stderr);
+            logger.warn("OpenSearch container failed to start.\n\nStdout:\n" + logs.stdout + "\n\nStderr:\n" + logs.stderr);
             throw e;
         }
     }

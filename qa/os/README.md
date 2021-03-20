@@ -2,9 +2,9 @@
 
 This project contains tests that verify the distributions we build work
 correctly on the operating systems we support. They're intended to cover the
-steps a user would take when installing and configuring an Elasticsearch
+steps a user would take when installing and configuring an OpenSearch
 distribution. They're not intended to have significant coverage of the behavior
-of Elasticsearch's features.
+of OpenSearch's features.
 
 There are two types of tests in this project. The old tests live in
 `src/test/` and are written in [Bats](https://github.com/sstephenson/bats),

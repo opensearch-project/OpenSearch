@@ -101,7 +101,7 @@ public class MetadataIndexUpgradeService {
     }
 
     /**
-     * Checks if the index was already opened by this version of Elasticsearch and doesn't require any additional checks.
+     * Checks if the index was already opened by this version of OpenSearch and doesn't require any additional checks.
      */
     boolean isUpgraded(IndexMetadata indexMetadata) {
         return indexMetadata.getUpgradedVersion().onOrAfter(Version.CURRENT);

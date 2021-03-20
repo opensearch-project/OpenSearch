@@ -35,7 +35,7 @@ import static org.opensearch.packaging.util.Platforms.isSystemd;
 
 public class Cleanup {
 
-    private static final List<String> ELASTICSEARCH_FILES_LINUX = Arrays.asList(
+    private static final List<String> OPENSEARCH_FILES_LINUX = Arrays.asList(
         "/usr/share/opensearch",
         "/etc/opensearch/opensearch.keystore",
         "/etc/opensearch",
@@ -84,7 +84,7 @@ public class Cleanup {
 
         // delete files that may still exist
         lsGlob(getRootTempDir(), "opensearch*").forEach(FileUtils::rm);
-        final List<String> filesToDelete = Platforms.WINDOWS ? OPENSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
+        final List<String> filesToDelete = Platforms.WINDOWS ? OPENSEARCH_FILES_WINDOWS : OPENSEARCH_FILES_LINUX;
         // windows needs leniency due to asinine releasing of file locking async from a process exiting
         Consumer<? super Path> rm = Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm;
         filesToDelete.stream().map(Paths::get).filter(Files::exists).forEach(rm);

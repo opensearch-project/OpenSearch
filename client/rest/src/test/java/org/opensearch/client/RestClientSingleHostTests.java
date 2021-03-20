@@ -524,7 +524,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      */
     private static String formatWarningWithoutDate(String warningBody) {
         final String hash = new String(new byte[40], StandardCharsets.UTF_8).replace('\0', 'e');
-        return "299 Elasticsearch-1.2.2-SNAPSHOT-" + hash + " \"" + warningBody + "\"";
+        return "299 OpenSearch-1.2.2-SNAPSHOT-" + hash + " \"" + warningBody + "\"";
     }
 
     private static String formatWarning(String warningBody) {

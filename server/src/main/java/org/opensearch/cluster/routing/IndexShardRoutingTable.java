@@ -48,7 +48,7 @@ import static java.util.Collections.emptyMap;
 
 /**
  * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
- * Each Elasticsearch index consists of multiple shards, each shard encapsulates
+ * Each OpenSearch index consists of multiple shards, each shard encapsulates
  * a disjoint set of the index data and each shard has one or more instances
  * referred to as replicas of a shard. Given that, this class encapsulates all
  * replicas (instances) for a single index shard.
@@ -308,7 +308,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     /**
      * Adjust the for all other nodes' collected stats. In the original ranking paper there is no need to adjust other nodes' stats because
      * Cassandra sends occasional requests to all copies of the data, so their stats will be updated during that broadcast phase. In
-     * Elasticsearch, however, we do not have that sort of broadcast-to-all behavior. In order to prevent a node that gets a high score and
+     * OpenSearch, however, we do not have that sort of broadcast-to-all behavior. In order to prevent a node that gets a high score and
      * then never gets any more requests, we must ensure it eventually returns to a more normal score and can be a candidate for serving
      * requests.
      *

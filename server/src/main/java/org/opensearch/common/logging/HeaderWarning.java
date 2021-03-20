@@ -43,11 +43,11 @@ import java.util.regex.Pattern;
 public class HeaderWarning {
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
-     * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build hash.
+     * is always 299. Further, this pattern assumes that the warn agent represents a version of OpenSearch including the build hash.
      */
     public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
         "299 " + // warn code
-            "Elasticsearch-" + // warn agent
+            "OpenSearch-" + // warn agent
             "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
             "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
             "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
@@ -72,7 +72,7 @@ public class HeaderWarning {
     private static final String WARNING_PREFIX =
         String.format(
             Locale.ROOT,
-            "299 Elasticsearch-%s%s-%s",
+            "299 OpenSearch-%s%s-%s",
             Version.CURRENT.toString(),
             Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
             Build.CURRENT.hash());
@@ -151,7 +151,7 @@ public class HeaderWarning {
 
     /**
      * Extracts the warning value from the value of a warning header that is formatted according to RFC 7234. That is, given a string
-     * {@code 299 Elasticsearch-6.0.0 "warning value"}, the return value of this method would be {@code warning value}.
+     * {@code 299 OpenSearch-6.0.0 "warning value"}, the return value of this method would be {@code warning value}.
      *
      * @param s the value of a warning header formatted according to RFC 7234.
      * @return the extracted warning value

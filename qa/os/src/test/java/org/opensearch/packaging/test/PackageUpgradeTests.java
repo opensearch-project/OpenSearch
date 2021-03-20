@@ -68,7 +68,7 @@ public class PackageUpgradeTests extends PackagingTestCase {
         // add some docs
         makeRequest(
             Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Elasticsearch - The Definitive Guide\"}", ContentType.APPLICATION_JSON)
+                .bodyString("{ \"title\": \"OpenSearch\"}", ContentType.APPLICATION_JSON)
         );
         makeRequest(
             Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
@@ -101,7 +101,7 @@ public class PackageUpgradeTests extends PackagingTestCase {
 
     private void assertDocsExist() throws Exception {
         String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
-        assertThat(response1, containsString("Elasticsearch"));
+        assertThat(response1, containsString("OpenSearch"));
         String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
         assertThat(response2, containsString("World"));
         String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
