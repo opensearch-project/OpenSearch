@@ -57,7 +57,6 @@ public class MainResponseTests extends AbstractResponseTestCase<org.elasticsearc
         assertThat(serverTestInstance.getClusterName().value(), equalTo(clientInstance.getClusterName()));
         assertThat(serverTestInstance.getClusterUuid(), equalTo(clientInstance.getClusterUuid()));
         assertThat(serverTestInstance.getNodeName(), equalTo(clientInstance.getNodeName()));
-        assertThat("You Know, for Search", equalTo(clientInstance.getTagline()));
 
         assertThat(serverTestInstance.getBuild().hash(), equalTo(clientInstance.getVersion().getBuildHash()));
         assertThat(serverTestInstance.getVersion().toString(), equalTo(clientInstance.getVersion().getNumber()));
