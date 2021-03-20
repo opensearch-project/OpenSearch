@@ -453,7 +453,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             searchSourceBuilder.highlighter(highlightBuilder);
             // end::search-request-highlighting
             searchSourceBuilder.query(QueryBuilders.boolQuery()
-                    .should(matchQuery("title", "Elasticsearch"))
+                    .should(matchQuery("title", "OpenSearch"))
                     .should(matchQuery("user", "kimchy")));
             searchRequest.source(searchSourceBuilder);
             SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
@@ -473,7 +473,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
                     HighlightField highlight = highlightFields.get("title");
                     Text[] fragments = highlight.fragments();
                     assertEquals(1, fragments.length);
-                    assertThat(fragments[0].string(), containsString("<em>Elasticsearch</em>"));
+                    assertThat(fragments[0].string(), containsString("<em>OpenSearch</em>"));
                     highlight = highlightFields.get("user");
                     fragments = highlight.fragments();
                     assertEquals(1, fragments.length);

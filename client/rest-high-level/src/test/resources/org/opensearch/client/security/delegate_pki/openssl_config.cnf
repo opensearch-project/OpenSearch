@@ -85,10 +85,10 @@ string_mask = nombstr
 0.organizationName_default      = org
 
 organizationalUnitName          = Organizational Unit Name (eg, section)
-organizationalUnitName_default  = elasticsearch
+organizationalUnitName_default  = opensearch
 
 commonName                      = Common Name (hostname, IP, or your name)
-commonName_default              = Elasticsearch Test Certificate
+commonName_default              = OpenSearch Test Certificate
 commonName_max = 64
 
 ####################################################################
