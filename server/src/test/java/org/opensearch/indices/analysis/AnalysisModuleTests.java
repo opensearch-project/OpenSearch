@@ -253,13 +253,13 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that plugins can register pre-configured char filters that vary in behavior based on Elasticsearch version, Lucene version,
+     * Tests that plugins can register pre-configured char filters that vary in behavior based on OpenSearch version, Lucene version,
      * and that do not vary based on version at all.
      */
     public void testPluginPreConfiguredCharFilters() throws IOException {
         boolean noVersionSupportsMultiTerm = randomBoolean();
         boolean luceneVersionSupportsMultiTerm = randomBoolean();
-        boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
+        boolean opensearchVersionSupportsMultiTerm = randomBoolean();
         AnalysisRegistry registry = new AnalysisModule(TestEnvironment.newEnvironment(emptyNodeSettings),
                 singletonList(new AnalysisPlugin() {
             @Override
@@ -269,7 +269,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                                 tokenStream -> new AppendCharFilter(tokenStream, "no_version")),
                         PreConfiguredCharFilter.luceneVersion("lucene_version", luceneVersionSupportsMultiTerm,
                                 (tokenStream, luceneVersion) -> new AppendCharFilter(tokenStream, luceneVersion.toString())),
-                        PreConfiguredCharFilter.openSearchVersion("elasticsearch_version", elasticsearchVersionSupportsMultiTerm,
+                        PreConfiguredCharFilter.openSearchVersion("opensearch_version", opensearchVersionSupportsMultiTerm,
                                 (tokenStream, esVersion) -> new AppendCharFilter(tokenStream, esVersion.toString()))
                         );
             }
@@ -288,30 +288,30 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                 .put("index.analysis.analyzer.no_version.char_filter", "no_version")
                 .put("index.analysis.analyzer.lucene_version.tokenizer", "keyword")
                 .put("index.analysis.analyzer.lucene_version.char_filter", "lucene_version")
-                .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "keyword")
-                .put("index.analysis.analyzer.elasticsearch_version.char_filter", "elasticsearch_version")
+                .put("index.analysis.analyzer.opensearch_version.tokenizer", "keyword")
+                .put("index.analysis.analyzer.opensearch_version.char_filter", "opensearch_version")
                 .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build());
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] {"testno_version"});
         assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {"test" + version.luceneVersion});
-        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] {"test" + version});
+        assertTokenStreamContents(analyzers.get("opensearch_version").tokenStream("", "test"), new String[] {"test" + version});
 
         assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
                 analyzers.get("no_version").normalize("", "test").utf8ToString());
         assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
                 analyzers.get("lucene_version").normalize("", "test").utf8ToString());
-        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
-                analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (opensearchVersionSupportsMultiTerm ? version.toString() : ""),
+                analyzers.get("opensearch_version").normalize("", "test").utf8ToString());
     }
 
     /**
-     * Tests that plugins can register pre-configured token filters that vary in behavior based on Elasticsearch version, Lucene version,
+     * Tests that plugins can register pre-configured token filters that vary in behavior based on OpenSearch version, Lucene version,
      * and that do not vary based on version at all.
      */
     public void testPluginPreConfiguredTokenFilters() throws IOException {
         boolean noVersionSupportsMultiTerm = randomBoolean();
         boolean luceneVersionSupportsMultiTerm = randomBoolean();
-        boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
+        boolean opensearchVersionSupportsMultiTerm = randomBoolean();
         AnalysisRegistry registry = new AnalysisModule(TestEnvironment.newEnvironment(emptyNodeSettings),
                 singletonList(new AnalysisPlugin() {
             @Override
@@ -321,7 +321,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                                 tokenStream -> new AppendTokenFilter(tokenStream, "no_version")),
                         PreConfiguredTokenFilter.luceneVersion("lucene_version", luceneVersionSupportsMultiTerm,
                                 (tokenStream, luceneVersion) -> new AppendTokenFilter(tokenStream, luceneVersion.toString())),
-                        PreConfiguredTokenFilter.openSearchVersion("elasticsearch_version", elasticsearchVersionSupportsMultiTerm,
+                        PreConfiguredTokenFilter.openSearchVersion("opensearch_version", opensearchVersionSupportsMultiTerm,
                                 (tokenStream, esVersion) -> new AppendTokenFilter(tokenStream, esVersion.toString()))
                         );
             }
@@ -333,24 +333,24 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                 .put("index.analysis.analyzer.no_version.filter", "no_version")
                 .put("index.analysis.analyzer.lucene_version.tokenizer", "standard")
                 .put("index.analysis.analyzer.lucene_version.filter", "lucene_version")
-                .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "standard")
-                .put("index.analysis.analyzer.elasticsearch_version.filter", "elasticsearch_version")
+                .put("index.analysis.analyzer.opensearch_version.tokenizer", "standard")
+                .put("index.analysis.analyzer.opensearch_version.filter", "opensearch_version")
                 .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build());
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] {"testno_version"});
         assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {"test" + version.luceneVersion});
-        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] {"test" + version});
+        assertTokenStreamContents(analyzers.get("opensearch_version").tokenStream("", "test"), new String[] {"test" + version});
 
         assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
                 analyzers.get("no_version").normalize("", "test").utf8ToString());
         assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
                 analyzers.get("lucene_version").normalize("", "test").utf8ToString());
-        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
-                analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (opensearchVersionSupportsMultiTerm ? version.toString() : ""),
+                analyzers.get("opensearch_version").normalize("", "test").utf8ToString());
     }
 
     /**
-     * Tests that plugins can register pre-configured token filters that vary in behavior based on Elasticsearch version, Lucene version,
+     * Tests that plugins can register pre-configured token filters that vary in behavior based on OpenSearch version, Lucene version,
      * and that do not vary based on version at all.
      */
     public void testPluginPreConfiguredTokenizers() throws IOException {
@@ -392,7 +392,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                         PreConfiguredTokenizer.singleton("no_version", () -> new FixedTokenizer("no_version")),
                         PreConfiguredTokenizer.luceneVersion("lucene_version",
                             luceneVersion -> new FixedTokenizer(luceneVersion.toString())),
-                        PreConfiguredTokenizer.openSearchVersion("elasticsearch_version",
+                        PreConfiguredTokenizer.openSearchVersion("opensearch_version",
                             esVersion -> new FixedTokenizer(esVersion.toString()))
                     );
                 }
@@ -402,20 +402,20 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
         IndexAnalyzers analyzers = getIndexAnalyzers(registry, Settings.builder()
             .put("index.analysis.analyzer.no_version.tokenizer", "no_version")
             .put("index.analysis.analyzer.lucene_version.tokenizer", "lucene_version")
-            .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "elasticsearch_version")
+            .put("index.analysis.analyzer.opensearch_version.tokenizer", "opensearch_version")
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .build());
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[]{"no_version"});
         assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[]{version.luceneVersion.toString()});
-        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[]{version.toString()});
+        assertTokenStreamContents(analyzers.get("opensearch_version").tokenStream("", "test"), new String[]{version.toString()});
 
         // These are current broken by https://github.com/elastic/elasticsearch/issues/24752
 //        assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
 //                analyzers.get("no_version").normalize("", "test").utf8ToString());
 //        assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
 //                analyzers.get("lucene_version").normalize("", "test").utf8ToString());
-//        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
-//                analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
+//        assertEquals("test" + (opensearchVersionSupportsMultiTerm ? version.toString() : ""),
+//                analyzers.get("opensearch_version").normalize("", "test").utf8ToString());
     }
 
     public void testRegisterHunspellDictionary() throws Exception {

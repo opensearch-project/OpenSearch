@@ -44,7 +44,7 @@ public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
         // We handle error printing here so we can respect the "--silent" flag
         // We have to throw an exception to get a nonzero exit code
         if (keyStore == null) {
-            terminal.errorPrintln(Terminal.Verbosity.NORMAL, "ERROR: Elasticsearch keystore not found");
+            terminal.errorPrintln(Terminal.Verbosity.NORMAL, "ERROR: OpenSearch keystore not found");
             throw new UserException(NO_PASSWORD_EXIT_CODE, null);
         }
         if (keyStore.hasPassword() == false) {

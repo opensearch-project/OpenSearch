@@ -69,7 +69,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
             terminal.errorPrintln(
                 "WARNING: plugin ["
                     + info.getName()
-                    + "] was built for Elasticsearch version "
+                    + "] was built for OpenSearch version "
                     + info.getVersion()
                     + " but version "
                     + Version.CURRENT

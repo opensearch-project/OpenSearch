@@ -4,7 +4,7 @@ This plugin provides empty REST and transport endpoints for bulk indexing and se
 
 ### Build Instructions
 
-Build the plugin with `gradle :client:client-benchmark-noop-api-plugin:assemble` from the Elasticsearch root project directory.
+Build the plugin with `gradle :client:client-benchmark-noop-api-plugin:assemble` from the OpenSearch root project directory.
 
 ### Installation Instructions
 

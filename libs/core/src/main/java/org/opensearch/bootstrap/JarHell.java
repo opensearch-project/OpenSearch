@@ -54,7 +54,7 @@ import java.util.jar.Manifest;
  *   <li>Checks that class files are not duplicated across jars.</li>
  *   <li>Checks any {@code X-Compile-Target-JDK} value in the jar
  *       manifest is compatible with current JRE</li>
- *   <li>Checks any {@code X-Compile-Elasticsearch-Version} value in
+ *   <li>Checks any {@code X-Compile-OpenSearch-Version} value in
  *       the jar manifest is compatible with the current ES</li>
  * </ul>
  */

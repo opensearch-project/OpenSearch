@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Tunes Elasticsearch JVM settings based on inspection of provided JVM options.
+ * Tunes OpenSearch JVM settings based on inspection of provided JVM options.
  */
 final class JvmErgonomics {
 
@@ -49,7 +49,7 @@ final class JvmErgonomics {
     }
 
     /**
-     * Chooses additional JVM options for Elasticsearch.
+     * Chooses additional JVM options for OpenSearch.
      *
      * @param userDefinedJvmOptions A list of JVM options that have been defined by the user.
      * @return A list of additional JVM options to set.
@@ -61,7 +61,7 @@ final class JvmErgonomics {
         final long maxDirectMemorySize = extractMaxDirectMemorySize(finalJvmOptions);
 
         if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
-            Launchers.errPrintln("Warning: with JDK 8 on Windows, Elasticsearch may be unable to derive correct");
+            Launchers.errPrintln("Warning: with JDK 8 on Windows, OpenSearch may be unable to derive correct");
             Launchers.errPrintln("  ergonomic settings due to a JDK issue (JDK-8074459). Please use a newer");
             Launchers.errPrintln("  version of Java.");
         }

@@ -615,11 +615,11 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
     }
 
-    public void testIncompatibleElasticsearchVersion() throws Exception {
+    public void testIncompatibleOpenSearchVersion() throws Exception {
         PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.V_6_0_0,
             "1.8", "FakePlugin", Collections.emptyList(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
-        assertThat(e.getMessage(), containsString("was built for Elasticsearch version 6.0.0"));
+        assertThat(e.getMessage(), containsString("was built for OpenSearch version 6.0.0"));
     }
 
     public void testIncompatibleJavaVersion() throws Exception {

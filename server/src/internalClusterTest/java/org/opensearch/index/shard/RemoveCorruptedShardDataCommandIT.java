@@ -162,7 +162,7 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(),
                 allOf(containsString("failed to lock node's directory"),
-                    containsString("is Elasticsearch still running?")));
+                    containsString("is OpenSearch still running?")));
         }
 
         final Path indexDir = getPathToShardData(indexName, ShardPath.INDEX_FOLDER_NAME);

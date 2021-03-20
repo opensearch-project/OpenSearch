@@ -61,7 +61,7 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
         }
     }
 
-    private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN =
+    private static final Pattern OPENSEARCH_THREAD_NAME_PATTERN =
             Pattern.compile("opensearch\\[(.+)\\]\\[.+\\].+");
     private static final Pattern TEST_THREAD_NAME_PATTERN =
             Pattern.compile("TEST-.+\\.(.+)-seed#\\[.+\\]");
@@ -71,7 +71,7 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
             Pattern.compile("test_SUITE-CHILD_VM.+cluster\\[T#(.+)\\]");
 
     static String threadInfo(String threadName) {
-        Matcher m = ELASTICSEARCH_THREAD_NAME_PATTERN.matcher(threadName);
+        Matcher m = OPENSEARCH_THREAD_NAME_PATTERN.matcher(threadName);
         if (m.matches()) {
             // Thread looks like a node thread so use the node name
             return m.group(1);

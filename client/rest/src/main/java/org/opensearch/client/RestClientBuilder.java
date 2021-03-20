@@ -129,7 +129,7 @@ public final class RestClientBuilder {
      * For example, if this is set to "/my/path", then any client request will become <code>"/my/path/" + endpoint</code>.
      * <p>
      * In essence, every request's {@code endpoint} is prefixed by this {@code pathPrefix}. The path prefix is useful for when
-     * Elasticsearch is behind a proxy that provides a base path or a proxy that requires all paths to start with '/';
+     * OpenSearch is behind a proxy that provides a base path or a proxy that requires all paths to start with '/';
      * it is not intended for other purposes and it should not be supplied in other scenarios.
      *
      * @throws NullPointerException if {@code pathPrefix} is {@code null}.

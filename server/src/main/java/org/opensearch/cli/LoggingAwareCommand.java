@@ -21,12 +21,12 @@ package org.opensearch.cli;
 
 /**
  * A command that is aware of logging. This class should be preferred over the base {@link Command} class for any CLI tools that depend on
- * core Elasticsearch as they could directly or indirectly touch classes that touch logging and as such logging needs to be configured.
+ * core OpenSearch as they could directly or indirectly touch classes that touch logging and as such logging needs to be configured.
  */
 public abstract class LoggingAwareCommand extends Command {
 
     /**
-     * Construct the command with the specified command description. This command will have logging configured without reading Elasticsearch
+     * Construct the command with the specified command description. This command will have logging configured without reading OpenSearch
      * configuration files.
      *
      * @param description the command description

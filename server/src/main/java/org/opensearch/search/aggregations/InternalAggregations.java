@@ -78,7 +78,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * Constructs a node in the aggregation tree.
      * @param pipelineTreeSource must be null inside the tree or after final reduction. Should reference the
      *                           search request otherwise so we can properly serialize the response to
-     *                           versions of Elasticsearch that require the pipelines to be serialized.
+     *                           versions of OpenSearch that require the pipelines to be serialized.
      */
     public InternalAggregations(List<InternalAggregation> aggregations, Supplier<PipelineAggregator.PipelineTree> pipelineTreeSource) {
         super(aggregations);

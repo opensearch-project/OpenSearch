@@ -102,7 +102,7 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
         assertNull(newInstance.getException());
     }
 
-    public void testFromXContentWithElasticsearchException() throws IOException {
+    public void testFromXContentWithOpenSearchException() throws IOException {
         String xContent =
                 "{" +
                 "  \"error\": {" +

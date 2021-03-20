@@ -23,7 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Format string for Elasticsearch log messages.
+ * Format string for OpenSearch log messages.
  */
 public class LoggerMessageFormat {
 

@@ -47,7 +47,7 @@ import static org.opensearch.repositories.azure.AzureStorageService.MIN_CHUNK_SI
  * <p>
  * Azure file system repository supports the following settings:
  * <dl>
- * <dt>{@code container}</dt><dd>Azure container name. Defaults to elasticsearch-snapshots</dd>
+ * <dt>{@code container}</dt><dd>Azure container name. Defaults to opensearch-snapshots</dd>
  * <dt>{@code base_path}</dt><dd>Specifies the path within bucket to repository data. Defaults to root directory.</dd>
  * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to 64mb.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>

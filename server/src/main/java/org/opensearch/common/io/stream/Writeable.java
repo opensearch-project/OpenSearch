@@ -23,7 +23,7 @@ import java.io.IOException;
 
 /**
  * Implementers can be written to a {@linkplain StreamOutput} and read from a {@linkplain StreamInput}. This allows them to be "thrown
- * across the wire" using Elasticsearch's internal protocol. If the implementer also implements equals and hashCode then a copy made by
+ * across the wire" using OpenSearch's internal protocol. If the implementer also implements equals and hashCode then a copy made by
  * serializing and deserializing must be equal and have the same hashCode. It isn't required that such a copy be entirely unchanged.
  */
 public interface Writeable {

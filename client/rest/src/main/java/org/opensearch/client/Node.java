@@ -28,7 +28,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * Metadata about an {@link HttpHost} running Elasticsearch.
+ * Metadata about an {@link HttpHost} running OpenSearch.
  */
 public class Node {
     /**
@@ -46,12 +46,12 @@ public class Node {
      */
     private final String name;
     /**
-     * Version of Elasticsearch that the node is running or {@code null}
+     * Version of OpenSearch that the node is running or {@code null}
      * if we don't know the version.
      */
     private final String version;
     /**
-     * Roles that the Elasticsearch process on the host has or {@code null}
+     * Roles that the OpenSearch process on the host has or {@code null}
      * if we don't know what roles the node has.
      */
     private final Roles roles;
@@ -109,7 +109,7 @@ public class Node {
     }
 
     /**
-     * Version of Elasticsearch that the node is running or {@code null}
+     * Version of OpenSearch that the node is running or {@code null}
      * if we don't know the version.
      */
     public String getVersion() {
@@ -117,7 +117,7 @@ public class Node {
     }
 
     /**
-     * Roles that the Elasticsearch process on the host has or {@code null}
+     * Roles that the OpenSearch process on the host has or {@code null}
      * if we don't know what roles the node has.
      */
     public Roles getRoles() {
@@ -173,7 +173,7 @@ public class Node {
     }
 
     /**
-     * Role information about an Elasticsearch process.
+     * Role information about an OpenSearch process.
      */
     public static final class Roles {
 

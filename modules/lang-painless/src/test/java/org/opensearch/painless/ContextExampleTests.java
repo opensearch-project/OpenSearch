@@ -29,7 +29,7 @@ import static java.util.Collections.singletonMap;
 /**
  * These tests run the Painless scripts used in the context docs against
  * slightly modified data designed around unit tests rather than a fully-
- * running Elasticsearch server.
+ * running OpenSearch server.
  */
 public class ContextExampleTests extends ScriptTestCase {
 

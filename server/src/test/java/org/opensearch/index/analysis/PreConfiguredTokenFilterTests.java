@@ -69,7 +69,7 @@ public class PreConfiguredTokenFilterTests extends OpenSearchTestCase {
 
     public void testCachingWithElasticsearchVersion() throws IOException {
         PreConfiguredTokenFilter pctf =
-            PreConfiguredTokenFilter.openSearchVersion("elasticsearch_version", randomBoolean(),
+            PreConfiguredTokenFilter.openSearchVersion("opensearch_version", randomBoolean(),
                 (tokenStream, esVersion) -> new TokenFilter(tokenStream) {
                     @Override
                     public boolean incrementToken() {
@@ -83,9 +83,9 @@ public class PreConfiguredTokenFilterTests extends OpenSearchTestCase {
         Settings settings1 = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version1)
                 .build();
         TokenFilterFactory tff_v1_1 =
-                pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "elasticsearch_version", settings1);
+                pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "opensearch_version", settings1);
         TokenFilterFactory tff_v1_2 =
-                pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "elasticsearch_version", settings1);
+                pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "opensearch_version", settings1);
         assertSame(tff_v1_1, tff_v1_2);
 
         Version version2 = randomValueOtherThan(version1, () -> randomFrom(VersionUtils.allVersions()));
@@ -93,7 +93,7 @@ public class PreConfiguredTokenFilterTests extends OpenSearchTestCase {
                 .build();
 
         TokenFilterFactory tff_v2 =
-                pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "elasticsearch_version", settings2);
+                pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "opensearch_version", settings2);
         assertNotSame(tff_v1_1, tff_v2);
     }
 

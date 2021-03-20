@@ -236,7 +236,7 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
 
         new FsRepository(metadata, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService(), null);
 
-        assertWarnings("[repositories.fs.compress] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+        assertWarnings("[repositories.fs.compress] setting was deprecated in OpenSearch and will be removed in a future release!" +
             " See the breaking changes documentation for the next major version.");
     }
 

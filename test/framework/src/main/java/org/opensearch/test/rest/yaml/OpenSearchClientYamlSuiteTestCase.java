@@ -61,7 +61,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Runs a suite of yaml tests shared with all the official Elasticsearch
+ * Runs a suite of yaml tests shared with all the official OpenSearch
  * clients against against an opensearch cluster.
  *
  * The suite timeout is extended to account for projects with a large number of tests.
