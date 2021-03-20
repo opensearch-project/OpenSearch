@@ -35,6 +35,10 @@ class DocsTestPlugin implements Plugin<Project> {
         project.pluginManager.apply('elasticsearch.standalone-rest-test')
         project.pluginManager.apply('elasticsearch.rest-test')
 
+        String distribution = System.getProperty('tests.distribution', 'oss')
+        // The distribution can be configured with -Dtests.distribution on the command line
+        project.testClusters.integTest.testDistribution = distribution.toUpperCase()
+
         project.testClusters.integTest.nameCustomization = { it.replace("integTest", "node") }
         // Docs are published separately so no need to assemble
         project.tasks.assemble.enabled = false
