@@ -518,7 +518,7 @@ public class Setting<T> implements ToXContentObject {
         SecureSettings secureSettings = settings.getSecureSettings();
         if (secureSettings != null && secureSettings.getSettingNames().contains(getKey())) {
             throw new IllegalArgumentException("Setting [" + getKey() + "] is a non-secure setting" +
-                " and must be stored inside opensearch.yml, but was found inside the Elasticsearch keystore");
+                " and must be stored inside opensearch.yml, but was found inside the OpenSearch keystore");
         }
         return settings.get(getKey(), defaultValue.apply(settings));
     }
@@ -530,7 +530,7 @@ public class Setting<T> implements ToXContentObject {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
             Settings.DeprecationLoggerHolder.deprecationLogger
-                .deprecate(key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                .deprecate(key, "[{}] setting was deprecated in OpenSearch and will be removed in a future release! "
                     + "See the breaking changes documentation for the next major version.", key);
         }
     }

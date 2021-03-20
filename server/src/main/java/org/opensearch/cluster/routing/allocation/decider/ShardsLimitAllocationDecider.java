@@ -58,7 +58,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     private volatile int clusterShardLimit;
 
     /**
-     * Controls the maximum number of shards per index on a single Elasticsearch
+     * Controls the maximum number of shards per index on a single OpenSearch
      * node. Negative values are interpreted as unlimited.
      */
     public static final Setting<Integer> INDEX_TOTAL_SHARDS_PER_NODE_SETTING =

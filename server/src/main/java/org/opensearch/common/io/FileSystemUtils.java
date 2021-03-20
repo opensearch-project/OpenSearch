@@ -34,7 +34,7 @@ import java.nio.file.Path;
 import java.util.stream.StreamSupport;
 
 /**
- * Elasticsearch utils to work with {@link java.nio.file.Path}
+ * OpenSearch utils to work with {@link java.nio.file.Path}
  */
 public final class FileSystemUtils {
 

@@ -121,7 +121,7 @@ public class MetaStateService {
         if (globalMetadata != null) {
             metadataBuilder = Metadata.builder(globalMetadata);
             indexGraveyard = globalMetadata.custom(IndexGraveyard.TYPE);
-            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with OpenSearch version 1.0.0";
         } else {
             metadataBuilder = Metadata.builder();
             indexGraveyard = IndexGraveyard.builder().build();
@@ -131,7 +131,7 @@ public class MetaStateService {
             Tuple<IndexMetadata, Long> indexMetadataAndGeneration =
                     INDEX_METADATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
                             nodeEnv.resolveIndexFolder(indexFolderName));
-            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with OpenSearch version 1.0.0";
             IndexMetadata indexMetadata = indexMetadataAndGeneration.v1();
             long generation = indexMetadataAndGeneration.v2();
             if (indexMetadata != null) {

@@ -45,12 +45,6 @@ if [ -f "$OPENSEARCH_ENV_FILE" ]; then
     . "$OPENSEARCH_ENV_FILE"
 fi
 
-# ES_USER and ES_GROUP settings were removed
-if [ ! -z "$ES_USER" ] || [ ! -z "$ES_GROUP" ]; then
-    echo "ES_USER and ES_GROUP settings are no longer supported. To run as a custom user/group use the archive distribution of Elasticsearch."
-    exit 1
-fi
-
 exec="$OPENSEARCH_HOME/bin/opensearch"
 prog="opensearch"
 pidfile="$PID_DIR/${prog}.pid"

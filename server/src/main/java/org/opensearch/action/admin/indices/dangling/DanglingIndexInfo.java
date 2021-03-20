@@ -26,7 +26,7 @@ import org.opensearch.common.io.stream.Writeable;
 import java.io.IOException;
 
 /**
- * Contains information about a dangling index, i.e. an index that Elasticsearch has found
+ * Contains information about a dangling index, i.e. an index that OpenSearch has found
  * on-disk but is not present in the cluster state.
  */
 public class DanglingIndexInfo implements Writeable {

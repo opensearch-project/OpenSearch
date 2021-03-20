@@ -43,7 +43,7 @@ RUN set -eux ; \\
 RUN mkdir /usr/share/opensearch
 WORKDIR /usr/share/opensearch
 
-${source_elasticsearch}
+${source_opensearch}
 
 RUN tar zxf /opt/opensearch.tar.gz --strip-components=1
 RUN sed -i -e 's/OPENSEARCH_DISTRIBUTION_TYPE=tar/OPENSEARCH_DISTRIBUTION_TYPE=docker/' /usr/share/opensearch/bin/opensearch-env

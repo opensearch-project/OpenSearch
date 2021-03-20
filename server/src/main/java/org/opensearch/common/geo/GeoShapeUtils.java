@@ -26,7 +26,7 @@ import org.opensearch.geometry.Rectangle;
 
 
 /**
- * Utility class that transforms Elasticsearch geometry objects to the Lucene representation
+ * Utility class that transforms OpenSearch geometry objects to the Lucene representation
  */
 public class GeoShapeUtils {
 

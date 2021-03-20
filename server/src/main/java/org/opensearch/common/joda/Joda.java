@@ -400,11 +400,11 @@ public class Joda {
                 // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
                 if (millis < 0) {
                     getDeprecationLogger().deprecate("epoch-negative", "Use of negative values" +
-                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                        " in epoch time formats is deprecated and will not be supported in the next major version of OpenSearch.");
                 }
                 if (scientificNotation.matcher(text).find()) {
                     getDeprecationLogger().deprecate("epoch-scientific-notation", "Use of scientific notation" +
-                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                        " in epoch time formats is deprecated and will not be supported in the next major version of OpenSearch.");
                 }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);
                 bucket.saveField(DateTimeFieldType.year(), dt.getYear());

@@ -60,12 +60,6 @@ if [ -f "$DEFAULT" ]; then
 	. "$DEFAULT"
 fi
 
-# ES_USER and ES_GROUP settings were removed
-if [ ! -z "$ES_USER" ] || [ ! -z "$ES_GROUP" ]; then
-    echo "ES_USER and ES_GROUP settings are no longer supported. To run as a custom user/group use the archive distribution of Elasticsearch."
-    exit 1
-fi
-
 # Define other required variables
 PID_FILE="$PID_DIR/$NAME.pid"
 DAEMON=$OPENSEARCH_HOME/bin/opensearch
