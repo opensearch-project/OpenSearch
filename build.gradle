@@ -76,7 +76,7 @@ subprojects {
         all {
           pom.withXml { XmlProvider xml ->
             Node node = xml.asNode()
-            node.appendNode('inceptionYear', '2009')
+            node.appendNode('inceptionYear', '2021')
 
             Node license = node.appendNode('licenses').appendNode('license')
             license.appendNode('name', project.licenseName)
@@ -84,8 +84,8 @@ subprojects {
             license.appendNode('distribution', 'repo')
 
             Node developer = node.appendNode('developers').appendNode('developer')
-            developer.appendNode('name', 'Elastic')
-            developer.appendNode('url', 'https://www.elastic.co')
+            developer.appendNode('name', 'OpenSearch')
+            developer.appendNode('url', 'https://github.com/opensearch-project/OpenSearch')
           }
         }
       }
