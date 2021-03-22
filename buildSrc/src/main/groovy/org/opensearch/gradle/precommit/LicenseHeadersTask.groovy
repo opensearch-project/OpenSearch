@@ -124,7 +124,7 @@ class LicenseHeadersTask extends AntTask {
             // SPDX
             substringMatcher(licenseFamilyCategory: "SPDX ",
                 licenseFamilyName:     "SPDX") {
-                // Apache license (ES)
+                // Apache license (OpenSearch)
                 pattern(substring: "Copyright OpenSearch Contributors.")
             }
 
