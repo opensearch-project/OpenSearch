@@ -60,13 +60,13 @@ import java.util.stream.Stream;
  * Taken from JsonThrowablePatternConverter</li>
  * </ul>
  * <p>
- * It is possible to add more or override them with <code>esmessagefield</code>
- * <code>appender.logger.layout.esmessagefields=message,took,took_millis,total_hits,types,stats,search_type,total_shards,source,id</code>
+ * It is possible to add more or override them with <code>opensearchmessagefield</code>
+ * <code>appender.logger.layout.opensearchmessagefields=message,took,took_millis,total_hits,types,stats,search_type,total_shards,source,id</code>
  * Each of these will be expanded into a json field with a value taken {@link OpenSearchLogMessage} field. In the example above
- * <code>... "message":  %ESMessageField{message}, "took": %ESMessageField{took} ...</code>
- * the message passed to a logger will be overriden with a value from %ESMessageField{message}
+ * <code>... "message":  %OpenSearchMessageField{message}, "took": %OpenSearchMessageField{took} ...</code>
+ * the message passed to a logger will be overriden with a value from %OpenSearchMessageField{message}
  * <p>
- * The value taken from %ESMessageField{message} has to be a simple escaped JSON value and is populated in subclasses of
+ * The value taken from %OpenSearchMessageField{message} has to be a simple escaped JSON value and is populated in subclasses of
  * <code>OpenSearchLogMessage</code>
  */
 @Plugin(name = "OpenSearchJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
@@ -82,7 +82,7 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
                                           .build();
     }
 
-    private String pattern(String type, String[] esMessageFields) {
+    private String pattern(String type, String[] opensearchMessageFields) {
         if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
@@ -95,20 +95,20 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
         map.put("node.name", inQuotes("%node_name"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
-        for (String key : esMessageFields) {
-            map.put(key, inQuotes("%ESMessageField{" + key + "}"));
+        for (String key : opensearchMessageFields) {
+            map.put(key, inQuotes("%opensearchMessageField{" + key + "}"));
         }
-        return createPattern(map, Stream.of(esMessageFields).collect(Collectors.toSet()));
+        return createPattern(map, Stream.of(opensearchMessageFields).collect(Collectors.toSet()));
     }
 
 
-    private String createPattern(Map<String, Object> map, Set<String> esMessageFields) {
+    private String createPattern(Map<String, Object> map, Set<String> opensearchMessageFields) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         String separator = "";
         for (Map.Entry<String, Object> entry : map.entrySet()) {
 
-            if (esMessageFields.contains(entry.getKey())) {
+            if (opensearchMessageFields.contains(entry.getKey())) {
                 sb.append("%notEmpty{");
                 sb.append(separator);
                 appendField(sb, entry);
@@ -148,8 +148,8 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
     @PluginFactory
     public static OpenSearchJsonLayout createLayout(String type,
                                                     Charset charset,
-                                                    String[] esmessagefields) {
-        return new OpenSearchJsonLayout(type, charset, esmessagefields);
+                                                    String[] opensearchmessagefields) {
+        return new OpenSearchJsonLayout(type, charset, opensearchmessagefields);
     }
 
     PatternLayout getPatternLayout() {
@@ -165,8 +165,8 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
         @PluginAttribute(value = "charset", defaultString = "UTF-8")
         Charset charset;
 
-        @PluginAttribute("esmessagefields")
-        private String esMessageFields;
+        @PluginAttribute("opensearchmessagefields")
+        private String opensearchMessageFields;
 
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
@@ -174,7 +174,7 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
 
         @Override
         public OpenSearchJsonLayout build() {
-            String[] split = Strings.isNullOrEmpty(esMessageFields) ? new String[]{} : esMessageFields.split(",");
+            String[] split = Strings.isNullOrEmpty(opensearchMessageFields) ? new String[]{} : opensearchMessageFields.split(",");
             return OpenSearchJsonLayout.createLayout(type, charset, split);
         }
 
@@ -196,12 +196,12 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
             return asBuilder();
         }
 
-        public String getESMessageFields() {
-            return esMessageFields;
+        public String getOpenSearchMessageFields() {
+            return opensearchMessageFields;
         }
 
-        public B setESMessageFields(String esmessagefields) {
-            this.esMessageFields = esmessagefields;
+        public B setOpenSearchMessageFields(String opensearchMessageFields) {
+            this.opensearchMessageFields = opensearchMessageFields;
             return asBuilder();
         }
     }
