@@ -60,10 +60,10 @@ if [[ $DAEMONIZE = false ]]; then
     "$JAVA" \
     "$XSHARE" \
     $OPENSEARCH_JAVA_OPTS \
-    -Des.path.home="$OPENSEARCH_HOME" \
-    -Des.path.conf="$OPENSEARCH_PATH_CONF" \
-    -Des.distribution.type="$OPENSEARCH_DISTRIBUTION_TYPE" \
-    -Des.bundled_jdk="$OPENSEARCH_BUNDLED_JDK" \
+    -Dopensearch.path.home="$OPENSEARCH_HOME" \
+    -Dopensearch.path.conf="$OPENSEARCH_PATH_CONF" \
+    -Dopensearch.distribution.type="$OPENSEARCH_DISTRIBUTION_TYPE" \
+    -Dopensearch.bundled_jdk="$OPENSEARCH_BUNDLED_JDK" \
     -cp "$OPENSEARCH_CLASSPATH" \
     org.opensearch.bootstrap.OpenSearch \
     "$@" <<<"$KEYSTORE_PASSWORD"
@@ -72,10 +72,10 @@ else
     "$JAVA" \
     "$XSHARE" \
     $OPENSEARCH_JAVA_OPTS \
-    -Des.path.home="$OPENSEARCH_HOME" \
-    -Des.path.conf="$OPENSEARCH_PATH_CONF" \
-    -Des.distribution.type="$OPENSEARCH_DISTRIBUTION_TYPE" \
-    -Des.bundled_jdk="$OPENSEARCH_BUNDLED_JDK" \
+    -Dopensearch.path.home="$OPENSEARCH_HOME" \
+    -Dopensearch.path.conf="$OPENSEARCH_PATH_CONF" \
+    -Dopensearch.distribution.type="$OPENSEARCH_DISTRIBUTION_TYPE" \
+    -Dopensearch.bundled_jdk="$OPENSEARCH_BUNDLED_JDK" \
     -cp "$OPENSEARCH_CLASSPATH" \
     org.opensearch.bootstrap.OpenSearch \
     "$@" \
