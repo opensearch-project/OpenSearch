@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.node;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -223,7 +224,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
      * The version that {@link #REMOTE_CLUSTER_CLIENT_ROLE} is introduced. Nodes before this version do not have that role even
      * they can connect to remote clusters.
      */
-    public static final Version REMOTE_CLUSTER_CLIENT_ROLE_VERSION = Version.V_7_8_0;
+    public static final Version REMOTE_CLUSTER_CLIENT_ROLE_VERSION = LegacyESVersion.V_7_8_0;
 
     static SortedSet<DiscoveryNodeRole> LEGACY_ROLES =
         Collections.unmodifiableSortedSet(new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE)));

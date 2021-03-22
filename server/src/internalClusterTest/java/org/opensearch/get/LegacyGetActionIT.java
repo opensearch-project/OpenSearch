@@ -32,7 +32,7 @@
 
 package org.opensearch.get;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -59,7 +59,7 @@ public class LegacyGetActionIT extends OpenSearchIntegTestCase {
                 .setSettings(
                         Settings.builder()
                                 .put("index.refresh_interval", -1)
-                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_0_0))); // multi-types in 6.0.0
+                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), LegacyESVersion.V_6_0_0))); // multi-types in 6.0.0
 
         try (XContentBuilder source = jsonBuilder().startObject().field("field1", "value").endObject()) {
             client()

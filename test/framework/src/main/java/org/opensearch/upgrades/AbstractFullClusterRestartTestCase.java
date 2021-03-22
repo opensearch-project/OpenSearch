@@ -32,6 +32,7 @@
 
 package org.opensearch.upgrades;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
 import org.opensearch.common.Booleans;
@@ -54,8 +55,8 @@ public abstract class AbstractFullClusterRestartTestCase extends OpenSearchRestT
     @Before
     public void init() throws IOException {
         assertThat("we don't need this branch if we aren't compatible with 6.0",
-                Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(Version.V_6_0_0), equalTo(true));
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0)) {
+                Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(LegacyESVersion.V_6_0_0), equalTo(true));
+        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
             XContentBuilder template = jsonBuilder();
             template.startObject();
             {
@@ -80,10 +81,10 @@ public abstract class AbstractFullClusterRestartTestCase extends OpenSearchRestT
 
     /**
      * @return true if test is running against an old cluster before that last major, in this case
-     * when System.getProperty("tests.is_old_cluster" == true) and oldClusterVersion is before {@link Version#V_7_0_0}
+     * when System.getProperty("tests.is_old_cluster" == true) and oldClusterVersion is before {@link LegacyESVersion#V_7_0_0}
      */
     protected final boolean isRunningAgainstAncientCluster() {
-        return isRunningAgainstOldCluster() && oldClusterVersion.before(Version.V_7_0_0);
+        return isRunningAgainstOldCluster() && oldClusterVersion.before(LegacyESVersion.V_7_0_0);
     }
 
     public static Version getOldClusterVersion() {
@@ -136,7 +137,7 @@ public abstract class AbstractFullClusterRestartTestCase extends OpenSearchRestT
     }
 
     protected static int extractTotalHits(Map<?, ?> response) {
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0)) {
+        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
             return (Integer) XContentMapValues.extractValue("hits.total", response);
         } else {
             return (Integer) XContentMapValues.extractValue("hits.total.value", response);

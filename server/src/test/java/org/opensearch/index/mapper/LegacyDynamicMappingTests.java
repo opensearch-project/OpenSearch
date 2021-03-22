@@ -32,7 +32,7 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -51,7 +51,7 @@ public class LegacyDynamicMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testTypeNotCreatedOnIndexFailure() throws IOException {
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_3_0).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), LegacyESVersion.V_6_3_0).build();
         try (XContentBuilder mapping = jsonBuilder()) {
             mapping.startObject();
             {

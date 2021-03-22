@@ -40,6 +40,7 @@ import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -382,7 +383,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
 
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/opensearch/search/geo/gzippedmap.gz");
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()

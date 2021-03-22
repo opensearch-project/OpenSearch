@@ -63,6 +63,7 @@ import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
@@ -151,7 +152,7 @@ final class SimilarityProviders {
         if (model == null) {
             String replacement = LEGACY_BASIC_MODELS.get(basicModel);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+                if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
                     throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
                         "please use another model.");
                 } else {
@@ -182,7 +183,7 @@ final class SimilarityProviders {
         if (effect == null) {
             String replacement = LEGACY_AFTER_EFFECTS.get(afterEffect);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+                if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
                     throw new IllegalArgumentException("After effect [" + afterEffect +
                         "] isn't supported anymore, please use another effect.");
                 } else {
@@ -273,7 +274,7 @@ final class SimilarityProviders {
         unknownSettings.removeAll(Arrays.asList(supportedSettings));
         unknownSettings.remove("type"); // used to figure out which sim this is
         if (unknownSettings.isEmpty() == false) {
-            if (version.onOrAfter(Version.V_7_0_0)) {
+            if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
                 deprecationLogger.deprecate("unknown_similarity_setting",

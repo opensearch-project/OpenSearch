@@ -33,7 +33,7 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -58,7 +58,7 @@ public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProv
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
         analyzer = new StandardHtmlStripAnalyzer(stopWords);
         analyzer.setVersion(version);
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
             throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
                 "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
         } else {

@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.stats;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -59,7 +59,7 @@ public class LegacyIndexStatsIT extends OpenSearchIntegTestCase {
                 .admin()
                 .indices()
                 .prepareCreate("test1")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_0_0))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), LegacyESVersion.V_6_0_0))
                 .addMapping("_doc", "bar", "type=text,fielddata=true", "baz", "type=text,fielddata=true")
                 .get());
 

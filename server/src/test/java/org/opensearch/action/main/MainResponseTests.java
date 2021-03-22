@@ -33,6 +33,7 @@
 package org.opensearch.action.main;
 
 import org.opensearch.Build;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.Strings;
@@ -55,7 +56,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_1, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_1, Version.CURRENT);
         Build build = new Build(
             Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
             version.toString()

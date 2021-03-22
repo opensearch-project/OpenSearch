@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
@@ -785,8 +786,8 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
             .startObject("nested1").field("type", "nested").endObject()
             .endObject().endObject().endObject());
 
-        Version bwcVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0);
-        for (Version version : new Version[] {Version.V_6_5_0, bwcVersion}) {
+        Version bwcVersion = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_6_4_0);
+        for (Version version : new Version[] {LegacyESVersion.V_6_5_0, bwcVersion}) {
             DocumentMapper docMapper = createIndex("test-" + version,
                 Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version).build())
                     .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -813,7 +814,7 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
                 XContentType.JSON));
 
             assertThat(doc.docs().size(), equalTo(3));
-            if (version.onOrAfter(Version.V_6_5_0)) {
+            if (version.onOrAfter(LegacyESVersion.V_6_5_0)) {
                 assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePathAsString()));
                 assertThat(doc.docs().get(0).get("nested1.field1"), equalTo("1"));
                 assertThat(doc.docs().get(0).get("nested1.field2"), equalTo("2"));

@@ -32,8 +32,8 @@
 
 package org.opensearch.search.builder;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -220,7 +220,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        if (in.getVersion().before(Version.V_6_4_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_4_0)) {
             List<String> dvFields = (List<String>) in.readGenericValue();
             if (dvFields == null) {
                 docValueFields = null;
@@ -265,7 +265,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         timeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             seqNoAndPrimaryTerm = in.readOptionalBoolean();
         } else {
             seqNoAndPrimaryTerm = null;
@@ -275,17 +275,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             trackTotalHitsUpTo = in.readOptionalInt();
         } else {
             trackTotalHitsUpTo = in.readBoolean() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         }
     }
@@ -295,7 +295,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
-        if (out.getVersion().before(Version.V_6_4_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_4_0)) {
             out.writeGenericValue(docValueFields == null
                     ? null
                     : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
@@ -341,7 +341,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalTimeValue(timeout);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             out.writeOptionalBoolean(seqNoAndPrimaryTerm);
         }
         out.writeNamedWriteableList(extBuilders);
@@ -349,18 +349,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             out.writeOptionalInt(trackTotalHitsUpTo);
         } else {
             out.writeBoolean(trackTotalHitsUpTo == null ? true : trackTotalHitsUpTo > SearchContext.TRACK_TOTAL_HITS_DISABLED);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
                 out.writeList(fetchFields);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeOptionalWriteable(pointInTimeBuilder);
         }
     }

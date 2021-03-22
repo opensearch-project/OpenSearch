@@ -31,7 +31,7 @@
 
 package org.opensearch.action.admin.cluster.configuration;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.cluster.ClusterState;
@@ -107,7 +107,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     public AddVotingConfigExclusionsRequest(StreamInput in) throws IOException {
         super(in);
         nodeDescriptions = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
             nodeIds = in.readStringArray();
             nodeNames = in.readStringArray();
         } else {
@@ -229,7 +229,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(nodeDescriptions);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
             out.writeStringArray(nodeIds);
             out.writeStringArray(nodeNames);
         }

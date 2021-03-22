@@ -33,9 +33,9 @@
 package org.opensearch.indices.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
-import org.opensearch.Version;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
@@ -213,7 +213,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
         public StoreFilesMetadata(StreamInput in) throws IOException {
             this.shardId = new ShardId(in);
             this.metadataSnapshot = new Store.MetadataSnapshot(in);
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
                 this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
             } else {
                 this.peerRecoveryRetentionLeases = Collections.emptyList();
@@ -224,7 +224,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
             metadataSnapshot.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
                 out.writeList(peerRecoveryRetentionLeases);
             }
         }
@@ -290,7 +290,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
         public Request(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                 customDataPath = in.readString();
             } else {
                 customDataPath = null;
@@ -321,7 +321,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                 out.writeString(customDataPath);
             }
         }
@@ -358,7 +358,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                 customDataPath = in.readString();
             } else {
                 customDataPath = null;
@@ -374,7 +374,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                 assert customDataPath != null;
                 out.writeString(customDataPath);
             }

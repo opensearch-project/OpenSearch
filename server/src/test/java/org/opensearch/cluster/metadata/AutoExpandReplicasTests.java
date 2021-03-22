@@ -31,6 +31,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
@@ -38,8 +39,6 @@ import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.AutoExpandReplicas;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -229,7 +228,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
 
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
-            DiscoveryNode oldNode = createNode(VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_1),
+            DiscoveryNode oldNode = createNode(VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_1),
                 DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local node is the master
             allNodes.add(oldNode);
             ClusterState state = ClusterStateCreationUtils.state(oldNode, oldNode, allNodes.toArray(new DiscoveryNode[0]));
@@ -248,7 +247,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                 state = cluster.reroute(state, new ClusterRerouteRequest());
             }
 
-            DiscoveryNode newNode = createNode(Version.V_7_6_0,
+            DiscoveryNode newNode = createNode(LegacyESVersion.V_7_6_0,
                 DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local node is the master
 
             state = cluster.addNodes(state, Collections.singletonList(newNode));

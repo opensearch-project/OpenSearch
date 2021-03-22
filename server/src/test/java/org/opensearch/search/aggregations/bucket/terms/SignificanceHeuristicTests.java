@@ -32,6 +32,7 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
@@ -94,7 +95,7 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(version);
-        if (version.before(Version.V_7_8_0)) {
+        if (version.before(LegacyESVersion.V_7_8_0)) {
             sigTerms.mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree.EMPTY);
         }
         out.writeNamedWriteable(sigTerms);

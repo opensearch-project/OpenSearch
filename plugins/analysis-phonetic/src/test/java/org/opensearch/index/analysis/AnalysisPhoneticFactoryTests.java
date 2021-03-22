@@ -32,6 +32,7 @@
 
 package org.opensearch.index.analysis;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -64,7 +65,7 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
         AnalysisPhoneticPlugin plugin = new AnalysisPhoneticPlugin();
 
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT))
             .put("path.home", createTempDir().toString())
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
@@ -76,7 +77,7 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
 
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(),
-                Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
+                LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
             .put("path.home", createTempDir().toString())
             .build();
         idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

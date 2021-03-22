@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -243,14 +244,14 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
                 restoreUUID = in.readString();
             } else {
                 restoreUUID = RestoreInProgress.BWC_UUID;
             }
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
                 index = new IndexId(in);
             } else {
                 index = new IndexId(in.readString(), IndexMetadata.INDEX_UUID_NA_VALUE);
@@ -281,12 +282,12 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
                 out.writeString(restoreUUID);
             }
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
                 index.writeTo(out);
             } else {
                 out.writeString(index.getName());

@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.shards;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -50,8 +51,6 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
-import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
-import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -92,7 +91,7 @@ public class ClusterSearchShardsResponseTests extends OpenSearchTestCase {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
         try(BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             clusterSearchShardsResponse.writeTo(out);

@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
@@ -791,7 +792,7 @@ public class MetadataCreateIndexService {
         final int numberOfShards;
         final Version indexVersionCreated =
             Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey())));
-        if (indexVersionCreated.before(Version.V_7_0_0)) {
+        if (indexVersionCreated.before(LegacyESVersion.V_7_0_0)) {
             numberOfShards = 5;
         } else {
             numberOfShards = 1;
@@ -1114,7 +1115,7 @@ public class MetadataCreateIndexService {
     static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
         IndexMetadata.selectSplitShard(0, sourceMetadata, IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
-        if (sourceMetadata.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
+        if (sourceMetadata.getCreationVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
             // ensure we have a single type since this would make the splitting code considerably more complex
             // and a 5.x index would not be splittable unless it has been shrunk before so rather opt out of the complexity
             // since in 5.x we don't have a setting to artificially set the number of routing shards
@@ -1224,7 +1225,7 @@ public class MetadataCreateIndexService {
      * the less default split operations are supported
      */
     public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(Version.V_7_0_0)) {
+        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_0_0)) {
             // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
             // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
             // will always have the behavior of the min node in the cluster.

@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
@@ -43,10 +44,6 @@ import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.opensearch.cluster.metadata.DataStream;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -212,9 +209,9 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
         state = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes())
                 .add(new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.V_7_0_0))
+                    new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), LegacyESVersion.V_7_0_0))
                 .add(new DiscoveryNode("new_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.V_7_2_0)))
+                    new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), LegacyESVersion.V_7_2_0)))
             .build();
 
         state = MetadataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();

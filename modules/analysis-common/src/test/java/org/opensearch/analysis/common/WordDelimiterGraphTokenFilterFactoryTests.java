@@ -33,6 +33,7 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -171,7 +172,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests
                 .build();
             Settings indexSettings = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED,
-                    VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0)))
+                    VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_3_0)))
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
                 .build();

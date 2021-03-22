@@ -42,6 +42,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
@@ -342,7 +343,7 @@ public class SliceBuilderTests extends OpenSearchTestCase {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context = createShardContext(Version.V_6_3_0, reader, "_uid", null, 1,0);
+            QueryShardContext context = createShardContext(LegacyESVersion.V_6_3_0, reader, "_uid", null, 1,0);
             SliceBuilder builder = new SliceBuilder("_uid", 5, 10);
             Query query = builder.toFilter(null, createRequest(0), context, Version.CURRENT);
             assertThat(query, instanceOf(TermsSliceQuery.class));
@@ -357,12 +358,12 @@ public class SliceBuilderTests extends OpenSearchTestCase {
 
         SliceBuilder copy62 = copyWriteable(sliceBuilder,
                 new NamedWriteableRegistry(Collections.emptyList()),
-                SliceBuilder::new, Version.V_6_2_0);
+                SliceBuilder::new, LegacyESVersion.V_6_2_0);
         assertEquals(sliceBuilder, copy62);
 
         SliceBuilder copy63 = copyWriteable(copy62,
                 new NamedWriteableRegistry(Collections.emptyList()),
-                SliceBuilder::new, Version.V_6_3_0);
+                SliceBuilder::new, LegacyESVersion.V_6_3_0);
         assertEquals(sliceBuilder, copy63);
     }
 
@@ -392,7 +393,7 @@ public class SliceBuilderTests extends OpenSearchTestCase {
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
             query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, Version.CURRENT);
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
-            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, Version.V_6_2_0);
+            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, LegacyESVersion.V_6_2_0);
             assertEquals(new DocValuesSliceQuery("field", 1, 2), query);
         }
     }

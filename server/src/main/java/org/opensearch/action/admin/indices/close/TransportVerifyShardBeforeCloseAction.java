@@ -33,7 +33,7 @@ package org.opensearch.action.admin.indices.close;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
@@ -166,7 +166,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
                 phase1 = in.readBoolean();
             } else {
                 phase1 = false;
@@ -189,7 +189,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
                 out.writeBoolean(phase1);
             }
         }

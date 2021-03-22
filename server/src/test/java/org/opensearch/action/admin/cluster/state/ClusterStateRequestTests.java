@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.state;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -39,8 +40,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
-import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -59,7 +58,7 @@ public class ClusterStateRequestTests extends OpenSearchTestCase {
             Version testVersion = VersionUtils.randomVersionBetween(random(),
                 Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
             // TODO: change version to V_6_6_0 after backporting:
-            if (testVersion.onOrAfter(Version.V_7_0_0)) {
+            if (testVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
                 if (randomBoolean()) {
                     clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
                 }
@@ -82,7 +81,7 @@ public class ClusterStateRequestTests extends OpenSearchTestCase {
             assertThat(deserializedCSRequest.blocks(), equalTo(clusterStateRequest.blocks()));
             assertThat(deserializedCSRequest.indices(), equalTo(clusterStateRequest.indices()));
             assertOptionsMatch(deserializedCSRequest.indicesOptions(), clusterStateRequest.indicesOptions());
-            if (testVersion.onOrAfter(Version.V_6_6_0)) {
+            if (testVersion.onOrAfter(LegacyESVersion.V_6_6_0)) {
                 assertThat(deserializedCSRequest.waitForMetadataVersion(), equalTo(clusterStateRequest.waitForMetadataVersion()));
                 assertThat(deserializedCSRequest.waitForTimeout(), equalTo(clusterStateRequest.waitForTimeout()));
             }

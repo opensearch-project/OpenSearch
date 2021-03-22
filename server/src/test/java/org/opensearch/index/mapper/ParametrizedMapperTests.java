@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
@@ -418,7 +419,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public void testDeprecatedParameters() {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
         String mapping = "{\"type\":\"test_mapper\",\"index\":false,\"store\":true,\"required\":\"value\"}";
-        TestMapper mapper = fromMapping(mapping, Version.V_7_8_0);
+        TestMapper mapper = fromMapping(mapping, LegacyESVersion.V_7_8_0);
         assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
         assertFalse(mapper.index);
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"index\":false,\"required\":\"value\"}}", Strings.toString(mapper));

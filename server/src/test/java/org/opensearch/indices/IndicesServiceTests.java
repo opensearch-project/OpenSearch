@@ -34,6 +34,7 @@ package org.opensearch.indices;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
@@ -531,7 +532,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testIsMetadataField() {
         IndicesService indicesService = getIndicesService();
-        final Version randVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        final Version randVersion = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
         assertFalse(indicesService.isMetadataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
         for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
             assertTrue(indicesService.isMetadataField(randVersion, builtIn));

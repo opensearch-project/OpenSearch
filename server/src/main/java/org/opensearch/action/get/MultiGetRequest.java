@@ -32,8 +32,8 @@
 
 package org.opensearch.action.get;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
@@ -101,7 +101,7 @@ public class MultiGetRequest extends ActionRequest
             type = in.readOptionalString();
             id = in.readString();
             routing = in.readOptionalString();
-            if (in.getVersion().before(Version.V_7_0_0)) {
+            if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
                 in.readOptionalString(); // _parent
             }
             storedFields = in.readOptionalStringArray();
@@ -216,7 +216,7 @@ public class MultiGetRequest extends ActionRequest
             out.writeOptionalString(type);
             out.writeString(id);
             out.writeOptionalString(routing);
-            if (out.getVersion().before(Version.V_7_0_0)) {
+            if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
                 out.writeOptionalString(null); // _parent
             }
             out.writeOptionalStringArray(storedFields);
