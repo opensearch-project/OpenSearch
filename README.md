@@ -19,7 +19,7 @@ We officially began work on the new fork on January 21st, 2021.  Since then, we'
 
 * Unit Tests
 * Integration Tests
-* Plug-ins
+* Version Checks
 
 ### Guiding Principles
 
