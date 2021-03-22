@@ -91,7 +91,7 @@ dependencies {
 
 testClusters {
   generateContextCluster {
-    testDistribution = 'DEFAULT'
+    testDistribution = 'OSS'
   }
 }
 
