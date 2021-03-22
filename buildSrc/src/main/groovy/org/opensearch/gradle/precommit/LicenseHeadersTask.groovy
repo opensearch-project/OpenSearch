@@ -42,7 +42,7 @@ class LicenseHeadersTask extends AntTask {
 
     /** Allowed license families for this project. */
     @Input
-    List<String> approvedLicenses = ['Apache', 'Generated', 'Vendored']
+    List<String> approvedLicenses = ['Apache', 'Generated', 'SPDX', 'Vendored']
 
     /**
      * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
@@ -119,6 +119,13 @@ class LicenseHeadersTask extends AntTask {
                              licenseFamilyName:     "Apache") {
                // Apache license (ES)
                pattern(substring: "Licensed to Elasticsearch under one or more contributor")
+            }
+
+            // SPDX
+            substringMatcher(licenseFamilyCategory: "SPDX ",
+                licenseFamilyName:     "SPDX") {
+                // Apache license (OpenSearch)
+                pattern(substring: "Copyright OpenSearch Contributors.")
             }
 
             // Generated resources

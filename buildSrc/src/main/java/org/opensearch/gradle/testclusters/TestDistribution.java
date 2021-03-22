@@ -23,6 +23,5 @@ package org.opensearch.gradle.testclusters;
  */
 public enum TestDistribution {
     INTEG_TEST,
-    DEFAULT,
     OSS
 }

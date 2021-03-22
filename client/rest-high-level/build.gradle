@@ -78,7 +78,7 @@ RestIntegTestTask asyncIntegTest = tasks.create("asyncIntegTest", RestIntegTestT
 check.dependsOn(asyncIntegTest)
 
 testClusters.all {
-  testDistribution = 'DEFAULT'
+  testDistribution = 'OSS'
   systemProperty 'opensearch.scripting.update.ctx_in_params', 'false'
   setting 'reindex.remote.whitelist', '[ "[::1]:*", "127.0.0.1:*" ]'
 
