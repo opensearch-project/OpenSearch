@@ -139,7 +139,7 @@ if [[ "$OPENSEARCH_DISTRIBUTION_TYPE" == "docker" ]]; then
   # opensearch.cgroups.hierarchy.override. Therefore, we set this value here so
   # that cgroup statistics are available for the container this process
   # will run in.
-  export OPENSEARCH_JAVA_OPTS="-Des.cgroups.hierarchy.override=/ $OPENSEARCH_JAVA_OPTS"
+  export OPENSEARCH_JAVA_OPTS="-Dopensearch.cgroups.hierarchy.override=/ $OPENSEARCH_JAVA_OPTS"
 fi
 
 cd "$OPENSEARCH_HOME"

@@ -35,12 +35,12 @@ final class SystemJvmOptions {
                  * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property
                  * networkaddress.cache.ttl; can be set to -1 to cache forever.
                  */
-                "-Des.networkaddress.cache.ttl=60",
+                "-Dopensearch.networkaddress.cache.ttl=60",
                 /*
                  * Cache ttl in seconds for negative DNS lookups noting that this overrides the JDK security property
                  * networkaddress.cache.negative ttl; set to -1 to cache forever.
                  */
-                "-Des.networkaddress.cache.negative.ttl=10",
+                "-Dopensearch.networkaddress.cache.negative.ttl=10",
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
                 // explicitly set the stack size
