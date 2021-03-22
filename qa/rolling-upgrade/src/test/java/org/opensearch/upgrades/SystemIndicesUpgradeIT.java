@@ -19,6 +19,7 @@
 
 package org.opensearch.upgrades;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
 import org.opensearch.client.ResponseException;
@@ -45,7 +46,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0)) {
+            if (UPGRADE_FROM_VERSION.before(LegacyESVersion.V_7_0_0)) {
                 bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\", \"_type\" : \"_doc\"}}\n" +
                     "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
             } else {
@@ -77,7 +78,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
             // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
             getTasksIndex.addParameter("allow_no_indices", "false");
-            if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0)) {
+            if (UPGRADE_FROM_VERSION.before(LegacyESVersion.V_7_0_0)) {
                 getTasksIndex.addParameter("include_type_name", "false");
             }
 

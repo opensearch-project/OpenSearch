@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.CollectionUtils;
@@ -54,7 +54,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     public InternalScriptedMetric(StreamInput in) throws IOException {
         super(in);
         reduceScript = in.readOptionalWriteable(Script::new);
-        if (in.getVersion().before(Version.V_7_8_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_8_0)) {
             aggregations = singletonList(in.readGenericValue());
         } else {
             aggregations = in.readList(StreamInput::readGenericValue);
@@ -64,7 +64,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(reduceScript);
-        if (out.getVersion().before(Version.V_7_8_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_8_0)) {
             if (aggregations.size() > 1) {
                 /*
                  * If aggregations has more than one entry we're trying to

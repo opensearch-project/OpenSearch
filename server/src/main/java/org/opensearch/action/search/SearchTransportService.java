@@ -19,6 +19,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
@@ -281,7 +282,7 @@ public class SearchTransportService {
     }
 
     static boolean keepStatesInContext(Version version) {
-        return version.before(Version.V_7_10_0);
+        return version.before(LegacyESVersion.V_7_10_0);
     }
 
     public static void registerRequestHandler(TransportService transportService, SearchService searchService) {

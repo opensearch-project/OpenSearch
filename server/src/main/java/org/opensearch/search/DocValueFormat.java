@@ -21,7 +21,7 @@ package org.opensearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -206,7 +206,7 @@ public interface DocValueFormat extends NamedWriteable {
             String datePattern = in.readString();
 
             String zoneId = in.readString();
-            if (in.getVersion().before(Version.V_7_0_0)) {
+            if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
                 this.timeZone = DateUtils.of(zoneId);
                 this.resolution = DateFieldMapper.Resolution.MILLISECONDS;
             } else {
@@ -214,7 +214,7 @@ public interface DocValueFormat extends NamedWriteable {
                 this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             }
             final boolean isJoda;
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
                 //if stream is from 7.7 Node it will have a flag indicating if format is joda
                 isJoda = in.readBoolean();
             } else {
@@ -242,13 +242,13 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
-            if (out.getVersion().before(Version.V_7_0_0)) {
+            if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
                 out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
             } else {
                 out.writeString(timeZone.getId());
                 out.writeVInt(resolution.ordinal());
             }
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
                 //in order not to loose information if the formatter is a joda we send a flag
                 out.writeBoolean(formatter instanceof JodaDateFormatter);//todo pg consider refactor to isJoda method..
             }

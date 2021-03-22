@@ -19,6 +19,7 @@
 
 package org.opensearch.index.replication;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
@@ -27,7 +28,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseUtils;
@@ -154,7 +154,7 @@ public class RetentionLeasesReplicationTests extends OpenSearchIndexLevelReplica
         final Settings.Builder settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_6_5_0, Version.CURRENT));
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_5_0, Version.CURRENT));
         }
         try (ReplicationGroup group = createGroup(between(1, 2), settings.build())) {
             group.startAll();

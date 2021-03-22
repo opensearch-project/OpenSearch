@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.validate.query;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -81,7 +81,7 @@ public class QueryExplanation implements Writeable, ToXContentFragment {
     private String error;
 
     public QueryExplanation(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             index = in.readOptionalString();
         } else {
             index = in.readString();
@@ -123,7 +123,7 @@ public class QueryExplanation implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             out.writeOptionalString(index);
         } else {
             out.writeString(index);

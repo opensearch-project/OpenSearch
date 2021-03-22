@@ -19,7 +19,7 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -79,10 +79,10 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException, hasCondition);
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(VersionUtils.getPreviousVersion(Version.V_7_9_0));
+        out.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_9_0));
         simulateProcessorResult.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(VersionUtils.getPreviousVersion(Version.V_7_9_0));
+        in.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_9_0));
         SimulateProcessorResult otherSimulateProcessorResult = new SimulateProcessorResult(in);
         assertNull(otherSimulateProcessorResult.getDescription());
     }

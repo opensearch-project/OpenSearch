@@ -19,7 +19,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.builders.ShapeBuilder;
@@ -136,7 +136,7 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
                     iterator.remove();
                 }
             }
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_6_0) && parsedDeprecatedParameters == false) {
+            if (parserContext.indexVersionCreated().onOrAfter(LegacyESVersion.V_6_6_0) && parsedDeprecatedParameters == false) {
                 params.remove(DEPRECATED_PARAMETERS_KEY);
             }
 

@@ -18,6 +18,7 @@
  */
 package org.opensearch.cluster;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -95,7 +96,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_7_4_0;
+        return LegacyESVersion.V_7_4_0;
     }
 
     public static final class Entry implements Writeable, RepositoryOperation {

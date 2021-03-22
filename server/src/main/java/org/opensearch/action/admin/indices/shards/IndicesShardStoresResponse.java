@@ -21,8 +21,8 @@ package org.opensearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -110,7 +110,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
         public StoreStatus(StreamInput in) throws IOException {
             node = new DiscoveryNode(in);
-            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
+            if (in.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
                 // legacy version
                 in.readLong();
             }
@@ -164,7 +164,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             node.writeTo(out);
-            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+            if (out.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
                 // legacy version
                 out.writeLong(-1L);
             }
@@ -228,11 +228,11 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         private Failure(StreamInput in) throws IOException {
-            if (in.getVersion().before(Version.V_7_4_0)) {
+            if (in.getVersion().before(LegacyESVersion.V_7_4_0)) {
                 nodeId = in.readString();
             }
             readFrom(in, this);
-            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
                 nodeId = in.readString();
             }
         }
@@ -247,11 +247,11 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_7_4_0)) {
+            if (out.getVersion().before(LegacyESVersion.V_7_4_0)) {
                 out.writeString(nodeId);
             }
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
                 out.writeString(nodeId);
             }
         }

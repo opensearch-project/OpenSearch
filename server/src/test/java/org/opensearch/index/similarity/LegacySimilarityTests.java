@@ -22,7 +22,7 @@ package org.opensearch.index.similarity;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -44,7 +44,7 @@ public class LegacySimilarityTests extends OpenSearchSingleNodeTestCase {
 
     public void testResolveDefaultSimilaritiesOn6xIndex() {
         final Settings indexSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0) // otherwise classic is forbidden
+                .put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_3_0) // otherwise classic is forbidden
                 .build();
         final SimilarityService similarityService = createIndex("foo", indexSettings).similarityService();
         assertThat(similarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
@@ -78,7 +78,7 @@ public class LegacySimilarityTests extends OpenSearchSingleNodeTestCase {
             mapping.endObject();
 
             final Settings indexSettings = Settings.builder()
-                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_3_0) // otherwise classic is forbidden
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), LegacyESVersion.V_6_3_0) // otherwise classic is forbidden
                     .put("index.similarity.my_similarity.type", "classic")
                     .put("index.similarity.my_similarity.discount_overlaps", false)
                     .build();
