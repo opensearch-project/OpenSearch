@@ -94,9 +94,9 @@ dependencies {
   /* Right now we just test against the latest version of each major we expect
    * reindex-from-remote to work against. We could randomize the versions but
    * that doesn't seem worth it at this point. */
-  es2 'org.opensearch.distribution.zip:elasticsearch:2.4.5@zip'
-  es1 'org.opensearch:elasticsearch:1.7.6@zip'
-  es090 'org.opensearch:elasticsearch:0.90.13@zip'
+  es2 'org.elasticsearch.distribution.zip:elasticsearch:2.4.5@zip'
+  es1 'org.elasticsearch:elasticsearch:1.7.6@zip'
+  es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
 }
 
 jdks {

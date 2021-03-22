@@ -98,9 +98,9 @@ SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
 ECHO.!KEYSTORE_PASSWORD!| %JAVA% %OPENSEARCH_JAVA_OPTS% -Dopensearch ^
-  -Des.path.home="%OPENSEARCH_HOME%" -Des.path.conf="%OPENSEARCH_PATH_CONF%" ^
-  -Des.distribution.type="%OPENSEARCH_DISTRIBUTION_TYPE%" ^
-  -Des.bundled_jdk="%OPENSEARCH_BUNDLED_JDK%" ^
+  -Dopensearch.path.home="%OPENSEARCH_HOME%" -Dopensearch.path.conf="%OPENSEARCH_PATH_CONF%" ^
+  -Dopensearch.distribution.type="%OPENSEARCH_DISTRIBUTION_TYPE%" ^
+  -Dopensearch.bundled_jdk="%OPENSEARCH_BUNDLED_JDK%" ^
   -cp "%OPENSEARCH_CLASSPATH%" "org.opensearch.bootstrap.OpenSearch" !newparams!
 
 endlocal
