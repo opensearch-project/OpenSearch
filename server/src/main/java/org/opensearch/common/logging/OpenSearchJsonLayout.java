@@ -61,7 +61,9 @@ import java.util.stream.Stream;
  * </ul>
  * <p>
  * It is possible to add more or override them with <code>opensearchmessagefield</code>
- * <code>appender.logger.layout.opensearchmessagefields=message,took,took_millis,total_hits,types,stats,search_type,total_shards,source,id</code>
+ * <code>
+ * appender.logger.layout.opensearchmessagefields=message,took,took_millis,total_hits,types,stats,search_type,total_shards,source,id
+ * </code>
  * Each of these will be expanded into a json field with a value taken {@link OpenSearchLogMessage} field. In the example above
  * <code>... "message":  %OpenSearchMessageField{message}, "took": %OpenSearchMessageField{took} ...</code>
  * the message passed to a logger will be overriden with a value from %OpenSearchMessageField{message}
