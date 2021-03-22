@@ -29,7 +29,7 @@ import org.apache.logging.log4j.util.StringBuilders;
 import org.opensearch.common.Strings;
 
 /**
- * Pattern converter to populate ESMessageField in a pattern.
+ * Pattern converter to populate OpenSearchMessageField in a pattern.
  * It will only populate these if the event have message of type <code>OpenSearchLogMessage</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "OpenSearchMessageField")
@@ -48,7 +48,7 @@ public final class OpenSearchMessageFieldConverter extends LogEventPatternConver
     }
 
     public OpenSearchMessageFieldConverter(String key) {
-        super("ESMessageField", "ESMessageField");
+        super("OpenSearchMessageField", "OpenSearchMessageField");
         this.key = key;
     }
 

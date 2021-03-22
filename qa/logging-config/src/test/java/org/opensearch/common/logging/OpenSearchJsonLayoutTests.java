@@ -56,7 +56,7 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
     public void testLayoutWithAdditionalFields() {
         OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
                                           .setType("server")
-                                          .setESMessageFields("x-opaque-id,someOtherField")
+                                          .setOpenSearchMessageFields("x-opaque-id,someOtherField")
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
 
@@ -69,8 +69,8 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
                 "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
                 "\"node.name\": \"%node_name\", " +
                 "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
-                "%notEmpty{, \"x-opaque-id\": \"%ESMessageField{x-opaque-id}\"}" +
-                "%notEmpty{, \"someOtherField\": \"%ESMessageField{someOtherField}\"}" +
+                "%notEmpty{, \"x-opaque-id\": \"%OpenSearchMessageField{x-opaque-id}\"}" +
+                "%notEmpty{, \"someOtherField\": \"%OpenSearchMessageField{someOtherField}\"}" +
                 "%notEmpty{, %node_and_cluster_id }" +
                 "%exceptionAsJson }" + System.lineSeparator()));
     }
@@ -78,7 +78,7 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
     public void testLayoutWithAdditionalFieldOverride() {
         OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
                                           .setType("server")
-                                          .setESMessageFields("message")
+                                          .setOpenSearchMessageFields("message")
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
 
@@ -90,7 +90,7 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
                 "\"component\": \"%c{1.}\", " +
                 "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
                 "\"node.name\": \"%node_name\"" +
-                "%notEmpty{, \"message\": \"%ESMessageField{message}\"}" +
+                "%notEmpty{, \"message\": \"%OpenSearchMessageField{message}\"}" +
                 "%notEmpty{, %node_and_cluster_id }" +
                 "%exceptionAsJson }" + System.lineSeparator()));
     }
