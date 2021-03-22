@@ -18,6 +18,7 @@
  */
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
@@ -27,8 +28,6 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 
 import java.util.Collections;
 
@@ -169,7 +168,7 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_CREATION_DATE, 1)
             .put(IndexMetadata.SETTING_INDEX_UUID, "BOOM")
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.V_6_0_0_alpha1)
+            .put(IndexMetadata.SETTING_VERSION_UPGRADED, LegacyESVersion.V_6_0_0_alpha1)
             .put(indexSettings)
             .build();
         return IndexMetadata.builder(name).settings(build).build();

@@ -21,6 +21,7 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Tokenizer;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -44,7 +45,7 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
     public void testNGramDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                        VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
+                        VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "nGram")
@@ -63,7 +64,7 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
      */
     public void testNGramDeprecationError() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, null))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, null))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "nGram")
@@ -83,7 +84,7 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
     public void testEdgeNGramDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_4_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "edgeNGram")
@@ -101,7 +102,7 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
      */
     public void testEdgeNGramDeprecationError() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, null))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, null))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "edgeNGram")
@@ -121,7 +122,7 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
     public void testStandardHtmlStripAnalyzerDeprecationError() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT))
             .put("index.analysis.analyzer.custom_analyzer.type", "standard_html_strip")
             .putList("index.analysis.analyzer.custom_analyzer.stopwords", "a", "b")
             .build();
@@ -140,8 +141,8 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
     public void testStandardHtmlStripAnalyzerDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                    VersionUtils.getPreviousVersion(Version.V_7_0_0)))
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0,
+                    VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
             .put("index.analysis.analyzer.custom_analyzer.type", "standard_html_strip")
             .putList("index.analysis.analyzer.custom_analyzer.stopwords", "a", "b")
             .build();
@@ -163,7 +164,7 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
     public void testnGramFilterInCustomAnalyzerDeprecationError() throws IOException {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
@@ -183,7 +184,7 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
     public void testEdgeNGramFilterInCustomAnalyzerDeprecationError() throws IOException {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
@@ -203,19 +204,19 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
     public void testNGramTokenizerDeprecation() throws IOException {
         // tests for prebuilt tokenizer
         doTestPrebuiltTokenizerDeprecation("nGram", "ngram",
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_2), false);
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_2), false);
         doTestPrebuiltTokenizerDeprecation("edgeNGram", "edge_ngram",
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_2), false);
-        doTestPrebuiltTokenizerDeprecation("nGram", "ngram", Version.V_7_6_0, true);
-        doTestPrebuiltTokenizerDeprecation("edgeNGram", "edge_ngram", Version.V_7_6_0, true);
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_2), false);
+        doTestPrebuiltTokenizerDeprecation("nGram", "ngram", LegacyESVersion.V_7_6_0, true);
+        doTestPrebuiltTokenizerDeprecation("edgeNGram", "edge_ngram", LegacyESVersion.V_7_6_0, true);
 
         // same batch of tests for custom tokenizer definition in the settings
         doTestCustomTokenizerDeprecation("nGram", "ngram",
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_2), false);
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_2), false);
         doTestCustomTokenizerDeprecation("edgeNGram", "edge_ngram",
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_2), false);
-        doTestCustomTokenizerDeprecation("nGram", "ngram", Version.V_7_6_0, true);
-        doTestCustomTokenizerDeprecation("edgeNGram", "edge_ngram", Version.V_7_6_0, true);
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_2), false);
+        doTestCustomTokenizerDeprecation("nGram", "ngram", LegacyESVersion.V_7_6_0, true);
+        doTestCustomTokenizerDeprecation("edgeNGram", "edge_ngram", LegacyESVersion.V_7_6_0, true);
     }
 
     public void doTestPrebuiltTokenizerDeprecation(String deprecatedName, String replacement, Version version, boolean expectWarning)

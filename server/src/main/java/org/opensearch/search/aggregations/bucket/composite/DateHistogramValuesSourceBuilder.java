@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.io.stream.StreamInput;
@@ -111,7 +111,7 @@ public class DateHistogramValuesSourceBuilder
         super(in);
         dateHistogramInterval = new DateIntervalWrapper(in);
         timeZone = in.readOptionalZoneId();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
             offset = in.readLong();
         }
     }
@@ -120,7 +120,7 @@ public class DateHistogramValuesSourceBuilder
     protected void innerWriteTo(StreamOutput out) throws IOException {
         dateHistogramInterval.writeTo(out);
         out.writeOptionalZoneId(timeZone);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
             out.writeLong(offset);
         }
     }

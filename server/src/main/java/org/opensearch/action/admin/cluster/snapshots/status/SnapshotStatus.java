@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.opensearch.common.Nullable;
@@ -79,7 +79,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         includeGlobalState = in.readOptionalBoolean();
         final long startTime;
         final long time;
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
             startTime = in.readLong();
             time = in.readLong();
         } else {
@@ -180,7 +180,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         out.writeByte(state.value());
         out.writeList(shards);
         out.writeOptionalBoolean(includeGlobalState);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
             out.writeLong(stats.getStartTime());
             out.writeLong(stats.getTime());
         }

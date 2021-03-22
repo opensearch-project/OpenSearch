@@ -27,7 +27,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -155,7 +155,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             }
         }
 
-        if (context.indexVersionCreated().before(Version.V_6_1_0)) {
+        if (context.indexVersionCreated().before(LegacyESVersion.V_6_1_0)) {
             return newLegacyExistsQuery(context, fields);
         }
 

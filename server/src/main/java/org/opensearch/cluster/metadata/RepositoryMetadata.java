@@ -18,6 +18,7 @@
  */
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -33,7 +34,7 @@ import java.util.Objects;
  */
 public class RepositoryMetadata implements Writeable {
 
-    public static final Version REPO_GEN_IN_CS_VERSION = Version.V_7_6_0;
+    public static final Version REPO_GEN_IN_CS_VERSION = LegacyESVersion.V_7_6_0;
 
     private final String name;
     private final String type;

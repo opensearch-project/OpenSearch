@@ -21,6 +21,7 @@ package org.opensearch.indices.flush;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -113,7 +114,7 @@ public class SyncedFlushService implements IndexEventListener {
     @Override
     public void onShardInactive(final IndexShard indexShard) {
         // A normal flush has the same effect as a synced flush if all nodes are on 7.6 or later.
-        final boolean preferNormalFlush = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_6_0);
+        final boolean preferNormalFlush = clusterService.state().nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0);
         if (preferNormalFlush) {
             performNormalFlushOnInactive(indexShard);
         } else if (indexShard.routingEntry().primary()) {
@@ -159,7 +160,7 @@ public class SyncedFlushService implements IndexEventListener {
                                    IndicesOptions indicesOptions,
                                    final ActionListener<SyncedFlushResponse> listener) {
         final ClusterState state = clusterService.state();
-        if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_6_0)) {
+        if (state.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
             DEPRECATION_LOGGER.deprecate("synced_flush", SYNCED_FLUSH_DEPRECATION_MESSAGE);
         }
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, indicesOptions, aliasesOrIndices);
@@ -627,11 +628,11 @@ public class SyncedFlushService implements IndexEventListener {
         }
 
         boolean includeNumDocs(Version version) {
-            return version.onOrAfter(Version.V_6_2_2);
+            return version.onOrAfter(LegacyESVersion.V_6_2_2);
         }
 
         boolean includeExistingSyncId(Version version) {
-            return version.onOrAfter(Version.V_6_3_0);
+            return version.onOrAfter(LegacyESVersion.V_6_3_0);
         }
 
         @Override

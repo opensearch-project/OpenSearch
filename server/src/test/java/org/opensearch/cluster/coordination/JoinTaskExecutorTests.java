@@ -18,6 +18,7 @@
  */
 package org.opensearch.cluster.coordination;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -33,7 +34,6 @@ import org.opensearch.common.collect.List;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
-import org.opensearch.cluster.coordination.JoinTaskExecutor;
 
 import java.util.HashSet;
 
@@ -91,7 +91,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
         final Version minNodeVersion = nodes.getMinNodeVersion();
-        if (maxNodeVersion.onOrAfter(Version.V_7_0_0)) {
+        if (maxNodeVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
             final Version tooLow = getPreviousVersion(maxNodeVersion.minimumCompatibilityVersion());
             expectThrows(IllegalStateException.class, () -> {
                 if (randomBoolean()) {
@@ -102,7 +102,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             });
         }
 
-        if (minNodeVersion.before(Version.V_6_0_0)) {
+        if (minNodeVersion.before(LegacyESVersion.V_6_0_0)) {
             Version tooHigh = incompatibleFutureVersion(minNodeVersion);
             expectThrows(IllegalStateException.class, () -> {
                 if (randomBoolean()) {
@@ -113,8 +113,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             });
         }
 
-        if (minNodeVersion.onOrAfter(Version.V_7_0_0)) {
-            Version oldMajor = Version.V_6_4_0.minimumCompatibilityVersion();
+        if (minNodeVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
+            Version oldMajor = LegacyESVersion.V_6_4_0.minimumCompatibilityVersion();
             expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 

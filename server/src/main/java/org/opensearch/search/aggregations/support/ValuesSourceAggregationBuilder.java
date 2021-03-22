@@ -18,6 +18,7 @@
  */
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -184,7 +185,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
         } else {
             timeZone = in.readOptionalZoneId();
@@ -210,7 +211,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
         } else {
             out.writeOptionalZoneId(timeZone);

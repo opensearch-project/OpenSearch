@@ -21,6 +21,7 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -530,7 +531,7 @@ public final class Settings implements ToXContentFragment {
     public static Settings readSettingsFromStream(StreamInput in) throws IOException {
         Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             for (int i = 0; i < numberOfSettings; i++) {
                 String key = in.readString();
                 Object value = in.readGenericValue();
@@ -555,7 +556,7 @@ public final class Settings implements ToXContentFragment {
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
         Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             out.writeVInt(entries.size());
             for (Map.Entry<String, Object> entry : entries) {
                 out.writeString(entry.getKey());

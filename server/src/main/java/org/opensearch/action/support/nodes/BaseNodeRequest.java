@@ -19,7 +19,7 @@
 
 package org.opensearch.action.support.nodes;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
@@ -33,7 +33,7 @@ public abstract class BaseNodeRequest extends TransportRequest {
 
     public BaseNodeRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_7_3_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_3_0)) {
             in.readString(); // previously nodeId
         }
     }
@@ -41,7 +41,7 @@ public abstract class BaseNodeRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_7_3_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_3_0)) {
             out.writeString(""); // previously nodeId
         }
     }

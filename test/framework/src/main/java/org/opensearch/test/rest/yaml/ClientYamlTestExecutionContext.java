@@ -26,6 +26,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
 import org.opensearch.common.bytes.BytesReference;
@@ -98,7 +99,7 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
-        if (esVersion().before(Version.V_7_0_0)) {
+        if (esVersion().before(LegacyESVersion.V_7_0_0)) {
             adaptRequestForOlderVersion(apiName, bodies, requestParams);
         }
 

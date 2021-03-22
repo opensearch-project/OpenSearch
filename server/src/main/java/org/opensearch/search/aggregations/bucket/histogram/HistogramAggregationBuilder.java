@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -132,7 +132,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         minDocCount = in.readVLong();
         interval = in.readDouble();
         offset = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
             hardBounds = in.readOptionalWriteable(DoubleBounds::new);
         } else {
@@ -153,7 +153,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         out.writeVLong(minDocCount);
         out.writeDouble(interval);
         out.writeDouble(offset);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeOptionalWriteable(extendedBounds);
             out.writeOptionalWriteable(hardBounds);
         } else {

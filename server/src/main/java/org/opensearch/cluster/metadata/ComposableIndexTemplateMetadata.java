@@ -19,6 +19,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
@@ -98,7 +99,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_7_7_0;
+        return LegacyESVersion.V_7_7_0;
     }
 
     @Override

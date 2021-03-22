@@ -19,7 +19,7 @@
 
 package org.opensearch.indices.recovery;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -37,7 +37,7 @@ final class RecoveryTranslogOperationsResponse extends TransportResponse {
     RecoveryTranslogOperationsResponse(final StreamInput in) throws IOException {
         super(in);
         // before 6.0.0 we received an empty response so we have to maintain that
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             localCheckpoint = in.readZLong();
         }
         else {
@@ -48,7 +48,7 @@ final class RecoveryTranslogOperationsResponse extends TransportResponse {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         // before 6.0.0 we responded with an empty response so we have to maintain that
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             out.writeZLong(localCheckpoint);
         }
     }

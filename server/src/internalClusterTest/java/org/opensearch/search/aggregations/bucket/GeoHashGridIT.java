@@ -21,6 +21,7 @@ package org.opensearch.search.aggregations.bucket;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
@@ -61,7 +62,7 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
         return false;
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
+    private Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0,
             Version.CURRENT);
 
     static ObjectIntMap<String> expectedDocCountsForGeoHash = null;

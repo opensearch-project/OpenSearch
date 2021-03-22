@@ -19,7 +19,7 @@
 
 package org.opensearch.action.fieldcaps;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -51,13 +51,13 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         shardId = in.readOptionalWriteable(ShardId::new);
         index = in.readOptionalString();
         fields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
             originalIndices = OriginalIndices.readOriginalIndices(in);
         } else {
             originalIndices = OriginalIndices.NONE;
         }
-        indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis =  in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readLong() : 0L;
+        indexFilter = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
+        nowInMillis =  in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readLong() : 0L;
     }
 
     FieldCapabilitiesIndexRequest(String[] fields,
@@ -116,10 +116,10 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         out.writeOptionalWriteable(shardId);
         out.writeOptionalString(index);
         out.writeStringArray(fields);
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
             OriginalIndices.writeOriginalIndices(originalIndices, out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeOptionalNamedWriteable(indexFilter);
             out.writeLong(nowInMillis);
         }
