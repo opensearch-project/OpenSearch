@@ -4,7 +4,7 @@ Contributing to OpenSearch
 OpenSearch is a community project that is built and maintained by people just like **you**.  We're glad you're interested in helping out.  There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
 
 ## Table of Contents:
-- [First Things First](#first-principles)
+- [First Things First](#first-things-first)
 - [Ways to Contribute](#ways-to-contribute)
 - [Developer Certificate of Origin](#developer-certificate-of-origin)
 - [Review Process](#review-process)
@@ -56,7 +56,7 @@ If you've thought of a way that OpenSearch could be better, we want to hear abou
 
 ### Contributing Code
 
-As with other types of contributions, the first step is to **open an issue on GitHub**.  Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem.  It also lets us all work together to find the right approach before you spend a bunch of time on a PR.  So again, when in doubt, open an issue.
+As with other types of contributions, the first step is to [**open an issue on GitHub**](https://github.com/opensearch-project/OpenSearch/issues/new/choose).  Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem.  It also lets us all work together to find the right approach before you spend a bunch of time on a PR.  So again, when in doubt, open an issue.
 
 Once you've opened an issue, check out our [Developer Guide](./DEVELOPER_GUIDE.md) for instructions on how to get started.
 
@@ -107,12 +107,10 @@ You may type this line on your own when writing your commit messages.  However, 
 
 ## Review Process
 
-We deeply appreciate everyone who takes the time to make a contribution.  We will review all contributions as quickly as possible.  As a reminder, opening an issue and discussing your change before you make it is the best way to smooth the PR process.  This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatible with the architectural direction.
+We deeply appreciate everyone who takes the time to make a contribution.  We will review all contributions as quickly as possible.  As a reminder, [opening an issue](https://github.com/opensearch-project/OpenSearch/issues/new/choose) discussing your change before you make it is the best way to smooth the PR process.  This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatible with the architectural direction.
 
 During the PR process, expect that there will be some back-and-forth.  Please try to respond to comments in a timely fashion, and if you don't wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionally, if you stop responding we may close the PR as abandoned.  In either case, if you feel this was done in error, please add a comment on the PR.
 
 If we accept the PR, we will merge your change and usually take care of backporting it to appropriate branches ourselves.
 
-If we reject the PR, we will close the pull request with a comment explaining why. This decision isn't always final: if you feel we have
-misunderstood your intended change or otherwise think that we should reconsider then please continue the conversation with a comment on the PR and
-we'll do our best to address any further points you raise.
+If we reject the PR, we will close the pull request with a comment explaining why. This decision isn't always final: if you feel we have misunderstood your intended change or otherwise think that we should reconsider then please continue the conversation with a comment on the PR and we'll do our best to address any further points you raise.
