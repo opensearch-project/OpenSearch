@@ -69,6 +69,7 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
@@ -171,7 +172,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
             .add(new Term[] {new Term("_field", "_long_term"), new Term("_field", "_very_long_term")})
             .add(new Term[] {new Term("_field", "_very_long_term")})
             .build();
-        Result result = analyze(multiPhraseQuery, Version.V_6_0_0);
+        Result result = analyze(multiPhraseQuery, LegacyESVersion.V_6_0_0);
         assertThat(result.verified, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
         List<QueryExtraction> terms = new ArrayList<>(result.extractions);
@@ -242,7 +243,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        Result result = analyze(booleanQuery, Version.V_6_0_0);
+        Result result = analyze(booleanQuery, LegacyESVersion.V_6_0_0);
         assertThat("Should clause with phrase query isn't verified, so entire query can't be verified", result.verified, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
         List<QueryExtraction> terms = new ArrayList<>(result.extractions);
@@ -353,7 +354,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
         builder.add(termQuery3, BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        Result result = analyze(booleanQuery, Version.V_6_0_0);
+        Result result = analyze(booleanQuery, LegacyESVersion.V_6_0_0);
         assertThat(result.verified, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
         List<QueryExtraction> extractions = new ArrayList<>(result.extractions);
@@ -418,7 +419,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
         assertThat(result.minimumShouldMatch, equalTo(0));
         assertTermsEqual(result.extractions);
 
-        result = analyze(booleanQuery, Version.V_6_0_0);
+        result = analyze(booleanQuery, LegacyESVersion.V_6_0_0);
         assertThat(result.matchAllDocs, is(true));
         assertThat(result.verified, is(false));
         assertThat(result.minimumShouldMatch, equalTo(0));
@@ -679,7 +680,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
         SpanNearQuery spanNearQuery = new SpanNearQuery.Builder("_field", true)
             .addClause(spanTermQuery1).addClause(spanTermQuery2).build();
 
-        Result result = analyze(spanNearQuery, Version.V_6_0_0);
+        Result result = analyze(spanNearQuery, LegacyESVersion.V_6_0_0);
         assertThat(result.verified, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertTermsEqual(result.extractions, spanTermQuery2.getTerm());
@@ -1229,7 +1230,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
         BooleanQuery.Builder boolQuery = new BooleanQuery.Builder();
         boolQuery.add(LongPoint.newRangeQuery("_field1", 10, 20), BooleanClause.Occur.FILTER);
         boolQuery.add(LongPoint.newRangeQuery("_field2", 10, 15), BooleanClause.Occur.FILTER);
-        Result result = analyze(boolQuery.build(), Version.V_6_0_0);
+        Result result = analyze(boolQuery.build(), LegacyESVersion.V_6_0_0);
         assertFalse(result.verified);
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertEquals(1, result.extractions.size());
@@ -1238,7 +1239,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
         boolQuery = new BooleanQuery.Builder();
         boolQuery.add(LongPoint.newRangeQuery("_field1", 10, 20), BooleanClause.Occur.FILTER);
         boolQuery.add(IntPoint.newRangeQuery("_field2", 10, 15), BooleanClause.Occur.FILTER);
-        result = analyze(boolQuery.build(), Version.V_6_0_0);
+        result = analyze(boolQuery.build(), LegacyESVersion.V_6_0_0);
         assertFalse(result.verified);
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertEquals(1, result.extractions.size());
@@ -1247,7 +1248,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
         boolQuery = new BooleanQuery.Builder();
         boolQuery.add(DoublePoint.newRangeQuery("_field1", 10, 20), BooleanClause.Occur.FILTER);
         boolQuery.add(DoublePoint.newRangeQuery("_field2", 10, 15), BooleanClause.Occur.FILTER);
-        result = analyze(boolQuery.build(), Version.V_6_0_0);
+        result = analyze(boolQuery.build(), LegacyESVersion.V_6_0_0);
         assertFalse(result.verified);
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertEquals(1, result.extractions.size());
@@ -1256,7 +1257,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
         boolQuery = new BooleanQuery.Builder();
         boolQuery.add(DoublePoint.newRangeQuery("_field1", 10, 20), BooleanClause.Occur.FILTER);
         boolQuery.add(FloatPoint.newRangeQuery("_field2", 10, 15), BooleanClause.Occur.FILTER);
-        result = analyze(boolQuery.build(), Version.V_6_0_0);
+        result = analyze(boolQuery.build(), LegacyESVersion.V_6_0_0);
         assertFalse(result.verified);
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertEquals(1, result.extractions.size());
@@ -1265,7 +1266,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
         boolQuery = new BooleanQuery.Builder();
         boolQuery.add(HalfFloatPoint.newRangeQuery("_field1", 10, 20), BooleanClause.Occur.FILTER);
         boolQuery.add(HalfFloatPoint.newRangeQuery("_field2", 10, 15), BooleanClause.Occur.FILTER);
-        result = analyze(boolQuery.build(), Version.V_6_0_0);
+        result = analyze(boolQuery.build(), LegacyESVersion.V_6_0_0);
         assertFalse(result.verified);
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertEquals(1, result.extractions.size());

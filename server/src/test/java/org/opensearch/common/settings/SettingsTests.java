@@ -32,6 +32,7 @@
 
 package org.opensearch.common.settings;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
@@ -654,7 +655,7 @@ public class SettingsTests extends OpenSearchTestCase {
 
     public void testReadLegacyFromStream() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
+        output.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_6_1_0));
         output.writeVInt(5);
         output.writeString("foo.bar.1");
         output.writeOptionalString("1");
@@ -667,7 +668,7 @@ public class SettingsTests extends OpenSearchTestCase {
         output.writeString("foo.bar.baz");
         output.writeOptionalString("baz");
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        in.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
+        in.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_6_1_0));
         Settings settings = Settings.readSettingsFromStream(in);
         assertEquals(2, settings.size());
         assertEquals(Arrays.asList("0", "1", "2", "3"), settings.getAsList("foo.bar"));
@@ -676,7 +677,7 @@ public class SettingsTests extends OpenSearchTestCase {
 
     public void testWriteLegacyOutput() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
+        output.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_6_1_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3")
             .put("foo.bar.baz", "baz").putNull("foo.null").build();
         Settings.writeSettingsToStream(settings, output);
@@ -706,7 +707,7 @@ public class SettingsTests extends OpenSearchTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(randomFrom(Version.CURRENT, Version.V_6_1_0));
+        output.setVersion(randomFrom(Version.CURRENT, LegacyESVersion.V_6_1_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         Settings.writeSettingsToStream(settings, output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));

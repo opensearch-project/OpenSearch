@@ -34,7 +34,7 @@ package org.opensearch.search.suggest.completion;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -98,7 +98,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
     public CompletionSuggestion(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             skipDuplicates = in.readBoolean();
         }
     }
@@ -111,7 +111,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             out.writeBoolean(skipDuplicates);
         }
     }

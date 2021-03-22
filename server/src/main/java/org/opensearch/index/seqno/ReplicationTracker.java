@@ -34,6 +34,7 @@ package org.opensearch.index.seqno;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.GroupedActionListener;
@@ -220,7 +221,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     /**
      * Whether there should be a peer recovery retention lease (PRRL) for every tracked shard copy. Always true on indices created from
-     * {@link Version#V_7_4_0} onwards, because these versions create PRRLs properly. May be false on indices created in an earlier version
+     * {@link LegacyESVersion#V_7_4_0} onwards, because these versions create PRRLs properly. May be false on indices created in an earlier version
      * if we recently did a rolling upgrade and {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)} has not
      * yet completed. Is only permitted to change from false to true; can be removed once support for pre-PRRL indices is no longer needed.
      */
@@ -659,7 +660,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             this.localCheckpoint = in.readZLong();
             this.globalCheckpoint = in.readZLong();
             this.inSync = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
                 this.tracked = in.readBoolean();
             } else {
                 // Every in-sync shard copy is also tracked (see invariant). This was the case even in earlier OpenSearch versions.
@@ -676,7 +677,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             out.writeZLong(localCheckpoint);
             out.writeZLong(globalCheckpoint);
             out.writeBoolean(inSync);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
                 out.writeBoolean(tracked);
             }
         }
@@ -938,9 +939,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;
-        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_6_0) ||
+        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_6_0) ||
             (indexSettings.isSoftDeleteEnabled() &&
-             indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_4_0) &&
+             indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_4_0) &&
              indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN);
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
@@ -1059,7 +1060,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Creates a peer recovery retention lease for this shard, if one does not already exist and this shard is the sole shard copy in the
      * replication group. If one does not already exist and yet there are other shard copies in this group then we must have just done
-     * a rolling upgrade from a version before {@link Version#V_7_4_0}, in which case the missing leases should be created asynchronously
+     * a rolling upgrade from a version before {@link LegacyESVersion#V_7_4_0}, in which case the missing leases should be created asynchronously
      * by the caller using {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)}.
      */
     private void addPeerRecoveryRetentionLeaseForSolePrimary() {
@@ -1377,7 +1378,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert primaryMode == false;
         if (primaryContext.checkpoints.containsKey(shardAllocationId) == false) {
             // can happen if the old primary was on an old version
-            assert indexSettings.getIndexVersionCreated().before(Version.V_7_3_0);
+            assert indexSettings.getIndexVersionCreated().before(LegacyESVersion.V_7_3_0);
             throw new IllegalStateException("primary context [" + primaryContext + "] does not contain " + shardAllocationId);
         }
         final Runnable runAfter = getMasterUpdateOperationFromCurrentState();
@@ -1410,7 +1411,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     /**
      * Create any required peer-recovery retention leases that do not currently exist because we just did a rolling upgrade from a version
-     * prior to {@link Version#V_7_4_0} that does not create peer-recovery retention leases.
+     * prior to {@link LegacyESVersion#V_7_4_0} that does not create peer-recovery retention leases.
      */
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
         if (hasAllPeerRecoveryRetentionLeases == false) {

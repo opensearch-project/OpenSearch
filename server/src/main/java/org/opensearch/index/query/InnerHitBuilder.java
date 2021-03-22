@@ -31,7 +31,7 @@
 
 package org.opensearch.index.query;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
@@ -173,14 +173,14 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         size = in.readVInt();
         explain = in.readBoolean();
         version = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)){
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)){
             seqNoAndPrimaryTerm = in.readBoolean();
         } else {
             seqNoAndPrimaryTerm = false;
         }
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
-        if (in.getVersion().before(Version.V_6_4_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_4_0)) {
             @SuppressWarnings("unchecked")
             List<String> fieldList = (List<String>) in.readGenericValue();
             if (fieldList == null) {
@@ -209,11 +209,11 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             }
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
         }
 
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
             }
@@ -228,12 +228,12 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeVInt(size);
         out.writeBoolean(explain);
         out.writeBoolean(version);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             out.writeBoolean(seqNoAndPrimaryTerm);
         }
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
-        if (out.getVersion().before(Version.V_6_4_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_4_0)) {
             out.writeGenericValue(docValueFields == null
                     ? null
                     : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
@@ -263,11 +263,11 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             }
         }
         out.writeOptionalWriteable(highlightBuilder);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             out.writeOptionalWriteable(innerCollapseBuilder);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
                 out.writeList(fetchFields);

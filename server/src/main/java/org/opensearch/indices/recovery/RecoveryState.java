@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.recovery;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -506,7 +506,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             recovered = in.readVInt();
             total = in.readVInt();
             totalOnStart = in.readVInt();
-            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
                 totalLocal = in.readVInt();
             }
         }
@@ -517,7 +517,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVInt(recovered);
             out.writeVInt(total);
             out.writeVInt(totalOnStart);
-            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
                 out.writeVInt(totalLocal);
             }
         }

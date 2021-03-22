@@ -40,7 +40,7 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -135,7 +135,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         analyzer = in.readOptionalString();
         lowFreqMinimumShouldMatch = in.readOptionalString();
         highFreqMinimumShouldMatch = in.readOptionalString();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
             in.readBoolean(); // disable_coord
         }
         cutoffFrequency = in.readFloat();
@@ -150,7 +150,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         out.writeOptionalString(analyzer);
         out.writeOptionalString(lowFreqMinimumShouldMatch);
         out.writeOptionalString(highFreqMinimumShouldMatch);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
             out.writeBoolean(true); // disable_coord
         }
         out.writeFloat(cutoffFrequency);

@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
@@ -70,7 +70,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         customs = in.readBoolean();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
             waitForTimeout = in.readTimeValue();
             waitForMetadataVersion = in.readOptionalLong();
         }
@@ -86,7 +86,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         out.writeBoolean(customs);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
             out.writeTimeValue(waitForTimeout);
             out.writeOptionalLong(waitForMetadataVersion);
         }

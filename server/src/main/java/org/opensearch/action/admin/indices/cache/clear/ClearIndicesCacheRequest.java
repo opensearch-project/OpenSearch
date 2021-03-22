@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.cache.clear;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -51,7 +51,7 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
         super(in);
         queryCache = in.readBoolean();
         fieldDataCache = in.readBoolean();
-        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_0_0_beta1)) {
             in.readBoolean(); // recycler
         }
         fields = in.readStringArray();
@@ -103,7 +103,7 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
         super.writeTo(out);
         out.writeBoolean(queryCache);
         out.writeBoolean(fieldDataCache);
-        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_0_0_beta1)) {
             out.writeBoolean(false); // recycler
         }
         out.writeStringArrayNullable(fields);

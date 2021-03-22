@@ -32,6 +32,7 @@
 
 package org.opensearch.env;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.ObjectParser;
@@ -94,7 +95,7 @@ public final class NodeMetadata {
 
     public NodeMetadata upgradeToCurrentVersion() {
         if (nodeVersion.equals(Version.V_EMPTY)) {
-            assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
+            assert Version.CURRENT.major <= LegacyESVersion.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
             return new NodeMetadata(nodeId, Version.CURRENT);
         }
 
@@ -126,7 +127,7 @@ public final class NodeMetadata {
         public NodeMetadata build() {
             final Version nodeVersion;
             if (this.nodeVersion == null) {
-                assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
+                assert Version.CURRENT.major <= LegacyESVersion.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
                 nodeVersion = Version.V_EMPTY;
             } else {
                 nodeVersion = this.nodeVersion;

@@ -34,7 +34,7 @@ package org.opensearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
@@ -309,7 +309,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      * upgrades from 6.x to 7.x. Once all the 6.x master-eligible nodes have left the cluster, the 7.x nodes use this value to determine how
      * many master-eligible nodes must be discovered before the cluster can be bootstrapped. Note that this method returns the node-level
      * value of this setting, and ignores any cluster-level override that was set via the API. Callers are expected to combine this value
-     * with any value set in the cluster-level settings. This should be removed once we no longer need support for {@link Version#V_6_7_0}.
+     * with any value set in the cluster-level settings. This should be removed once we no longer need support for {@link LegacyESVersion#V_6_7_0}.
      */
     public int getMinimumMasterNodesOnPublishingMaster() {
         return minimumMasterNodesOnPublishingMaster;
@@ -723,7 +723,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-        builder.minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(Version.V_6_7_0) ? in.readVInt() : -1;
+        builder.minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0) ? in.readVInt() : -1;
         return builder.build();
     }
 
@@ -749,7 +749,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 out.writeNamedWriteable(cursor.value);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             out.writeVInt(minimumMasterNodesOnPublishingMaster);
         }
     }
@@ -799,7 +799,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(Version.V_6_7_0) ? in.readVInt() : -1;
+            minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0) ? in.readVInt() : -1;
         }
 
         @Override
@@ -813,7 +813,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
                 out.writeVInt(minimumMasterNodesOnPublishingMaster);
             }
         }

@@ -36,7 +36,7 @@ import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.geo.GeoLineDecomposer;
 import org.opensearch.common.geo.GeoPolygonDecomposer;
 import org.opensearch.common.geo.GeoShapeUtils;
@@ -62,7 +62,7 @@ public class VectorGeoShapeQueryProcessor {
 
     public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
-        if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
+        if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(LegacyESVersion.V_7_5_0)) {
             throw new QueryShardException(context,
                 ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
         }

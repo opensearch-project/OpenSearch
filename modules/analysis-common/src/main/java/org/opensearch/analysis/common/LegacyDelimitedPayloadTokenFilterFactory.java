@@ -32,7 +32,7 @@
 
 package org.opensearch.analysis.common;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -45,11 +45,11 @@ public class LegacyDelimitedPayloadTokenFilterFactory extends DelimitedPayloadTo
 
     LegacyDelimitedPayloadTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
             throw new IllegalArgumentException(
                     "[delimited_payload_filter] is not supported for new indices, use [delimited_payload] instead");
         }
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_2_0)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_6_2_0)) {
             deprecationLogger.deprecate("analysis_legacy_delimited_payload_filter",
                 "Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]");
         }

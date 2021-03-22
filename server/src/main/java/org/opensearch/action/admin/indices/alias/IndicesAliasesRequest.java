@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.indices.alias;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.AliasesRequest;
 import org.opensearch.action.support.IndicesOptions;
@@ -86,7 +86,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     public IndicesAliasesRequest(StreamInput in) throws IOException {
         super(in);
         allAliasActions = in.readList(AliasActions::new);
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
             origin = in.readOptionalString();
         } else {
             origin = null;
@@ -266,16 +266,16 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             routing = in.readOptionalString();
             searchRouting = in.readOptionalString();
             indexRouting = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
                 writeIndex = in.readOptionalBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) { //TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) { //TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
                 isHidden = in.readOptionalBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
                 originalAliases = in.readStringArray();
             }
-            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
                 mustExist = in.readOptionalBoolean();
             } else {
                 mustExist = null;
@@ -291,16 +291,16 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalString(routing);
             out.writeOptionalString(searchRouting);
             out.writeOptionalString(indexRouting);
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
                 out.writeOptionalBoolean(writeIndex);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) { //TODO fix for backport https://github.com/elastic/elasticsearch/pull/52547
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) { //TODO fix for backport https://github.com/elastic/elasticsearch/pull/52547
                 out.writeOptionalBoolean(isHidden);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
                 out.writeStringArray(originalAliases);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
                 out.writeOptionalBoolean(mustExist);
             }
         }
@@ -647,7 +647,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         super.writeTo(out);
         out.writeList(allAliasActions);
         // noinspection StatementWithEmptyBody
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
             out.writeOptionalString(origin);
         } else {
             // nothing to do here, here for symmetry with IndicesAliasesRequest#readFrom

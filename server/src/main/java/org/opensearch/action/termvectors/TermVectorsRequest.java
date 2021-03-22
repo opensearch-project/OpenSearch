@@ -32,8 +32,8 @@
 
 package org.opensearch.action.termvectors;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
@@ -182,7 +182,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
         routing = in.readOptionalString();
 
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         preference = in.readOptionalString();
@@ -553,7 +553,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             out.writeEnum(xContentType);
         }
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
         out.writeOptionalString(preference);

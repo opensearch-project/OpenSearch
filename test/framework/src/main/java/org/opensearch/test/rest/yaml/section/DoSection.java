@@ -34,6 +34,7 @@ package org.opensearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.HasAttributeNodeSelector;
 import org.opensearch.client.Node;
@@ -345,7 +346,7 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
-                if (masterVersion.before(Version.V_7_0_0)
+                if (masterVersion.before(LegacyESVersion.V_7_0_0)
                         && message.equals("the default number of shards will change from [5] to [1] in 7.0.0; "
                         + "if you wish to continue using the default of [5] shards, "
                         + "you must manage this on the create index request or with an index template")) {

@@ -34,13 +34,13 @@ package org.opensearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.NotMasterException;
-import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.opensearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -495,7 +495,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
 
     public void testShardEntryBWCSerialize() throws Exception {
         final Version bwcVersion = randomValueOtherThanMany(
-            version -> version.onOrAfter(Version.V_6_3_0), () -> VersionUtils.randomVersion(random()));
+            version -> version.onOrAfter(LegacyESVersion.V_6_3_0), () -> VersionUtils.randomVersion(random()));
         final ShardId shardId = new ShardId(randomRealisticUnicodeOfLengthBetween(10, 100), UUID.randomUUID().toString(), between(0, 1000));
         final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
         final String reason = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
@@ -558,7 +558,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
             final StartedShardEntry deserialized = new StartedShardEntry(in);
             assertThat(deserialized.shardId, equalTo(shardId));
             assertThat(deserialized.allocationId, equalTo(allocationId));
-            if (version.onOrAfter(Version.V_6_7_0)) {
+            if (version.onOrAfter(LegacyESVersion.V_6_7_0)) {
                 assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             } else {
                 assertThat(deserialized.primaryTerm, equalTo(0L));

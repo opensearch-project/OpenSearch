@@ -44,7 +44,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -137,7 +137,7 @@ final class StoreRecovery {
             Sort indexSort = indexShard.getIndexSort();
             final boolean hasNested = indexShard.mapperService().hasNested();
             final boolean isSplit = sourceMetadata.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
-            assert isSplit == false || sourceMetadata.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1) : "for split we require a " +
+            assert isSplit == false || sourceMetadata.getCreationVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1) : "for split we require a " +
                 "single type but the index is created before 6.0.0";
             ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from local shards {}", shards);

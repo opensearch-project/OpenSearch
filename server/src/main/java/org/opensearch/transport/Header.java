@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
@@ -120,7 +121,7 @@ public class Header {
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
-            if (version.onOrAfter(Version.V_6_3_0)) {
+            if (version.onOrAfter(LegacyESVersion.V_6_3_0)) {
                 final String[] featuresFound = input.readStringArray();
                 if (featuresFound.length == 0) {
                     features = Collections.emptySet();

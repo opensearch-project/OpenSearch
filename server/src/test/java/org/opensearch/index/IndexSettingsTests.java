@@ -32,6 +32,7 @@
 
 package org.opensearch.index;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.AbstractScopedSettings;
@@ -581,14 +582,14 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     public void testSoftDeletesDefaultSetting() {
         // enabled by default on 7.0+ or later
         {
-            Version createdVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
+            Version createdVersion = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT);
             Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion).build();
             assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
         }
         // disabled by default on the previous versions
         {
             Version prevVersion = VersionUtils.randomVersionBetween(
-                random(), Version.V_6_5_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
+                random(), LegacyESVersion.V_6_5_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0));
             Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), prevVersion).build();
             assertFalse(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
         }
@@ -596,7 +597,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testIgnoreTranslogRetentionSettingsIfSoftDeletesEnabled() {
         Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
+            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_4_0, Version.CURRENT));
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         }

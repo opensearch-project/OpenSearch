@@ -34,6 +34,7 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
@@ -118,7 +119,7 @@ public class DiscoveryUpgradeService {
                                    BooleanSupplier isBootstrappedSupplier, JoinHelper joinHelper,
                                    Supplier<Iterable<DiscoveryNode>> peersSupplier,
                                    Consumer<VotingConfiguration> initialConfigurationConsumer) {
-        assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : "remove this service once unsafe upgrades are no longer needed";
+        assert Version.CURRENT.major == LegacyESVersion.V_6_6_0.major + 1 : "remove this service once unsafe upgrades are no longer needed";
         this.transportService = transportService;
         this.isBootstrappedSupplier = isBootstrappedSupplier;
         this.joinHelper = joinHelper;

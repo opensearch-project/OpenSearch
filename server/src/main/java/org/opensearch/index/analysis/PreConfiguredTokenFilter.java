@@ -34,6 +34,7 @@ package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.indices.analysis.PreBuiltCacheFactory;
@@ -139,7 +140,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                     if (allowForSynonymParsing) {
                         return this;
                     }
-                    if (version.onOrAfter(Version.V_7_0_0)) {
+                    if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
                         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                     }
                     else {
@@ -166,7 +167,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                 if (allowForSynonymParsing) {
                     return this;
                 }
-                if (version.onOrAfter(Version.V_7_0_0)) {
+                if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
                     throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                 }
                 else {

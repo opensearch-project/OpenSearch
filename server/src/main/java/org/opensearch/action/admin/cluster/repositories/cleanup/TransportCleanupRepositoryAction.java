@@ -34,6 +34,7 @@ package org.opensearch.action.admin.cluster.repositories.cleanup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
@@ -87,7 +88,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
 
-    private static final Version MIN_VERSION = Version.V_7_4_0;
+    private static final Version MIN_VERSION = LegacyESVersion.V_7_4_0;
 
     private final RepositoriesService repositoriesService;
 

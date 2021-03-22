@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -66,7 +67,7 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     boolean includedInVersion(Version version) {
-        return version.onOrAfter(Version.V_6_1_0);
+        return version.onOrAfter(LegacyESVersion.V_6_1_0);
     }
 
     @Override

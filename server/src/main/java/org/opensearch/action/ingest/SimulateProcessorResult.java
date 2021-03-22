@@ -31,8 +31,8 @@
 
 package org.opensearch.action.ingest;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
@@ -189,12 +189,12 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.processorTag = in.readString();
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             this.description = in.readOptionalString();
         } else {
             this.description = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             this.type = in.readString();
             boolean hasConditional = in.readBoolean();
             if (hasConditional) {
@@ -213,10 +213,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         out.writeString(processorTag);
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeOptionalString(description);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeString(type);
             out.writeBoolean(conditionalWithResult != null);
             if (conditionalWithResult != null) {

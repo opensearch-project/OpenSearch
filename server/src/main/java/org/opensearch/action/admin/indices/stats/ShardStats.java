@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.stats;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
@@ -79,10 +79,10 @@ public class ShardStats implements Writeable, ToXContentFragment {
         statePath = in.readString();
         dataPath = in.readString();
         isCustomDataPath = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
         }
     }
@@ -145,10 +145,10 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeString(statePath);
         out.writeString(dataPath);
         out.writeBoolean(isCustomDataPath);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             out.writeOptionalWriteable(seqNoStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             out.writeOptionalWriteable(retentionLeaseStats);
         }
     }

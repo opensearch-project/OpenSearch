@@ -49,8 +49,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.Version.V_6_3_0;
-import static org.opensearch.Version.V_7_0_0;
+import static org.opensearch.LegacyESVersion.V_6_3_0;
+import static org.opensearch.LegacyESVersion.V_7_0_0;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -114,7 +114,7 @@ public class VersionTests extends OpenSearchTestCase {
     }
 
     public void testMinimumIndexCompatibilityVersion() {
-        assertEquals(Version.fromId(5000099), Version.V_6_0_0_beta1.minimumIndexCompatibilityVersion());
+        assertEquals(Version.fromId(5000099), LegacyESVersion.V_6_0_0_beta1.minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099), Version.fromId(5000099).minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099),
                 Version.fromId(5010000).minimumIndexCompatibilityVersion());
@@ -174,7 +174,7 @@ public class VersionTests extends OpenSearchTestCase {
 
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetadata.SETTING_INDEX_UUID
-        final Version version = Version.V_6_0_0_beta1;
+        final LegacyESVersion version = LegacyESVersion.V_6_0_0_beta1;
         assertEquals(version, Version.indexCreated(
             Settings.builder()
                 .put(IndexMetadata.SETTING_INDEX_UUID, "foo")
@@ -194,16 +194,16 @@ public class VersionTests extends OpenSearchTestCase {
         assertThat(Version.fromString("5.3.0").minimumCompatibilityVersion(), equalTo(major5x));
 
         Version major56x = Version.fromString("5.6.0");
-        assertThat(Version.V_6_5_0.minimumCompatibilityVersion(), equalTo(major56x));
-        assertThat(Version.V_6_3_1.minimumCompatibilityVersion(), equalTo(major56x));
+        assertThat(LegacyESVersion.V_6_5_0.minimumCompatibilityVersion(), equalTo(major56x));
+        assertThat(LegacyESVersion.V_6_3_1.minimumCompatibilityVersion(), equalTo(major56x));
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
-        Version lastVersion = Version.V_6_8_0; // TODO: remove this once min compat version is a constant instead of method
-        assertEquals(lastVersion.major, Version.V_7_0_0.minimumCompatibilityVersion().major);
+        Version lastVersion = LegacyESVersion.V_6_8_0; // TODO: remove this once min compat version is a constant instead of method
+        assertEquals(lastVersion.major, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion().major);
         assertEquals("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
-                lastVersion.minor, Version.V_7_0_0.minimumCompatibilityVersion().minor);
-        assertEquals(0, Version.V_7_0_0.minimumCompatibilityVersion().revision);
+                lastVersion.minor, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion().minor);
+        assertEquals(0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion().revision);
     }
 
     public void testToString() {
@@ -358,11 +358,11 @@ public class VersionTests extends OpenSearchTestCase {
 
     public void testIsCompatible() {
         assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
-        assertFalse(isCompatible(Version.V_6_6_0, Version.V_7_0_0));
-        assertFalse(isCompatible(Version.V_6_7_0, Version.V_7_0_0));
-        assertTrue(isCompatible(Version.V_6_8_0, Version.V_7_0_0));
-        assertFalse(isCompatible(Version.fromId(2000099), Version.V_7_0_0));
-        assertFalse(isCompatible(Version.fromId(2000099), Version.V_6_5_0));
+        assertFalse(isCompatible(LegacyESVersion.V_6_6_0, LegacyESVersion.V_7_0_0));
+        assertFalse(isCompatible(LegacyESVersion.V_6_7_0, LegacyESVersion.V_7_0_0));
+        assertTrue(isCompatible(LegacyESVersion.V_6_8_0, LegacyESVersion.V_7_0_0));
+        assertFalse(isCompatible(Version.fromId(2000099), LegacyESVersion.V_7_0_0));
+        assertFalse(isCompatible(Version.fromId(2000099), LegacyESVersion.V_6_5_0));
 
         final Version currentMajorVersion = Version.fromId(Version.CURRENT.major * 1000000 + 99);
         final Version currentOrNextMajorVersion;

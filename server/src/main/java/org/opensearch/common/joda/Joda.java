@@ -32,6 +32,7 @@
 
 package org.opensearch.common.joda;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -375,7 +376,7 @@ public class Joda {
      * @return - true if pattern is joda style, otherwise false
      */
     public static boolean isJodaPattern(Version version, String pattern) {
-        return version.before(Version.V_7_0_0)
+        return version.before(LegacyESVersion.V_7_0_0)
             && pattern.startsWith("8") == false;
     }
 

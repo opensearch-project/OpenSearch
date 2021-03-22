@@ -72,101 +72,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
 
-    public static final Version V_6_0_0_alpha1 =
-        new Version(6000001, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version V_6_0_0_alpha2 =
-        new Version(6000002, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version V_6_0_0_beta1 =
-        new Version(6000026, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version V_6_0_0_beta2 =
-        new Version(6000027, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version V_6_0_0_rc1 =
-        new Version(6000051, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version V_6_0_0_rc2 =
-        new Version(6000052, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final Version V_6_0_0 =
-        new Version(6000099, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final Version V_6_0_1 =
-        new Version(6000199, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final Version V_6_1_0 = new Version(6010099, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    public static final Version V_6_1_1 = new Version(6010199, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    public static final Version V_6_1_2 = new Version(6010299, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    public static final Version V_6_1_3 = new Version(6010399, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    public static final Version V_6_1_4 = new Version(6010499, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    // The below version is missing from the 7.3 JAR
-    private static final org.apache.lucene.util.Version LUCENE_7_2_1 = org.apache.lucene.util.Version.fromBits(7, 2, 1);
-    // Version constant for Lucene 7.7.3 release with index corruption bug fix
-    private static final org.apache.lucene.util.Version LUCENE_7_7_3 = org.apache.lucene.util.Version.fromBits(7, 7, 3);
-    public static final Version V_6_2_0 = new Version(6020099, LUCENE_7_2_1);
-    public static final Version V_6_2_1 = new Version(6020199, LUCENE_7_2_1);
-    public static final Version V_6_2_2 = new Version(6020299, LUCENE_7_2_1);
-    public static final Version V_6_2_3 = new Version(6020399, LUCENE_7_2_1);
-    public static final Version V_6_2_4 = new Version(6020499, LUCENE_7_2_1);
-    public static final Version V_6_3_0 = new Version(6030099, org.apache.lucene.util.Version.LUCENE_7_3_1);
-    public static final Version V_6_3_1 = new Version(6030199, org.apache.lucene.util.Version.LUCENE_7_3_1);
-    public static final Version V_6_3_2 = new Version(6030299, org.apache.lucene.util.Version.LUCENE_7_3_1);
-    public static final Version V_6_4_0 = new Version(6040099, org.apache.lucene.util.Version.LUCENE_7_4_0);
-    public static final Version V_6_4_1 = new Version(6040199, org.apache.lucene.util.Version.LUCENE_7_4_0);
-    public static final Version V_6_4_2 = new Version(6040299, org.apache.lucene.util.Version.LUCENE_7_4_0);
-    public static final Version V_6_4_3 = new Version(6040399, org.apache.lucene.util.Version.LUCENE_7_4_0);
-    public static final Version V_6_5_0 = new Version(6050099, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final Version V_6_5_1 = new Version(6050199, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final Version V_6_5_2 = new Version(6050299, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final Version V_6_5_3 = new Version(6050399, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final Version V_6_5_4 = new Version(6050499, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final Version V_6_6_0 = new Version(6060099, org.apache.lucene.util.Version.LUCENE_7_6_0);
-    public static final Version V_6_6_1 = new Version(6060199, org.apache.lucene.util.Version.LUCENE_7_6_0);
-    public static final Version V_6_6_2 = new Version(6060299, org.apache.lucene.util.Version.LUCENE_7_6_0);
-    public static final Version V_6_7_0 = new Version(6070099, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final Version V_6_7_1 = new Version(6070199, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final Version V_6_7_2 = new Version(6070299, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final Version V_6_8_0 = new Version(6080099, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final Version V_6_8_1 = new Version(6080199, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final Version V_6_8_2 = new Version(6080299, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final Version V_6_8_3 = new Version(6080399, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final Version V_6_8_4 = new Version(6080499, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final Version V_6_8_5 = new Version(6080599, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final Version V_6_8_6 = new Version(6080699, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final Version V_6_8_7 = new Version(6080799, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final Version V_6_8_8 = new Version(6080899, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final Version V_6_8_9 = new Version(6080999, LUCENE_7_7_3);
-    public static final Version V_6_8_10 = new Version(6081099, LUCENE_7_7_3);
-    public static final Version V_6_8_11 = new Version(6081199, LUCENE_7_7_3);
-    public static final Version V_6_8_12 = new Version(6081299, LUCENE_7_7_3);
-    public static final Version V_6_8_13 = new Version(6081399, LUCENE_7_7_3);
-    public static final Version V_6_8_14 = new Version(6081499, LUCENE_7_7_3);
-    public static final Version V_6_8_15 = new Version(6081599, org.apache.lucene.util.Version.LUCENE_7_7_3);
-    public static final Version V_7_0_0 = new Version(7000099, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_0_1 = new Version(7000199, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_1_0 = new Version(7010099, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_1_1 = new Version(7010199, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_2_0 = new Version(7020099, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_2_1 = new Version(7020199, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_3_0 = new Version(7030099, org.apache.lucene.util.Version.LUCENE_8_1_0);
-    public static final Version V_7_3_1 = new Version(7030199, org.apache.lucene.util.Version.LUCENE_8_1_0);
-    public static final Version V_7_3_2 = new Version(7030299, org.apache.lucene.util.Version.LUCENE_8_1_0);
-    public static final Version V_7_4_0 = new Version(7040099, org.apache.lucene.util.Version.LUCENE_8_2_0);
-    public static final Version V_7_4_1 = new Version(7040199, org.apache.lucene.util.Version.LUCENE_8_2_0);
-    public static final Version V_7_4_2 = new Version(7040299, org.apache.lucene.util.Version.LUCENE_8_2_0);
-    public static final Version V_7_5_0 = new Version(7050099, org.apache.lucene.util.Version.LUCENE_8_3_0);
-    public static final Version V_7_5_1 = new Version(7050199, org.apache.lucene.util.Version.LUCENE_8_3_0);
-    public static final Version V_7_5_2 = new Version(7050299, org.apache.lucene.util.Version.LUCENE_8_3_0);
-    public static final Version V_7_6_0 = new Version(7060099, org.apache.lucene.util.Version.LUCENE_8_4_0);
-    public static final Version V_7_6_1 = new Version(7060199, org.apache.lucene.util.Version.LUCENE_8_4_0);
-    public static final Version V_7_6_2 = new Version(7060299, org.apache.lucene.util.Version.LUCENE_8_4_0);
-    public static final Version V_7_7_0 = new Version(7070099, org.apache.lucene.util.Version.LUCENE_8_5_1);
-    public static final Version V_7_7_1 = new Version(7070199, org.apache.lucene.util.Version.LUCENE_8_5_1);
-    public static final Version V_7_8_0 = new Version(7080099, org.apache.lucene.util.Version.LUCENE_8_5_1);
-    public static final Version V_7_8_1 = new Version(7080199, org.apache.lucene.util.Version.LUCENE_8_5_1);
-    public static final Version V_7_9_0 = new Version(7090099, org.apache.lucene.util.Version.LUCENE_8_6_0);
-    public static final Version V_7_9_1 = new Version(7090199, org.apache.lucene.util.Version.LUCENE_8_6_2);
-    public static final Version V_7_9_2 = new Version(7090299, org.apache.lucene.util.Version.LUCENE_8_6_2);
-    public static final Version V_7_9_3 = new Version(7090399, org.apache.lucene.util.Version.LUCENE_8_6_2);
-    public static final Version V_7_10_0 = new Version(7100099, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_7_10_1 = new Version(7100199, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_7_10_2 = new Version(7100299, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_7_10_3 = new Version(7100399, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version CURRENT = V_7_10_3;
+    public static final Version V_1_0_0_alpha1 = new Version(1000001, org.apache.lucene.util.Version.LUCENE_8_7_0);
+    public static final Version CURRENT = V_1_0_0_alpha1;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
     private static final ImmutableOpenMap<String, Version> stringToVersion;
@@ -188,7 +95,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                     if (Assertions.ENABLED) {
                         final String[] fields = fieldName.split("_");
                         if (fields.length == 5) {
-                            assert fields[1].equals("6") && fields[2].equals("0") :
+                            assert fields[1].equals("1") && fields[2].equals("0") :
                                 "field " + fieldName + " should not have a build qualifier";
                         } else {
                             final int major = Integer.valueOf(fields[1]) * 1000000;
@@ -355,6 +262,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         }
     }
 
+    private static final int MASK = 0x08000000;
     public final int id;
     public final byte major;
     public final byte minor;
@@ -363,7 +271,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final org.apache.lucene.util.Version luceneVersion;
 
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
-        this.id = id;
+        // flip the 28th bit of the ID; identify as an opensearch vs legacy system:
+        this.id = id ^ MASK;
+        id &= 0xF7FFFFFF;
         this.major = (byte) ((id / 1000000) % 100);
         this.minor = (byte) ((id / 10000) % 100);
         this.revision = (byte) ((id / 100) % 100);
@@ -402,8 +312,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * is not cheap. Since computing the minimum compatibility version can occur often, we use this holder to compute the declared versions
      * lazily once.
      */
-    private static class DeclaredVersionsHolder {
-        static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
+    static class DeclaredVersionsHolder {
+        protected static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
     }
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
@@ -472,7 +382,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (major == 5) {
             bwcMajor = 2; // we jumped from 2 to 5
         } else if (major == 7) {
-            return V_6_0_0_beta1;
+            return LegacyESVersion.V_6_0_0_beta1;
         } else {
             bwcMajor = major - 1;
         }

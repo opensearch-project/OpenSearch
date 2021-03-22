@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.close;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.NoShardAvailableActionException;
@@ -177,7 +178,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         {
             final CloseIndexResponse response = randomResponse();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_2_0)));
+                out.setVersion(randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0)));
                 response.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
@@ -193,7 +194,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                 response.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_2_0)));
+                    in.setVersion(randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0)));
                     final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
                     assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
                 }
@@ -202,7 +203,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         {
             final CloseIndexResponse response = randomResponse();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                Version version = randomVersionBetween(random(), Version.V_7_2_0, Version.CURRENT);
+                Version version = randomVersionBetween(random(), LegacyESVersion.V_7_2_0, Version.CURRENT);
                 out.setVersion(version);
                 response.writeTo(out);
                 try (StreamInput in = out.bytes().streamInput()) {
@@ -210,7 +211,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                     final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
                     assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
                     assertThat(deserializedResponse.isShardsAcknowledged(), equalTo(response.isShardsAcknowledged()));
-                    if (version.onOrAfter(Version.V_7_3_0)) {
+                    if (version.onOrAfter(LegacyESVersion.V_7_3_0)) {
                         assertThat(deserializedResponse.getIndices(), hasSize(response.getIndices().size()));
                     } else {
                         assertThat(deserializedResponse.getIndices(), empty());
