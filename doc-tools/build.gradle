@@ -1,0 +1,11 @@
+plugins {
+    id 'java'
+}
+
+group 'org.elasticsearch'
+version '7.10.3-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+

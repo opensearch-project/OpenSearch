@@ -1,0 +1,15 @@
+plugins {
+  id 'java-library'
+}
+
+group 'org.elasticsearch'
+version '7.10.3-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+tasks.withType(JavaCompile) {
+  options.compilerArgs += ["--release", targetCompatibility.toString()]
+  options.encoding = "UTF-8"
+}
