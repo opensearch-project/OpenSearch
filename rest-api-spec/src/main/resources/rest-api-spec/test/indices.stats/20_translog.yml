@@ -12,7 +12,7 @@
           settings:
             soft_deletes.enabled: false
       warnings:
-        - Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.
+        - Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions.
           Please do not specify value for setting [index.soft_deletes.enabled] of index [test].
   - do:
       cluster.health:
@@ -193,7 +193,7 @@
             soft_deletes.enabled: false
             routing.rebalance.enable: "none" # prevents shard relocations while we are closing an index
       warnings:
-        - Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.
+        - Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions.
           Please do not specify value for setting [index.soft_deletes.enabled] of index [test].
 
   - do:
