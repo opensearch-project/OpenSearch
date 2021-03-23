@@ -118,7 +118,7 @@ public class MetadataIndexUpgradeService {
             throw new IllegalStateException("The index [" + indexMetadata.getIndex() + "] was created with version ["
                 + indexMetadata.getCreationVersion() + "] but the minimum compatible version is ["
 
-                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch " + minimumIndexCompatibilityVersion.major
+                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in OpenSearch " + minimumIndexCompatibilityVersion.major
                 + ".x before upgrading to " + Version.CURRENT + ".");
         }
     }
