@@ -831,7 +831,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         Map<String, Object> objects = new HashMap<>();
         objects.put("{'obj':50.63}", DistanceUnit.METERS.fromMeters(50.63));
         objects.put("{'obj':'MINUTES'}", TimeUnit.MINUTES);
-        objects.put("{'obj':'class BaseXContentTestCase'}", BaseXContentTestCase.class);
+        objects.put("{'obj':'class org.opensearch.common.xcontent.BaseXContentTestCase'}", BaseXContentTestCase.class);
 
         for (Map.Entry<String, ?> o : objects.entrySet()) {
             final String expected = o.getKey();

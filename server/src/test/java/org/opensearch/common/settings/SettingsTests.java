@@ -19,7 +19,6 @@
 
 package org.opensearch.common.settings;
 
-import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
@@ -494,7 +493,7 @@ public class SettingsTests extends OpenSearchTestCase {
         Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
         Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
-        assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
+        assertTrue(e.getMessage().contains("must be stored inside the OpenSearch keystore"));
     }
 
     public void testSecureSettingIllegalName() {
@@ -539,7 +538,7 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testSimpleJsonSettings() throws Exception {
-        final String json = "/org/elasticsearch/common/settings/loader/test-settings.json";
+        final String json = "/org/opensearch/common/settings/loader/test-settings.json";
         final Settings settings = Settings.builder()
             .loadFromStream(json, getClass().getResourceAsStream(json), false)
             .build();
@@ -586,7 +585,7 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testSimpleYamlSettings() throws Exception {
-        final String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
+        final String yaml = "/org/opensearch/common/settings/loader/test-settings.yml";
         final Settings settings = Settings.builder()
             .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
             .build();
@@ -613,7 +612,7 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testIndentation() throws Exception {
-        String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
+        String yaml = "/org/opensearch/common/settings/loader/indentation-settings.yml";
         OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
             Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
         });
@@ -621,7 +620,7 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testIndentationWithExplicitDocumentStart() throws Exception {
-        String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
+        String yaml = "/org/opensearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
         OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
             Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
         });
