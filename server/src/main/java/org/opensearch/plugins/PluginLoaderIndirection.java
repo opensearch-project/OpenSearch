@@ -19,8 +19,6 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.plugins.ExtendedPluginsClassLoader;
-
 import java.util.List;
 
 /**

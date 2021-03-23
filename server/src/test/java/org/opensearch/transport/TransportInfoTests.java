@@ -61,11 +61,11 @@ public class TransportInfoTests extends OpenSearchTestCase {
         );
         assertWarnings("transport.publish_address was printed as [ip:port] instead of [hostname/ip:port]. " +
                 "This format is deprecated and will change to [hostname/ip:port] in a future version. " +
-                "Use -Des.transport.cname_in_publish_address=true to enforce non-deprecated formatting.",
+                "Use -Dopensearch.transport.cname_in_publish_address=true to enforce non-deprecated formatting.",
 
                 "transport.test_profile.publish_address was printed as [ip:port] instead of [hostname/ip:port]. " +
                 "This format is deprecated and will change to [hostname/ip:port] in a future version. " +
-                "Use -Des.transport.cname_in_publish_address=true to enforce non-deprecated formatting.");
+                "Use -Dopensearch.transport.cname_in_publish_address=true to enforce non-deprecated formatting.");
     }
 
     public void testCorrectDisplayPublishedIp() throws Exception {
