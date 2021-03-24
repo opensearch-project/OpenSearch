@@ -1130,7 +1130,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             SearchSourceBuilder searchQuery = new SearchSourceBuilder();
             searchQuery.query(QueryBuilders.matchQuery("user", "foobar"));// <3>
             RatedRequest ratedRequest =                                   // <4>
-                    new RatedRequest("kimchy_query", ratedDocs, searchQuery);
+                    new RatedRequest("foobar_query", ratedDocs, searchQuery);
             List<RatedRequest> ratedRequests = Arrays.asList(ratedRequest);
             RankEvalSpec specification =
                     new RankEvalSpec(ratedRequests, metric);              // <5>
@@ -1148,8 +1148,8 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             Map<String, EvalQueryQuality> partialResults =
                     response.getPartialResults();
             EvalQueryQuality evalQuality =
-                    partialResults.get("kimchy_query");                 // <2>
-            assertEquals("kimchy_query", evalQuality.getId());
+                    partialResults.get("foobar_query");                 // <2>
+            assertEquals("foobar_query", evalQuality.getId());
             double qualityLevel = evalQuality.metricScore();        // <3>
             assertEquals(1.0 / 3.0, qualityLevel, 0.0);
             List<RatedSearchHit> hitsAndRatings = evalQuality.getHitsAndRatings();

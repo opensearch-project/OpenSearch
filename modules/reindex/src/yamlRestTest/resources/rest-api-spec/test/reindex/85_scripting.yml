@@ -29,7 +29,7 @@
         body:
           query:
             match:
-              user: otherkimchy
+              user: otherfoobar
   - match: { hits.total: 1 }
 
 ---
@@ -68,7 +68,7 @@
         body:
           query:
             match:
-              user: otherkimchy
+              user: otherfoobar
   - match: { hits.total: 1 }
 
   - do:
@@ -160,7 +160,7 @@
         body:
           query:
             match:
-              user: notkimchy
+              user: notfoobar
   - match: { hits.total: 1 }
 
   - do:
@@ -252,7 +252,7 @@
         body:
           query:
             match:
-              user: otherkimchy
+              user: otherfoobar
   - match: { hits.total: 1 }
 
 ---
@@ -291,7 +291,7 @@
         body:
           query:
             match:
-              user: otherkimchy
+              user: otherfoobar
   - match: { hits.total: 1 }
 
 ---
