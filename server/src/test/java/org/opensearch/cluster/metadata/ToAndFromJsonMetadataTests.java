@@ -72,7 +72,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                                 .put("setting1", "value1")
                                 .put("setting2", "value2"))
                         .putAlias(newAliasMetadataBuilder("alias-bar1"))
-                        .putAlias(newAliasMetadataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
+                        .putAlias(newAliasMetadataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"foobar\"}}"))
                         .putAlias(newAliasMetadataBuilder("alias-bar3").routing("routing-bar")))
                 .put("component_template", new ComponentTemplate(
                     new Template(Settings.builder().put("setting", "value").build(),
@@ -107,7 +107,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                                 .put("setting1", "value1")
                                 .put("setting2", "value2"))
                         .putAlias(newAliasMetadataBuilder("alias-bar1"))
-                        .putAlias(newAliasMetadataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
+                        .putAlias(newAliasMetadataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"foobar\"}}"))
                         .putAlias(newAliasMetadataBuilder("alias-bar3").routing("routing-bar")))
                 .put(idx1, false)
                 .put(idx2, false)
@@ -133,7 +133,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
         assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar1").alias(), equalTo("alias-bar1"));
         assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar2").alias(), equalTo("alias-bar2"));
         assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar2").filter().string(),
-            equalTo("{\"term\":{\"user\":\"kimchy\"}}"));
+            equalTo("{\"term\":{\"user\":\"foobar\"}}"));
         assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar3").alias(), equalTo("alias-bar3"));
         assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar3").indexRouting(), equalTo("routing-bar"));
         assertThat(parsedMetadata.templates().get("foo").aliases().get("alias-bar3").searchRouting(), equalTo("routing-bar"));

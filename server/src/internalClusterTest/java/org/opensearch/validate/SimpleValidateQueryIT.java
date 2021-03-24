@@ -269,7 +269,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         refresh();
 
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(
-            new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}"))).get().isValid(), equalTo(false));
+            new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"foobar\" }}}"))).get().isValid(), equalTo(false));
     }
 
     public void testIrrelevantPropertiesAfterQuery() throws IOException {
@@ -278,7 +278,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         refresh();
 
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(
-            new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}"))).get().isValid(), equalTo(false));
+            new BytesArray("{\"query\": {\"term\" : { \"user\" : \"foobar\" }}, \"foo\": \"bar\"}"))).get().isValid(), equalTo(false));
     }
 
     private static void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {

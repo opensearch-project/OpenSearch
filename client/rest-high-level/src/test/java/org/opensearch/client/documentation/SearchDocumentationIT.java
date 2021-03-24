@@ -161,7 +161,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         {
             // tag::search-source-basics
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder(); // <1>
-            sourceBuilder.query(QueryBuilders.termQuery("user", "kimchy")); // <2>
+            sourceBuilder.query(QueryBuilders.termQuery("user", "foobar")); // <2>
             sourceBuilder.from(0); // <3>
             sourceBuilder.size(5); // <4>
             sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS)); // <5>
@@ -279,7 +279,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         RestHighLevelClient client = highLevelClient();
         {
             // tag::search-query-builder-ctor
-            MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("user", "kimchy"); // <1>
+            MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("user", "foobar"); // <1>
             // end::search-query-builder-ctor
             // tag::search-query-builder-options
             matchQueryBuilder.fuzziness(Fuzziness.AUTO); // <1>
@@ -289,7 +289,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         }
         {
             // tag::search-query-builders
-            QueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("user", "kimchy")
+            QueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("user", "foobar")
                                                             .fuzziness(Fuzziness.AUTO)
                                                             .prefixLength(3)
                                                             .maxExpansions(10);
@@ -382,10 +382,10 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "user", "kimchy"));
-            request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "user", "javanna"));
-            request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "user", "tlrx"));
-            request.add(new IndexRequest("posts").id("4").source(XContentType.JSON, "user", "cbuescher"));
+            request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "user", "foobar"));
+            request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "user", "quxx"));
+            request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "user", "quzz"));
+            request.add(new IndexRequest("posts").id("4").source(XContentType.JSON, "user", "corge"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -415,7 +415,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
                 // end::search-request-suggestion-get
                 assertEquals(1, termSuggestion.getEntries().size());
                 assertEquals(1, termSuggestion.getEntries().get(0).getOptions().size());
-                assertEquals("kimchy", termSuggestion.getEntries().get(0).getOptions().get(0).getText().string());
+                assertEquals("foobar", termSuggestion.getEntries().get(0).getOptions().get(0).getText().string());
             }
         }
     }
@@ -427,13 +427,13 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             BulkRequest request = new BulkRequest();
             request.add(new IndexRequest("posts").id("1")
                     .source(XContentType.JSON, "title", "In which order are my OpenSearch queries executed?", "user",
-                            Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
+                            Arrays.asList("foobar", "quxx"), "innerObject", Collections.singletonMap("key", "value")));
             request.add(new IndexRequest("posts").id("2")
                     .source(XContentType.JSON, "title", "Current status and upcoming changes in OpenSearch", "user",
-                            Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
+                            Arrays.asList("foobar", "grault"), "innerObject", Collections.singletonMap("key", "value")));
             request.add(new IndexRequest("posts").id("3")
                     .source(XContentType.JSON, "title", "The Future of Federated Search in OpenSearch", "user",
-                            Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+                            Arrays.asList("foobar", "quuz"), "innerObject", Collections.singletonMap("key", "value")));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -454,7 +454,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             // end::search-request-highlighting
             searchSourceBuilder.query(QueryBuilders.boolQuery()
                     .should(matchQuery("title", "OpenSearch"))
-                    .should(matchQuery("user", "kimchy")));
+                    .should(matchQuery("user", "foobar")));
             searchRequest.source(searchSourceBuilder);
             SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             {
@@ -477,7 +477,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
                     highlight = highlightFields.get("user");
                     fragments = highlight.fragments();
                     assertEquals(1, fragments.length);
-                    assertThat(fragments[0].string(), containsString("<em>kimchy</em>"));
+                    assertThat(fragments[0].string(), containsString("<em>foobar</em>"));
                 }
             }
 
@@ -984,7 +984,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
 
         // tag::explain-request
         ExplainRequest request = new ExplainRequest("contributors", "1");
-        request.query(QueryBuilders.termQuery("user", "tanguy"));
+        request.query(QueryBuilders.termQuery("user", "quuz"));
         // end::explain-request
 
         // tag::explain-request-routing
@@ -1028,8 +1028,8 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         Map<String, Object> source = getResult.getSource(); // <1>
         Map<String, DocumentField> fields = getResult.getFields(); // <2>
         // end::get-result
-        assertThat(source, equalTo(Collections.singletonMap("user", "tanguy")));
-        assertThat(fields.get("user").getValue(), equalTo("tanguy"));
+        assertThat(source, equalTo(Collections.singletonMap("user", "quuz")));
+        assertThat(fields.get("user").getValue(), equalTo("quuz"));
 
         // tag::explain-execute-listener
         ActionListener<ExplainResponse> listener = new ActionListener<ExplainResponse>() {
@@ -1128,9 +1128,9 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             List<RatedDocument> ratedDocs = new ArrayList<>();
             ratedDocs.add(new RatedDocument("posts", "1", 1));            // <2>
             SearchSourceBuilder searchQuery = new SearchSourceBuilder();
-            searchQuery.query(QueryBuilders.matchQuery("user", "kimchy"));// <3>
+            searchQuery.query(QueryBuilders.matchQuery("user", "foobar"));// <3>
             RatedRequest ratedRequest =                                   // <4>
-                    new RatedRequest("kimchy_query", ratedDocs, searchQuery);
+                    new RatedRequest("foobar_query", ratedDocs, searchQuery);
             List<RatedRequest> ratedRequests = Arrays.asList(ratedRequest);
             RankEvalSpec specification =
                     new RankEvalSpec(ratedRequests, metric);              // <5>
@@ -1148,8 +1148,8 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             Map<String, EvalQueryQuality> partialResults =
                     response.getPartialResults();
             EvalQueryQuality evalQuality =
-                    partialResults.get("kimchy_query");                 // <2>
-            assertEquals("kimchy_query", evalQuality.getId());
+                    partialResults.get("foobar_query");                 // <2>
+            assertEquals("foobar_query", evalQuality.getId());
             double qualityLevel = evalQuality.metricScore();        // <3>
             assertEquals(1.0 / 3.0, qualityLevel, 0.0);
             List<RatedSearchHit> hitsAndRatings = evalQuality.getHitsAndRatings();
@@ -1198,12 +1198,12 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             MultiSearchRequest request = new MultiSearchRequest();    // <1>
             SearchRequest firstSearchRequest = new SearchRequest();   // <2>
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-            searchSourceBuilder.query(QueryBuilders.matchQuery("user", "kimchy"));
+            searchSourceBuilder.query(QueryBuilders.matchQuery("user", "foobar"));
             firstSearchRequest.source(searchSourceBuilder);
             request.add(firstSearchRequest);                          // <3>
             SearchRequest secondSearchRequest = new SearchRequest();  // <4>
             searchSourceBuilder = new SearchSourceBuilder();
-            searchSourceBuilder.query(QueryBuilders.matchQuery("user", "luca"));
+            searchSourceBuilder.query(QueryBuilders.matchQuery("user", "quxx"));
             secondSearchRequest.source(searchSourceBuilder);
             request.add(secondSearchRequest);
             // end::multi-search-request-basic
@@ -1281,18 +1281,18 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("posts").id("1")
                 .source(XContentType.JSON, "id", 1, "title", "In which order are my OpenSearch queries executed?", "user",
-                        Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
+                        Arrays.asList("foobar", "quxx"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("posts").id("2")
                 .source(XContentType.JSON, "id", 2, "title", "Current status and upcoming changes in OpenSearch", "user",
-                        Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
+                        Arrays.asList("foobar", "grault"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("posts").id("3")
                 .source(XContentType.JSON, "id", 3, "title", "The Future of Federated Search in OpenSearch", "user",
-                        Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+                        Arrays.asList("foobar", "quuz"), "innerObject", Collections.singletonMap("key", "value")));
 
         bulkRequest.add(new IndexRequest("authors").id("1")
-            .source(XContentType.JSON, "id", 1, "user", "kimchy"));
+            .source(XContentType.JSON, "id", 1, "user", "foobar"));
         bulkRequest.add(new IndexRequest("contributors").id("1")
-            .source(XContentType.JSON, "id", 1, "user", "tanguy"));
+            .source(XContentType.JSON, "id", 1, "user", "quuz"));
 
 
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -1326,7 +1326,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         {
             // tag::count-source-basics
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder(); // <1>
-            sourceBuilder.query(QueryBuilders.termQuery("user", "kimchy")); // <2>
+            sourceBuilder.query(QueryBuilders.termQuery("user", "foobar")); // <2>
             // end::count-source-basics
 
             // tag::count-source-setter
@@ -1402,16 +1402,16 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("blog").id("1")
             .source(XContentType.JSON, "title", "Doubling Down on Open?", "user",
-                Collections.singletonList("kimchy"), "innerObject", Collections.singletonMap("key", "value")));
+                Collections.singletonList("foobar"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("blog").id("2")
             .source(XContentType.JSON, "title", "Swiftype Joins Forces with Elastic", "user",
-                Arrays.asList("kimchy", "matt"), "innerObject", Collections.singletonMap("key", "value")));
+                Arrays.asList("foobar", "matt"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("blog").id("3")
             .source(XContentType.JSON, "title", "On Net Neutrality", "user",
-                Arrays.asList("tyler", "kimchy"), "innerObject", Collections.singletonMap("key", "value")));
+                Arrays.asList("tyler", "foobar"), "innerObject", Collections.singletonMap("key", "value")));
 
         bulkRequest.add(new IndexRequest("author").id("1")
-            .source(XContentType.JSON, "user", "kimchy"));
+            .source(XContentType.JSON, "user", "foobar"));
 
 
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

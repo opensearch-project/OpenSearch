@@ -88,7 +88,7 @@
           aliases:
             test_alias: {}
             test_blias: { routing: b }
-            test_clias: { filter: { term: { user: kimchy }}}
+            test_clias: { filter: { term: { user: foobar }}}
 
   - do:
       indices.get_template:
@@ -99,7 +99,7 @@
   - is_true: test.aliases.test_alias
   - match: { test.aliases.test_blias.index_routing: "b" }
   - match: { test.aliases.test_blias.search_routing: "b" }
-  - match: { test.aliases.test_clias.filter.term.user: "kimchy" }
+  - match: { test.aliases.test_clias.filter.term.user: "foobar" }
 
 ---
 "Put template create":

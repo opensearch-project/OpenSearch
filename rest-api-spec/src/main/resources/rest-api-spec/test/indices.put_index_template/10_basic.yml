@@ -55,7 +55,7 @@
             aliases:
               test_alias: {}
               test_blias: { routing: b }
-              test_clias: { filter: { term: { user: kimchy }}}
+              test_clias: { filter: { term: { user: foobar }}}
 
   - do:
       indices.get_index_template:
@@ -68,7 +68,7 @@
   - is_true: index_templates.0.index_template.template.aliases.test_alias
   - match: {index_templates.0.index_template.template.aliases.test_blias.index_routing: "b" }
   - match: {index_templates.0.index_template.template.aliases.test_blias.search_routing: "b" }
-  - match: {index_templates.0.index_template.template.aliases.test_clias.filter.term.user: "kimchy" }
+  - match: {index_templates.0.index_template.template.aliases.test_clias.filter.term.user: "foobar" }
 
 ---
 "Put index template with 'create' flag":

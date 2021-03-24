@@ -68,7 +68,7 @@
                   filter:
                     synonym:
                       type: synonym
-                      synonyms: ["kimchy => shay"]
+                      synonyms: ["foobar => fred"]
 
     - do:
         indices.analyze:
@@ -76,10 +76,10 @@
           body:
             tokenizer: trigram
             filter: [synonym]
-            text: kimchy
+            text: foobar
     - length: { tokens: 2 }
-    - match:  { tokens.0.token: sha }
-    - match:  { tokens.1.token: hay }
+    - match:  { tokens.0.token: fre }
+    - match:  { tokens.1.token: red }
 
 ---
 "Custom normalizer in request":

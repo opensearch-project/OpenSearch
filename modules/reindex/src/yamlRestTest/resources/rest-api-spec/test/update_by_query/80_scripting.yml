@@ -4,7 +4,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 
@@ -26,7 +26,7 @@
         body:
           query:
             match:
-              user: notkimchy
+              user: notfoobar
   - match: { hits.total: 1 }
 
 ---
@@ -35,7 +35,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
         indices.refresh: {}
 
@@ -54,7 +54,7 @@
         body:
           query:
             match:
-              user: notkimchy
+              user: notfoobar
   - match: { hits.total: 1 }
 
 ---
@@ -63,7 +63,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
@@ -79,7 +79,7 @@
         body:
           script:
             lang: painless
-            source: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
+            source: if (ctx._source.user == "foobar") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
   - match: {updated: 1}
   - match: {noops: 1}
 
@@ -90,7 +90,7 @@
         body:
           query:
             match:
-              user: notkimchy
+              user: notfoobar
   - match: { hits.total: 1 }
 
   - do:
@@ -109,7 +109,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
@@ -136,7 +136,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 
@@ -155,7 +155,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 
@@ -311,7 +311,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
@@ -328,7 +328,7 @@
         body:
           script:
             lang: painless
-            source: if (ctx._source.user == "kimchy") {ctx.op = "index"} else {ctx.op = "junk"}
+            source: if (ctx._source.user == "foobar") {ctx.op = "index"} else {ctx.op = "junk"}
 
   - match: { error.reason: 'Operation type [junk] not allowed, only [noop, index, delete] are allowed' }
 
@@ -418,7 +418,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 

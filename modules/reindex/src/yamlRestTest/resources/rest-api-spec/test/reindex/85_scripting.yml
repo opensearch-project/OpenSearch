@@ -4,7 +4,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 
@@ -29,7 +29,7 @@
         body:
           query:
             match:
-              user: otherkimchy
+              user: otherfoobar
   - match: { hits.total: 1 }
 
 ---
@@ -38,7 +38,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
@@ -68,7 +68,7 @@
         body:
           query:
             match:
-              user: otherkimchy
+              user: otherfoobar
   - match: { hits.total: 1 }
 
   - do:
@@ -87,7 +87,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
@@ -114,8 +114,8 @@
       get:
         index:   new_twitter
         id:      1
-        routing: kimchy
-  - match: { _routing: kimchy }
+        routing: foobar
+  - match: { _routing: foobar }
 
   - do:
       get:
@@ -130,7 +130,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
@@ -149,7 +149,7 @@
             index: new_twitter
           script:
             lang: painless
-            source: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
+            source: if (ctx._source.user == "foobar") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
   - match: {created: 1}
   - match: {noops: 1}
 
@@ -160,7 +160,7 @@
         body:
           query:
             match:
-              user: notkimchy
+              user: notfoobar
   - match: { hits.total: 1 }
 
   - do:
@@ -184,7 +184,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
@@ -219,14 +219,14 @@
         id:           1
         version:      1
         version_type: external
-        body:         { "user": "kimchy" }
+        body:         { "user": "foobar" }
   - do:
       index:
         index:        new_twitter
         id:           1
         version:      1
         version_type: external
-        body:         { "user": "kimchy" }
+        body:         { "user": "foobar" }
   - do:
       indices.refresh: {}
 
@@ -252,7 +252,7 @@
         body:
           query:
             match:
-              user: otherkimchy
+              user: otherfoobar
   - match: { hits.total: 1 }
 
 ---
@@ -261,12 +261,12 @@
       index:
         index:        twitter
         id:           1
-        body:         { "user": "kimchy" }
+        body:         { "user": "foobar" }
   - do:
       index:
         index:        new_twitter
         id:           1
-        body:         { "user": "kimchy" }
+        body:         { "user": "foobar" }
   - do:
       indices.refresh: {}
 
@@ -291,7 +291,7 @@
         body:
           query:
             match:
-              user: otherkimchy
+              user: otherfoobar
   - match: { hits.total: 1 }
 
 ---
@@ -300,7 +300,7 @@
       index:
         index:        twitter
         id:           1
-        body:         { "user": "kimchy" }
+        body:         { "user": "foobar" }
   - do:
       index:
         index:        twitter
@@ -319,7 +319,7 @@
             index: new_twitter
           script:
             lang: painless
-            source: if (ctx._source.user == "kimchy") {ctx._index = 'other_new_twitter'}
+            source: if (ctx._source.user == "foobar") {ctx._index = 'other_new_twitter'}
   - match: {created: 2}
   - match: {noops: 0}
 
@@ -330,7 +330,7 @@
         body:
           query:
             match:
-              user: kimchy
+              user: foobar
   - match: { hits.total: 1 }
 
   - do:
@@ -423,7 +423,7 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 

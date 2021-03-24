@@ -213,7 +213,7 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < 500; i++) {
             client().prepareIndex("test", "tweet", Integer.toString(i)).setSource(
-                    jsonBuilder().startObject().field("user", "kimchy").field("postDate", System.currentTimeMillis())
+                    jsonBuilder().startObject().field("user", "foobar").field("postDate", System.currentTimeMillis())
                     .field("message", "test").endObject()).get();
         }
 
@@ -230,7 +230,7 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
                 equalTo(0L));
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(queryStringQuery("user:kimchy"))
+                .setQuery(queryStringQuery("user:foobar"))
                 .setSize(35)
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .addSort("postDate", SortOrder.ASC)

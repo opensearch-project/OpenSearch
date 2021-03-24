@@ -363,7 +363,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
 
             request = new CreateIndexRequest("twitter5");
             // tag::create-index-request-aliases
-            request.alias(new Alias("twitter_alias").filter(QueryBuilders.termQuery("user", "kimchy")));  // <1>
+            request.alias(new Alias("twitter_alias").filter(QueryBuilders.termQuery("user", "foobar")));  // <1>
             // end::create-index-request-aliases
 
             // tag::create-index-request-timeout
@@ -2216,7 +2216,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         }
 
         // tag::put-template-request-aliases
-        request.alias(new Alias("twitter_alias").filter(QueryBuilders.termQuery("user", "kimchy")));  // <1>
+        request.alias(new Alias("twitter_alias").filter(QueryBuilders.termQuery("user", "foobar")));  // <1>
         request.alias(new Alias("{index}_alias").searchRouting("xyz"));  // <2>
         // end::put-template-request-aliases
 
@@ -2763,7 +2763,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         QueryBuilder builder = QueryBuilders
             .boolQuery() // <1>
             .must(QueryBuilders.queryStringQuery("*:*"))
-            .filter(QueryBuilders.termQuery("user", "kimchy"));
+            .filter(QueryBuilders.termQuery("user", "foobar"));
         request.query(builder); // <2>
         // end::indices-validate-query-request-query
 
