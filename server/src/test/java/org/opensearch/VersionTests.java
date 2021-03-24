@@ -51,6 +51,7 @@ import java.util.Set;
 
 import static org.opensearch.LegacyESVersion.V_6_3_0;
 import static org.opensearch.LegacyESVersion.V_7_0_0;
+import static org.opensearch.Version.MASK;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -226,9 +227,9 @@ public class VersionTests extends OpenSearchTestCase {
 
 
     public void testIsAlpha() {
-        assertTrue(new Version(5000001, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
-        assertFalse(new Version(4000002, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
-        assertTrue(new Version(4000002, org.apache.lucene.util.Version.LUCENE_7_0_0).isBeta());
+        assertTrue(new LegacyESVersion(5000001, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
+        assertFalse(new LegacyESVersion(4000002, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
+        assertTrue(new LegacyESVersion(4000002, org.apache.lucene.util.Version.LUCENE_7_0_0).isBeta());
         assertTrue(Version.fromString("5.0.0-alpha14").isAlpha());
         assertEquals(5000014, Version.fromString("5.0.0-alpha14").id);
         assertTrue(Version.fromId(5000015).isAlpha());
@@ -249,7 +250,9 @@ public class VersionTests extends OpenSearchTestCase {
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
             if (random().nextBoolean()) {
-                version = new Version(version.id, version.luceneVersion);
+                version = version.id < MASK ?
+                    new LegacyESVersion(version.id, version.luceneVersion) :
+                    new Version(version.id ^ MASK, version.luceneVersion);
             }
             Version parsedVersion = Version.fromString(version.toString());
             assertEquals(version, parsedVersion);
@@ -364,10 +367,11 @@ public class VersionTests extends OpenSearchTestCase {
         assertFalse(isCompatible(Version.fromId(2000099), LegacyESVersion.V_7_0_0));
         assertFalse(isCompatible(Version.fromId(2000099), LegacyESVersion.V_6_5_0));
 
-        final Version currentMajorVersion = Version.fromId(Version.CURRENT.major * 1000000 + 99);
+        int currentMajorID = Version.computeID(Version.CURRENT.major, 0, 0, 99);
+        final Version currentMajorVersion = Version.fromId(currentMajorID);
         final Version currentOrNextMajorVersion;
         if (Version.CURRENT.minor > 0) {
-            currentOrNextMajorVersion = Version.fromId((Version.CURRENT.major + 1) * 1000000 + 99);
+            currentOrNextMajorVersion = Version.fromId(currentMajorID);
         } else {
             currentOrNextMajorVersion = currentMajorVersion;
         }
@@ -375,7 +379,7 @@ public class VersionTests extends OpenSearchTestCase {
                 VersionUtils
                         .allVersions()
                         .stream()
-                        .filter(v -> v.major == currentOrNextMajorVersion.major - 1)
+                        .filter(v -> v.major == (currentOrNextMajorVersion.major == 1 ? 7 : currentOrNextMajorVersion.major - 1))
                         .max(Version::compareTo)
                         .orElseThrow(
                                 () -> new IllegalStateException("expected previous minor version for [" + currentOrNextMajorVersion + "]"));
