@@ -241,7 +241,7 @@ final class RemoteResponseParsers {
             requireNonNull(reason, "[reason] is required");
             switch (type) {
             // Make some effort to use the right exceptions
-            case "es_rejected_execution_exception":
+            case "rejected_execution_exception":
                 return new OpenSearchRejectedExecutionException(reason);
             case "parsing_exception":
                 XContentLocation location = null;
