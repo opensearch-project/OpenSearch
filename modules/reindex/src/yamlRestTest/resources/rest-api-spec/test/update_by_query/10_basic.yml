@@ -198,7 +198,7 @@
       index:
         index:   twitter
         id:      1
-        body:    { "user": "kimchy" }
+        body:    { "user": "foobar" }
   - do:
       index:
         index:   twitter
@@ -213,7 +213,7 @@
         body:
           query:
             match:
-              user: kimchy
+              user: foobar
   - match: {updated: 1}
   - match: {version_conflicts: 0}
   - match: {batches: 1}
@@ -231,12 +231,12 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
         id:     2
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 
@@ -263,12 +263,12 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
         id:     2
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 
@@ -293,12 +293,12 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
         id:     2
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 
@@ -323,12 +323,12 @@
       index:
         index:  twitter
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       index:
         index:  twitter
         id:     2
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 
@@ -339,7 +339,7 @@
           max_docs: 1
           query:
             match:
-              user: "kimchy"
+              user: "foobar"
   - match: {updated: 1}
   - match: {version_conflicts: 0}
   - match: {batches: 1}

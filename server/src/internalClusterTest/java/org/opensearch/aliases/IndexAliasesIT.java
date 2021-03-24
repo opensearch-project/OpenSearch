@@ -204,16 +204,16 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
         ensureGreen();
 
-        logger.info("--> aliasing index [test] with [alias1] and filter [user:kimchy]");
-        QueryBuilder filter = termQuery("user", "kimchy");
+        logger.info("--> aliasing index [test] with [alias1] and filter [user:foobar]");
+        QueryBuilder filter = termQuery("user", "foobar");
         assertAliasesVersionIncreases("test", () -> assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", filter)));
 
         // For now just making sure that filter was stored with the alias
-        logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
+        logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:foobar]");
         ClusterState clusterState = admin().cluster().prepareState().get().getState();
         IndexMetadata indexMd = clusterState.metadata().index("test");
         assertThat(indexMd.getAliases().get("alias1").filter().string(),
-            equalTo("{\"term\":{\"user\":{\"value\":\"kimchy\",\"boost\":1.0}}}"));
+            equalTo("{\"term\":{\"user\":{\"value\":\"foobar\",\"boost\":1.0}}}"));
 
     }
 

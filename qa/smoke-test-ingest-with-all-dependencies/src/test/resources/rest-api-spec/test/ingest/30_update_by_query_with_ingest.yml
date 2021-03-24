@@ -20,7 +20,7 @@
         index:  twitter
         type:   _doc
         id:     1
-        body:   { "user": "kimchy" }
+        body:   { "user": "foobar" }
   - do:
       indices.refresh: {}
 

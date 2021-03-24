@@ -997,13 +997,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
         Document doc = docMapper.parse(source(b -> {
             b.startObject("name");
             {
-                b.field("first", "shay");
-                b.field("last", "banon");
+                b.field("first", "fred");
+                b.field("last", "quxx");
             }
             b.endObject();
         })).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("fred"));
     }
 
     public void testParseToJsonAndParse() throws Exception {
@@ -1017,7 +1017,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse(new SourceToParse("test", "_doc", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(builtDocMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("fred"));
     }
 
     public void testSimpleParser() throws Exception {
@@ -1029,7 +1029,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse(new SourceToParse("test", "_doc", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("fred"));
     }
 
     public void testSimpleParserNoTypeNoId() throws Exception {
@@ -1038,7 +1038,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/simple/test1-notype-noid.json"));
         Document doc = docMapper.parse(new SourceToParse("test", "_doc", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("fred"));
     }
 
     public void testAttributes() throws Exception {

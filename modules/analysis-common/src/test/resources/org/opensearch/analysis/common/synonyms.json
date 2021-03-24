@@ -54,7 +54,7 @@
                 "synonym":{
                     "type":"synonym",
                     "synonyms":[
-                        "kimchy => shay",
+                        "foobar => fred",
                         "dude => opensearch",
                         "abides => man!"
                     ]
@@ -80,7 +80,7 @@
                 "synonymWithTokenizerSettings":{
                     "type":"synonym",
                     "synonyms":[
-                        "kimchy => shay"
+                        "foobar => fred"
                     ]
                 },
                 "stop":{
@@ -89,12 +89,12 @@
                 },
                 "stop_within_synonym":{
                     "type": "stop",
-                    "stopwords":["kimchy", "opensearch"]
+                    "stopwords":["foobar", "opensearch"]
                 },
                 "synonym_expand":{
                     "type":"synonym",
                     "synonyms":[
-                        "kimchy , shay",
+                        "foobar , fred",
                         "dude , opensearch",
                         "abides , man!"
                     ]
