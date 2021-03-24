@@ -48,10 +48,13 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
@@ -82,8 +85,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         final ImmutableOpenIntMap.Builder<Version> builder = ImmutableOpenIntMap.builder();
         final ImmutableOpenMap.Builder<String, Version> builderByString = ImmutableOpenMap.builder();
 
-        for (final Field declaredField : Version.class.getFields()) {
-            if (declaredField.getType().equals(Version.class)) {
+        for (final Field declaredField : LegacyESVersion.class.getFields()) {
+            if (declaredField.getType().equals(Version.class) || declaredField.getType().equals(LegacyESVersion.class)) {
                 final String fieldName = declaredField.getName();
                 if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY")) {
                     continue;
@@ -95,7 +98,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                     if (Assertions.ENABLED) {
                         final String[] fields = fieldName.split("_");
                         if (fields.length == 5) {
-                            assert fields[1].equals("1") && fields[2].equals("0") :
+                            assert (fields[1].equals("1") || fields[1].equals("6")) && fields[2].equals("0") :
                                 "field " + fieldName + " should not have a build qualifier";
                         } else {
                             final int major = Integer.valueOf(fields[1]) * 1000000;
@@ -143,7 +146,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         // least correct for patch versions of known minors since we never
         // update the Lucene dependency for patch versions.
         List<Version> versions = DeclaredVersionsHolder.DECLARED_VERSIONS;
-        Version tmp = new Version(id, org.apache.lucene.util.Version.LATEST);
+        Version tmp = id < MASK ? new LegacyESVersion(id, org.apache.lucene.util.Version.LATEST) :
+            new Version(id ^ MASK, org.apache.lucene.util.Version.LATEST);
         int index = Collections.binarySearch(versions, tmp);
         if (index < 0) {
             index = -2 - index;
@@ -160,7 +164,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         } else {
             luceneVersion = versions.get(index).luceneVersion;
         }
-        return new Version(id, luceneVersion);
+        return id < MASK ? new LegacyESVersion(id, luceneVersion) : new Version(id ^ MASK, luceneVersion);
     }
 
     /**
@@ -171,7 +175,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      */
     public static Version indexCreated(Settings indexSettings) {
         final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
-        if (indexVersion == V_EMPTY) {
+        if (indexVersion.equals(V_EMPTY)) {
             final String message = String.format(
                 Locale.ROOT,
                 "[%s] is not present in the index settings for index with UUID [%s]",
@@ -184,6 +188,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     public static void writeVersion(Version version, StreamOutput out) throws IOException {
         out.writeVInt(version.id);
+    }
+
+    public static int computeLegacyID(int major, int minor, int revision, int build) {
+        return major * 1000000 + minor * 10000 + revision * 100 + build;
+    }
+
+    public static int computeID(int major, int minor, int revision, int build) {
+        return computeLegacyID(major, minor, revision, build) ^ MASK;
     }
 
     /**
@@ -262,7 +274,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         }
     }
 
-    private static final int MASK = 0x08000000;
+    public static final int MASK = 0x08000000;
     public final int id;
     public final byte major;
     public final byte minor;
@@ -313,7 +325,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * lazily once.
      */
     static class DeclaredVersionsHolder {
-        protected static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
+        // use LegacyESVersion.class since it inherits Version fields
+        protected static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(LegacyESVersion.class));
     }
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
@@ -341,7 +354,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     private Version computeMinCompatVersion() {
-        if (major == 6) {
+        if (major == 1) {
+            return Version.fromId(6080099);
+        } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return Version.fromId(5060099);
         } else if (major >= 7) {
@@ -381,13 +396,13 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         final int bwcMajor;
         if (major == 5) {
             bwcMajor = 2; // we jumped from 2 to 5
-        } else if (major == 7) {
+        } else if (major == 7 || major == 1) {
             return LegacyESVersion.V_6_0_0_beta1;
         } else {
             bwcMajor = major - 1;
         }
         final int bwcMinor = 0;
-        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
+        return Version.min(this, fromId((bwcMajor * 1000000 + bwcMinor * 10000 + 99) ));
     }
 
     /**
@@ -397,7 +412,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         boolean compatible = onOrAfter(version.minimumCompatibilityVersion())
             && version.onOrAfter(minimumCompatibilityVersion());
 
-        assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
+        // OpenSearch version 1 is the functional equivalent of predecessor version 7
+        int a = major == 1 ? 7 : major;
+        int b = version.major == 1 ? 7 : version.major;
+
+        assert compatible == false || Math.max(a, b) - Math.min(a, b) <= 1;
         return compatible;
     }
 
@@ -463,7 +482,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public boolean isBeta() {
-        return major < 5 ? build < 50 : build >= 25 && build < 50;
+        return build >= 25 && build < 50;
     }
 
     /**
@@ -472,7 +491,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * have an alpha version.
      */
     public boolean isAlpha() {
-        return major < 5 ? false :  build < 25;
+        return build < 25;
     }
 
     public boolean isRC() {
@@ -496,7 +515,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
                 continue;
             }
-            if (field.getType() != Version.class) {
+            if (field.getType() != Version.class && field.getType() != LegacyESVersion.class) {
                 continue;
             }
             switch (field.getName()) {

@@ -32,6 +32,7 @@
 
 package org.opensearch.test;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
@@ -65,8 +66,10 @@ public class VersionUtils {
         // this breaks b/c 5.x is still in version list but master doesn't care about it!
         //assert majorVersions.size() == 2;
         // TODO: remove oldVersions, we should only ever have 2 majors in Version
-        List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList()));
-        List<List<Version>> previousMajor = splitByMinor(majorVersions.get((int)current.major - 1));
+        int previousMajorID = current.major == 1 ? 7 : current.major - 1;
+        List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault(previousMajorID - 1, Collections.emptyList()));
+        // rebasing OpenSearch to 1.0.0 means the previous major version was 7.0.0
+        List<List<Version>> previousMajor = splitByMinor(majorVersions.get(previousMajorID));
         List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int)current.major));
 
         List<Version> unreleasedVersions = new ArrayList<>();
@@ -138,7 +141,7 @@ public class VersionUtils {
     private static final List<Version> ALL_VERSIONS;
 
     static {
-        Tuple<List<Version>, List<Version>> versions = resolveReleasedVersions(Version.CURRENT, Version.class);
+        Tuple<List<Version>, List<Version>> versions = resolveReleasedVersions(Version.CURRENT, LegacyESVersion.class);
         RELEASED_VERSIONS = versions.v1();
         UNRELEASED_VERSIONS = versions.v2();
         List<Version> allVersions = new ArrayList<>(RELEASED_VERSIONS.size() + UNRELEASED_VERSIONS.size());
@@ -198,7 +201,8 @@ public class VersionUtils {
     public static Version getPreviousMinorVersion() {
         for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
             Version v = RELEASED_VERSIONS.get(i);
-            if (v.minor < Version.CURRENT.minor || v.major < Version.CURRENT.major) {
+            if (v.minor < Version.CURRENT.minor
+                || (v.major != 1 && v.major < (Version.CURRENT.major != 1 ? Version.CURRENT.major : 8))) {
                 return v;
             }
         }

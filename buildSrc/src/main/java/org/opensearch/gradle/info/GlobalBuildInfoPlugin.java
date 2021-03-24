@@ -78,6 +78,7 @@ import java.util.stream.Stream;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
+    private static final String DEFAULT_LEGACY_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/opensearch/LegacyESVersion.java";
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/opensearch/Version.java";
     private static Integer _defaultParallel = null;
     private static Boolean _isBundledJdkSupported = null;
@@ -146,9 +147,14 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
      * compatibility. It is *super* important that this logic is the same as the
      * logic in VersionUtils.java. */
     private static BwcVersions resolveBwcVersions(File root) {
+        // todo redesign this terrible unreliable hack; should NEVER rely on parsing a source file
+        // for now, we hack the hack
         File versionsFile = new File(root, DEFAULT_VERSION_JAVA_FILE_PATH);
-        try {
-            List<String> versionLines = IOUtils.readLines(new FileInputStream(versionsFile), "UTF-8");
+        File legacyVersionsFile = new File(root, DEFAULT_LEGACY_VERSION_JAVA_FILE_PATH);
+        try (FileInputStream fis = new FileInputStream(versionsFile);
+             FileInputStream fis2 = new FileInputStream(legacyVersionsFile)) {
+            List<String> versionLines = IOUtils.readLines(fis, "UTF-8");
+            versionLines.addAll(IOUtils.readLines(fis2, "UTF-8"));
             return new BwcVersions(versionLines);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);

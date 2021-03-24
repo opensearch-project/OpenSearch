@@ -98,7 +98,7 @@ import static java.util.Collections.unmodifiableList;
 public class BwcVersions {
 
     private static final Pattern LINE_PATTERN = Pattern.compile(
-        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
+        "\\W+public static final (LegacyES)?Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
     );
 
     private final Version currentVersion;
@@ -128,9 +128,9 @@ public class BwcVersions {
                 .filter(Matcher::matches)
                 .map(
                     match -> new Version(
-                        Integer.parseInt(match.group(1)),
                         Integer.parseInt(match.group(2)),
-                        Integer.parseInt(match.group(3))
+                        Integer.parseInt(match.group(3)),
+                        Integer.parseInt(match.group(4))
                     )
                 )
                 .collect(Collectors.toCollection(TreeSet::new)),
@@ -144,12 +144,18 @@ public class BwcVersions {
             throw new IllegalArgumentException("Could not parse any versions");
         }
 
-        currentVersion = allVersions.last();
+        // hack: this is horribly volatile like this entire logic; fix
+        currentVersion = allVersions.first();
+        for (Version v : allVersions) {
+            System.out.println(v);
+        }
+        System.out.println(currentVersion);
 
         groupByMajor = allVersions.stream()
             // We only care about the last 2 majors when it comes to BWC.
             // It might take us time to remove the older ones from versionLines, so we allow them to exist.
-            .filter(version -> version.getMajor() > currentVersion.getMajor() - 2)
+            .filter(version -> (version.getMajor() == 1 ? 7 : version.getMajor())
+                > (currentVersion.getMajor() == 1 ? 7 : currentVersion.getMajor()) - 2)
             .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
 
         assertCurrentVersionMatchesParsed(currentVersionProperty);
@@ -262,14 +268,17 @@ public class BwcVersions {
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
 
-        // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
-        final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
-        unreleased.add(latestOfPreviousMajor);
-        if (latestOfPreviousMajor.getRevision() == 0) {
-            // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
-            final Version previousMinor = getLatestInMinor(latestOfPreviousMajor.getMajor(), latestOfPreviousMajor.getMinor() - 1);
-            if (previousMinor != null) {
-                unreleased.add(previousMinor);
+        // version 1 is the first release, there is no previous "unreleased version":
+        if (currentVersion.getMajor() != 1) {
+            // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
+            final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
+            unreleased.add(latestOfPreviousMajor);
+            if (latestOfPreviousMajor.getRevision() == 0) {
+                // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
+                final Version previousMinor = getLatestInMinor(latestOfPreviousMajor.getMajor(), latestOfPreviousMajor.getMinor() - 1);
+                if (previousMinor != null) {
+                    unreleased.add(previousMinor);
+                }
             }
         }
 
@@ -306,8 +315,13 @@ public class BwcVersions {
     }
 
     private Map<Integer, List<Version>> getReleasedMajorGroupedByMinor() {
-        List<Version> currentMajorVersions = groupByMajor.get(currentVersion.getMajor());
-        List<Version> previousMajorVersions = groupByMajor.get(currentVersion.getMajor() - 1);
+        int currentMajor = currentVersion.getMajor();
+        List<Version> currentMajorVersions = groupByMajor.get(currentMajor);
+        List<Version> previousMajorVersions = groupByMajor.get(currentMajor == 1 ? 7 : currentVersion.getMajor() - 1);
+        if (previousMajorVersions == null) {
+            System.out.println("size: " + groupByMajor.size());
+            System.out.println(currentVersion.getMajor());
+        }
 
         final Map<Integer, List<Version>> groupByMinor;
         if (currentMajorVersions.size() == 1) {
