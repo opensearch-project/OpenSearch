@@ -80,9 +80,9 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
         match("synonymAnalyzerWordnet_file", "abstain", "abstain refrain desist");
         match("synonymAnalyzerWithsettings", "kimchy", "sha hay");
         match("synonymAnalyzerWithStopAfterSynonym", "kimchy is the dude abides , stop", "shay is the opensearch man! ,");
-        match("synonymAnalyzerWithStopBeforeSynonym", "kimchy is the dude abides , stop", "shay is the elasticsearch man! ,");
+        match("synonymAnalyzerWithStopBeforeSynonym", "kimchy is the dude abides , stop", "shay is the opensearch man! ,");
         match("synonymAnalyzerWithStopSynonymAfterSynonym", "kimchy is the dude abides", "shay is the man!");
-        match("synonymAnalyzerExpand", "kimchy is the dude abides", "kimchy shay is the dude elasticsearch abides man!");
+        match("synonymAnalyzerExpand", "kimchy is the dude abides", "kimchy shay is the dude opensearch abides man!");
         match("synonymAnalyzerExpandWithStopAfterSynonym", "kimchy is the dude abides", "shay is the dude abides man!");
 
     }
