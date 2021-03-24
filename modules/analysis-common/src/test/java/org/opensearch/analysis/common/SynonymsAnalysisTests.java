@@ -74,12 +74,12 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
 
-        match("synonymAnalyzer", "kimchy is the dude abides", "shay is the elasticsearch man!");
+        match("synonymAnalyzer", "kimchy is the dude abides", "shay is the opensearch man!");
         match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the elasticsearch man!");
         match("synonymAnalyzerWordnet", "abstain", "abstain refrain desist");
         match("synonymAnalyzerWordnet_file", "abstain", "abstain refrain desist");
         match("synonymAnalyzerWithsettings", "kimchy", "sha hay");
-        match("synonymAnalyzerWithStopAfterSynonym", "kimchy is the dude abides , stop", "shay is the elasticsearch man! ,");
+        match("synonymAnalyzerWithStopAfterSynonym", "kimchy is the dude abides , stop", "shay is the opensearch man! ,");
         match("synonymAnalyzerWithStopBeforeSynonym", "kimchy is the dude abides , stop", "shay is the elasticsearch man! ,");
         match("synonymAnalyzerWithStopSynonymAfterSynonym", "kimchy is the dude abides", "shay is the man!");
         match("synonymAnalyzerExpand", "kimchy is the dude abides", "kimchy shay is the dude elasticsearch abides man!");
