@@ -75,7 +75,7 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
         indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
 
         match("synonymAnalyzer", "kimchy is the dude abides", "shay is the opensearch man!");
-        match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the elasticsearch man!");
+        match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the opensearch man!");
         match("synonymAnalyzerWordnet", "abstain", "abstain refrain desist");
         match("synonymAnalyzerWordnet_file", "abstain", "abstain refrain desist");
         match("synonymAnalyzerWithsettings", "kimchy", "sha hay");
@@ -92,9 +92,9 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonym.type", "synonym")
-            .putList("index.analysis.filter.synonym.synonyms", "kimchy => shay", "dude => elasticsearch", "abides => man!")
+            .putList("index.analysis.filter.synonym.synonyms", "kimchy => shay", "dude => opensearch", "abides => man!")
             .put("index.analysis.filter.stop_within_synonym.type", "stop")
-            .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
+            .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "opensearch")
             .put("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.tokenizer", "whitespace")
             .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym","synonym")
             .build();
@@ -113,9 +113,9 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonym_expand.type", "synonym")
-            .putList("index.analysis.filter.synonym_expand.synonyms", "kimchy, shay", "dude, elasticsearch", "abides, man!")
+            .putList("index.analysis.filter.synonym_expand.synonyms", "kimchy, shay", "dude, opensearch", "abides, man!")
             .put("index.analysis.filter.stop_within_synonym.type", "stop")
-            .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
+            .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "opensearch")
             .put("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.tokenizer", "whitespace")
             .putList("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.filter", "stop_within_synonym","synonym_expand")
             .build();
