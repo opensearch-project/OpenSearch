@@ -162,7 +162,8 @@ public class BootstrapForTesting {
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.
                 // this just makes unit testing more realistic
-                for (URL url : Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_PROPERTIES))) {
+                for (URL url : Collections.list(
+                        BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_PROPERTIES))) {
                     Properties properties = new Properties();
                     try (InputStream stream = FileSystemUtils.openFileURLStream(url)) {
                         properties.load(stream);
@@ -200,7 +201,8 @@ public class BootstrapForTesting {
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static Map<String,Policy> getPluginPermissions() throws Exception {
-        List<URL> pluginPolicies = Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_POLICY));
+        List<URL> pluginPolicies =
+            Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_POLICY));
         if (pluginPolicies.isEmpty()) {
             return Collections.emptyMap();
         }

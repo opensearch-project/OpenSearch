@@ -53,7 +53,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private static final String FAKE_SNAPSHOT_IVY_GROUP = "opensearch-distribution-snapshot";
     private static final String DOWNLOAD_REPO_NAME = "opensearch-downloads";
     private static final String SNAPSHOT_REPO_NAME = "opensearch-snapshots";
-    public static final String DISTRO_EXTRACTED_CONFIG_PREFIX = "es_distro_extracted_";
+    public static final String DISTRO_EXTRACTED_CONFIG_PREFIX = "opensearch_distro_extracted_";
 
     private NamedDomainObjectContainer<OpenSearchDistribution> distributionsContainer;
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
@@ -85,7 +85,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     private void setupDistributionContainer(Project project, Provider<DockerSupportService> dockerSupport) {
         distributionsContainer = project.container(OpenSearchDistribution.class, name -> {
-            Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
+            Configuration fileConfiguration = project.getConfigurations().create("opensearch_distro_file_" + name);
             Configuration extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
             extractedConfiguration.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
             return new OpenSearchDistribution(name, project.getObjects(), dockerSupport, fileConfiguration, extractedConfiguration);

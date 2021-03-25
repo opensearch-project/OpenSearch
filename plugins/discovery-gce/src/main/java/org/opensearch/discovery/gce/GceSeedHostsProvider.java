@@ -219,20 +219,20 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                         logger.trace("current node found. Ignoring {} - {}", name, ip_private);
                     } else {
                         String address = ip_private;
-                        // Test if we have es_port metadata defined here
-                        if (instance.getMetadata() != null && instance.getMetadata().containsKey("es_port")) {
-                            Object es_port = instance.getMetadata().get("es_port");
-                            logger.trace("es_port is defined with {}", es_port);
-                            if (es_port instanceof String) {
-                                address = address.concat(":").concat((String) es_port);
+                        // Test if we have opensearch_port metadata defined here
+                        if (instance.getMetadata() != null && instance.getMetadata().containsKey("opensearch_port")) {
+                            Object opensearch_port = instance.getMetadata().get("opensearch_port");
+                            logger.trace("opensearch_port is defined with {}", opensearch_port);
+                            if (opensearch_port instanceof String) {
+                                address = address.concat(":").concat((String) opensearch_port);
                             } else {
                                 // Ignoring other values
-                                logger.trace("es_port is instance of {}. Ignoring...", es_port.getClass().getName());
+                                logger.trace("opensearch_port is instance of {}. Ignoring...", opensearch_port.getClass().getName());
                             }
                         }
 
                         // ip_private is a single IP Address. We need to build a TransportAddress from it
-                        // If user has set `es_port` metadata, we don't need to ping all ports
+                        // If user has set `opensearch_port` metadata, we don't need to ping all ports
                         TransportAddress[] addresses = transportService.addressesFromString(address);
 
                         for (TransportAddress transportAddress : addresses) {

@@ -96,8 +96,8 @@ import static java.util.Objects.requireNonNull;
 public class OpenSearchNode implements TestClusterConfiguration {
 
     private static final Logger LOGGER = Logging.getLogger(OpenSearchNode.class);
-    private static final int ES_DESTROY_TIMEOUT = 20;
-    private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private static final int OPENSEARCH_DESTROY_TIMEOUT = 20;
+    private static final TimeUnit OPENSEARCH_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
     private static final int NODE_UP_TIMEOUT = 2;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.MINUTES;
@@ -916,7 +916,11 @@ public class OpenSearchNode implements TestClusterConfiguration {
                 if (processHandle.isAlive() == false) {
                     return;
                 }
-                LOGGER.info("process did not terminate after {} {}, stopping it forcefully", ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
+                LOGGER.info(
+                    "process did not terminate after {} {}, stopping it forcefully",
+                    OPENSEARCH_DESTROY_TIMEOUT,
+                    OPENSEARCH_DESTROY_TIMEOUT_UNIT
+                );
                 processHandle.destroyForcibly();
             }
 
@@ -1007,7 +1011,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     private void waitForProcessToExit(ProcessHandle processHandle) {
         try {
-            processHandle.onExit().get(ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
+            processHandle.onExit().get(OPENSEARCH_DESTROY_TIMEOUT, OPENSEARCH_DESTROY_TIMEOUT_UNIT);
         } catch (InterruptedException e) {
             LOGGER.info("Interrupted while waiting for ES process", e);
             Thread.currentThread().interrupt();

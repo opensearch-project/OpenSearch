@@ -850,7 +850,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         throws Exception {
         final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
         // read optional security policy (extra permissions), if it exists, confirm or warn the user
-        Path policy = tmpRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        Path policy = tmpRoot.resolve(PluginInfo.OPENSEARCH_PLUGIN_POLICY);
         final Set<String> permissions;
         if (Files.exists(policy)) {
             permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
