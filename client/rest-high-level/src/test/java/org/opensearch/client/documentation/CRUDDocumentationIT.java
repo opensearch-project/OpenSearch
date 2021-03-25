@@ -115,7 +115,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
         {
             //tag::index-request-map
             Map<String, Object> jsonMap = new HashMap<>();
-            jsonMap.put("user", "kimchy");
+            jsonMap.put("user", "foobar");
             jsonMap.put("postDate", new Date());
             jsonMap.put("message", "trying out OpenSearch");
             IndexRequest indexRequest = new IndexRequest("posts")
@@ -129,7 +129,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             {
-                builder.field("user", "kimchy");
+                builder.field("user", "foobar");
                 builder.timeField("postDate", new Date());
                 builder.field("message", "trying out OpenSearch");
             }
@@ -144,7 +144,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             //tag::index-request-shortcut
             IndexRequest indexRequest = new IndexRequest("posts")
                 .id("1")
-                .source("user", "kimchy",
+                .source("user", "foobar",
                     "postDate", new Date(),
                     "message", "trying out OpenSearch"); // <1>
             //end::index-request-shortcut
@@ -156,7 +156,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             IndexRequest request = new IndexRequest("posts"); // <1>
             request.id("1"); // <2>
             String jsonString = "{" +
-                    "\"user\":\"kimchy\"," +
+                    "\"user\":\"foobar\"," +
                     "\"postDate\":\"2013-01-30\"," +
                     "\"message\":\"trying out OpenSearch\"" +
                     "}";
@@ -838,7 +838,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             request.setScript(
                 new Script(
                     ScriptType.INLINE, "painless",
-                    "if (ctx._source.user == 'kimchy') {ctx._source.likes++;}",
+                    "if (ctx._source.user == 'foobar') {ctx._source.likes++;}",
                     Collections.emptyMap())); // <1>
             // end::reindex-request-script
             HttpHost host = getClusterHosts().get(0);
@@ -903,7 +903,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
 
             // These cannot be set with a remote set, so its set here instead for the docs
             // tag::reindex-request-query
-            request.setSourceQuery(new TermQueryBuilder("user", "kimchy")); // <1>
+            request.setSourceQuery(new TermQueryBuilder("user", "foobar")); // <1>
             // end::reindex-request-query
             // tag::reindex-request-slices
             request.setSlices(2); // <1>
@@ -1021,7 +1021,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             request.setConflicts("proceed"); // <1>
             // end::update-by-query-request-conflicts
             // tag::update-by-query-request-query
-            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
+            request.setQuery(new TermQueryBuilder("user", "foobar")); // <1>
             // end::update-by-query-request-query
             // tag::update-by-query-request-maxDocs
             request.setMaxDocs(10); // <1>
@@ -1036,7 +1036,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             request.setScript(
                 new Script(
                     ScriptType.INLINE, "painless",
-                    "if (ctx._source.user == 'kimchy') {ctx._source.likes++;}",
+                    "if (ctx._source.user == 'foobar') {ctx._source.likes++;}",
                     Collections.emptyMap())); // <1>
             // end::update-by-query-request-script
             // tag::update-by-query-request-timeout
@@ -1143,7 +1143,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             request.setConflicts("proceed"); // <1>
             // end::delete-by-query-request-conflicts
             // tag::delete-by-query-request-query
-            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
+            request.setQuery(new TermQueryBuilder("user", "foobar")); // <1>
             // end::delete-by-query-request-query
             // tag::delete-by-query-request-maxDocs
             request.setMaxDocs(10); // <1>
@@ -1246,7 +1246,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(200, response.getStatusLine().getStatusCode());
 
             IndexRequest indexRequest = new IndexRequest("posts").id("1")
-                    .source("user", "kimchy",
+                    .source("user", "foobar",
                             "postDate", new Date(),
                             "message", "trying out OpenSearch");
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
@@ -1312,7 +1312,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
             Map<String, Object> sourceAsMap = getResponse.getSourceAsMap();
             assertEquals(2, sourceAsMap.size());
-            assertEquals("kimchy", sourceAsMap.get("user"));
+            assertEquals("foobar", sourceAsMap.get("user"));
             assertTrue(sourceAsMap.containsKey("postDate"));
         }
         {
@@ -1419,7 +1419,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(200, response.getStatusLine().getStatusCode());
 
             IndexRequest indexRequest = new IndexRequest("posts").id("1")
-                .source("user", "kimchy",
+                .source("user", "foobar",
                     "postDate", new Date(),
                     "message", "trying out OpenSearch");
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
@@ -1462,7 +1462,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             // end::get-source-response
 
             Map<String, Object> expectSource = new HashMap<>();
-            expectSource.put("user", "kimchy");
+            expectSource.put("user", "foobar");
             expectSource.put("message", "trying out OpenSearch");
             assertEquals(expectSource, source);
         }
@@ -1651,7 +1651,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             .endObject());
         CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
-        client.index(new IndexRequest("index").id("1").source("user", "kimchy"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index").id("1").source("user", "foobar"), RequestOptions.DEFAULT);
         Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
         assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
 
@@ -1782,8 +1782,8 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             .endObject());
         CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
-        client.index(new IndexRequest("index").id("1").source("user", "kimchy"), RequestOptions.DEFAULT);
-        client.index(new IndexRequest("index").id("2").source("user", "s1monw"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index").id("1").source("user", "foobar"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index").id("2").source("user", "baz"), RequestOptions.DEFAULT);
         Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
         assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
 

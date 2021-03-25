@@ -81,7 +81,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
                 "    \"match\" : {\n" +
                 "      \"span_term\" : {\n" +
                 "        \"user\" : {\n" +
-                "          \"value\" : \"kimchy\",\n" +
+                "          \"value\" : \"foobar\",\n" +
                 "          \"boost\" : 1.0\n" +
                 "        }\n" +
                 "      }\n" +
@@ -95,7 +95,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, 3, parsed.end());
-        assertEquals(json, "kimchy", ((SpanTermQueryBuilder) parsed.innerQuery()).value());
+        assertEquals(json, "foobar", ((SpanTermQueryBuilder) parsed.innerQuery()).value());
     }
 
 
@@ -106,7 +106,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
                 "    \"match\" : {\n" +
                 "      \"span_term\" : {\n" +
                 "        \"user\" : {\n" +
-                "          \"value\" : \"kimchy\",\n" +
+                "          \"value\" : \"foobar\",\n" +
                 "          \"boost\" : 2.0\n" +
                 "        }\n" +
                 "      }\n" +

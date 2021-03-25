@@ -102,8 +102,8 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
     public void testBoosting() {
         // tag::boosting
         boostingQuery(
-                    termQuery("name","kimchy"),                      // <1>
-                    termQuery("name","dadoonet"))                    // <2>
+                    termQuery("name","foobar"),                      // <1>
+                    termQuery("name","qux"))                    // <2>
                 .negativeBoost(0.2f);                                // <3>
         // end::boosting
     }
@@ -111,14 +111,14 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
     public void testCommonTerms() {
         // tag::common_terms
         commonTermsQuery("name",                                     // <1>
-                         "kimchy");                                  // <2>
+                         "foobar");                                  // <2>
         // end::common_terms
     }
 
     public void testConstantScore() {
         // tag::constant_score
         constantScoreQuery(
-                termQuery("name","kimchy"))                          // <1>
+                termQuery("name","foobar"))                          // <1>
             .boost(2.0f);                                            // <2>
         // end::constant_score
     }
@@ -126,7 +126,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
     public void testDisMax() {
         // tag::dis_max
         disMaxQuery()
-                .add(termQuery("name", "kimchy"))                    // <1>
+                .add(termQuery("name", "foobar"))                    // <1>
                 .add(termQuery("name", "opensearch"))             // <2>
                 .boost(1.2f)                                         // <3>
                 .tieBreaker(0.7f);                                   // <4>
@@ -143,7 +143,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
         // tag::function_score
         FilterFunctionBuilder[] functions = {
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder(
-                        matchQuery("name", "kimchy"),                // <1>
+                        matchQuery("name", "foobar"),                // <1>
                         randomFunction()),                           // <2>
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder(
                         exponentialDecayFunction("age", 0L, 1L))     // <3>
@@ -156,7 +156,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
         // tag::fuzzy
         fuzzyQuery(
                 "name",                                              // <1>
-                "kimchy");                                           // <2>
+                "foobar");                                           // <2>
         // end::fuzzy
     }
 
@@ -251,7 +251,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
         // tag::match
         matchQuery(
                 "name",                                              // <1>
-                "kimchy opensearch");                             // <2>
+                "foobar opensearch");                             // <2>
         // end::match
     }
 
@@ -269,7 +269,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
     public void testMultiMatch() {
         // tag::multi_match
         multiMatchQuery(
-                "kimchy opensearch",                              // <1>
+                "foobar opensearch",                              // <1>
                 "user", "message");                                  // <2>
         // end::multi_match
     }
@@ -295,7 +295,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
 
     public void testQueryString() {
         // tag::query_string
-        queryStringQuery("+kimchy -opensearch");
+        queryStringQuery("+foobar -opensearch");
         // end::query_string
     }
 
@@ -344,7 +344,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
 
     public void testSimpleQueryString() {
         // tag::simple_query_string
-        simpleQueryStringQuery("+kimchy -opensearch");
+        simpleQueryStringQuery("+foobar -opensearch");
         // end::simple_query_string
     }
 
@@ -361,7 +361,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
     public void testSpanFirst() {
         // tag::span_first
         spanFirstQuery(
-                spanTermQuery("user", "kimchy"),                     // <1>
+                spanTermQuery("user", "foobar"),                     // <1>
                 3                                                    // <2>
             );
         // end::span_first
@@ -405,7 +405,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
         // tag::span_term
         spanTermQuery(
                 "user",       // <1>
-                "kimchy");    // <2>
+                "foobar");    // <2>
         // end::span_term
     }
 
@@ -423,7 +423,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
         // tag::term
         termQuery(
                 "name",                                              // <1>
-                "kimchy");                                           // <2>
+                "foobar");                                           // <2>
         // end::term
     }
 
@@ -450,7 +450,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
 
     public void testWrapper() {
         // tag::wrapper
-        String query = "{\"term\": {\"user\": \"kimchy\"}}"; // <1>
+        String query = "{\"term\": {\"user\": \"foobar\"}}"; // <1>
         wrapperQuery(query);
         // end::wrapper
     }

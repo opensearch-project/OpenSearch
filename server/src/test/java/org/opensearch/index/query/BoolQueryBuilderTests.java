@@ -226,7 +226,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "  \"must\" : [ {" +
                 "    \"term\" : {" +
                 "      \"user\" : {" +
-                "        \"value\" : \"kimchy\"," +
+                "        \"value\" : \"foobar\"," +
                 "        \"boost\" : 1.0" +
                 "      }" +
                 "    }" +
@@ -276,7 +276,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         assertEquals(query, 42, queryBuilder.boost, 0.00001);
         assertEquals(query, "23", queryBuilder.minimumShouldMatch());
-        assertEquals(query, "kimchy", ((TermQueryBuilder)queryBuilder.must().get(0)).value());
+        assertEquals(query, "foobar", ((TermQueryBuilder)queryBuilder.must().get(0)).value());
     }
 
     public void testMinimumShouldMatchNumber() throws IOException {

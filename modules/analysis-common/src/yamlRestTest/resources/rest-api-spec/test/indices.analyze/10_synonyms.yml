@@ -17,19 +17,19 @@
                   filter:
                     synonym:
                       type: synonym
-                      synonyms: ["<p>kimchy</p> => shay", "dude => <html>opensearch</html>", "<font>abides</font> => man!"]
+                      synonyms: ["<p>foobar</p> => fred", "dude => <html>opensearch</html>", "<font>abides</font> => man!"]
 
     - do:
         indices.analyze:
           index: test_synonym_with_charfilter
           body:
             analyzer: "synonymAnalyzerWithCharfilter"
-            text: "kimchy is the dude <html>abides</html>"
+            text: "foobar is the dude <html>abides</html>"
     - length: { tokens: 5 }
-    - match:  { tokens.0.token: shay }
+    - match:  { tokens.0.token: fred }
     - match:  { tokens.1.token: is }
     - match:  { tokens.2.token: the }
-    - match:  { tokens.3.token: elasticsearch }
+    - match:  { tokens.3.token: opensearch }
     - match:  { tokens.4.token: man! }
 
 ---

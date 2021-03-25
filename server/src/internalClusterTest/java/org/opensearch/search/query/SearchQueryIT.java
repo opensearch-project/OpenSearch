@@ -920,8 +920,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testFuzzyQueryString() {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).get();
-        client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
+        client().prepareIndex("test", "type1", "1").setSource("str", "foobar", "date", "2012-02-01", "num", 12).get();
+        client().prepareIndex("test", "type1", "2").setSource("str", "fred", "date", "2012-02-05", "num", 20).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("str:kimcy~1")).get();
@@ -951,8 +951,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testSpecialRangeSyntaxInQueryString() {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).get();
-        client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
+        client().prepareIndex("test", "type1", "1").setSource("str", "foobar", "date", "2012-02-01", "num", 12).get();
+        client().prepareIndex("test", "type1", "2").setSource("str", "fred", "date", "2012-02-05", "num", 20).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:>19")).get();

@@ -1730,7 +1730,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         QueryBuilder builder = QueryBuilders
             .boolQuery()
             .must(QueryBuilders.queryStringQuery("*:*"))
-            .filter(QueryBuilders.termQuery("user", "kimchy"));
+            .filter(QueryBuilders.termQuery("user", "foobar"));
         ValidateQueryRequest request = new ValidateQueryRequest(index).query(builder);
         request.explain(randomBoolean());
         ValidateQueryResponse response = execute(request, highLevelClient().indices()::validateQuery,

@@ -94,10 +94,10 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     public void testFromJson() throws IOException {
-        String json = "{    \"span_term\" : { \"user\" : { \"value\" : \"kimchy\", \"boost\" : 2.0 } }}";
+        String json = "{    \"span_term\" : { \"user\" : { \"value\" : \"foobar\", \"boost\" : 2.0 } }}";
         SpanTermQueryBuilder parsed = (SpanTermQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-        assertEquals(json, "kimchy", parsed.value());
+        assertEquals(json, "foobar", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
     }
 
