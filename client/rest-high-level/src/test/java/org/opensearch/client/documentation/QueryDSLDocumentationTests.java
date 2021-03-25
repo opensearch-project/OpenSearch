@@ -103,7 +103,7 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
         // tag::boosting
         boostingQuery(
                     termQuery("name","foobar"),                      // <1>
-                    termQuery("name","dadoonet"))                    // <2>
+                    termQuery("name","qux"))                    // <2>
                 .negativeBoost(0.2f);                                // <3>
         // end::boosting
     }

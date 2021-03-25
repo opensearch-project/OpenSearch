@@ -1783,7 +1783,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
         CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
         client.index(new IndexRequest("index").id("1").source("user", "foobar"), RequestOptions.DEFAULT);
-        client.index(new IndexRequest("index").id("2").source("user", "s1monw"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index").id("2").source("user", "baz"), RequestOptions.DEFAULT);
         Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
         assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
 

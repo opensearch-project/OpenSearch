@@ -383,9 +383,9 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         {
             BulkRequest request = new BulkRequest();
             request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "user", "foobar"));
-            request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "user", "javanna"));
-            request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "user", "tlrx"));
-            request.add(new IndexRequest("posts").id("4").source(XContentType.JSON, "user", "cbuescher"));
+            request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "user", "quxx"));
+            request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "user", "quzz"));
+            request.add(new IndexRequest("posts").id("4").source(XContentType.JSON, "user", "corge"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -427,13 +427,13 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             BulkRequest request = new BulkRequest();
             request.add(new IndexRequest("posts").id("1")
                     .source(XContentType.JSON, "title", "In which order are my OpenSearch queries executed?", "user",
-                            Arrays.asList("foobar", "luca"), "innerObject", Collections.singletonMap("key", "value")));
+                            Arrays.asList("foobar", "quxx"), "innerObject", Collections.singletonMap("key", "value")));
             request.add(new IndexRequest("posts").id("2")
                     .source(XContentType.JSON, "title", "Current status and upcoming changes in OpenSearch", "user",
-                            Arrays.asList("foobar", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
+                            Arrays.asList("foobar", "grault"), "innerObject", Collections.singletonMap("key", "value")));
             request.add(new IndexRequest("posts").id("3")
                     .source(XContentType.JSON, "title", "The Future of Federated Search in OpenSearch", "user",
-                            Arrays.asList("foobar", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+                            Arrays.asList("foobar", "quuz"), "innerObject", Collections.singletonMap("key", "value")));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -984,7 +984,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
 
         // tag::explain-request
         ExplainRequest request = new ExplainRequest("contributors", "1");
-        request.query(QueryBuilders.termQuery("user", "tanguy"));
+        request.query(QueryBuilders.termQuery("user", "quuz"));
         // end::explain-request
 
         // tag::explain-request-routing
@@ -1028,8 +1028,8 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         Map<String, Object> source = getResult.getSource(); // <1>
         Map<String, DocumentField> fields = getResult.getFields(); // <2>
         // end::get-result
-        assertThat(source, equalTo(Collections.singletonMap("user", "tanguy")));
-        assertThat(fields.get("user").getValue(), equalTo("tanguy"));
+        assertThat(source, equalTo(Collections.singletonMap("user", "quuz")));
+        assertThat(fields.get("user").getValue(), equalTo("quuz"));
 
         // tag::explain-execute-listener
         ActionListener<ExplainResponse> listener = new ActionListener<ExplainResponse>() {
@@ -1203,7 +1203,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             request.add(firstSearchRequest);                          // <3>
             SearchRequest secondSearchRequest = new SearchRequest();  // <4>
             searchSourceBuilder = new SearchSourceBuilder();
-            searchSourceBuilder.query(QueryBuilders.matchQuery("user", "luca"));
+            searchSourceBuilder.query(QueryBuilders.matchQuery("user", "quxx"));
             secondSearchRequest.source(searchSourceBuilder);
             request.add(secondSearchRequest);
             // end::multi-search-request-basic
@@ -1281,18 +1281,18 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("posts").id("1")
                 .source(XContentType.JSON, "id", 1, "title", "In which order are my OpenSearch queries executed?", "user",
-                        Arrays.asList("foobar", "luca"), "innerObject", Collections.singletonMap("key", "value")));
+                        Arrays.asList("foobar", "quxx"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("posts").id("2")
                 .source(XContentType.JSON, "id", 2, "title", "Current status and upcoming changes in OpenSearch", "user",
-                        Arrays.asList("foobar", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
+                        Arrays.asList("foobar", "grault"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("posts").id("3")
                 .source(XContentType.JSON, "id", 3, "title", "The Future of Federated Search in OpenSearch", "user",
-                        Arrays.asList("foobar", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+                        Arrays.asList("foobar", "quuz"), "innerObject", Collections.singletonMap("key", "value")));
 
         bulkRequest.add(new IndexRequest("authors").id("1")
             .source(XContentType.JSON, "id", 1, "user", "foobar"));
         bulkRequest.add(new IndexRequest("contributors").id("1")
-            .source(XContentType.JSON, "id", 1, "user", "tanguy"));
+            .source(XContentType.JSON, "id", 1, "user", "quuz"));
 
 
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
