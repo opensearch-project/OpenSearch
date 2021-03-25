@@ -145,17 +145,16 @@ public class BwcVersions {
         }
 
         // hack: this is horribly volatile like this entire logic; fix
-        currentVersion = allVersions.first();
-        for (Version v : allVersions) {
-            System.out.println(v);
-        }
-        System.out.println(currentVersion);
+        currentVersion = allVersions.last();
 
         groupByMajor = allVersions.stream()
             // We only care about the last 2 majors when it comes to BWC.
             // It might take us time to remove the older ones from versionLines, so we allow them to exist.
-            .filter(version -> (version.getMajor() == 1 ? 7 : version.getMajor())
-                > (currentVersion.getMajor() == 1 ? 7 : currentVersion.getMajor()) - 2)
+            .filter(
+                version -> (version.getMajor() == 1 ? 7 : version.getMajor()) > (currentVersion.getMajor() == 1
+                    ? 7
+                    : currentVersion.getMajor()) - 2
+            )
             .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
 
         assertCurrentVersionMatchesParsed(currentVersionProperty);
@@ -367,23 +366,36 @@ public class BwcVersions {
     }
 
     public List<Version> getIndexCompatible() {
-        return unmodifiableList(
-            Stream.concat(groupByMajor.get(currentVersion.getMajor() - 1).stream(), groupByMajor.get(currentVersion.getMajor()).stream())
-                .filter(version -> version.equals(currentVersion) == false)
-                .collect(Collectors.toList())
-        );
-
+        int currentMajor = currentVersion.getMajor();
+        int prevMajor = currentMajor == 1 ? 7 : currentMajor - 1;
+        List<Version> result = Stream.concat(groupByMajor.get(prevMajor).stream(), groupByMajor.get(currentMajor).stream())
+            .filter(version -> version.equals(currentVersion) == false)
+            .collect(Collectors.toList());
+        if (currentMajor == 1) {
+            // add 6.x compatible for OpenSearch 1.0.0
+            return unmodifiableList(Stream.concat(groupByMajor.get(prevMajor - 1).stream(), result.stream()).collect(Collectors.toList()));
+        }
+        return unmodifiableList(result);
     }
 
     public List<Version> getWireCompatible() {
         List<Version> wireCompat = new ArrayList<>();
-
-        List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
-        int minor = prevMajors.get(prevMajors.size() - 1).getMinor();
-        for (int i = prevMajors.size() - 1; i > 0 && prevMajors.get(i).getMinor() == minor; i--) {
-            wireCompat.add(prevMajors.get(i));
+        int currentMajor = currentVersion.getMajor();
+        int lastMajor = currentMajor == 1 ? 6 : currentMajor - 1;
+        List<Version> lastMajorList = groupByMajor.get(lastMajor);
+        int minor = lastMajorList.get(lastMajorList.size() - 1).getMinor();
+        for (int i = lastMajorList.size() - 1; i > 0 && lastMajorList.get(i).getMinor() == minor; --i) {
+            wireCompat.add(lastMajorList.get(i));
         }
-        wireCompat.addAll(groupByMajor.get(currentVersion.getMajor()));
+
+        // if current is OpenSearch 1.0.0 add all of the 7.x line:
+        if (currentMajor == 1) {
+            List<Version> previousMajor = groupByMajor.get(7);
+            for (Version v : previousMajor) {
+                wireCompat.add(v);
+            }
+        }
+        wireCompat.addAll(groupByMajor.get(currentMajor));
         wireCompat.remove(currentVersion);
         wireCompat.sort(Version::compareTo);
 
