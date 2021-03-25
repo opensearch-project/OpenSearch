@@ -56,7 +56,7 @@ public class OpenSearchLoggingHandlerIT extends OpenSearchNetty4IntegTestCase {
     }
 
     @TestLogging(
-            value = "org.opensearch.transport.netty4.ESLoggingHandler:trace,org.opensearch.transport.TransportLogger:trace",
+            value = "org.opensearch.transport.netty4.OpenSearchLoggingHandler:trace,org.opensearch.transport.TransportLogger:trace",
             reason = "to ensure we log network events on TRACE level")
     public void testLoggingHandler() {
         final String writePattern =
