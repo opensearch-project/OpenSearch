@@ -137,8 +137,8 @@ public class TestClustersPlugin implements Plugin<Project> {
     private void createListClustersTask(Project project, NamedDomainObjectContainer<OpenSearchCluster> container) {
         // Task is never up to date so we can pass an lambda for the task action
         project.getTasks().register(LIST_TASK_NAME, task -> {
-            task.setGroup("ES cluster formation");
-            task.setDescription("Lists all ES clusters configured for this project");
+            task.setGroup("OpenSearch cluster formation");
+            task.setDescription("Lists all OpenSearch clusters configured for this project");
             task.doLast(
                 (Task t) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
             );

@@ -133,7 +133,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
      class FsHealthMonitor implements Runnable {
 
-        static final String TEMP_FILE_NAME = ".es_temp_file";
+        static final String TEMP_FILE_NAME = ".opensearch_temp_file";
         private byte[] byteToWrite;
 
         FsHealthMonitor(){

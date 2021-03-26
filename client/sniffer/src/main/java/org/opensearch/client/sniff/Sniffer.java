@@ -52,7 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class Sniffer implements Closeable {
 
     private static final Log logger = LogFactory.getLog(Sniffer.class);
-    private static final String SNIFFER_THREAD_NAME = "es_rest_client_sniffer";
+    private static final String SNIFFER_THREAD_NAME = "opensearch_rest_client_sniffer";
 
     private final NodesSniffer nodesSniffer;
     private final RestClient restClient;

@@ -755,7 +755,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testContainsIntermediateDirectory() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        Files.createFile(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
+        Files.createFile(pluginDir.resolve(PluginInfo.OPENSEARCH_PLUGIN_PROPERTIES));
         String pluginZip = writeZip(pluginDir, "opensearch").toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
