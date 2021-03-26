@@ -46,8 +46,8 @@ import java.util.stream.Collectors;
  */
 public class PluginInfo implements Writeable, ToXContentObject {
 
-    public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
-    public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
+    public static final String OPENSEARCH_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
+    public static final String OPENSEARCH_PLUGIN_POLICY = "plugin-security.policy";
 
     private final String name;
     private final String description;
@@ -148,7 +148,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @throws IOException if an I/O exception occurred reading the plugin descriptor
      */
     public static PluginInfo readFromProperties(final Path path) throws IOException {
-        final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
+        final Path descriptor = path.resolve(OPENSEARCH_PLUGIN_PROPERTIES);
 
         final Map<String, String> propsMap;
         {

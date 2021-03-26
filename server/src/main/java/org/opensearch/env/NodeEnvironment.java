@@ -1244,7 +1244,7 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     // package private for testing
-    static final String TEMP_FILE_NAME = ".es_temp_file";
+    static final String TEMP_FILE_NAME = ".opensearch_temp_file";
 
     private static void tryWriteTempFile(Path path) throws IOException {
         if (Files.exists(path)) {
