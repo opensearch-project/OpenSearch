@@ -382,7 +382,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "user", "foobar"));
+            request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "user", "arbfoo"));
             request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "user", "quxx"));
             request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "user", "quzz"));
             request.add(new IndexRequest("posts").id("4").source(XContentType.JSON, "user", "corge"));
@@ -396,7 +396,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             // tag::search-request-suggestion
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             SuggestionBuilder termSuggestionBuilder =
-                SuggestBuilders.termSuggestion("user").text("kmichy"); // <1>
+                SuggestBuilders.termSuggestion("user").text("abrfoo"); // <1>
             SuggestBuilder suggestBuilder = new SuggestBuilder();
             suggestBuilder.addSuggestion("suggest_user", termSuggestionBuilder); // <2>
             searchSourceBuilder.suggest(suggestBuilder);
@@ -415,7 +415,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
                 // end::search-request-suggestion-get
                 assertEquals(1, termSuggestion.getEntries().size());
                 assertEquals(1, termSuggestion.getEntries().get(0).getOptions().size());
-                assertEquals("foobar", termSuggestion.getEntries().get(0).getOptions().get(0).getText().string());
+                assertEquals("arbfoo", termSuggestion.getEntries().get(0).getOptions().get(0).getText().string());
             }
         }
     }
