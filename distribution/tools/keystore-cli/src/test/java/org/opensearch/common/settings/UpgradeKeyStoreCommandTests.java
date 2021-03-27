@@ -48,6 +48,7 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/468")
     public void testKeystoreUpgrade() throws Exception {
         final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
         try (

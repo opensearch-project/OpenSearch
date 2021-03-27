@@ -454,6 +454,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         assertThat(toByteArray(afterSave.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/468")
     public void testLegacyV3() throws GeneralSecurityException, IOException {
         final Path configDir = createTempDir();
         final Path keystore = configDir.resolve("opensearch.keystore");
