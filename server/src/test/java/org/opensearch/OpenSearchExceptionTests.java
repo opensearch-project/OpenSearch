@@ -230,7 +230,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
                     "\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\"," +
                     "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}},{\"shard\":1," +
                     "\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_shard_exception\",\"reason\":\"foobar\"," +
-                    "\"index_uuid\":\"_na_\",\"index\":\"foo1\"}}]}";
+                    "\"index\":\"foo1\",\"index_uuid\":\"_na_\"}}]}";
             assertEquals(expected, Strings.toString(builder));
         }
         {
