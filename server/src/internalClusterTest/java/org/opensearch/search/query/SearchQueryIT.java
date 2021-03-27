@@ -924,7 +924,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test", "type1", "2").setSource("str", "fred", "date", "2012-02-05", "num", 20).get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("str:kimcy~1")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("str:foobaz~1")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("1"));
