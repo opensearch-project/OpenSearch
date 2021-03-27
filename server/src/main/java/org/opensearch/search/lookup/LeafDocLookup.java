@@ -100,7 +100,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         try {
             scriptValues.setNextDocId(docId);
         } catch (IOException e) {
-            throw ExceptionsHelper.convertToElastic(e);
+            throw ExceptionsHelper.convertToOpenSearchException(e);
         }
         return scriptValues;
     }

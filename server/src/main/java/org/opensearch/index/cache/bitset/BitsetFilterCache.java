@@ -194,7 +194,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             try {
                 return getAndLoadIfNotPresent(query, context);
             } catch (ExecutionException e) {
-                throw ExceptionsHelper.convertToElastic(e);
+                throw ExceptionsHelper.convertToOpenSearchException(e);
             }
         }
 

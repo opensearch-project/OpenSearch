@@ -307,11 +307,11 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         {
             BulkRequest request = new BulkRequest();
             request.add(new IndexRequest("posts").id("1")
-                    .source(XContentType.JSON, "company", "Elastic", "age", 20));
+                    .source(XContentType.JSON, "company", "OpenSearch", "age", 20));
             request.add(new IndexRequest("posts").id("2")
-                    .source(XContentType.JSON, "company", "Elastic", "age", 30));
+                    .source(XContentType.JSON, "company", "OpenSearch", "age", 30));
             request.add(new IndexRequest("posts").id("3")
-                    .source(XContentType.JSON, "company", "Elastic", "age", 40));
+                    .source(XContentType.JSON, "company", "OpenSearch", "age", 40));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -334,7 +334,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
                 // tag::search-request-aggregations-get
                 Aggregations aggregations = searchResponse.getAggregations();
                 Terms byCompanyAggregation = aggregations.get("by_company"); // <1>
-                Bucket elasticBucket = byCompanyAggregation.getBucketByKey("Elastic"); // <2>
+                Bucket elasticBucket = byCompanyAggregation.getBucketByKey("OpenSearch"); // <2>
                 Avg averageAge = elasticBucket.getAggregations().get("average_age"); // <3>
                 double avg = averageAge.getValue();
                 // end::search-request-aggregations-get
@@ -368,7 +368,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
                 for (Aggregation agg : aggregations) {
                     String type = agg.getType();
                     if (type.equals(TermsAggregationBuilder.NAME)) {
-                        Bucket elasticBucket = ((Terms) agg).getBucketByKey("Elastic");
+                        Bucket elasticBucket = ((Terms) agg).getBucketByKey("OpenSearch");
                         long numberOfDocs = elasticBucket.getDocCount();
                     }
                 }
@@ -1404,7 +1404,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             .source(XContentType.JSON, "title", "Doubling Down on Open?", "user",
                 Collections.singletonList("foobar"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("blog").id("2")
-            .source(XContentType.JSON, "title", "Swiftype Joins Forces with Elastic", "user",
+            .source(XContentType.JSON, "title", "XYZ Joins Forces with OpenSearch", "user",
                 Arrays.asList("foobar", "matt"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("blog").id("3")
             .source(XContentType.JSON, "title", "On Net Neutrality", "user",

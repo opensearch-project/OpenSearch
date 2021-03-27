@@ -43,7 +43,7 @@ compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
+  replaceSignatureFiles 'jdk-signatures', 'opensearch-all-signatures', 'opensearch-test-signatures'
 }
 
 // TODO: should we have licenses for our test deps?

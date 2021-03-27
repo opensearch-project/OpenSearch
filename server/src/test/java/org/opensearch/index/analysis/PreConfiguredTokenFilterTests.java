@@ -67,7 +67,7 @@ public class PreConfiguredTokenFilterTests extends OpenSearchTestCase {
         assertSame(tff_v1_1, tff_v2);
     }
 
-    public void testCachingWithElasticsearchVersion() throws IOException {
+    public void testCachingWithOpenSearchVersion() throws IOException {
         PreConfiguredTokenFilter pctf =
             PreConfiguredTokenFilter.openSearchVersion("opensearch_version", randomBoolean(),
                 (tokenStream, esVersion) -> new TokenFilter(tokenStream) {

@@ -65,7 +65,7 @@ public class SyncedFlushUtil {
             }
         });
         if (listenerHolder.get().error != null) {
-            throw ExceptionsHelper.convertToElastic(listenerHolder.get().error);
+            throw ExceptionsHelper.convertToOpenSearchException(listenerHolder.get().error);
         }
         return listenerHolder.get().result;
     }
@@ -103,7 +103,7 @@ public class SyncedFlushUtil {
             Thread.currentThread().interrupt();
         }
         if (listener.error != null) {
-            throw ExceptionsHelper.convertToElastic(listener.error);
+            throw ExceptionsHelper.convertToOpenSearchException(listener.error);
         }
         return listener.result;
     }

@@ -320,7 +320,7 @@ public final class ConfigurationUtils {
 
     public static OpenSearchException newConfigurationException(String processorType, String processorTag,
                                                                 String propertyName, Exception cause) {
-        OpenSearchException exception = ExceptionsHelper.convertToElastic(cause);
+        OpenSearchException exception = ExceptionsHelper.convertToOpenSearchException(cause);
         addMetadataToException(exception, processorType, processorTag, propertyName);
         return exception;
     }

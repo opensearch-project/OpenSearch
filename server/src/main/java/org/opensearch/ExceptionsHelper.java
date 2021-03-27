@@ -59,7 +59,7 @@ public final class ExceptionsHelper {
         return new OpenSearchException(e);
     }
 
-    public static OpenSearchException convertToElastic(Exception e) {
+    public static OpenSearchException convertToOpenSearchException(Exception e) {
         if (e instanceof OpenSearchException) {
             return (OpenSearchException) e;
         }

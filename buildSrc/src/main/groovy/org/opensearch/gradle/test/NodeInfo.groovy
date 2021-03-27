@@ -98,7 +98,7 @@ class NodeInfo {
     String executable
 
     /** Path to the opensearch start script */
-    private Object esScript
+    private Object opensearchScript
 
     /** script to run when running in the background */
     private File wrapperScript
@@ -154,11 +154,11 @@ class NodeInfo {
              * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
              * getting the short name requiring the path to already exist.
              */
-            esScript = "${-> binPath().resolve('opensearch.bat').toString()}"
+            opensearchScript = "${-> binPath().resolve('opensearch.bat').toString()}"
         } else {
             executable = 'bash'
             wrapperScript = new File(cwd, "run")
-            esScript = binPath().resolve('opensearch')
+            opensearchScript = binPath().resolve('opensearch')
         }
         if (config.daemonize) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -171,7 +171,7 @@ class NodeInfo {
                 args.add("${wrapperScript}")
             }
         } else {
-            args.add("${esScript}")
+            args.add("${opensearchScript}")
         }
 
 
@@ -270,7 +270,7 @@ class NodeInfo {
             argsPasser = '%*'
             exitMarker = "\r\n if \"%errorlevel%\" neq \"0\" ( type nul >> run.failed )"
         }
-        wrapperScript.setText("\"${esScript}\" ${argsPasser} > run.log 2>&1 ${exitMarker}", 'UTF-8')
+        wrapperScript.setText("\"${opensearchScript}\" ${argsPasser} > run.log 2>&1 ${exitMarker}", 'UTF-8')
     }
 
     /** Returns an address and port suitable for a uri to connect to this node over http */
