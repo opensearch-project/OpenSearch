@@ -630,7 +630,7 @@ public class SnifferTests extends RestClientTestCase {
 
                     }
                 });
-                assertThat(thread.getName(), equalTo("es_rest_client_sniffer[T#" + i + "]"));
+                assertThat(thread.getName(), equalTo("opensearch_rest_client_sniffer[T#" + i + "]"));
                 assertThat(thread.isDaemon(), is(true));
             }
         } finally {

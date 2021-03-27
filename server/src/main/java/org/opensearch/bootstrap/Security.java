@@ -168,7 +168,7 @@ final class Security {
 
         // now process each one
         for (Path plugin : pluginsAndModules) {
-            Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
+            Path policyFile = plugin.resolve(PluginInfo.OPENSEARCH_PLUGIN_POLICY);
             if (Files.exists(policyFile)) {
                 // first get a list of URLs for the plugins' jars:
                 // we resolve symlinks so map is keyed on the normalize codebase name
