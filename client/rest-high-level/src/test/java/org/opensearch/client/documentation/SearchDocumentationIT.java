@@ -396,7 +396,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             // tag::search-request-suggestion
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             SuggestionBuilder termSuggestionBuilder =
-                SuggestBuilders.termSuggestion("user").text("kmichy"); // <1>
+                SuggestBuilders.termSuggestion("user").text("fooarb"); // <1>
             SuggestBuilder suggestBuilder = new SuggestBuilder();
             suggestBuilder.addSuggestion("suggest_user", termSuggestionBuilder); // <2>
             searchSourceBuilder.suggest(suggestBuilder);
