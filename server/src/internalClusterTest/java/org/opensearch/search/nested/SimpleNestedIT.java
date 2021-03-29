@@ -200,7 +200,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1.nested2",
-                termQuery("nested1.nested2.field2", "2"), ScoreMode.Avg)).get();
+            termQuery("nested1.nested2.field2", "2"), ScoreMode.Avg)).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
@@ -552,16 +552,16 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             + "        {\n"
             + "          \"name\": \"read\",\n"
             + "          \"user\": [\n"
-            + "            {\"username\": \"matt\", \"id\": 1},\n"
-            + "            {\"username\": \"fred\", \"id\": 2},\n"
-            + "            {\"username\": \"adrien\", \"id\": 3}\n"
+            + "            {\"username\": \"grault\", \"id\": 1},\n"
+            + "            {\"username\": \"quxx\", \"id\": 2},\n"
+            + "            {\"username\": \"bar\", \"id\": 3}\n"
             + "          ]\n"
             + "        },\n"
             + "        {\n"
             + "          \"name\": \"write\",\n"
             + "          \"user\": [\n"
-            + "            {\"username\": \"fred\", \"id\": 2},\n"
-            + "            {\"username\": \"adrien\", \"id\": 3}\n"
+            + "            {\"username\": \"quxx\", \"id\": 2},\n"
+            + "            {\"username\": \"bar\", \"id\": 3}\n"
             + "          ]\n"
             + "        }\n"
             + "      ]\n"
@@ -572,20 +572,20 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             + "        {\n"
             + "          \"name\": \"read\",\n"
             + "          \"user\": [\n"
-            + "            {\"username\": \"jim\", \"id\": 4},\n"
-            + "            {\"username\": \"fred\", \"id\": 2}\n"
+            + "            {\"username\": \"baz\", \"id\": 4},\n"
+            + "            {\"username\": \"quxx\", \"id\": 2}\n"
             + "          ]\n"
             + "        },\n"
             + "        {\n"
             + "          \"name\": \"write\",\n"
             + "          \"user\": [\n"
-            + "            {\"username\": \"fred\", \"id\": 2}\n"
+            + "            {\"username\": \"quxx\", \"id\": 2}\n"
             + "          ]\n"
             + "        },\n"
             + "        {\n"
             + "          \"name\": \"execute\",\n"
             + "          \"user\": [\n"
-            + "            {\"username\": \"fred\", \"id\": 2}\n"
+            + "            {\"username\": \"quxx\", \"id\": 2}\n"
             + "          ]\n"
             + "        }\n"
             + "      ]\n"
@@ -601,14 +601,14 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             + "        {\n"
             + "          \"name\": \"read\",\n"
             + "          \"user\": [\n"
-            + "            {\"username\": \"matt\", \"id\": 1},\n"
-            + "            {\"username\": \"quxx\", \"id\": 5}\n"
+            + "            {\"username\": \"grault\", \"id\": 1},\n"
+            + "            {\"username\": \"foo\", \"id\": 5}\n"
             + "          ]\n"
             + "        },\n"
             + "        {\n"
             + "          \"name\": \"execute\",\n"
             + "          \"user\": [\n"
-            + "            {\"username\": \"quxx\", \"id\": 5}\n"
+            + "            {\"username\": \"foo\", \"id\": 5}\n"
             + "          ]\n"
             + "        }\n"
             + "      ]\n"
@@ -619,19 +619,19 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             + "        {\n"
             + "          \"name\": \"read\",\n"
             + "          \"user\": [\n"
-            + "            {\"username\": \"matt\", \"id\": 1}\n"
+            + "            {\"username\": \"grault\", \"id\": 1}\n"
             + "          ]\n"
             + "        },\n"
             + "        {\n"
             + "          \"name\": \"write\",\n"
             + "          \"user\": [\n"
-            + "            {\"username\": \"matt\", \"id\": 1}\n"
+            + "            {\"username\": \"grault\", \"id\": 1}\n"
             + "          ]\n"
             + "        },\n"
             + "        {\n"
             + "          \"name\": \"execute\",\n"
             + "          \"user\": [\n"
-            + "            {\"username\": \"matt\", \"id\": 1}\n"
+            + "            {\"username\": \"grault\", \"id\": 1}\n"
             + "          ]\n"
             + "        }\n"
             + "      ]\n"
@@ -640,7 +640,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             + "}", XContentType.JSON).get();
         refresh();
 
-        // access id = 1, read, max value, asc, should use matt and fred
+        // access id = 1, read, max value, asc, should use grault and quxx
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(
@@ -658,12 +658,12 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("matt"));
+        assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("grault"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("fred"));
+        assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("quxx"));
 
 
-        // access id = 1, read, min value, asc, should now use adrien and quxx
+        // access id = 1, read, min value, asc, should now use bar and foo
         searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(
@@ -681,11 +681,11 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("adrien"));
+        assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("bar"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("quxx"));
+        assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("foo"));
 
-        // execute, by matt or quxx, by user id, sort missing first
+        // execute, by grault or foo, by user id, sort missing first
         searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(
@@ -694,7 +694,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                         .setNestedSort(new NestedSortBuilder("acl.operation")
                             .setFilter(QueryBuilders.termQuery("acl.operation.name", "execute"))
                             .setNestedSort(new NestedSortBuilder("acl.operation.user")
-                                .setFilter(QueryBuilders.termsQuery("acl.operation.user.username", "matt", "quxx")))))
+                                .setFilter(QueryBuilders.termsQuery("acl.operation.user.username", "grault", "foo")))))
                     .missing("_first")
                     .sortMode(SortMode.MIN)
                     .order(SortOrder.DESC)
@@ -707,7 +707,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("1"));
 
-        // execute, by matt or luca, by username, sort missing last (default)
+        // execute, by grault or foo, by username, sort missing last (default)
         searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(
@@ -716,7 +716,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                         .setNestedSort(new NestedSortBuilder("acl.operation")
                             .setFilter(QueryBuilders.termQuery("acl.operation.name", "execute"))
                             .setNestedSort(new NestedSortBuilder("acl.operation.user")
-                                .setFilter(QueryBuilders.termsQuery("acl.operation.user.username", "matt", "quxx")))))
+                                .setFilter(QueryBuilders.termsQuery("acl.operation.user.username", "grault", "foo")))))
                     .sortMode(SortMode.MIN)
                     .order(SortOrder.DESC)
             )
@@ -725,7 +725,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("quxx"));
+        assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("foo"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("1")); // missing last
     }
 
