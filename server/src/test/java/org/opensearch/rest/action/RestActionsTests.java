@@ -141,8 +141,8 @@ public class RestActionsTests extends OpenSearchTestCase {
             "        \"reason\" : {\n" +
             "          \"type\" : \"parsing_exception\",\n" +
             "          \"reason\" : \"error\",\n" +
-            "          \"index_uuid\" : \"_na_\",\n" +
             "          \"index\" : \"index\",\n" +
+            "          \"index_uuid\" : \"_na_\",\n" +
             "          \"line\" : 0,\n" +
             "          \"col\" : 0,\n" +
             "          \"caused_by\" : {\n" +
@@ -158,8 +158,8 @@ public class RestActionsTests extends OpenSearchTestCase {
             "        \"reason\" : {\n" +
             "          \"type\" : \"parsing_exception\",\n" +
             "          \"reason\" : \"error\",\n" +
-            "          \"index_uuid\" : \"_na_\",\n" +
             "          \"index\" : \"index\",\n" +
+            "          \"index_uuid\" : \"_na_\",\n" +
             "          \"line\" : 0,\n" +
             "          \"col\" : 0,\n" +
             "          \"caused_by\" : {\n" +
@@ -175,8 +175,8 @@ public class RestActionsTests extends OpenSearchTestCase {
             "        \"reason\" : {\n" +
             "          \"type\" : \"parsing_exception\",\n" +
             "          \"reason\" : \"error\",\n" +
-            "          \"index_uuid\" : \"_na_\",\n" +
             "          \"index\" : \"index\",\n" +
+            "          \"index_uuid\" : \"_na_\",\n" +
             "          \"line\" : 0,\n" +
             "          \"col\" : 0,\n" +
             "          \"caused_by\" : {\n" +
