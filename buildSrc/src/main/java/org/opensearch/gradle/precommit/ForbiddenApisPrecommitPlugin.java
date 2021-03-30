@@ -49,10 +49,10 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
         resourcesTask.configure(t -> {
             t.setOutputDir(resourcesDir.toFile());
             t.copy("forbidden/jdk-signatures.txt");
-            t.copy("forbidden/es-all-signatures.txt");
-            t.copy("forbidden/es-test-signatures.txt");
+            t.copy("forbidden/opensearch-all-signatures.txt");
+            t.copy("forbidden/opensearch-test-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
-            t.copy("forbidden/es-server-signatures.txt");
+            t.copy("forbidden/opensearch-server-signatures.txt");
         });
         project.getTasks().withType(CheckForbiddenApis.class).configureEach(t -> {
             t.dependsOn(resourcesTask);
@@ -79,7 +79,10 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             }
             t.setBundledSignatures(Set.of("jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"));
             t.setSignaturesFiles(
-                project.files(resourcesDir.resolve("forbidden/jdk-signatures.txt"), resourcesDir.resolve("forbidden/es-all-signatures.txt"))
+                project.files(
+                    resourcesDir.resolve("forbidden/jdk-signatures.txt"),
+                    resourcesDir.resolve("forbidden/opensearch-all-signatures.txt")
+                )
             );
             t.setSuppressAnnotations(Set.of("**.SuppressForbidden"));
             if (t.getName().endsWith("Test")) {
@@ -87,14 +90,14 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                     t.getSignaturesFiles()
                         .plus(
                             project.files(
-                                resourcesDir.resolve("forbidden/es-test-signatures.txt"),
+                                resourcesDir.resolve("forbidden/opensearch-test-signatures.txt"),
                                 resourcesDir.resolve("forbidden/http-signatures.txt")
                             )
                         )
                 );
             } else {
                 t.setSignaturesFiles(
-                    t.getSignaturesFiles().plus(project.files(resourcesDir.resolve("forbidden/es-server-signatures.txt")))
+                    t.getSignaturesFiles().plus(project.files(resourcesDir.resolve("forbidden/opensearch-server-signatures.txt")))
                 );
             }
             ExtraPropertiesExtension ext = t.getExtensions().getExtraProperties();

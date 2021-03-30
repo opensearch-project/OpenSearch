@@ -177,7 +177,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 BytesRef joinName = docValues.lookupOrd(ord);
                 return joinName.utf8ToString();
             } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
+                throw ExceptionsHelper.convertToOpenSearchException(e);
             }
         }
 

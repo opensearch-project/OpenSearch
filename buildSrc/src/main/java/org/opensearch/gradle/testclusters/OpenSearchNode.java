@@ -150,15 +150,15 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Path confPathLogs;
     private final Path transportPortFile;
     private final Path httpPortsFile;
-    private final Path esStdoutFile;
-    private final Path esStderrFile;
-    private final Path esStdinFile;
+    private final Path opensearchStdoutFile;
+    private final Path opensearchStderrFile;
+    private final Path opensearchStdinFile;
     private final Path tmpDir;
 
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private List<OpenSearchDistribution> distributions = new ArrayList<>();
-    private volatile Process esProcess;
+    private volatile Process opensearchProcess;
     private Function<String, String> nameCustomization = Function.identity();
     private boolean isWorkingDirConfigured = false;
     private String httpPort = "0";
@@ -191,9 +191,9 @@ public class OpenSearchNode implements TestClusterConfiguration {
         confPathLogs = workingDir.resolve("logs");
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
-        esStdoutFile = confPathLogs.resolve("opensearch.stdout.log");
-        esStderrFile = confPathLogs.resolve("opensearch.stderr.log");
-        esStdinFile = workingDir.resolve("opensearch.stdin");
+        opensearchStdoutFile = confPathLogs.resolve("opensearch.stdout.log");
+        opensearchStderrFile = confPathLogs.resolve("opensearch.stderr.log");
+        opensearchStdinFile = workingDir.resolve("opensearch.stdin");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
 
@@ -438,7 +438,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
      * @return stream of log lines
      */
     public Stream<String> logLines() throws IOException {
-        return Files.lines(esStdoutFile, StandardCharsets.UTF_8);
+        return Files.lines(opensearchStdoutFile, StandardCharsets.UTF_8);
     }
 
     @Override
@@ -540,11 +540,11 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     private void logToProcessStdout(String message) {
         try {
-            if (Files.exists(esStdoutFile.getParent()) == false) {
-                Files.createDirectories(esStdoutFile.getParent());
+            if (Files.exists(opensearchStdoutFile.getParent()) == false) {
+                Files.createDirectories(opensearchStdoutFile.getParent());
             }
             Files.write(
-                esStdoutFile,
+                opensearchStdoutFile,
                 ("[" + Instant.now().toString() + "] [BUILD] " + message + "\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
@@ -784,24 +784,24 @@ public class OpenSearchNode implements TestClusterConfiguration {
         environment.putAll(getESEnvironment());
 
         // don't buffer all in memory, make sure we don't block on the default pipes
-        processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
-        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
+        processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(opensearchStderrFile.toFile()));
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(opensearchStdoutFile.toFile()));
 
         if (keystorePassword != null && keystorePassword.length() > 0) {
             try {
-                Files.write(esStdinFile, (keystorePassword + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
-                processBuilder.redirectInput(esStdinFile.toFile());
+                Files.write(opensearchStdinFile, (keystorePassword + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
+                processBuilder.redirectInput(opensearchStdinFile.toFile());
             } catch (IOException e) {
                 throw new TestClustersException("Failed to set the keystore password for " + this, e);
             }
         }
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
-            esProcess = processBuilder.start();
+            opensearchProcess = processBuilder.start();
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }
-        reaper.registerPid(toString(), esProcess.pid());
+        reaper.registerPid(toString(), opensearchProcess.pid());
     }
 
     @Internal
@@ -860,21 +860,21 @@ public class OpenSearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        if (esProcess == null && tailLogs) {
+        if (opensearchProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.
             return;
         }
         LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
-        requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
+        requireNonNull(opensearchProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
-        stopHandle(esProcess.toHandle(), true);
+        stopHandle(opensearchProcess.toHandle(), true);
         reaper.unregister(toString());
         if (tailLogs) {
-            logFileContents("Standard output of node", esStdoutFile);
-            logFileContents("Standard error of node", esStderrFile);
+            logFileContents("Standard output of node", opensearchStdoutFile);
+            logFileContents("Standard error of node", opensearchStderrFile);
         }
-        esProcess = null;
+        opensearchProcess = null;
         // Clean up the ports file in case this is started again.
         try {
             if (Files.exists(httpPortsFile)) {
@@ -1348,8 +1348,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
     @Override
     @Internal
     public boolean isProcessAlive() {
-        requireNonNull(esProcess, "Can't wait for `" + this + "` as it's not started. Does the task have `useCluster` ?");
-        return esProcess.isAlive();
+        requireNonNull(opensearchProcess, "Can't wait for `" + this + "` as it's not started. Does the task have `useCluster` ?");
+        return opensearchProcess.isAlive();
     }
 
     void waitForAllConditions() {
@@ -1414,13 +1414,13 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     @Internal
-    Path getEsStdoutFile() {
-        return esStdoutFile;
+    Path getOpensearchStdoutFile() {
+        return opensearchStdoutFile;
     }
 
     @Internal
-    Path getEsStderrFile() {
-        return esStderrFile;
+    Path getOpensearchStderrFile() {
+        return opensearchStderrFile;
     }
 
     private static class FileEntry implements Named {

@@ -150,7 +150,7 @@ public class RunTask extends DefaultTestClustersTask {
         try {
             for (OpenSearchCluster cluster : getClusters()) {
                 for (OpenSearchNode node : cluster.getNodes()) {
-                    BufferedReader reader = Files.newBufferedReader(node.getEsStdoutFile());
+                    BufferedReader reader = Files.newBufferedReader(node.getOpensearchStdoutFile());
                     toRead.add(reader);
                     aliveChecks.add(node::isProcessAlive);
                 }

@@ -282,7 +282,7 @@ public class MetadataUpdateSettingsService {
                         indicesService.verifyIndexMetadata(updatedMetadata, updatedMetadata);
                     }
                 } catch (IOException ex) {
-                    throw ExceptionsHelper.convertToElastic(ex);
+                    throw ExceptionsHelper.convertToOpenSearchException(ex);
                 }
                 return updatedState;
             }

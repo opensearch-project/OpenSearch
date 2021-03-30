@@ -298,7 +298,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                     try {
                         return new DocumentSubsetReader(reader, bitsetFilterCache, roleQuery);
                     } catch (Exception e) {
-                        throw ExceptionsHelper.convertToElastic(e);
+                        throw ExceptionsHelper.convertToOpenSearchException(e);
                     }
                 }
             });

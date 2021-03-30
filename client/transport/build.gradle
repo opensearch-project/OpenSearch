@@ -37,7 +37,7 @@ dependencies {
 forbiddenApisTest {
   // we don't use the core test-framework, no lucene classes present so we don't want the es-test-signatures to
   // be pulled in
-  replaceSignatureFiles 'jdk-signatures', 'es-all-signatures'
+  replaceSignatureFiles 'jdk-signatures', 'opensearch-all-signatures'
 }
 
 testingConventions {
