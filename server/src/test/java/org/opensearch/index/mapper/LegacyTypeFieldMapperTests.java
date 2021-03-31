@@ -46,7 +46,8 @@ public class LegacyTypeFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     public void testDocValuesMultipleTypes() throws Exception {
         TypeFieldMapperTests.testDocValues(index -> {
-            final Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), LegacyESVersion.V_6_0_0).build();
+            final Settings settings =
+                Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), LegacyESVersion.V_6_0_0).build();
             return this.createIndex(index, settings);
         });
         assertWarnings("[types removal] Using the _type field in queries and aggregations is deprecated, prefer to use a field instead.");

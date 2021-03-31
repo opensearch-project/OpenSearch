@@ -296,7 +296,8 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
 
         Settings settings2 = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
+                VersionUtils.randomVersionBetween(
+                    random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
             .put("path.home", createTempDir().toString())
             .putList("common_words", "a", "b")
             .put("output_unigrams", "true")
@@ -349,7 +350,8 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
 
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
+                VersionUtils.randomVersionBetween(
+                    random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
             .put("path.home", createTempDir().toString())
             .putList("common_words", "a", "b")
             .put("output_unigrams", "true")
@@ -371,7 +373,8 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
 
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
+                VersionUtils.randomVersionBetween(
+                    random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
             .put("path.home", createTempDir().toString())
             .put("preserve_original", "false")
             .build();

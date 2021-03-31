@@ -88,7 +88,8 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testAllowPartialResultsSerializationPre7_0_0() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0));
+        Version version = VersionUtils.randomVersionBetween(
+            random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0));
         ShardSearchRequest shardSearchTransportRequest = createShardSearchRequest();
         ShardSearchRequest deserializedRequest =
             copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchRequest::new, version);

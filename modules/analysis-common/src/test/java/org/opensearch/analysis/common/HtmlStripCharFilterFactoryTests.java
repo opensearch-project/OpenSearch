@@ -55,7 +55,8 @@ public class HtmlStripCharFilterFactoryTests extends OpenSearchTestCase {
      */
     public void testDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_3_0, Version.CURRENT))
+                .put(IndexMetadata.SETTING_VERSION_CREATED,
+                    VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_3_0, Version.CURRENT))
                 .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

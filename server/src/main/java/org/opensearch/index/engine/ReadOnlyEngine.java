@@ -160,7 +160,8 @@ public class ReadOnlyEngine extends Engine {
         // that guarantee that all operations have been flushed to Lucene.
         final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
         if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0) ||
-            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersionCreated.onOrAfter(LegacyESVersion.V_6_7_0))) {
+            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                && indexVersionCreated.onOrAfter(LegacyESVersion.V_6_7_0))) {
             assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
             if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
                 throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()

@@ -100,7 +100,8 @@ public class IndicesModuleTests extends OpenSearchTestCase {
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
-            Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion());
+            Version version = VersionUtils.randomVersionBetween(
+                random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion());
             assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
@@ -129,7 +130,8 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         IndicesModule noPluginsModule = new IndicesModule(Collections.emptyList());
         IndicesModule module = new IndicesModule(fakePlugins);
         MapperRegistry registry = module.getMapperRegistry();
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion());
+        Version version = VersionUtils.randomVersionBetween(
+            random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion());
         assertThat(registry.getMapperParsers().size(), greaterThan(noPluginsModule.getMapperRegistry().getMapperParsers().size()));
         assertThat(registry.getMetadataMapperParsers(version).size(),
                 greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers(version).size()));

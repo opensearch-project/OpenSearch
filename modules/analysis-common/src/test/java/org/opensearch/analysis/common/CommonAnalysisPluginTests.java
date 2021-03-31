@@ -58,7 +58,8 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
     public void testNGramDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                        VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
+                        VersionUtils.randomVersionBetween(
+                            random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "nGram")
@@ -97,7 +98,8 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
     public void testEdgeNGramDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_4_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
+                VersionUtils.randomVersionBetween(
+                    random(), LegacyESVersion.V_6_4_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "edgeNGram")

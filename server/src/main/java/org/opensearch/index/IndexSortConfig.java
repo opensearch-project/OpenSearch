@@ -37,7 +37,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -140,7 +139,7 @@ public final class IndexSortConfig {
         if (sortSpecs.length > 0 && indexSettings.getIndexVersionCreated().before(LegacyESVersion.V_6_0_0_alpha1)) {
             /**
              * This index might be assigned to a node where the index sorting feature is not available
-             * (ie. versions prior to {@link Version.V_6_0_0_alpha1_UNRELEASED}) so we must fail here rather than later.
+             * (ie. versions prior to {@link LegacyESVersion.V_6_0_0_alpha1_UNRELEASED}) so we must fail here rather than later.
              */
             throw new IllegalArgumentException("unsupported index.version.created:" + indexSettings.getIndexVersionCreated() +
                 ", can't set index.sort on versions prior to " + LegacyESVersion.V_6_0_0_alpha1);

@@ -178,7 +178,8 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         {
             final CloseIndexResponse response = randomResponse();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0)));
+                out.setVersion(randomVersionBetween(
+                    random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0)));
                 response.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
@@ -194,7 +195,8 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                 response.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0)));
+                    in.setVersion(randomVersionBetween(
+                        random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0)));
                     final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
                     assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
                 }
