@@ -221,9 +221,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     /**
      * Whether there should be a peer recovery retention lease (PRRL) for every tracked shard copy. Always true on indices created from
-     * {@link LegacyESVersion#V_7_4_0} onwards, because these versions create PRRLs properly. May be false on indices created in an earlier version
-     * if we recently did a rolling upgrade and {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)} has not
-     * yet completed. Is only permitted to change from false to true; can be removed once support for pre-PRRL indices is no longer needed.
+     * {@link LegacyESVersion#V_7_4_0} onwards, because these versions create PRRLs properly. May be false on indices created in an
+     * earlier version if we recently did a rolling upgrade and
+     * {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)} has not yet completed. Is only permitted
+     * to change from false to true; can be removed once support for pre-PRRL indices is no longer needed.
      */
     private boolean hasAllPeerRecoveryRetentionLeases;
 
@@ -1060,8 +1061,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Creates a peer recovery retention lease for this shard, if one does not already exist and this shard is the sole shard copy in the
      * replication group. If one does not already exist and yet there are other shard copies in this group then we must have just done
-     * a rolling upgrade from a version before {@link LegacyESVersion#V_7_4_0}, in which case the missing leases should be created asynchronously
-     * by the caller using {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)}.
+     * a rolling upgrade from a version before {@link LegacyESVersion#V_7_4_0}, in which case the missing leases should be created
+     * asynchronously by the caller using {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)}.
      */
     private void addPeerRecoveryRetentionLeaseForSolePrimary() {
         assert primaryMode;

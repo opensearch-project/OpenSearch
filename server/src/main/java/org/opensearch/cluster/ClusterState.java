@@ -309,7 +309,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      * upgrades from 6.x to 7.x. Once all the 6.x master-eligible nodes have left the cluster, the 7.x nodes use this value to determine how
      * many master-eligible nodes must be discovered before the cluster can be bootstrapped. Note that this method returns the node-level
      * value of this setting, and ignores any cluster-level override that was set via the API. Callers are expected to combine this value
-     * with any value set in the cluster-level settings. This should be removed once we no longer need support for {@link LegacyESVersion#V_6_7_0}.
+     * with any value set in the cluster-level settings. This should be removed once we no longer need support for
+     * {@link LegacyESVersion#V_6_7_0}.
      */
     public int getMinimumMasterNodesOnPublishingMaster() {
         return minimumMasterNodesOnPublishingMaster;

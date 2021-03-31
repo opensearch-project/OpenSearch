@@ -597,7 +597,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testIgnoreTranslogRetentionSettingsIfSoftDeletesEnabled() {
         Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_4_0, Version.CURRENT));
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_4_0, Version.CURRENT));
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         }

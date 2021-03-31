@@ -120,7 +120,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testReadFromPre6_7_0() throws IOException {
         String msg = "AAEBBWluZGV4AAAAAQACAAAA/////w8AAAAAAAAA/////w8AAAAAAAACAAAAAAABAAMCBAUBAAKABACAAQIAAA==";
         try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(msg))) {
-            in.setVersion(VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_4_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_6_7_0)));
+            in.setVersion(VersionUtils.randomVersionBetween(
+                random(), LegacyESVersion.V_6_4_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_6_7_0)));
             SearchRequest searchRequest = new SearchRequest(in);
             assertArrayEquals(new String[]{"index"}, searchRequest.indices());
             assertNull(searchRequest.getLocalClusterAlias());

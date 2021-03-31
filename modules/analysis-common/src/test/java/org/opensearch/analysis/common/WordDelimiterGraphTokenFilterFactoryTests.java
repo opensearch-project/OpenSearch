@@ -172,7 +172,8 @@ public class WordDelimiterGraphTokenFilterFactoryTests
                 .build();
             Settings indexSettings = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED,
-                    VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_3_0)))
+                    VersionUtils.randomVersionBetween(
+                        random(), LegacyESVersion.V_7_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_3_0)))
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
                 .build();

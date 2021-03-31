@@ -269,7 +269,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
                 writeIndex = in.readOptionalBoolean();
             }
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) { //TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
+            //TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
                 isHidden = in.readOptionalBoolean();
             }
             if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
@@ -294,7 +295,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
                 out.writeOptionalBoolean(writeIndex);
             }
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) { //TODO fix for backport https://github.com/elastic/elasticsearch/pull/52547
+            //TODO fix for backport https://github.com/elastic/elasticsearch/pull/52547
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
                 out.writeOptionalBoolean(isHidden);
             }
             if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
