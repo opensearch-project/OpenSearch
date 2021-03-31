@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.Setting;
@@ -55,11 +60,13 @@ public final class ResizableExecutorBuilder extends ExecutorBuilder<ResizableExe
     ThreadPool.ExecutorHolder build(final ResizableExecutorSettings settings, final ThreadContext threadContext) {
         int size = settings.size;
         int queueSize = settings.queueSize;
-        final ThreadFactory threadFactory = OpenSearchExecutors.daemonThreadFactory(OpenSearchExecutors.threadName(settings.nodeName, name()));
+        final ThreadFactory threadFactory =
+            OpenSearchExecutors.daemonThreadFactory(OpenSearchExecutors.threadName(settings.nodeName, name()));
         final ExecutorService executor =
             OpenSearchExecutors.newResizable(settings.nodeName + "/" + name(), size, queueSize, threadFactory, threadContext);
         final ThreadPool.Info info =
-            new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.RESIZABLE, size, size, null, queueSize < 0 ? null : new SizeValue(queueSize));
+            new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.RESIZABLE, size,
+                size, null, queueSize < 0 ? null : new SizeValue(queueSize));
         return new ThreadPool.ExecutorHolder(executor, info);
     }
 

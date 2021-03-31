@@ -77,7 +77,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.bkd.BKDConfig;
 import org.apache.lucene.util.bkd.BKDReader;
 import org.apache.lucene.util.bkd.BKDWriter;
-import org.junit.Ignore;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -297,10 +296,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    //TODO: The executor of our new SiFi resizable search queue is EsThreadPoolExecutor which
-    // unfortunately does not keep track of queueSize/EWMA execution time. We should ideally backport
+    //TODO: The executor of our new SiFi resizable search queue is OpenSearchThreadPoolExecutor which
+    // unfortunately does not keep track of queueSize/EWMA execution time. We should ideally Add EWMA enabled threadpool
+    // executor and reenable the below unit test
     // EWMATrackingEsThreadPoolExecutor from ES 8.0 and re-enable the below unit test.
-    @Ignore
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/477")
     public void testQueryCapturesThreadPoolStats() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig();
