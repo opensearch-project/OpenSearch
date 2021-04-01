@@ -57,13 +57,13 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testInsecureMavenRepository() throws IOException {
-        final String name = "elastic-maven";
-        final String url = "http://s3.amazonaws.com/artifacts.elastic.co/maven";
+        final String name = "opensearch-maven";
+        final String url = "http://s3.amazonaws.com/artifacts.opensearch.org/maven";
         // add an insecure maven repository to the build.gradle
         final List<String> lines = Arrays.asList(
             "repositories {",
             "  maven {",
-            "    name \"elastic-maven\"",
+            "    name \"opensearch-maven\"",
             "    url \"" + url + "\"\n",
             "  }",
             "}"
@@ -72,13 +72,13 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testInsecureIvyRepository() throws IOException {
-        final String name = "elastic-ivy";
-        final String url = "http://s3.amazonaws.com/artifacts.elastic.co/ivy";
+        final String name = "opensearch-ivy";
+        final String url = "http://s3.amazonaws.com/artifacts.opensearch.org/ivy";
         // add an insecure ivy repository to the build.gradle
         final List<String> lines = Arrays.asList(
             "repositories {",
             "  ivy {",
-            "    name \"elastic-ivy\"",
+            "    name \"opensearch-ivy\"",
             "    url \"" + url + "\"\n",
             "  }",
             "}"

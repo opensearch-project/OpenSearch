@@ -20,9 +20,9 @@
       "attributes": { },
       "http": {
         "bound_address": [
-            "elastic.test:9200"
+            "opensearch.test:9200"
         ],
-        "publish_address": "elastic.test/127.0.0.1:9200",
+        "publish_address": "opensearch.test/127.0.0.1:9200",
         "max_content_length_in_bytes": 104857600
       }
     }

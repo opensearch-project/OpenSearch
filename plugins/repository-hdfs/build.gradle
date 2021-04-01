@@ -72,7 +72,7 @@ dependencies {
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
   if (isEclipse == false) {
-    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent)
+    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.opensearch.org.keytab").parent)
   }
 }
 
@@ -139,9 +139,9 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 
     // If it's a secure fixture, then set the principal name and keytab locations to use for auth.
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
-      miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
+      miniHDFSArgs.add("hdfs/hdfs.build.opensearch.org@${realm}")
       miniHDFSArgs.add(
-        project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
+        project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.opensearch.org.keytab")
       )
     }
 
@@ -201,12 +201,12 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
 
       if (integTestTaskName.contains("Secure")) {
         if (disabledIntegTestTaskNames.contains(integTestTaskName) == false) {
-          nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
-          nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
+          nonInputProperties.systemProperty "test.krb5.principal.es", "opensearch@${realm}"
+          nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.opensearch.org@${realm}"
           jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
           nonInputProperties.systemProperty(
             "test.krb5.keytab.hdfs",
-            project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
+            project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.opensearch.org.keytab")
           )
         }
       }

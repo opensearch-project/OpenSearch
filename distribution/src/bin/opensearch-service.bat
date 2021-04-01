@@ -200,7 +200,7 @@ if "%OPENSEARCH_START_TYPE%" == "" set OPENSEARCH_START_TYPE=manual
 if "%OPENSEARCH_STOP_TIMEOUT%" == "" set OPENSEARCH_STOP_TIMEOUT=0
 
 if "%SERVICE_DISPLAY_NAME%" == "" set SERVICE_DISPLAY_NAME=OpenSearch %OPENSEARCH_VERSION% (%SERVICE_ID%)
-if "%SERVICE_DESCRIPTION%" == "" set SERVICE_DESCRIPTION=OpenSearch %OPENSEARCH_VERSION% Windows Service - https://elastic.co
+if "%SERVICE_DESCRIPTION%" == "" set SERVICE_DESCRIPTION=OpenSearch %OPENSEARCH_VERSION% Windows Service - https://opensearch.org
 
 if not "%SERVICE_USERNAME%" == "" (
 	if not "%SERVICE_PASSWORD%" == "" (

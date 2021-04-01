@@ -474,7 +474,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  *  <dd>The default directory from which to load configuration. This is used in
  *    the packaging scripts, but in that context it is always
  *    /etc/opensearch. Its also used in bin/opensearch-plugin, where it is
- *    /etc/opensearch for the os packages but $OPENSEARCHHOME/config otherwise.</dd>
+ *    /etc/opensearch for the os packages but $OPENSEARCH_HOME/config otherwise.</dd>
  *  <dt>path.env</dt>
  *  <dd>The env file sourced before bin/opensearch to set environment
  *    variables. Think /etc/defaults/opensearch.</dd>

@@ -91,7 +91,7 @@ cat << EOF > /etc/krb5kdc/kadm5.acl
 EOF
 
 # Create admin principal
-kadmin.local -q "addprinc -pw elastic admin/admin@$REALM_NAME"
+kadmin.local -q "addprinc -pw opensearch admin/admin@$REALM_NAME"
 kadmin.local -q "ktadd -k /etc/admin.keytab admin/admin@$REALM_NAME"
 
 # Create a link so addprinc.sh is on path

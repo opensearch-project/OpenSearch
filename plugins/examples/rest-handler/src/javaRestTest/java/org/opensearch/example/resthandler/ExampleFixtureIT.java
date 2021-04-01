@@ -49,7 +49,7 @@ public class ExampleFixtureIT extends OpenSearchTestCase {
             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
         ) {
             writer.write("GET / HTTP/1.1\r\n");
-            writer.write("Host: elastic.co\r\n\r\n");
+            writer.write("Host: opensearch.org\r\n\r\n");
             writer.flush();
 
             final List<String> lines = new ArrayList<>();
