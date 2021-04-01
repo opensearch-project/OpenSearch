@@ -53,15 +53,11 @@ war {
   archiveFileName = 'example-app.war'
 }
 
-/**
- * TODO OpenSearch - this task is currently broken and temporarily commented out to
- * unblock the pre-commit.
- * Issue URL - https://github.com/opensearch-project/OpenSearch/issues/400
 opensearch_distributions {
   docker {
     type = 'docker'
     architecture = Architecture.current()
-    version = VersionProperties.getElasticsearch()
+    version = VersionProperties.getOpenSearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
 }
@@ -69,9 +65,9 @@ opensearch_distributions {
 preProcessFixture {
   dependsOn war, opensearch_distributions.docker
 }
-*/
+
 dockerCompose {
-  useComposeFiles = ['docker-compose-oss.yml']
+  useComposeFiles = ['docker-compose.yml']
 }
 
 tasks.register("integTest", Test) {

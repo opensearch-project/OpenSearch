@@ -2,7 +2,7 @@
 version: '3'
 services:
   opensearch-oss-1:
-    image: opensearch:test
+    image: opensearch-oss:test
     environment:
        - node.name=opensearch-oss-1
        - cluster.initial_master_nodes=opensearch-oss-1,opensearch-oss-2
@@ -26,7 +26,7 @@ services:
         soft: -1
         hard: -1
   opensearch-oss-2:
-    image: opensearch:test
+    image: opensearch-oss:test
     environment:
        - node.name=opensearch-oss-2
        - cluster.initial_master_nodes=opensearch-oss-1,opensearch-oss-2

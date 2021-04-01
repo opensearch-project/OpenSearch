@@ -144,7 +144,10 @@ opensearch_distributions {
 
 tasks.named("preProcessFixture").configure {
   dependsOn opensearch_distributions.docker
-  doLast {
+}
+
+tasks.named("composeUp").configure {
+  doFirst {
     // tests expect to have an empty repo
     project.delete(
       "${buildDir}/oss-repo"
@@ -182,8 +185,7 @@ void addBuildDockerImage(Architecture architecture, DockerBase base) {
 
     String version = VersionProperties.getOpenSearch()
       tags = [
-        //TODO remove the tag and replace with OpenSearch docker tag
-        "docker.elastic.co/elasticsearch/elasticsearch-oss:${version}",
+        "docker.opensearch.org/opensearch/opensearch:${version}",
         "opensearch-oss:test"
       ]
   }
