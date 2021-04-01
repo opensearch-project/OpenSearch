@@ -37,6 +37,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.ShardIndexingPressure;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.shard.IndexShard;
@@ -64,6 +65,7 @@ public abstract class TransportWriteAction<
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
     protected final IndexingPressure indexingPressure;
+    private final ShardIndexingPressure shardIndexingPressure;
     protected final SystemIndices systemIndices;
 
     private final Function<IndexShard, String> executorFunction;
@@ -79,6 +81,7 @@ public abstract class TransportWriteAction<
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executorFunction = executorFunction;
         this.indexingPressure = indexingPressure;
+        this.shardIndexingPressure = indexingPressure.getShardIndexingPressure();
         this.systemIndices = systemIndices;
     }
 
@@ -88,7 +91,20 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+        if (indexingPressure.isShardIndexingPressureEnabled() == false) {
+            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+        } else {
+            return () -> {};
+        }
+    }
+
+    @Override
+    protected Releasable checkShardOperationLimits(Request request) {
+        if (shardIndexingPressure.isShardIndexingPressureEnabled()) {
+            return shardIndexingPressure.markPrimaryOperationStarted(request.shardId, primaryOperationSize(request), force(request));
+        } else {
+            return () -> {};
+        }
     }
 
     protected boolean force(ReplicatedWriteRequest<?> request) {
@@ -102,19 +118,45 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
-        if (rerouteWasLocal) {
-            // If this primary request was received from a local reroute initiated by the node client, we
-            // must mark a new primary operation local to the coordinating node.
-            if (localRerouteInitiatedByNodeClient) {
-                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationSize(request));
+        if (indexingPressure.isShardIndexingPressureEnabled() == false) {
+            if (rerouteWasLocal) {
+                // If this primary request was received from a local reroute initiated by the node client, we
+                // must mark a new primary operation local to the coordinating node.
+                if (localRerouteInitiatedByNodeClient) {
+                    return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationSize(request));
+                } else {
+                    return () -> {};
+                }
             } else {
-                return () -> {};
+                // If this primary request was received directly from the network, we must mark a new primary
+                // operation. This happens if the write action skips the reroute step (ex: rsync) or during
+                // primary delegation, after the primary relocation hand-off.
+                return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
             }
         } else {
-            // If this primary request was received directly from the network, we must mark a new primary
-            // operation. This happens if the write action skips the reroute step (ex: rsync) or during
-            // primary delegation, after the primary relocation hand-off.
-            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+            return () -> {};
+        }
+    }
+
+    @Override
+    protected Releasable checkShardPrimaryLimits(Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
+        if (shardIndexingPressure.isShardIndexingPressureEnabled()) {
+            if (rerouteWasLocal) {
+                // If this primary request was received from a local reroute initiated by the node client, we
+                // must mark a new primary operation local to the coordinating node.
+                if (localRerouteInitiatedByNodeClient) {
+                    return shardIndexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(request.shardId, primaryOperationSize(request));
+                } else {
+                    return () -> {};
+                }
+            } else {
+                // If this primary request was received directly from the network, we must mark a new primary
+                // operation. This happens if the write action skips the reroute step (ex: rsync) or during
+                // primary delegation, after the primary relocation hand-off.
+                return shardIndexingPressure.markPrimaryOperationStarted(request.shardId, primaryOperationSize(request), force(request));
+            }
+        } else {
+            return () -> {};
         }
     }
 
@@ -124,7 +166,20 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), force(request));
+        if (indexingPressure.isShardIndexingPressureEnabled() == false) {
+            return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), force(request));
+        } else {
+            return () -> {};
+        }
+    }
+
+    @Override
+    protected Releasable checkShardReplicaLimits(ReplicaRequest request) {
+        if (shardIndexingPressure.isShardIndexingPressureEnabled()) {
+            return shardIndexingPressure.markReplicaOperationStarted(request.shardId, replicaOperationSize(request), force(request));
+        } else {
+            return () -> {};
+        }
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {

@@ -253,7 +253,7 @@ public class TransportBulkActionTookTests extends OpenSearchTestCase {
                     actionFilters,
                     indexNameExpressionResolver,
                     autoCreateIndex,
-                    new IndexingPressure(Settings.EMPTY),
+                    new IndexingPressure(Settings.EMPTY, clusterService),
                     new SystemIndices(emptyMap()),
                     relativeTimeProvider);
         }

@@ -149,7 +149,8 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
 
                 final TransportResyncReplicationAction action = new TransportResyncReplicationAction(Settings.EMPTY, transportService,
                     clusterService, indexServices, threadPool, shardStateAction, new ActionFilters(new HashSet<>()),
-                    new IndexingPressure(Settings.EMPTY), new SystemIndices(emptyMap()));
+                    new IndexingPressure(Settings.EMPTY, clusterService),
+                    new SystemIndices(emptyMap()));
 
                 assertThat(action.globalBlockLevel(), nullValue());
                 assertThat(action.indexBlockLevel(), nullValue());

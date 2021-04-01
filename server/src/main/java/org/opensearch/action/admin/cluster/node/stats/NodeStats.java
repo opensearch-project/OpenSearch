@@ -43,6 +43,8 @@ import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
+import org.opensearch.index.ShardIndexingPressure;
+import org.opensearch.index.stats.ShardIndexingPressureStats;
 
 import java.io.IOException;
 import java.util.Map;
@@ -99,6 +101,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private IndexingPressureStats indexingPressureStats;
 
+    @Nullable
+    private ShardIndexingPressureStats shardIndexingPressureStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -134,6 +139,15 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             indexingPressureStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_10_2)) {
+            shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
+        } else if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (ShardIndexingPressure.isShardIndexingPressureAttributeEnabled()) {
+                shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
+            }
+        } else {
+            shardIndexingPressureStats = null;
+        }
     }
 
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
@@ -145,7 +159,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
                      @Nullable IngestStats ingestStats,
                      @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
                      @Nullable ScriptCacheStats scriptCacheStats,
-                     @Nullable IndexingPressureStats indexingPressureStats) {
+                     @Nullable IndexingPressureStats indexingPressureStats,
+                     @Nullable ShardIndexingPressureStats shardIndexingPressureStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -163,6 +178,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.adaptiveSelectionStats = adaptiveSelectionStats;
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
+        this.shardIndexingPressureStats = shardIndexingPressureStats;
     }
 
     public long getTimestamp() {
@@ -267,6 +283,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return indexingPressureStats;
     }
 
+    @Nullable
+    public ShardIndexingPressureStats getShardIndexingPressureStats() {
+        return shardIndexingPressureStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -295,6 +316,13 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalWriteable(indexingPressureStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_10_2)) {
+            out.writeOptionalWriteable(shardIndexingPressureStats);
+        } else if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (ShardIndexingPressure.isShardIndexingPressureAttributeEnabled()) {
+                out.writeOptionalWriteable(shardIndexingPressureStats);
+            }
         }
     }
 
@@ -364,6 +392,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getIndexingPressureStats() != null) {
             getIndexingPressureStats().toXContent(builder, params);
+        }
+        if (getShardIndexingPressureStats() != null) {
+            getShardIndexingPressureStats().toXContent(builder, params);
         }
         return builder;
     }

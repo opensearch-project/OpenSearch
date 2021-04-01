@@ -88,6 +88,9 @@ import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.ShardIndexingPressureMemoryManager;
+import org.opensearch.index.ShardIndexingPressureSettings;
+import org.opensearch.index.ShardIndexingPressureStore;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -253,6 +256,18 @@ public final class ClusterSettings extends AbstractScopedSettings {
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
             SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
             ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING,
+            ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED,
+            ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED,
+            ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW,
+            ShardIndexingPressureSettings.SHARD_MIN_LIMIT,
+            ShardIndexingPressureStore.MAX_CACHE_STORE_SIZE,
+            ShardIndexingPressureMemoryManager.LOWER_OPERATING_FACTOR,
+            ShardIndexingPressureMemoryManager.OPTIMAL_OPERATING_FACTOR,
+            ShardIndexingPressureMemoryManager.UPPER_OPERATING_FACTOR,
+            ShardIndexingPressureMemoryManager.NODE_SOFT_LIMIT,
+            ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS,
+            ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT,
+            ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS,
             InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
             InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
             InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
