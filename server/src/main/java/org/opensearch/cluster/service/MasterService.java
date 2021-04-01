@@ -91,6 +91,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
+    protected final MasterTaskThrottler masterTaskThrottler;
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
@@ -98,6 +99,7 @@ public class MasterService extends AbstractLifecycleComponent {
         this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
 
+        this.masterTaskThrottler = new MasterTaskThrottler(clusterSettings, this);
         this.threadPool = threadPool;
     }
 
@@ -142,13 +144,36 @@ public class MasterService extends AbstractLifecycleComponent {
                 () -> tasks.forEach(
                     task -> ((UpdateTask) task).listener.onFailure(task.source,
                         new ProcessClusterEventTimeoutException(timeout, task.source))));
+            masterTaskThrottler.release(tasks.get(0).task.getClass(), tasks.size());
         }
 
         @Override
         protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
+            // All the batched tasks will have same task class so once they are executed in batch
+            // we will release all batch's permit from master task throttling.
+            masterTaskThrottler.release(tasks.get(0).task.getClass(), tasks.size());
             ClusterStateTaskExecutor<Object> taskExecutor = (ClusterStateTaskExecutor<Object>) batchingKey;
             List<UpdateTask> updateTasks = (List<UpdateTask>) tasks;
             runTasks(new TaskInputs(taskExecutor, updateTasks, tasksSummary));
+        }
+
+        @Override
+        public void submitTasks(
+            List<? extends BatchedTask> tasks, @Nullable TimeValue timeout) throws OpenSearchRejectedExecutionException {
+            assert tasks.size() > 0;
+            if(masterTaskThrottler.acquire(tasks.get(0).getTask().getClass(), tasks.size())) {
+                try {
+                    super.submitTasks(tasks, timeout);
+                } catch (Exception e) {
+                    masterTaskThrottler.release(tasks.get(0).getTask().getClass(), tasks.size());
+                    throw e;
+                }
+            } else {
+                logger.info("Throwing Throttling Exception for [{}]. Trying to acquire [{}] permits, limit is set to [{}]",
+                    tasks.get(0).getTask().getClass(), tasks.size(), masterTaskThrottler.getThrottlingLimit(
+                        tasks.get(0).getTask().getClass()));
+                throw new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for " + tasks.get(0).getTask().getClass());
+            }
         }
 
         class UpdateTask extends BatchedTask {
@@ -470,6 +495,13 @@ public class MasterService extends AbstractLifecycleComponent {
             return new PendingClusterTask(pending.insertionOrder, pending.priority, new Text(task.source()),
                 task.getAgeInMillis(), pending.executing);
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns the number of throttled pending tasks.
+     */
+    public long numberOfThrottledPendingTasks() {
+        return masterTaskThrottler.throttledTaskCount();
     }
 
     /**

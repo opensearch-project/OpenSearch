@@ -34,6 +34,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
+    protected boolean remoteRequest;
 
     protected MasterNodeRequest() {
     }
@@ -41,12 +42,14 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     protected MasterNodeRequest(StreamInput in) throws IOException {
         super(in);
         masterNodeTimeout = in.readTimeValue();
+        remoteRequest = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeTimeValue(masterNodeTimeout);
+        out.writeOptionalBoolean(remoteRequest);
     }
 
     /**
@@ -55,6 +58,11 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     @SuppressWarnings("unchecked")
     public final Request masterNodeTimeout(TimeValue timeout) {
         this.masterNodeTimeout = timeout;
+        return (Request) this;
+    }
+
+    public final Request setRemoteRequest(boolean remoteRequest) {
+        this.remoteRequest = remoteRequest;
         return (Request) this;
     }
 
@@ -67,5 +75,9 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
 
     public final TimeValue masterNodeTimeout() {
         return this.masterNodeTimeout;
+    }
+
+    public final boolean isRemoteRequest() {
+        return this.remoteRequest;
     }
 }

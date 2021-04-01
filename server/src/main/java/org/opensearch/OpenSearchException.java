@@ -1049,7 +1049,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.transport.NoSeedNodeLeftException.class,
                 org.opensearch.transport.NoSeedNodeLeftException::new,
                 160,
-                Version.V_7_10_0);
+                Version.V_7_10_0),
+        MASTER_TASK_THROTTLED_EXCEPTION(
+            org.opensearch.cluster.service.MasterTaskThrottlingException.class,
+            org.opensearch.cluster.service.MasterTaskThrottlingException::new,
+            161,
+            Version.V_7_10_3);
 
         final Class<? extends OpenSearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> constructor;
