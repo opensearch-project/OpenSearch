@@ -240,7 +240,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
 
         final Settings settings = createBuilderWithPort()
             .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "elastic.co")
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "test-cors.org")
             .build();
 
         try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
@@ -252,13 +252,13 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
             // Test pre-flight request
             try (NioHttpClient client = new NioHttpClient()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/");
-                request.headers().add(CorsHandler.ORIGIN, "elastic.co");
+                request.headers().add(CorsHandler.ORIGIN, "test-cors.org");
                 request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {
                     assertThat(response.status(), equalTo(HttpResponseStatus.OK));
-                    assertThat(response.headers().get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), equalTo("elastic.co"));
+                    assertThat(response.headers().get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), equalTo("test-cors.org"));
                     assertThat(response.headers().get(CorsHandler.VARY), equalTo(CorsHandler.ORIGIN));
                     assertTrue(response.headers().contains(CorsHandler.DATE));
                 } finally {
@@ -269,7 +269,7 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
             // Test short-circuited request
             try (NioHttpClient client = new NioHttpClient()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
-                request.headers().add(CorsHandler.ORIGIN, "elastic2.co");
+                request.headers().add(CorsHandler.ORIGIN, "google.com");
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {
