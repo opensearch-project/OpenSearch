@@ -19,6 +19,7 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.opensearch.cluster.routing.allocation.AllocationConstraints;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -208,6 +209,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
             BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
             BalancedShardsAllocator.THRESHOLD_SETTING,
+            BalancedShardsAllocator.CONSTRAINT_FRAMEWORK_ENABLED_SETTING,
+            AllocationConstraints.INDEX_SHARDS_PER_NODE_CONSTRAINT_SETTING,
             BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
             BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,
             BreakerSettings.CIRCUIT_BREAKER_TYPE,
