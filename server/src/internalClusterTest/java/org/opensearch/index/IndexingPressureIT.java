@@ -61,11 +61,15 @@ public class IndexingPressureIT extends OpenSearchIntegTestCase {
 
     private static final Settings unboundedWriteQueue = Settings.builder().put("thread_pool.write.queue_size", -1).build();
 
+    public static final Settings settings = Settings.builder()
+            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build();
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(unboundedWriteQueue)
+            .put(settings)
             .build();
     }
 
