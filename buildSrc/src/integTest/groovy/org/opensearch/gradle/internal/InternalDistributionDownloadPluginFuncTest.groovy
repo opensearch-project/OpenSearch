@@ -103,7 +103,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         then:
         result.task(":distribution:bwc:minor:buildBwcExpandedTask").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertExtractedDistroIsCreated("distribution/bwc/minor/build/install/elastic-distro",
+        assertExtractedDistroIsCreated("distribution/bwc/minor/build/install/opensearch-distro",
                 'bwc-marker.txt')
     }
 
@@ -158,7 +158,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
             configurations.create("expanded-oss-linux-tar")
             def expandedTask = tasks.register("buildBwcExpandedTask", Copy) {
                 from('bwc-marker.txt')
-                into('build/install/elastic-distro')
+                into('build/install/opensearch-distro')
             }
             artifacts {
                 it.add("expanded-oss-linux-tar", file('build/install')) {

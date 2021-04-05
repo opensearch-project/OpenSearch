@@ -224,7 +224,9 @@ allprojects {
     // other packages (e.g org.opensearch.client) will point to server rather than
     // their own artifacts.
     if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
-      String artifactsHost = VersionProperties.getOpenSearch().endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+      String artifactsHost = VersionProperties.getOpenSearch().endsWith("-SNAPSHOT")
+        ? "https://artifacts.opensearch.org/snapshots/"
+        : "https://artifacts.opensearch.org/releases/"
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { shadowed, dep ->
         if ((dep instanceof ProjectDependency) == false) {
