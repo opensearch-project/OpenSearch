@@ -288,10 +288,17 @@ public abstract class TransportReplicationAction<
         Releasable releasable = checkOperationLimits(request);
         ActionListener<Response> listener =
             ActionListener.runBefore(new ChannelActionListener<>(channel, actionName, request), releasable::close);
-        runReroutePhase(task, request, listener, false);
+        // Add the shard level accounting for primary and chain the listener
+        Releasable shardReleasable = checkShardOperationLimits(request);
+        ActionListener<Response> finalListener = ActionListener.runBefore(listener, shardReleasable::close);
+        runReroutePhase(task, request, finalListener, false);
     }
 
     protected Releasable checkOperationLimits(final Request request) {
+        return () -> {};
+    }
+
+    protected Releasable checkShardOperationLimits(final Request request) {
         return () -> {};
     }
 
@@ -300,15 +307,24 @@ public abstract class TransportReplicationAction<
             request.localRerouteInitiatedByNodeClient());
         ActionListener<Response> listener =
             ActionListener.runBefore(new ChannelActionListener<>(channel, transportPrimaryAction, request), releasable::close);
+        // Add the shard level accounting for transport primary and chain the listener
+        Releasable shardReleasable = checkShardPrimaryLimits(request.getRequest(), request.sentFromLocalReroute(),
+            request.localRerouteInitiatedByNodeClient());
+        ActionListener<Response> finalListener = ActionListener.runBefore(listener, shardReleasable::close);
 
         try {
-            new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
+            new AsyncPrimaryAction(request, finalListener, (ReplicationTask) task).run();
         } catch (RuntimeException e) {
-            listener.onFailure(e);
+            finalListener.onFailure(e);
         }
     }
 
     protected Releasable checkPrimaryLimits(final Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
+        return () -> {};
+    }
+
+    protected Releasable checkShardPrimaryLimits(final Request request, boolean rerouteWasLocal,
+                                                 boolean localRerouteInitiatedByNodeClient) {
         return () -> {};
     }
 
@@ -524,15 +540,21 @@ public abstract class TransportReplicationAction<
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
         ActionListener<ReplicaResponse> listener =
             ActionListener.runBefore(new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest), releasable::close);
-
+        // Add the shard level accounting for replica and chain the listener
+        Releasable shardReleasable = checkShardReplicaLimits(replicaRequest.getRequest());
+        ActionListener<ReplicaResponse> finalListener = ActionListener.runBefore(listener, shardReleasable::close);
         try {
-            new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
+            new AsyncReplicaAction(replicaRequest, finalListener, (ReplicationTask) task).run();
         } catch (RuntimeException e) {
-            listener.onFailure(e);
+            finalListener.onFailure(e);
         }
     }
 
     protected Releasable checkReplicaLimits(final ReplicaRequest request) {
+        return () -> {};
+    }
+
+    protected Releasable checkShardReplicaLimits(final ReplicaRequest request) {
         return () -> {};
     }
 

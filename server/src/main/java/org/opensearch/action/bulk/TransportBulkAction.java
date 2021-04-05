@@ -170,7 +170,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         final long indexingBytes = bulkRequest.ramBytesUsed();
         final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
-        final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingBytes, isOnlySystem);
+        final Releasable releasable;
+        if (indexingPressure.isShardIndexingPressureEnabled() == false) {
+            releasable = indexingPressure.markCoordinatingOperationStarted(indexingBytes, isOnlySystem);
+        } else {
+            releasable = () -> {};
+        }
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
         try {
@@ -548,7 +553,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
+                // Add the shard level accounting for coordinating and supply the listener
+                final Releasable releasable;
+                if (indexingPressure.getShardIndexingPressure().isShardIndexingPressureEnabled()) {
+                    final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(),
+                        systemIndices);
+                    releasable = indexingPressure.getShardIndexingPressure()
+                            .markCoordinatingOperationStarted(shardId, bulkShardRequest.ramBytesUsed(), isOnlySystem);
+                } else {
+                    releasable = () -> {};
+                }
+                shardBulkAction.execute(bulkShardRequest, ActionListener.runBefore(new ActionListener<BulkShardResponse>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {
                         for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
@@ -581,7 +596,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
                             buildTookInMillis(startTimeNanos)));
                     }
-                });
+                }, releasable::close));
             }
             bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
         }
