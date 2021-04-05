@@ -70,8 +70,8 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
 
     UnsafeBootstrapMasterCommand() {
         super("Forces the successful election of the current node after the permanent loss of the half or more master-eligible nodes");
-        applyClusterReadOnlyBlockOption = parser.accepts("apply-cluster-read-only-block", "Optional cluster.blocks.read_only setting, true if not specified")
-            .withRequiredArg().ofType(Boolean.class);
+        applyClusterReadOnlyBlockOption = parser.accepts("apply-cluster-read-only-block", "Optional cluster.blocks.read_only setting, false if not specified")
+            .withOptionalArg().ofType(Boolean.class);
     }
 
     @Override
@@ -92,7 +92,7 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
 
         Boolean applyClusterReadOnlyBlock = applyClusterReadOnlyBlockOption.value(options);
         if(Objects.isNull(applyClusterReadOnlyBlock)) {
-            applyClusterReadOnlyBlock = true;
+            applyClusterReadOnlyBlock = false;
         }
 
         final Tuple<Long, ClusterState> state = loadTermAndClusterState(persistedClusterStateService, env);
@@ -122,6 +122,7 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
             .put(UNSAFE_BOOTSTRAP.getKey(), true)
             .put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), applyClusterReadOnlyBlock)
             .build();
+
         Metadata.Builder newMetadata = Metadata.builder(metadata)
             .clusterUUID(Metadata.UNKNOWN_CLUSTER_UUID)
             .generateClusterUuidIfNeeded()

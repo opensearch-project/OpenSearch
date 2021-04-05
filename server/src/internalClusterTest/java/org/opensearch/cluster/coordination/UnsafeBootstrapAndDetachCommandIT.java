@@ -42,7 +42,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -300,7 +302,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         logger.info("--> unsafely-bootstrap 1st master-eligible node");
-        MockTerminal terminal = unsafeBootstrap(environmentMaster1);
+        MockTerminal terminal = unsafeBootstrap(environmentMaster1, false, true);
         Metadata metadata = OpenSearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, nodeEnvironment.nodeDataPaths())
             .loadBestOnDiskState().metadata;
         assertThat(terminal.getOutput(), containsString(
@@ -454,16 +456,15 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         final Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(masterNodeDataPathSettings).build());
         detachCluster(environment);
-        unsafeBootstrap(environment);
+        unsafeBootstrap(environment); //Default read-only block will be false after bootstrap
 
         String masterNode2 = internalCluster().startMasterOnlyNode(masterNodeDataPathSettings);
         ensureGreen();
-        ensureReadOnlyBlock(true, masterNode2);
+        ensureReadOnlyBlock(false, masterNode2);
 
         state = internalCluster().client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.metadata().settings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
             equalTo("1234kb"));
-        removeBlock();
     }
 
     public void testUnsafeBootstrapWithApplyClusterReadOnlyBlockAsFalse() throws Exception {
