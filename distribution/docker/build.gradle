@@ -144,10 +144,7 @@ opensearch_distributions {
 
 tasks.named("preProcessFixture").configure {
   dependsOn opensearch_distributions.docker
-}
-
-tasks.named("composeUp").configure {
-  doFirst {
+  doLast {
     // tests expect to have an empty repo
     project.delete(
       "${buildDir}/oss-repo"
