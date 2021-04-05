@@ -47,6 +47,7 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.index.IndexingPressure;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
@@ -77,6 +78,8 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final String nodeName;
 
     private RerouteService rerouteService;
+
+    private IndexingPressure indexingPressure;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this(settings, clusterSettings, new MasterService(settings, clusterSettings, threadPool),
@@ -201,6 +204,22 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public MasterService getMasterService() {
         return masterService;
+    }
+
+    /**
+     * Getter and Setter for Indexing Pressure, This method is added specifically for getting IndexingPressure
+     * instance in ODFE PA plugin via ClusterService. Indexing Pressure instances can be accessible only via
+     * Node and NodeService class but none of them are present in the createComponents signature of ES OSS Plugin
+     * interface.
+     * {@link org.opensearch.plugins.Plugin#createComponents}
+     */
+
+    public void setIndexingPressure(IndexingPressure indexingPressure) {
+        this.indexingPressure = indexingPressure;
+    }
+
+    public IndexingPressure getIndexingPressure() {
+        return indexingPressure;
     }
 
     public ClusterApplierService getClusterApplierService() {

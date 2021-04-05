@@ -218,6 +218,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.index.ShardIndexingPressure.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -316,6 +317,9 @@ public class Node implements Closeable {
         try {
             Settings tmpSettings = Settings.builder().put(initialEnvironment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
+
+            // Enabling shard indexing backpressure
+            tmpSettings = addShardIndexingBackPressureAttributeSettings(tmpSettings);
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
@@ -599,7 +603,8 @@ public class Node implements Closeable {
             final SearchTransportService searchTransportService =  new SearchTransportService(transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
-            final IndexingPressure indexingLimits = new IndexingPressure(settings);
+            final IndexingPressure indexingLimits = new IndexingPressure(settings, clusterService);
+            clusterService.setIndexingPressure(indexingLimits);
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(this.environment,
@@ -743,6 +748,14 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    private static Settings addShardIndexingBackPressureAttributeSettings(Settings settings) {
+        // Shard Indexing BackPressure is enabled from AES-7.9 onwards.
+        String ShardIndexingBackPressureEnabledValue = "true";
+        return Settings.builder().put(settings)
+                .put(NODE_ATTRIBUTES.getKey() + SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, ShardIndexingBackPressureEnabledValue)
+                .build();
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

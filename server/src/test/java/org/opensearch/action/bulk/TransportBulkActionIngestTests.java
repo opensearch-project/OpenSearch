@@ -163,7 +163,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                     new SystemIndices(emptyMap())
-                ), new IndexingPressure(SETTINGS), new SystemIndices(emptyMap())
+                ), new IndexingPressure(SETTINGS, new ClusterService(SETTINGS, new ClusterSettings(SETTINGS,
+                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null)), new SystemIndices(emptyMap())
             );
         }
         @Override

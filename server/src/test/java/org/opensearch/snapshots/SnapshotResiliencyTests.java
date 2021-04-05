@@ -1572,7 +1572,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             threadPool,
                             shardStateAction,
                             actionFilters,
-                            new IndexingPressure(settings),
+                            new IndexingPressure(settings, clusterService),
                             new SystemIndices(emptyMap()))),
                     new GlobalCheckpointSyncAction(
                         settings,
@@ -1599,7 +1599,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 mappingUpdatedAction.setClient(client);
             final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                 clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, new IndexingPressure(settings), new SystemIndices(emptyMap()));
+                actionFilters, new IndexingPressure(settings, clusterService), new SystemIndices(emptyMap()));
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
                         new IngestService(
@@ -1608,7 +1608,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             Collections.emptyList(), client),
                         transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
                         new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
-                        new IndexingPressure(settings),
+                        new IndexingPressure(settings, clusterService),
                         new SystemIndices(emptyMap())
                     ));
                 final RestoreService restoreService = new RestoreService(

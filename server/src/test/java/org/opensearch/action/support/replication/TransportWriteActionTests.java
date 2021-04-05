@@ -382,7 +382,8 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
                     new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                         x -> null, null, Collections.emptySet()), TransportWriteActionTests.this.clusterService, null, null, null,
                 new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ignore -> ThreadPool.Names.SAME, false,
-                new IndexingPressure(Settings.EMPTY), new SystemIndices(emptyMap()));
+                new IndexingPressure(Settings.EMPTY, TransportWriteActionTests.this.clusterService),
+                new SystemIndices(emptyMap()));
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
@@ -392,7 +393,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             super(settings, actionName, transportService, clusterService,
                     mockIndicesService(clusterService), threadPool, shardStateAction,
                     new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ignore -> ThreadPool.Names.SAME, false,
-                    new IndexingPressure(settings), new SystemIndices(emptyMap()));
+                    new IndexingPressure(settings, clusterService), new SystemIndices(emptyMap()));
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;
         }

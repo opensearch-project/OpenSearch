@@ -105,7 +105,8 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
                     new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver(), new SystemIndices(emptyMap())),
-                    new IndexingPressure(Settings.EMPTY), new SystemIndices(emptyMap()));
+                    new IndexingPressure(Settings.EMPTY, clusterService),
+                    new SystemIndices(emptyMap()));
         }
 
         @Override
