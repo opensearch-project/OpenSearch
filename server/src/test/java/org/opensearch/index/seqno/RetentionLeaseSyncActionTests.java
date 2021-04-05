@@ -107,7 +107,7 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
+                new IndexingPressure(Settings.EMPTY, clusterService),
                 new SystemIndices(emptyMap()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -145,7 +145,7 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
+                new IndexingPressure(Settings.EMPTY, clusterService),
                 new SystemIndices(emptyMap()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -186,7 +186,7 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
+                new IndexingPressure(Settings.EMPTY, clusterService),
                 new SystemIndices(emptyMap()));
 
         assertNull(action.indexBlockLevel());
