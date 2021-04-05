@@ -75,6 +75,7 @@ public class RestAllocationAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse state) {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
+                statsRequest.timeout(request.param("timeout"));
                 statsRequest.clear().addMetric(NodesStatsRequest.Metric.FS.metricName())
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 

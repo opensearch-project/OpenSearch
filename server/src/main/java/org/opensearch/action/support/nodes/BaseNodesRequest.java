@@ -48,6 +48,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      * will be ignored and this will be used.
      * */
     private DiscoveryNode[] concreteNodes;
+    private final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     private TimeValue timeout;
 
@@ -89,7 +90,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
 
     @SuppressWarnings("unchecked")
     public final Request timeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
+        this.timeout = TimeValue.parseTimeValue(timeout, DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout");
         return (Request) this;
     }
     public DiscoveryNode[] concreteNodes() {

@@ -53,6 +53,7 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.TransportRequestOptions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -321,7 +322,12 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
-                transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new TransportResponseHandler<NodeResponse>() {
+                TransportRequestOptions transportRequestOptions = TransportRequestOptions.EMPTY;
+                if (request != null && request.timeout() != null) {
+                    transportRequestOptions = TransportRequestOptions.builder().withTimeout(request.timeout()).build();
+                }
+                transportService.sendRequest(
+                    node, transportNodeBroadcastAction, nodeRequest, transportRequestOptions, new TransportResponseHandler<NodeResponse>() {
                     @Override
                     public NodeResponse read(StreamInput in) throws IOException {
                         return new NodeResponse(in);
