@@ -36,8 +36,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.LegacyESVersion.V_6_3_0;
-import static org.opensearch.LegacyESVersion.V_7_0_0;
+import static org.opensearch.LegacyESVersion.*;
+import static org.opensearch.Version.V_1_0_0;
 import static org.opensearch.Version.MASK;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.randomVersion;
@@ -67,6 +67,12 @@ public class VersionTests extends OpenSearchTestCase {
         assertThat(V_6_3_0.onOrAfter(V_6_3_0), is(true));
         assertThat(V_7_0_0.onOrAfter(V_6_3_0), is(true));
 
+        assertThat(V_1_0_0.onOrAfter(V_6_0_1), is(true));
+        assertThat(V_1_0_0.onOrAfter(V_7_10_3), is(true));
+
+        assertThat(V_6_0_1.before(V_1_0_0), is(true));
+        assertThat(V_7_10_3.before(V_1_0_0), is(true));
+
         assertTrue(Version.fromString("5.0.0-alpha2").onOrAfter(Version.fromString("5.0.0-alpha1")));
         assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
         assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
@@ -75,6 +81,7 @@ public class VersionTests extends OpenSearchTestCase {
         assertThat(V_6_3_0, is(lessThan(V_7_0_0)));
         assertThat(V_6_3_0.compareTo(V_6_3_0), is(0));
         assertThat(V_7_0_0, is(greaterThan(V_6_3_0)));
+        assertThat(V_1_0_0, is(greaterThan(V_7_0_0)));
     }
 
     public void testMin() {
