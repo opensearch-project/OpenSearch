@@ -33,6 +33,7 @@ import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 
@@ -51,6 +52,7 @@ import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -83,6 +85,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<String, ObjectIntHashMap<String>> nodesPerAttributeNames = new HashMap<>();
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
+    private final Map<String, Recoveries> primaryRecoveriesPerNode = new HashMap<>();
 
     public RoutingNodes(ClusterState clusterState) {
         this(clusterState, true);
@@ -162,11 +165,17 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     private void updateRecoveryCounts(final ShardRouting routing, final boolean increment, @Nullable final ShardRouting primary) {
+
         final int howMany = increment ? 1 : -1;
         assert routing.initializing() : "routing must be initializing: " + routing;
         // TODO: check primary == null || primary.active() after all tests properly add ReplicaAfterPrimaryActiveAllocationDecider
         assert primary == null || primary.assignedToNode() :
             "shard is initializing but its primary is not assigned to a node";
+
+        if(routing.primary() && (primary == null || primary == routing)) {
+            Recoveries.getOrAdd(primaryRecoveriesPerNode, routing.currentNodeId()).addIncoming(howMany);
+            return;
+        }
 
         Recoveries.getOrAdd(recoveriesPerNode, routing.currentNodeId()).addIncoming(howMany);
 
@@ -194,6 +203,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public int getIncomingRecoveries(String nodeId) {
         return recoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getIncoming();
+    }
+
+    public int getInitialPrimariesIncomingRecoveries(String nodeId) {
+        return primaryRecoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getIncoming();
     }
 
     public int getOutgoingRecoveries(String nodeId) {
@@ -1081,7 +1094,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         for (Map.Entry<String, Recoveries> recoveries : routingNodes.recoveriesPerNode.entrySet()) {
             String node = recoveries.getKey();
-            final Recoveries value = recoveries.getValue();
+            Recoveries value = recoveries.getValue();
             int incoming = 0;
             int outgoing = 0;
             RoutingNode routingNode = routingNodes.nodesToShards.get(node);
@@ -1099,10 +1112,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     }
                 }
             }
-            assert incoming == value.incoming : incoming + " != " + value.incoming + " node: " + routingNode;
+
+            int incomingRecoveries = Stream.of(routingNodes.recoveriesPerNode, routingNodes.primaryRecoveriesPerNode)
+                                     .filter(x->x.containsKey(node))
+                                     .mapToInt(x->x.get(node).getIncoming())
+                                     .sum();
+            assert incoming == incomingRecoveries : incoming + " != " + incomingRecoveries + " node: " + routingNode;
             assert outgoing == value.outgoing : outgoing + " != " + value.outgoing + " node: " + routingNode;
         }
-
 
         assert unassignedPrimaryCount == routingNodes.unassignedShards.getNumPrimaries() :
                 "Unassigned primaries is [" + unassignedPrimaryCount + "] but RoutingNodes returned unassigned primaries [" +
