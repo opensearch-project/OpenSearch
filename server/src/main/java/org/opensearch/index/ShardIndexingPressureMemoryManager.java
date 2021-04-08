@@ -164,7 +164,7 @@ public class ShardIndexingPressureMemoryManager {
             if(((double)nodeTotalBytes / this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits()) < this.nodeSoftLimit) {
                 boolean isShardLimitsIncreased =
                     this.increaseShardPrimaryAndCoordinatingLimits(tracker, shardIndexingPressureStore);
-                if(!isShardLimitsIncreased) {
+                if(isShardLimitsIncreased == false) {
                     tracker.primaryNodeLimitsBreachedRejections.incrementAndGet();
                     totalNodeLimitsBreachedRejections.incrementAndGet();
                 }
@@ -194,7 +194,7 @@ public class ShardIndexingPressureMemoryManager {
                 } else {
                     boolean isShardLimitsIncreased =
                         this.increaseShardPrimaryAndCoordinatingLimits(tracker, shardIndexingPressureStore);
-                    if(!isShardLimitsIncreased) {
+                    if(isShardLimitsIncreased == false) {
                         tracker.primaryNodeLimitsBreachedRejections.incrementAndGet();
                         totalNodeLimitsBreachedRejections.incrementAndGet();
                     }
@@ -239,7 +239,7 @@ public class ShardIndexingPressureMemoryManager {
             if(((double)nodeTotalBytes / this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits()) < this.nodeSoftLimit) {
                 boolean isShardLimitsIncreased =
                     this.increaseShardPrimaryAndCoordinatingLimits(tracker, shardIndexingPressureStore);
-                if(!isShardLimitsIncreased) {
+                if(isShardLimitsIncreased == false) {
                     tracker.coordinatingNodeLimitsBreachedRejections.incrementAndGet();
                     totalNodeLimitsBreachedRejections.incrementAndGet();
                 }
@@ -269,7 +269,7 @@ public class ShardIndexingPressureMemoryManager {
                 } else {
                     boolean isShardLimitsIncreased =
                         this.increaseShardPrimaryAndCoordinatingLimits(tracker, shardIndexingPressureStore);
-                    if(!isShardLimitsIncreased) {
+                    if(isShardLimitsIncreased == false) {
                         tracker.coordinatingNodeLimitsBreachedRejections.incrementAndGet();
                         totalNodeLimitsBreachedRejections.incrementAndGet();
                     }
@@ -313,7 +313,7 @@ public class ShardIndexingPressureMemoryManager {
             if(((double)nodeReplicaBytes / this.shardIndexingPressureSettings.getNodeReplicaLimits()) < this.nodeSoftLimit)  {
                 boolean isShardLimitsIncreased =
                     this.increaseShardReplicaLimits(tracker, shardIndexingPressureStore);
-                if(!isShardLimitsIncreased) {
+                if(isShardLimitsIncreased == false) {
                     tracker.replicaNodeLimitsBreachedRejections.incrementAndGet();
                     totalNodeLimitsBreachedRejections.incrementAndGet();
                 }
@@ -343,7 +343,7 @@ public class ShardIndexingPressureMemoryManager {
                 } else {
                     boolean isShardLimitsIncreased =
                         this.increaseShardReplicaLimits(tracker, shardIndexingPressureStore);
-                    if(!isShardLimitsIncreased) {
+                    if(isShardLimitsIncreased == false) {
                         tracker.replicaNodeLimitsBreachedRejections.incrementAndGet();
                         totalNodeLimitsBreachedRejections.incrementAndGet();
                     }
