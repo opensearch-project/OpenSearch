@@ -289,7 +289,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 pluginId,
                 Platforms.PLATFORM_NAME
             );
-            terminal.println("-> Downloading " + pluginId + " from elastic");
+            terminal.println("-> Downloading " + pluginId + " from opensearch");
             return downloadAndValidate(terminal, url, tmpDir, true, isBatch);
         }
 
