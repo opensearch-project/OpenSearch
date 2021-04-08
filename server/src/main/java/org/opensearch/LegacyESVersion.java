@@ -27,7 +27,7 @@ package org.opensearch;
 /**
  * The Contents of this file were originally moved from {@link Version}.
  *
- * This class keeps the all supported OpenSearch predecessor versions for
+ * This class keeps all the supported OpenSearch predecessor versions for
  * backward compatibility purpose.
  */
 public class LegacyESVersion extends Version {
