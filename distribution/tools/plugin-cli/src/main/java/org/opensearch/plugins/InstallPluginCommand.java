@@ -279,16 +279,19 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /** Downloads the plugin and returns the file it was downloaded to. */
     private Path download(Terminal terminal, String pluginId, Path tmpDir, boolean isBatch) throws Exception {
-        //
-        // Disabled installing of plugins by name (https://github.com/opendistro-for-elasticsearch/search/issues/71)
-        // TODO: Once we have the new artifacts repository URL, We will uncomment this section and update the URLs.
-        // https://github.com/opendistro-for-elasticsearch/search/issues/100
-        //
-        // if (OFFICIAL_PLUGINS.contains(pluginId)) {
-        // final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
-        // terminal.println("-> Downloading " + pluginId + " from elastic");
-        // return downloadAndValidate(terminal, url, tmpDir, true, isBatch);
-        // }
+
+        if (OFFICIAL_PLUGINS.contains(pluginId)) {
+            final String url = getOpenSearchUrl(
+                terminal,
+                getStagingHash(),
+                Version.CURRENT,
+                isSnapshot(),
+                pluginId,
+                Platforms.PLATFORM_NAME
+            );
+            terminal.println("-> Downloading " + pluginId + " from opensearch");
+            return downloadAndValidate(terminal, url, tmpDir, true, isBatch);
+        }
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
         String[] coordinates = pluginId.split(":");
@@ -338,14 +341,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             );
         }
         if (stagingHash != null) {
-            if (isSnapshot) {
-                baseUrl = nonReleaseUrl("snapshots", version, stagingHash, pluginId);
-            } else {
-                baseUrl = nonReleaseUrl("staging", version, stagingHash, pluginId);
-            }
+            baseUrl = String.format(
+                Locale.ROOT,
+                "https://artifacts.opensearch.org/snapshots/plugins/%s/%s-%s",
+                pluginId,
+                version,
+                stagingHash
+            );
         } else {
-            // TODO (URL) replace w/ opensearch artifacts URL
-            baseUrl = String.format(Locale.ROOT, "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
+            baseUrl = String.format(Locale.ROOT, "https://artifacts.opensearch.org/releases/plugins/%s/%s", pluginId, version);
         }
         final String platformUrl = String.format(
             Locale.ROOT,
@@ -359,18 +363,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             return platformUrl;
         }
         return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.CURRENT.getQualifiedVersion());
-    }
-
-    private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
-        // TODO (URL) replace w/ opensearch non-release URL
-        return String.format(
-            Locale.ROOT,
-            "https://%s.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s",
-            hostname,
-            version,
-            stagingHash,
-            pluginId
-        );
     }
 
     /** Returns the url for an opensearch plugin in maven. */
