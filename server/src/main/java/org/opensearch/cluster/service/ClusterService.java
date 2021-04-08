@@ -207,10 +207,9 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Getter and Setter for Indexing Pressure, This method is added specifically for getting IndexingPressure
-     * instance in ODFE PA plugin via ClusterService. Indexing Pressure instances can be accessible only via
-     * Node and NodeService class but none of them are present in the createComponents signature of ES OSS Plugin
-     * interface.
+     * Getter and Setter for Indexing Pressure, This method exposes IndexingPressure stats to other plugins.
+     * Indexing Pressure instances can be accessed via Node and NodeService class but none of them are
+     * present in the createComponents signature of Plugin interface currently.
      * {@link org.opensearch.plugins.Plugin#createComponents}
      */
 

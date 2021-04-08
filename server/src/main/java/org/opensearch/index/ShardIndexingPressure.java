@@ -71,9 +71,9 @@ public class ShardIndexingPressure {
         long shardCombinedBytes = tracker.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
 
         boolean shardLevelLimitBreached = false;
-        if (!forceExecution) {
+        if (forceExecution == false) {
             boolean nodeLevelLimitBreached = memoryManager.isCoordinatingNodeLimitBreached(tracker, nodeTotalBytes);
-            if (!nodeLevelLimitBreached) {
+            if (nodeLevelLimitBreached == false) {
                 shardLevelLimitBreached = memoryManager.isCoordinatingShardLimitBreached(tracker, requestStartTime,
                         shardIndexingPressureStore.getShardIndexingPressureHotStore(), nodeTotalBytes);
             }
@@ -184,9 +184,9 @@ public class ShardIndexingPressure {
         long shardCombinedBytes = tracker.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
 
         boolean shardLevelLimitBreached = false;
-        if (!forceExecution) {
+        if (forceExecution == false) {
             boolean nodeLevelLimitBreached = memoryManager.isPrimaryNodeLimitBreached(tracker, nodeTotalBytes);
-            if (!nodeLevelLimitBreached) {
+            if (nodeLevelLimitBreached == false) {
                 shardLevelLimitBreached = memoryManager.isPrimaryShardLimitBreached(tracker, requestStartTime,
                         shardIndexingPressureStore.getShardIndexingPressureHotStore(), nodeTotalBytes);
             }
@@ -279,9 +279,9 @@ public class ShardIndexingPressure {
         long shardReplicaBytes = tracker.currentReplicaBytes.addAndGet(bytes);
 
         boolean shardLevelLimitBreached = false;
-        if (!forceExecution) {
+        if (forceExecution == false) {
             boolean nodeLevelLimitBreached = memoryManager.isReplicaNodeLimitBreached(tracker, nodeReplicaBytes);
-            if (!nodeLevelLimitBreached) {
+            if (nodeLevelLimitBreached == false) {
                 shardLevelLimitBreached = memoryManager.isReplicaShardLimitBreached(tracker, requestStartTime,
                         shardIndexingPressureStore.getShardIndexingPressureHotStore(), nodeReplicaBytes);
             }
@@ -423,7 +423,7 @@ public class ShardIndexingPressure {
     public static boolean isShardIndexingPressureAttributeEnabled() {
         Iterator<DiscoveryNode> nodes = clusterService.state().getNodes().getNodes().valuesIt();
         while (nodes.hasNext()) {
-            if (!Boolean.parseBoolean(nodes.next().getAttributes().get(SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY))) {
+            if (Boolean.parseBoolean(nodes.next().getAttributes().get(SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY)) == false) {
                 return false;
             }
         }
