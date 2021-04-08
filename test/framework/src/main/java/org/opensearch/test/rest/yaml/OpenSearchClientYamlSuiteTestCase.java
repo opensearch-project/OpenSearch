@@ -130,10 +130,11 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             validateSpec(restSpec);
             final List<HttpHost> hosts = getClusterHosts();
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
-            final Version esVersion = versionVersionTuple.v1();
+            final Version opensearchVersion = versionVersionTuple.v1();
             final Version masterVersion = versionVersionTuple.v2();
-            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
+            logger.info("initializing client, minimum opensearch version [{}], master version, [{}], hosts {}",
+                opensearchVersion, masterVersion, hosts);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, opensearchVersion, masterVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
