@@ -46,6 +46,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * The {@link IndexRoutingTable} represents routing information for a single
@@ -263,6 +264,14 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             shards.addAll(shardRoutingTable.shardsWithState(state));
         }
         return shards;
+    }
+
+    public int shardsMatchingPredicateCount(Predicate<ShardRouting> predicate) {
+        int count = 0;
+        for (IndexShardRoutingTable shardRoutingTable : this) {
+            count += shardRoutingTable.shardsMatchingPredicateCount(predicate);
+        }
+        return count;
     }
 
     /**

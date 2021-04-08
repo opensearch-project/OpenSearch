@@ -43,6 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 
@@ -657,6 +658,16 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
         return shards;
+    }
+
+    public int shardsMatchingPredicateCount(Predicate<ShardRouting> predicate) {
+        int count = 0;
+        for (ShardRouting shardEntry : this) {
+            if (predicate.test(shardEntry)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public static class Builder {
