@@ -171,7 +171,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert primary == null || primary.assignedToNode() :
             "shard is initializing but its primary is not assigned to a node";
 
+        // Primary shard routing, excluding the relocating primaries.
         if(routing.primary() && (primary == null || primary == routing)) {
+            assert !routing.isRelocationTarget() && !routing.relocating(): "Routing must be a non relocating primary";
             Recoveries.getOrAdd(primaryRecoveriesPerNode, routing.currentNodeId()).addIncoming(howMany);
             return;
         }
@@ -1093,7 +1095,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         for (Map.Entry<String, Recoveries> recoveries : routingNodes.recoveriesPerNode.entrySet()) {
             String node = recoveries.getKey();
-            Recoveries value = recoveries.getValue();
+            final Recoveries value = recoveries.getValue();
             int incoming = 0;
             int outgoing = 0;
             RoutingNode routingNode = routingNodes.nodesToShards.get(node);
