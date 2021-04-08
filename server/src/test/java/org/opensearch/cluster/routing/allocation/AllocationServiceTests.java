@@ -212,7 +212,8 @@ public class AllocationServiceTests extends OpenSearchTestCase {
         final ClusterState reroutedState2 = rerouteAndStartShards(allocationService, reroutedState1);
         final RoutingTable routingTable2 = reroutedState2.routingTable();
 
-        // this reroute starts the one remaining medium-priority primary and both of the low-priority ones, and also 1 medium priority replica
+        // this reroute starts the one remaining medium-priority primary and both of the low-priority ones,
+        // and also 1 medium priority replica
         assertThat(routingTable2.shardsWithState(ShardRoutingState.INITIALIZING), empty());
         assertThat(routingTable2.shardsWithState(ShardRoutingState.RELOCATING), empty());
         assertTrue(routingTable2.index("highPriority").allPrimaryShardsActive());

@@ -86,7 +86,8 @@ public class AllocationPriorityTests extends OpenSearchAllocationTestCase {
 
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertEquals(4, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
-        List<String> indices = clusterState.getRoutingNodes().shardsWithState(INITIALIZING).stream().map(x->x.getIndexName()).collect(Collectors.toList());
+        List<String> indices = clusterState.getRoutingNodes().shardsWithState(INITIALIZING).stream().
+            map(x->x.getIndexName()).collect(Collectors.toList());
         assertTrue(indices.contains(lowPriorityName));
         assertTrue(indices.contains(highPriorityName));
 
