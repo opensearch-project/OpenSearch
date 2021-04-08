@@ -186,6 +186,7 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
 
         Predicate<ShardRouting> predicate = s -> s.state() == ShardRoutingState.UNASSIGNED && s.unassignedInfo().isDelayed();
         assertThat(clusterState.routingTable().shardsMatchingPredicateCount(predicate), is(0));
+
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
