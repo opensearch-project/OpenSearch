@@ -44,6 +44,3 @@ hardening-no-pie usr/share/opensearch/jdk/lib/*
 
 # the system java version that lintian assumes is far behind what opensearch uses
 unknown-java-class-version
-
-# elastic licensed modules contain elastic license
-extra-license-file usr/share/opensearch/modules/*
