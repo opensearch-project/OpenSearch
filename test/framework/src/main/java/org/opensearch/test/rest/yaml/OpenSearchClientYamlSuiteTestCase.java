@@ -161,9 +161,10 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             final ClientYamlSuiteRestSpec restSpec,
             final RestClient restClient,
             final List<HttpHost> hosts,
-            final Version esVersion,
+            final Version opensearchVersion,
             final Version masterVersion) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+        return new ClientYamlTestClient(restSpec, restClient, hosts, opensearchVersion, masterVersion,
+            this::getClientBuilderWithSniffedHosts);
     }
 
     @AfterClass
@@ -349,13 +350,13 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
 
         //skip test if the whole suite (yaml file) is disabled
         assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.opensearchVersion()));
         //skip test if the whole suite (yaml file) is disabled
         assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.opensearchVersion()));
         //skip test if test section is disabled
         assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.opensearchVersion()));
 
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {

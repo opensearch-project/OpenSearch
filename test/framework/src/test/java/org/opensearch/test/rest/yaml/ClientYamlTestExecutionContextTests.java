@@ -48,7 +48,7 @@ public class ClientYamlTestExecutionContextTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public Version esVersion() {
+                public Version opensearchVersion() {
                     return version;
                 }
             };

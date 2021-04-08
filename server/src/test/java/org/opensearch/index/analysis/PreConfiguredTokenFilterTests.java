@@ -70,7 +70,7 @@ public class PreConfiguredTokenFilterTests extends OpenSearchTestCase {
     public void testCachingWithOpenSearchVersion() throws IOException {
         PreConfiguredTokenFilter pctf =
             PreConfiguredTokenFilter.openSearchVersion("opensearch_version", randomBoolean(),
-                (tokenStream, esVersion) -> new TokenFilter(tokenStream) {
+                (tokenStream, opensearchVersion) -> new TokenFilter(tokenStream) {
                     @Override
                     public boolean incrementToken() {
                         return false;

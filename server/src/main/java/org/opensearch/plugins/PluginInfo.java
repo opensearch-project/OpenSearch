@@ -176,12 +176,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     "property [version] is missing for plugin [" + name + "]");
         }
 
-        final String esVersionString = propsMap.remove("opensearch.version");
-        if (esVersionString == null) {
+        final String opensearchVersionString = propsMap.remove("opensearch.version");
+        if (opensearchVersionString == null) {
             throw new IllegalArgumentException(
                     "property [opensearch.version] is missing for plugin [" + name + "]");
         }
-        final Version esVersion = Version.fromString(esVersionString);
+        final Version opensearchVersion = Version.fromString(opensearchVersionString);
         final String javaVersionString = propsMap.remove("java.version");
         if (javaVersionString == null) {
             throw new IllegalArgumentException(
@@ -226,7 +226,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             }
         }
 
-        if (esVersion.before(LegacyESVersion.V_6_3_0) && esVersion.onOrAfter(LegacyESVersion.V_6_0_0_beta2)) {
+        if (opensearchVersion.before(LegacyESVersion.V_6_3_0) && opensearchVersion.onOrAfter(LegacyESVersion.V_6_0_0_beta2)) {
             propsMap.remove("requires.keystore");
         }
 
@@ -234,7 +234,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
 
-        return new PluginInfo(name, description, version, esVersion, javaVersionString,
+        return new PluginInfo(name, description, version, opensearchVersion, javaVersionString,
                               classname, extendedPlugins, hasNativeController);
     }
 

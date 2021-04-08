@@ -271,7 +271,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                         PreConfiguredCharFilter.luceneVersion("lucene_version", luceneVersionSupportsMultiTerm,
                                 (tokenStream, luceneVersion) -> new AppendCharFilter(tokenStream, luceneVersion.toString())),
                         PreConfiguredCharFilter.openSearchVersion("opensearch_version", opensearchVersionSupportsMultiTerm,
-                                (tokenStream, esVersion) -> new AppendCharFilter(tokenStream, esVersion.toString()))
+                                (tokenStream, opensearchVersion) -> new AppendCharFilter(tokenStream, opensearchVersion.toString()))
                         );
             }
 
@@ -323,7 +323,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                         PreConfiguredTokenFilter.luceneVersion("lucene_version", luceneVersionSupportsMultiTerm,
                                 (tokenStream, luceneVersion) -> new AppendTokenFilter(tokenStream, luceneVersion.toString())),
                         PreConfiguredTokenFilter.openSearchVersion("opensearch_version", opensearchVersionSupportsMultiTerm,
-                                (tokenStream, esVersion) -> new AppendTokenFilter(tokenStream, esVersion.toString()))
+                                (tokenStream, opensearchVersion) -> new AppendTokenFilter(tokenStream, opensearchVersion.toString()))
                         );
             }
         })).getAnalysisRegistry();
@@ -394,7 +394,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                         PreConfiguredTokenizer.luceneVersion("lucene_version",
                             luceneVersion -> new FixedTokenizer(luceneVersion.toString())),
                         PreConfiguredTokenizer.openSearchVersion("opensearch_version",
-                            esVersion -> new FixedTokenizer(esVersion.toString()))
+                            opensearchVersion -> new FixedTokenizer(opensearchVersion.toString()))
                     );
                 }
             })).getAnalysisRegistry();

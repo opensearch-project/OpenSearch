@@ -99,7 +99,7 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
-        if (esVersion().before(LegacyESVersion.V_7_0_0)) {
+        if (opensearchVersion().before(LegacyESVersion.V_7_0_0)) {
             adaptRequestForOlderVersion(apiName, bodies, requestParams);
         }
 
@@ -257,8 +257,8 @@ public class ClientYamlTestExecutionContext {
     /**
      * Returns the current es version as a string
      */
-    public Version esVersion() {
-        return clientYamlTestClient.getEsVersion();
+    public Version opensearchVersion() {
+        return clientYamlTestClient.getOpenSearchVersion();
     }
 
     public Version masterVersion() {
