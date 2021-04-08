@@ -182,7 +182,7 @@ void addBuildDockerImage(Architecture architecture, DockerBase base) {
 
     String version = VersionProperties.getOpenSearch()
       tags = [
-        "docker.opensearch.org/opensearch/opensearch:${version}",
+        "docker.opensearch.org/opensearch/opensearch-oss:${version}",
         "opensearch-oss:test"
       ]
   }
