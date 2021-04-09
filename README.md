@@ -6,8 +6,6 @@ OpenSearch is an open source search and analytics engine derived from Elasticsea
 
 We officially began work on the new fork on January 21st, 2021.  Since then, we've been removing non-Apache code and doing a full rename of the project. Feel free to take a look at what we've been up to, and then head over to the [Project Board](https://github.com/opensearch-project/OpenSearch/projects) to track initial release targets, or jump in and [start opening issues](https://github.com/opensearch-project/OpenSearch/issues/new/choose) or [contributing](https://github.com/opensearch-project/OpenSearch/blob/main/CONTRIBUTING.md).
 
-We'll update this page as the state of the project changes, so please check back frequently.
-
 ### Guiding Principles
 
 **Great software**. If it doesn’t solve your problems, everything else is moot. It’s going to be software you love to use.
