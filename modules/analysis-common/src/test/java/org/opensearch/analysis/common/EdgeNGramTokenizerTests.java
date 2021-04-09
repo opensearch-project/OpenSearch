@@ -71,8 +71,8 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
 
         // Before 7.3 we return ngrams of length 1 only
         {
-            Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0,
-                VersionUtils.getPreviousVersion(LegacyESVersion.V_7_3_0));
+            Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromString("7.0.0"),
+                VersionUtils.getPreviousVersion(LegacyESVersion.fromString("7.3.0")));
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
@@ -82,8 +82,8 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
 
         // Check deprecated name as well
         {
-            Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0,
-                VersionUtils.getPreviousVersion(LegacyESVersion.V_7_3_0));
+            Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromString("7.0.0"),
+                VersionUtils.getPreviousVersion(LegacyESVersion.fromString("7.3.0")));
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
@@ -103,7 +103,7 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
         // Check deprecated name as well, needs version before 8.0 because throws IAE after that
         {
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(
-                    VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_3_0, Version.CURRENT),
+                    VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromString("7.3.0"), Version.CURRENT),
                     "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
