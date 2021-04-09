@@ -10,7 +10,7 @@ We officially began work on the new fork on January 21st, 2021.  Since then, we'
 
 Here are the principles we use to guide our development.  From [opensearch.org](http://opensearch.org):
 
-'''
+```
 When we (the contributors) are successful, the OpenSearch project will be:
 
 **1. Great software**. If it doesn’t solve your problems, everything else is moot. It’s going to be software you love to use.
@@ -28,7 +28,7 @@ When we (the contributors) are successful, the OpenSearch project will be:
 **7. Respectful, approachable, and friendly**. This will be a community where you will be heard, accepted, and valued, whether you are a new or experienced user or contributor.
 
 **8. A place to invent**. You will be able to innovate rapidly. This project will have a stable and predictable foundation that is modular, making it easy to extend.
-'''
+```
 
 ## How you can help
 
