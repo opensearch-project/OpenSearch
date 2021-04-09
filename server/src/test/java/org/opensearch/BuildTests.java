@@ -199,7 +199,7 @@ public class BuildTests extends OpenSearchTestCase {
         final WriteableBuild dockerBuild = new WriteableBuild(new Build(Build.Type.DOCKER,
             randomAlphaOfLength(6), randomAlphaOfLength(6), randomBoolean(), randomAlphaOfLength(6)));
 
-        final List<Version> versions = Version.getDeclaredVersions(Version.class);
+        final List<Version> versions = Version.getDeclaredVersions(LegacyESVersion.class);
         final Version pre63Version =
             randomFrom(versions.stream().filter(v -> v.before(LegacyESVersion.V_6_3_0)).collect(Collectors.toList()));
         final Version post63Pre67Version = randomFrom(versions.stream()

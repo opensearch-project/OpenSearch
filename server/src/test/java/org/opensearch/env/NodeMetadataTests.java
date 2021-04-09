@@ -123,7 +123,7 @@ public class NodeMetadataTests extends OpenSearchTestCase {
     }
 
     public static Version tooNewVersion() {
-        return Version.fromId(between(Version.CURRENT.id + 1, 99999999));
+        return Version.fromId(between(Version.CURRENT.id + 1, 234217727));
     }
 
     public static Version tooOldVersion() {

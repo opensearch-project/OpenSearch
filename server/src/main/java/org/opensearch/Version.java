@@ -286,8 +286,13 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
         // flip the 28th bit of the ID; identify as an opensearch vs legacy system:
-        this.id = id ^ MASK;
-        id &= 0xF7FFFFFF;
+        // we start from version 1 for opensearch, so ignore the 0 (empty) version
+        if(id != 0) {
+            this.id = id ^ MASK;
+            id &= 0xF7FFFFFF;
+        } else {
+            this.id = id;
+        }
         this.major = (byte) ((id / 1000000) % 100);
         this.minor = (byte) ((id / 10000) % 100);
         this.revision = (byte) ((id / 100) % 100);

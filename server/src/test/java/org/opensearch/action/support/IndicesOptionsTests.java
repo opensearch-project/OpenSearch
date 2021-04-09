@@ -100,7 +100,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
 
     public void testSerializationPre70() throws Exception {
         int iterations = randomIntBetween(5, 20);
-        List<Version> declaredVersions = Version.getDeclaredVersions(Version.class);
+        List<Version> declaredVersions = Version.getDeclaredVersions(LegacyESVersion.class);
         OptionalInt maxV6Id = declaredVersions.stream().filter(v -> v.major == 6).mapToInt(v -> v.id).max();
         assertTrue(maxV6Id.isPresent());
         final Version maxVersion = Version.fromId(maxV6Id.getAsInt());

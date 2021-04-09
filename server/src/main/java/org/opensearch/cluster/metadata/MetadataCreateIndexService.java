@@ -788,7 +788,7 @@ public class MetadataCreateIndexService {
 
     static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
         // TODO: this logic can be removed when the current major version is 8
-        assert Version.CURRENT.major == 7;
+        assert Version.CURRENT.major == 1;
         final int numberOfShards;
         final Version indexVersionCreated =
             Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey())));
