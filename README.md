@@ -4,22 +4,7 @@ Hello!
 
 OpenSearch is an open source search and analytics engine derived from Elasticsearch 7.10.2, and is currently in a pre-alpha state. While we're still in the process of getting set up, we are excited to build the best distributed search engine on the planet with you.
 
-We'll update this page as the state of the project changes, so please check back frequently.
-
-## Current state of the world
-We officially began work on the new fork on January 21st, 2021.  Since then, we've been removing non-Apache code and doing a full rename of the project.
-
-### What works
-
-* All references to non-Apache 2.0 code should be removed, and we should be using the new project name everywhere.
-* ./gradlew precommit should be passing.   Please let us know if you see issues.
-* CI/CD with a DCO check.
-
-### What doesn't work
-
-* Unit Tests
-* Integration Tests
-* Version Checks
+We officially began work on the new fork on January 21st, 2021.  Since then, we've been removing non-Apache code and doing a full rename of the project. Feel free to take a look at what we've been up to, and then head over to the [Project Board](https://github.com/opensearch-project/OpenSearch/projects) to track initial release targets, or jump in and [start opening issues](https://github.com/opensearch-project/OpenSearch/issues/new/choose) or [contributing](https://github.com/opensearch-project/OpenSearch/blob/main/CONTRIBUTING.md).
 
 ### Guiding Principles
 
@@ -43,7 +28,7 @@ We officially began work on the new fork on January 21st, 2021.  Since then, we'
 
 ### Look for the tag "help wanted"
 
-If you're excited to jump in, we've marked a few issues that would be [really helpful](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%3EFORK+label%3A%22help+wanted%22).  
+If you're excited to jump in, we've marked a few issues that would be [really helpful](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
 
 ### Watch the forum, because there are a bunch of things we want to talk about
 As we've been working, we've come up with a bunch of questions that we wanted to get community feedback on.  Now that we're done with this first pass of renaming, you'll see us posting those questions to the [forums](https://discuss.opendistrocommunity.dev/).  Please let us know your thoughts!
