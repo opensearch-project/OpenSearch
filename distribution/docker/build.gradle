@@ -182,8 +182,7 @@ void addBuildDockerImage(Architecture architecture, DockerBase base) {
 
     String version = VersionProperties.getOpenSearch()
       tags = [
-        //TODO remove the tag and replace with OpenSearch docker tag
-        "docker.elastic.co/elasticsearch/elasticsearch-oss:${version}",
+        "docker.opensearch.org/opensearch/opensearch-oss:${version}",
         "opensearch-oss:test"
       ]
   }

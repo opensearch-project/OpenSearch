@@ -31,15 +31,11 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-/**
- * TODO OpenSearch - this task is currently broken and temporarily commented out to
- * unblock the pre-commit.
- * Issue URL - https://github.com/opensearch-project/OpenSearch/issues/400
 opensearch_distributions {
   docker {
     type = 'docker'
     architecture = Architecture.current()
-    version = VersionProperties.getElasticsearch()
+    version = VersionProperties.getOpenSearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
 }
@@ -49,23 +45,19 @@ preProcessFixture {
   doLast {
     // tests expect to have an empty repo
     project.delete(
-      "${buildDir}/repo",
       "${buildDir}/oss-repo"
     )
     createAndSetWritable(
-      "${buildDir}/repo",
       "${buildDir}/oss-repo",
-      "${buildDir}/logs/default-1",
-      "${buildDir}/logs/default-2",
       "${buildDir}/logs/oss-1",
       "${buildDir}/logs/oss-2"
     )
   }
 }
-*/
+
 dockerCompose {
   tcpPortsToIgnoreWhenWaiting = [9600, 9601]
-  useComposeFiles = ['docker-compose-oss.yml']
+  useComposeFiles = ['docker-compose.yml']
 }
 
 def createAndSetWritable(Object... locations) {

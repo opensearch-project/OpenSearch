@@ -58,16 +58,9 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
 // integ test zip only uses server, so a different notice file is needed there
 def buildServerNoticeTaskProvider = tasks.register("buildServerNotice", NoticeTask)
 
-// other distributions include notices from modules as well, which are added below later
-def buildDefaultNoticeTaskProvider = tasks.register("buildDefaultNotice", NoticeTask) {
-  licensesDir new File(project(':distribution').projectDir, 'licenses')
-}
-
 def buildOssNoticeTaskProvider = tasks.register("buildOssNotice", NoticeTask) {
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
-
-def buildDefaultNoJdkNoticeTaskProvider = tasks.register("buildDefaultNoJdkNotice", NoticeTask)
 
 def buildOssNoJdkNoticeTaskProvider = tasks.register("buildOssNoJdkNotice", NoticeTask)
 
@@ -85,18 +78,12 @@ tasks.withType(NoticeTask).configureEach {
  *                                  Modules                                  *
  *****************************************************************************/
 String ossOutputs = 'build/outputs/oss'
-String defaultOutputs = 'build/outputs/default'
 String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
 String externalTestOutputs = 'build/outputs/external-test'
 
 def processOssOutputsTaskProvider = tasks.register("processOssOutputs", Sync) {
   into ossOutputs
-}
-
-def processDefaultOutputsTaskProvider = tasks.register("processDefaultOutputs", Sync) {
-  into defaultOutputs
-  from processOssOutputsTaskProvider
 }
 
 def processSystemdOutputsTaskProvider = tasks.register("processSystemdOutputs", Sync) {
@@ -125,18 +112,6 @@ tasks.register("buildOssBin") {
 tasks.register("buildOssConfig") {
   dependsOn "processOssOutputs"
   outputs.dir "${ossOutputs}/config"
-}
-def buildDefaultModulesTaskProvider = tasks.register("buildDefaultModules") {
-  dependsOn processDefaultOutputsTaskProvider
-  outputs.dir "${defaultOutputs}/modules"
-}
-tasks.register("buildDefaultBin") {
-  dependsOn processDefaultOutputsTaskProvider
-  outputs.dir "${defaultOutputs}/bin"
-}
-def buildDefaultConfigTaskProvider = tasks.register("buildDefaultConfig") {
-  dependsOn processOssOutputsTaskProvider
-  outputs.dir "${defaultOutputs}/config"
 }
 def buildSystemdModuleTaskProvider = tasks.register("buildSystemdModule") {
   dependsOn "processSystemdOutputs"
@@ -192,12 +167,6 @@ def buildOssLog4jConfigTaskProvider = tasks.register("buildOssLog4jConfig") {
   ext.log4jFile = file("${ossOutputs}/log4j2.properties")
   outputs.file log4jFile
 }
-def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfig") {
-  dependsOn processDefaultOutputsTaskProvider
-  ext.contents = []
-  ext.log4jFile = file("${defaultOutputs}/log4j2.properties")
-  outputs.file log4jFile
-}
 
 Closure writeLog4jProperties = {
   String mainLog4jProperties = file('src/config/log4j2.properties').getText('UTF-8')
@@ -207,10 +176,6 @@ Closure writeLog4jProperties = {
   }
 }
 buildOssLog4jConfigTaskProvider.configure {
-  doLast(writeLog4jProperties)
-}
-
-buildDefaultLog4jConfigTaskProvider.configure {
   doLast(writeLog4jProperties)
 }
 
@@ -246,10 +211,6 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
   File licenses = new File(module.projectDir, 'licenses')
   if (licenses.exists()) {
-    buildDefaultNoticeTaskProvider.configure {
-      licensesDir licenses
-      source module.file('src/main/java')
-    }
     buildOssNotice.configure {
       licensesDir licenses
       source module.file('src/main/java')
@@ -262,7 +223,6 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   copyLog4jProperties(buildOssLog4jConfigTaskProvider, module)
-  copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, module)
 
   restTestExpansions['expected.modules.count'] += 1
 }

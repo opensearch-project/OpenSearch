@@ -19,23 +19,17 @@
 package org.opensearch.cluster.remote.test;
 
 import org.apache.http.HttpHost;
-import org.opensearch.OpenSearchException;
+import org.junit.AfterClass;
+import org.junit.Before;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestHighLevelClient;
-import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collections;
 
 public abstract class AbstractMultiClusterRemoteTestCase extends OpenSearchRestTestCase {
@@ -100,25 +94,6 @@ public abstract class AbstractMultiClusterRemoteTestCase extends OpenSearchRestT
         HttpHost httpHost = new HttpHost(url.substring(0, portSeparator),
             Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
         return new HighLevelClient(buildClient(restAdminSettings(), new HttpHost[]{httpHost}));
-    }
-
-    static Path keyStore;
-
-    @BeforeClass
-    public static void getKeyStore() {
-        try {
-            keyStore = PathUtils.get(AbstractMultiClusterRemoteTestCase.class.getResource("/testnode.jks").toURI());
-        } catch (URISyntaxException e) {
-            throw new OpenSearchException("exception while reading the store", e);
-        }
-        if (Files.exists(keyStore) == false) {
-            throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
-        }
-    }
-
-    @AfterClass
-    public static void clearKeyStore() {
-        keyStore = null;
     }
 
     @Override
