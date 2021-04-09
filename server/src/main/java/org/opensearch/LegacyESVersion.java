@@ -32,6 +32,12 @@
 
 package org.opensearch;
 
+/**
+ * The Contents of this file were originally moved from {@link Version}.
+ *
+ * This class keeps all the supported OpenSearch predecessor versions for
+ * backward compatibility purpose.
+ */
 public class LegacyESVersion extends Version {
 
     public static final LegacyESVersion V_6_0_0_alpha1 =
