@@ -31,7 +31,7 @@ We officially began work on the new fork on January 21st, 2021.  Since then, we'
 
 ### Look for the tag "help wanted"
 
-If you're excited to jump in, we've marked a few issues that would be [really helpful](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%3EFORK+label%3A%22help+wanted%22).
+If you're excited to jump in, we've marked a few issues that would be [really helpful](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
 
 ### Watch the forum, because there are a bunch of things we want to talk about
 As we've been working, we've come up with a bunch of questions that we wanted to get community feedback on.  Now that we're done with this first pass of renaming, you'll see us posting those questions to the [forums](https://discuss.opendistrocommunity.dev/).  Please let us know your thoughts!
