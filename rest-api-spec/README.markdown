@@ -4,7 +4,7 @@ This repository contains a collection of JSON files which describe the [OpenSear
 
 Their purpose is to formalize and standardize the API, to facilitate development of libraries and integrations.
 
-Example for the ["Create Index"](https://www.opensearch.co/guide/en/openearch/reference/master/indices-create-index.html) API:
+Example for the ["Create Index"](https://www.opensearch.org/guide/en/openearch/reference/master/indices-create-index.html) API:
 
 ```json
 {
