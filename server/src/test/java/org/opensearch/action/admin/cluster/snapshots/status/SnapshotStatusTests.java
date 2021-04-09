@@ -1,4 +1,10 @@
-package org.opensearch.action.admin.cluster.snapshots.status;
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -18,6 +24,13 @@ package org.opensearch.action.admin.cluster.snapshots.status;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+package org.opensearch.action.admin.cluster.snapshots.status;
 
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.UUIDs;

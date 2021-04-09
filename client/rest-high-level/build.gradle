@@ -1,5 +1,13 @@
-import org.opensearch.gradle.test.RestIntegTestTask
-import org.opensearch.gradle.info.BuildParams
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -19,6 +27,10 @@ import org.opensearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
+
+import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.info.BuildParams
+
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.rest-test'
