@@ -605,7 +605,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
-     * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
+     * ".asc" to the URL. It is expected that the plugin is signed with the OpenSearch signing key with ID 0934A65836A51424.
      *
      * @param zip       the path to the downloaded plugin ZIP
      * @param urlString the URL source of the downloade plugin ZIP
@@ -666,7 +666,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * @return the public key ID
      */
     String getPublicKeyId() {
-        return "D27D666CD88E42B4";
+        return "0934A65836A51424";
     }
 
     /**
