@@ -21,11 +21,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * and the values will be modified in certain scenarios.
  *
  * 1. If the limits assigned to the shard is breached(Primary Parameter) and the node level occupancy of all shards
- * is not greater than 70%(Primary Parameter), we will be increasing the shard limits without any further evaluation.
+ * is not greater than primary_parameter.node.soft_limit, we will be increasing the shard limits without any further evaluation.
  * 2. If the limits assigned to the shard is breached(Primary Parameter) and the node level occupancy of all the shards
- * is greater than 70%(Primary Parameter) is when we will evaluate certain parameters like throughput degradation(Secondary Parameter)
- * and last successful request elapsed timeout(Secondary Parameter) to evaluate if the limits for the shard needs to
- * be modified or not.
+ * is greater than primary_parameter.node.soft_limit is when we will evaluate certain parameters like
+ * throughput degradation(Secondary Parameter) and last successful request elapsed timeout(Secondary Parameter) to evaluate if the limits
+ * for the shard needs to be modified or not.
  *
  * Secondary Parameters
  * 1. ThroughputDegradationLimitsBreached - When the moving window throughput average has increased by some factor than
@@ -35,8 +35,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * current request timestamp is greater than the max timeout value and the number of outstanding requests is greater
  * than the max outstanding requests then this parameter is said to be breached.
  *
- * Note : Every time we try to increase of decrease the shard limits. In case the shard utilization goes below 75% or
- * goes above 95% of current shard limits then we try to set the new shard limit to be 85% of
+ * Note : Every time we try to increase of decrease the shard limits. In case the shard utilization goes below operating_factor.lower or
+ * goes above operating_factor.upper of current shard limits then we try to set the new shard limit to be operating_factor.optimal of
  * current shard utilization.
  *
  */
@@ -150,7 +150,7 @@ public class ShardIndexingPressureMemoryManager {
     boolean isPrimaryShardLimitBreached(ShardIndexingPressureTracker tracker, long requestStartTime,
                                         Map<Long, ShardIndexingPressureTracker> shardIndexingPressureStore, long nodeTotalBytes) {
 
-        //Memory limits is breached when the current utilization is greater than 95% of total shard limits.
+        /* Memory limits is breached when the current utilization is greater than operating_factor.upper of total shard limits. */
         long shardCombinedBytes = tracker.currentCombinedCoordinatingAndPrimaryBytes.get();
         long shardPrimaryAndCoordinatingLimits = tracker.primaryAndCoordinatingLimits.get();
         boolean shardMemoryLimitsBreached =
@@ -159,7 +159,7 @@ public class ShardIndexingPressureMemoryManager {
         if(shardMemoryLimitsBreached) {
             /*
             Secondary Parameters(i.e. LastSuccessfulRequestDuration and Throughput) is taken into consideration when
-            the current node utilization is greater than 70% of total node limits.
+            the current node utilization is greater than primary_parameter.node.soft_limit of total node limits.
              */
             if(((double)nodeTotalBytes / this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits()) < this.nodeSoftLimit) {
                 boolean isShardLimitsIncreased =
@@ -225,7 +225,7 @@ public class ShardIndexingPressureMemoryManager {
     boolean isCoordinatingShardLimitBreached(ShardIndexingPressureTracker tracker, long requestStartTime,
                                              Map<Long, ShardIndexingPressureTracker> shardIndexingPressureStore, long nodeTotalBytes) {
 
-        //Shard memory limit is breached when the current utilization is greater than 95% of total shard limits.
+        //Shard memory limit is breached when the current utilization is greater than operating_factor.upper of total shard limits.
         long shardCombinedBytes = tracker.currentCombinedCoordinatingAndPrimaryBytes.get();
         long shardPrimaryAndCoordinatingLimits = tracker.primaryAndCoordinatingLimits.get();
         boolean shardMemoryLimitsBreached =
@@ -234,7 +234,7 @@ public class ShardIndexingPressureMemoryManager {
         if(shardMemoryLimitsBreached) {
             /*
             Secondary Parameters(i.e. LastSuccessfulRequestDuration and Throughput) is taken into consideration when
-            the current node utilization is greater than 70% of total node limits.
+            the current node utilization is greater than primary_parameter.node.soft_limit of total node limits.
              */
             if(((double)nodeTotalBytes / this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits()) < this.nodeSoftLimit) {
                 boolean isShardLimitsIncreased =
@@ -299,7 +299,7 @@ public class ShardIndexingPressureMemoryManager {
     boolean isReplicaShardLimitBreached(ShardIndexingPressureTracker tracker, long requestStartTime,
                                         Map<Long, ShardIndexingPressureTracker> shardIndexingPressureStore, long nodeReplicaBytes) {
 
-        //Memory limits is breached when the current utilization is greater than 95% of total shard limits.
+        //Memory limits is breached when the current utilization is greater than operating_factor.upper of total shard limits.
         long shardReplicaBytes = tracker.currentReplicaBytes.get();
         long shardReplicaLimits = tracker.replicaLimits.get();
         final boolean shardMemoryLimitsBreached =
@@ -308,7 +308,7 @@ public class ShardIndexingPressureMemoryManager {
         if(shardMemoryLimitsBreached) {
             /*
             Secondary Parameters(i.e. LastSuccessfulRequestDuration and Throughput) is taken into consideration when
-            the current node utilization is greater than 70% of total node limits.
+            the current node utilization is greater than primary_parameter.node.soft_limit of total node limits.
              */
             if(((double)nodeReplicaBytes / this.shardIndexingPressureSettings.getNodeReplicaLimits()) < this.nodeSoftLimit)  {
                 boolean isShardLimitsIncreased =
