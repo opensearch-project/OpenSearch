@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.MockTerminal;
@@ -249,7 +250,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
             "version",
             "1.0",
             "opensearch.version",
-            Version.fromString("1.0.0").toString(),
+            LegacyESVersion.fromString("5.0.0").toString(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
