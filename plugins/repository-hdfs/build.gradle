@@ -114,7 +114,7 @@ testClusters.integTest {
   plugin(project.tasks.bundlePlugin.archiveFile)
 }
 
-String realm = "BUILD.ELASTIC.CO"
+String realm = "BUILD.OPENSEARCH.ORG"
 String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
