@@ -14,7 +14,7 @@
             uri: "hdfs://localhost:9998"
             path: "/user/opensearch/existing/readonly-repository"
             security:
-              principal: "opensearch@BUILD.OPENSEARCH.CO"
+              principal: "opensearch@BUILD.OPENSEARCH.ORG"
             readonly: true
 
   # List snapshot info
