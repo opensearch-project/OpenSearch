@@ -55,8 +55,8 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.rest.action.document.RestBulkAction;
-import org.opensearch.index.IndexingPressure;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -69,11 +69,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.opensearch.action.bulk.BulkItemResponse;
-import org.opensearch.action.bulk.BulkRequest;
-import org.opensearch.action.bulk.BulkResponse;
-import org.opensearch.action.bulk.TransportBulkAction;
-import org.opensearch.action.bulk.TransportShardBulkAction;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -266,7 +261,7 @@ public class TransportBulkActionTookTests extends OpenSearchTestCase {
                     actionFilters,
                     indexNameExpressionResolver,
                     autoCreateIndex,
-                    new IndexingPressure(Settings.EMPTY, clusterService),
+                    new IndexingPressureService(Settings.EMPTY, clusterService),
                     new SystemIndices(emptyMap()),
                     relativeTimeProvider);
         }

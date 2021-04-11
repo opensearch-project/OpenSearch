@@ -17,23 +17,23 @@ import org.opensearch.common.settings.Settings;
 public final class ShardIndexingPressureSettings {
 
     public static final Setting<Boolean> SHARD_INDEXING_PRESSURE_ENABLED =
-            Setting.boolSetting("aes.shard_indexing_pressure.enabled", false, Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.boolSetting("shard_indexing_pressure.enabled", false, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     /**
      * Feature level setting to operate in shadow-mode or in enforced-mode. If enforced field is set to true, shard level
      * rejection will be performed, otherwise only rejection metrics will be populated.
      */
     public static final Setting<Boolean> SHARD_INDEXING_PRESSURE_ENFORCED =
-            Setting.boolSetting("aes.shard_indexing_pressure.enforced", false, Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.boolSetting("shard_indexing_pressure.enforced", false, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     // This represents the last N request samples that will be considered for secondary parameter evaluation.
     public static final Setting<Integer> REQUEST_SIZE_WINDOW =
-            Setting.intSetting("aes.shard_indexing_pressure.secondary_parameter.throughput.request_size_window", 2000,
+            Setting.intSetting("shard_indexing_pressure.secondary_parameter.throughput.request_size_window", 2000,
                 Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     //Each shard will be initially given 1/1000th bytes of node limits.
     public static final Setting<Double> SHARD_MIN_LIMIT =
-            Setting.doubleSetting("aes.shard_indexing_pressure.primary_parameter.shard.min_limit", 0.001d, 0.0d,
+            Setting.doubleSetting("shard_indexing_pressure.primary_parameter.shard.min_limit", 0.001d, 0.0d,
                 Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     private volatile boolean shardIndexingPressureEnabled;

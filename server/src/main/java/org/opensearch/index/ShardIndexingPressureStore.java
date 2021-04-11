@@ -40,7 +40,8 @@ public class ShardIndexingPressureStore {
 
     // This represents the initial value of cold store size.
     public static final Setting<Integer> MAX_CACHE_STORE_SIZE =
-        Setting.intSetting("aes.shard_indexing_pressure.cache_store.max_size", 200, Setting.Property.NodeScope, Setting.Property.Dynamic);
+        Setting.intSetting("shard_indexing_pressure.cache_store.max_size", 200, 100, 1000,
+            Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     private final Map<Long, ShardIndexingPressureTracker> shardIndexingPressureHotStore =
             ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -48,7 +49,7 @@ public class ShardIndexingPressureStore {
             ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final ShardIndexingPressureSettings shardIndexingPressureSettings;
 
-    private int maxColdStoreSize;
+    private volatile int maxColdStoreSize;
 
     public ShardIndexingPressureStore(ShardIndexingPressureSettings shardIndexingPressureSettings,
                                       ClusterSettings clusterSettings, Settings settings) {
@@ -61,13 +62,13 @@ public class ShardIndexingPressureStore {
         ShardIndexingPressureTracker tracker = shardIndexingPressureHotStore.get((long)shardId.hashCode());
         if (isNull(tracker)) {
             // Attempt from Indexing pressure cold store
-            tracker = getIndexingPressureTrackerFromColdStore(shardId);
+            tracker = shardIndexingPressureColdStore.get((long)shardId.hashCode());
             // If not present in cold store so instantiate a new one
             if (isNull(tracker)) {
                 ShardIndexingPressureTracker newShardIndexingPressureTracker = new ShardIndexingPressureTracker(shardId);
-                newShardIndexingPressureTracker.primaryAndCoordinatingLimits.set(this.shardIndexingPressureSettings
+                newShardIndexingPressureTracker.getPrimaryAndCoordinatingLimits().set(this.shardIndexingPressureSettings
                     .getShardPrimaryAndCoordinatingBaseLimits());
-                newShardIndexingPressureTracker.replicaLimits.set(this.shardIndexingPressureSettings.getShardReplicaBaseLimits());
+                newShardIndexingPressureTracker.getReplicaLimits().set(this.shardIndexingPressureSettings.getShardReplicaBaseLimits());
                 // Try update the new shard stat to the hot store
                 tracker = shardIndexingPressureHotStore.putIfAbsent((long) shardId.hashCode(), newShardIndexingPressureTracker);
                 // Update the tracker so that we use the one actual in the hot store
@@ -92,27 +93,20 @@ public class ShardIndexingPressureStore {
     }
 
     public void tryIndexingPressureTrackerCleanup(ShardIndexingPressureTracker tracker) {
-        if (tracker.currentCombinedCoordinatingAndPrimaryBytes.get() == 0 && tracker.currentReplicaBytes.get() == 0) {
+        if (tracker.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().get() == 0 &&
+            tracker.memory().getCurrentReplicaBytes().get() == 0) {
             // Try inserting into cache again in case there was an eviction earlier
-            shardIndexingPressureColdStore.putIfAbsent((long)tracker.shardId.hashCode(), tracker);
+            shardIndexingPressureColdStore.putIfAbsent((long)tracker.getShardId().hashCode(), tracker);
             // Remove from the active store
-            shardIndexingPressureHotStore.remove((long)tracker.shardId.hashCode(), tracker);
+            shardIndexingPressureHotStore.remove((long)tracker.getShardId().hashCode(), tracker);
         }
-    }
-
-    private ShardIndexingPressureTracker getIndexingPressureTrackerFromColdStore(ShardId shardId) {
-        return shardIndexingPressureColdStore.get((long)shardId.hashCode());
     }
 
     private void updateIndexingPressureColdStore(ShardIndexingPressureTracker tracker) {
         if (shardIndexingPressureColdStore.size() > maxColdStoreSize) {
-            evictColdStore();
+            shardIndexingPressureColdStore.clear();
         }
-        shardIndexingPressureColdStore.put((long)tracker.shardId.hashCode(), tracker);
-    }
-
-    private void evictColdStore() {
-        shardIndexingPressureColdStore.clear();
+        shardIndexingPressureColdStore.put((long)tracker.getShardId().hashCode(), tracker);
     }
 
     private void setMaxColdStoreSize(int maxColdStoreSize) {

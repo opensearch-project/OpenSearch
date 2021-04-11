@@ -34,7 +34,6 @@ package org.opensearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -50,34 +49,29 @@ public class IndexingPressure {
     public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
         Setting.memorySizeSetting("indexing_pressure.memory.limit", "10%", Setting.Property.NodeScope);
 
-    private final ShardIndexingPressure shardIndexingPressure;
-
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
-    private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong currentCoordinatingBytes = new AtomicLong(0);
-    private final AtomicLong currentPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong currentReplicaBytes = new AtomicLong(0);
+    final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    final AtomicLong currentCoordinatingBytes = new AtomicLong(0);
+    final AtomicLong currentPrimaryBytes = new AtomicLong(0);
+    final AtomicLong currentReplicaBytes = new AtomicLong(0);
 
-    private final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
-    private final AtomicLong totalPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong totalReplicaBytes = new AtomicLong(0);
+    final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
+    final AtomicLong totalPrimaryBytes = new AtomicLong(0);
+    final AtomicLong totalReplicaBytes = new AtomicLong(0);
 
-    private final AtomicLong coordinatingRejections = new AtomicLong(0);
-    private final AtomicLong primaryRejections = new AtomicLong(0);
-    private final AtomicLong replicaRejections = new AtomicLong(0);
+    final AtomicLong coordinatingRejections = new AtomicLong(0);
+    final AtomicLong primaryRejections = new AtomicLong(0);
+    final AtomicLong replicaRejections = new AtomicLong(0);
 
-    private final long primaryAndCoordinatingLimits;
-    private final long replicaLimits;
+    final long primaryAndCoordinatingLimits;
+    final long replicaLimits;
 
-    public IndexingPressure(Settings settings, ClusterService clusterService) {
+    public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
-
-        shardIndexingPressure = new ShardIndexingPressure(this, clusterService, settings);
     }
-
 
     private static Releasable wrapReleasable(Releasable releasable) {
         final AtomicBoolean called = new AtomicBoolean();
@@ -176,66 +170,6 @@ public class IndexingPressure {
 
     public long getCurrentReplicaBytes() {
         return currentReplicaBytes.get();
-    }
-
-    public long addAndGetCurrentCombinedCoordinatingAndPrimaryBytes(long bytes) {
-        return currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
-    }
-
-    public long addAndGetCurrentCoordinatingBytes(long bytes) {
-        return currentCoordinatingBytes.addAndGet(bytes);
-    }
-
-    public long addAndGetCurrentPrimaryBytes(long bytes) {
-        return currentPrimaryBytes.addAndGet(bytes);
-    }
-
-    public long addAndGetCurrentReplicaBytes(long bytes) {
-        return currentReplicaBytes.addAndGet(bytes);
-    }
-
-    public long addAndGetTotalCombinedCoordinatingAndPrimaryBytes(long bytes) {
-        return totalCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
-    }
-
-    public long addAndGetTotalCoordinatingBytes(long bytes) {
-        return totalCoordinatingBytes.addAndGet(bytes);
-    }
-
-    public long addAndGetTotalPrimaryBytes(long bytes) {
-        return totalPrimaryBytes.addAndGet(bytes);
-    }
-
-    public long addAndGetTotalReplicaBytes(long bytes) {
-        return totalReplicaBytes.addAndGet(bytes);
-    }
-
-    public long getAndIncrementCoordinatingRejections() {
-        return coordinatingRejections.getAndIncrement();
-    }
-
-    public long getAndIncrementPrimaryRejections() {
-        return primaryRejections.getAndIncrement();
-    }
-
-    public long getAndIncrementReplicaRejections() {
-        return replicaRejections.getAndIncrement();
-    }
-
-    public long getPrimaryAndCoordinatingLimits() {
-        return this.primaryAndCoordinatingLimits;
-    }
-
-    public long getReplicaLimits() {
-        return this.replicaLimits;
-    }
-
-    public ShardIndexingPressure getShardIndexingPressure() {
-        return shardIndexingPressure;
-    }
-
-    public boolean isShardIndexingPressureEnabled() {
-        return shardIndexingPressure.isShardIndexingPressureEnabled();
     }
 
     public IndexingPressureStats stats() {

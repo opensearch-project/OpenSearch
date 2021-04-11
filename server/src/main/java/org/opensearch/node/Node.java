@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -120,7 +121,6 @@ import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.indices.IndicesModule;
@@ -603,8 +603,8 @@ public class Node implements Closeable {
             final SearchTransportService searchTransportService =  new SearchTransportService(transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
-            final IndexingPressure indexingLimits = new IndexingPressure(settings, clusterService);
-            clusterService.setIndexingPressure(indexingLimits);
+            final IndexingPressureService indexingPressureService = new IndexingPressureService(settings, clusterService);
+            clusterService.setIndexingPressureService(indexingPressureService);
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(this.environment,
@@ -633,7 +633,7 @@ public class Node implements Closeable {
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptService,
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,
-                searchTransportService, indexingLimits, searchModule.getValuesSourceRegistry().getUsageService());
+                searchTransportService, indexingPressureService, searchModule.getValuesSourceRegistry().getUsageService());
 
             final SearchService searchService = newSearchService(clusterService, indicesService,
                 threadPool, scriptService, bigArrays, searchModule.getFetchPhase(),
@@ -669,7 +669,7 @@ public class Node implements Closeable {
                     b.bind(ScriptService.class).toInstance(scriptService);
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
-                    b.bind(IndexingPressure.class).toInstance(indexingLimits);
+                    b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                     b.bind(UsageService.class).toInstance(usageService);
                     b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
@@ -751,7 +751,6 @@ public class Node implements Closeable {
     }
 
     private static Settings addShardIndexingBackPressureAttributeSettings(Settings settings) {
-        // Shard Indexing BackPressure is enabled from AES-7.9 onwards.
         String ShardIndexingBackPressureEnabledValue = "true";
         return Settings.builder().put(settings)
                 .put(NODE_ATTRIBUTES.getKey() + SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, ShardIndexingBackPressureEnabledValue)

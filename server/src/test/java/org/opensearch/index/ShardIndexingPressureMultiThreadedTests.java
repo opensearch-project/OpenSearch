@@ -37,8 +37,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 500);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
@@ -59,24 +58,24 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         }
 
         if(randomBoolean) {
-            assertEquals(NUM_THREADS * 15, shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1)
+            assertEquals(NUM_THREADS * 15, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
                 .getCurrentCoordinatingBytes());
         } else {
-            assertEquals(NUM_THREADS * 15, shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1)
+            assertEquals(NUM_THREADS * 15, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
                 .getCurrentPrimaryBytes());
         }
-        assertEquals(NUM_THREADS * 15, shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1)
+        assertEquals(NUM_THREADS * 15, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
             .getCurrentCombinedCoordinatingAndPrimaryBytes());
-        assertTrue((double) (NUM_THREADS * 15) / shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1)
+        assertTrue((double) (NUM_THREADS * 15) / shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
             .getCurrentPrimaryAndCoordinatingLimits() < 0.95);
-        assertTrue((double) (NUM_THREADS * 15) / shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1)
+        assertTrue((double) (NUM_THREADS * 15) / shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
             .getCurrentPrimaryAndCoordinatingLimits() > 0.75);
 
         for (int i = 0; i < NUM_THREADS; i++) {
             releasables[i].close();
         }
 
-        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1);
+        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
 
         if(randomBoolean) {
@@ -96,8 +95,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 500);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -112,18 +110,18 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             t.join();
         }
 
-        assertEquals(NUM_THREADS * 15, shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1)
+        assertEquals(NUM_THREADS * 15, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
             .getCurrentReplicaBytes());
-        assertTrue((double)(NUM_THREADS * 15) / shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1)
+        assertTrue((double)(NUM_THREADS * 15) / shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
             .getCurrentReplicaLimits() < 0.95);
-        assertTrue((double)(NUM_THREADS * 15) / shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1)
+        assertTrue((double)(NUM_THREADS * 15) / shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
             .getCurrentReplicaLimits() > 0.75);
 
         for (int i = 0; i < NUM_THREADS; i++) {
             releasables[i].close();
         }
 
-        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1);
+        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
 
         assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1).getCurrentReplicaBytes());
@@ -133,8 +131,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
     public void testCoordinatingPrimaryThreadedSimultaneousUpdateToShardLimits() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 500);
         final Thread[] threads = new Thread[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
@@ -160,7 +157,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             t.join();
         }
 
-        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1);
+        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
         if(randomBoolean) {
             assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1)
@@ -178,8 +175,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
     public void testReplicaThreadedSimultaneousUpdateToShardLimits() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 500);
         final Thread[] threads = new Thread[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -199,7 +195,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             t.join();
         }
 
-        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1);
+        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
         assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1).getCurrentReplicaBytes());
         assertEquals(15, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1).getCurrentReplicaLimits());
@@ -209,8 +205,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 400);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
@@ -236,7 +231,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             releasables[i].close();
         }
 
-        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1);
+        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
 
         if(randomBoolean) {
@@ -256,8 +251,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 400);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -277,7 +271,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             releasables[i].close();
         }
 
-        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1);
+        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
 
         assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1).getCurrentReplicaBytes());
@@ -289,8 +283,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
         AtomicInteger rejectionCount = new AtomicInteger();
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
@@ -314,8 +307,8 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             t.join();
         }
 
-        IndexingPressureStats nodeStats = indexingPressure.stats();
-        ShardIndexingPressureStats shardStats = shardIndexingPressure.stats();
+        IndexingPressureStats nodeStats = shardIndexingPressure.stats();
+        ShardIndexingPressureStats shardStats = shardIndexingPressure.shardStats();
         if(randomBoolean) {
             assertEquals(rejectionCount.get(), nodeStats.getCoordinatingRejections());
             assertTrue(shardStats.getIndexingPressureShardStats(shardId1).getCurrentCoordinatingBytes() < 50 * 200);
@@ -330,8 +323,8 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             releasables[i].close();
         }
 
-        nodeStats = indexingPressure.stats();
-        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1);
+        nodeStats = shardIndexingPressure.stats();
+        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
         shardStats = shardIndexingPressure.coldStats();
         if(randomBoolean) {
@@ -356,8 +349,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
         AtomicInteger rejectionCount = new AtomicInteger();
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -376,11 +368,11 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             t.join();
         }
 
-        IndexingPressureStats nodeStats = indexingPressure.stats();
+        IndexingPressureStats nodeStats = shardIndexingPressure.stats();
         assertEquals(rejectionCount.get(), nodeStats.getReplicaRejections());
         assertTrue(nodeStats.getCurrentReplicaBytes() < 50 * 300);
 
-        ShardIndexingPressureStats shardStats = shardIndexingPressure.stats();
+        ShardIndexingPressureStats shardStats = shardIndexingPressure.shardStats();
         assertTrue(shardStats.getIndexingPressureShardStats(shardId1).getCurrentReplicaBytes() < 50 * 300);
 
         for (int i = 0; i < releasables.length - 1; i++) {
@@ -389,11 +381,11 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             }
         }
 
-        nodeStats = indexingPressure.stats();
+        nodeStats = shardIndexingPressure.stats();
         assertEquals(rejectionCount.get(), nodeStats.getReplicaRejections());
         assertEquals(0, nodeStats.getCurrentReplicaBytes());
 
-        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1);
+        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
 
         shardStats = shardIndexingPressure.coldStats();
@@ -407,8 +399,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 400);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "new_uuid");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
@@ -430,19 +421,19 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             t.join();
         }
 
-        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.stats()
+        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats()
             .getIndexingPressureShardStats(shardId1);
         assertThat(shardStoreStats.getCurrentPrimaryAndCoordinatingLimits(), Matchers.greaterThan(100L));
 
         CommonStatsFlags statsFlag = new CommonStatsFlags();
         statsFlag.includeAllShardIndexingPressureTrackers(true);
-        IndexingPressurePerShardStats shardStoreStats2 = shardIndexingPressure.stats(statsFlag)
+        IndexingPressurePerShardStats shardStoreStats2 = shardIndexingPressure.shardStats(statsFlag)
             .getIndexingPressureShardStats(shardId1);;
         assertEquals(shardStoreStats.getCurrentPrimaryAndCoordinatingLimits(), shardStoreStats2
             .getCurrentPrimaryAndCoordinatingLimits());
 
         statsFlag.includeOnlyTopIndexingPressureMetrics(true);
-        assertNull(shardIndexingPressure.stats(statsFlag).getIndexingPressureShardStats(shardId1));
+        assertNull(shardIndexingPressure.shardStats(statsFlag).getIndexingPressureShardStats(shardId1));
         statsFlag.includeOnlyTopIndexingPressureMetrics(false);
 
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -450,7 +441,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         }
 
         //No object in host store as no active shards
-        shardStoreStats = shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1);
+        shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
 
         if(randomBoolean) {
@@ -465,21 +456,20 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         assertEquals(10, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1)
             .getCurrentPrimaryAndCoordinatingLimits());
 
-        shardStoreStats2 = shardIndexingPressure.stats(statsFlag).getIndexingPressureShardStats(shardId1);
+        shardStoreStats2 = shardIndexingPressure.shardStats(statsFlag).getIndexingPressureShardStats(shardId1);
         assertEquals(shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1)
                 .getCurrentPrimaryAndCoordinatingLimits(),
             shardStoreStats2.getCurrentPrimaryAndCoordinatingLimits());
 
         statsFlag.includeAllShardIndexingPressureTrackers(false);
-        assertNull(shardIndexingPressure.stats(statsFlag).getIndexingPressureShardStats(shardId1));
+        assertNull(shardIndexingPressure.shardStats(statsFlag).getIndexingPressureShardStats(shardId1));
     }
 
     public void testReplicaConcurrentUpdatesOnShardIndexingPressureTrackerObjects() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 400);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "new_uuid");
         ShardId shardId1 = new ShardId(index, 0);
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -495,18 +485,18 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             t.join();
         }
 
-        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.stats()
+        IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats()
             .getIndexingPressureShardStats(shardId1);
         assertThat(shardStoreStats.getCurrentReplicaLimits(), Matchers.greaterThan(100L));
 
         CommonStatsFlags statsFlag = new CommonStatsFlags();
         statsFlag.includeAllShardIndexingPressureTrackers(true);
-        IndexingPressurePerShardStats shardStoreStats2 = shardIndexingPressure.stats(statsFlag)
+        IndexingPressurePerShardStats shardStoreStats2 = shardIndexingPressure.shardStats(statsFlag)
             .getIndexingPressureShardStats(shardId1);;
         assertEquals(shardStoreStats.getCurrentReplicaLimits(), shardStoreStats2.getCurrentReplicaLimits());
 
         statsFlag.includeOnlyTopIndexingPressureMetrics(true);
-        assertNull(shardIndexingPressure.stats(statsFlag).getIndexingPressureShardStats(shardId1));
+        assertNull(shardIndexingPressure.shardStats(statsFlag).getIndexingPressureShardStats(shardId1));
         statsFlag.includeOnlyTopIndexingPressureMetrics(false);
 
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -514,18 +504,18 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         }
 
         //No object in host store as no active shards
-        shardStoreStats = shardIndexingPressure.stats().getIndexingPressureShardStats(shardId1);
+        shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
 
         assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1).getCurrentReplicaBytes());
         assertEquals(15, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1).getCurrentReplicaLimits());
 
-        shardStoreStats2 = shardIndexingPressure.stats(statsFlag).getIndexingPressureShardStats(shardId1);;
+        shardStoreStats2 = shardIndexingPressure.shardStats(statsFlag).getIndexingPressureShardStats(shardId1);;
         assertEquals(shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1).getCurrentReplicaLimits(),
             shardStoreStats2.getCurrentReplicaLimits());
 
         statsFlag.includeAllShardIndexingPressureTrackers(false);
-        assertNull(shardIndexingPressure.stats(statsFlag).getIndexingPressureShardStats(shardId1));
+        assertNull(shardIndexingPressure.shardStats(statsFlag).getIndexingPressureShardStats(shardId1));
     }
 
     public void testCoordinatingPrimaryThreadedThroughputDegradationAndRejection() throws Exception {
@@ -538,8 +528,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 120);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
@@ -641,8 +630,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 120);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
 
@@ -714,8 +702,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 150);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
@@ -802,8 +789,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 150);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
 
@@ -858,8 +844,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 150);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
@@ -939,8 +924,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         final int NUM_THREADS = scaledRandomIntBetween(100, 150);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
-        ShardIndexingPressure shardIndexingPressure = indexingPressure.getShardIndexingPressure();
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
 
