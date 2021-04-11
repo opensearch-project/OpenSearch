@@ -4,9 +4,9 @@ Hello!
 
 OpenSearch is an open source search and analytics engine derived from Elasticsearch 7.10.2, and is currently in an alpha state. While we're still in the process of getting set up, we are excited to build the best distributed search engine on the planet with you.
 
-We officially began work on the new fork on January 21st, 2021.  Since then, we've been removing non-Apache 2.0 compliant code and doing a full rename of the project. Feel free to take a look at what we've been up to, and then head over to the [Project Board](https://github.com/opensearch-project/OpenSearch/projects) to track initial release targets, or jump in and [start opening issues](https://github.com/opensearch-project/OpenSearch/issues/new/choose) or [contributing](https://github.com/opensearch-project/OpenSearch/blob/main/CONTRIBUTING.md).
+We officially began work on the new fork on January 21st, 2021.  Since then, we've been removing non-Apache 2.0 compliant code and doing a full rename of the project.  Feel free to take a look around at what we've been up to, and then head over to look at the [open issues](https://github.com/opensearch-project/OpenSearch/issues).  Or you could jump right in and [start opening issues](https://github.com/opensearch-project/OpenSearch/issues/new/choose) or [contributing](https://github.com/opensearch-project/OpenSearch/blob/main/CONTRIBUTING.md).
 
-### Guiding Principles
+## Guiding Principles
 
 Here are the principles we use to guide our development.  From [opensearch.org](http://opensearch.org):
 
