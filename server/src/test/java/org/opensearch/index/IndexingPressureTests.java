@@ -19,9 +19,7 @@
 
 package org.opensearch.index;
 
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.stats.IndexingPressureStats;
@@ -32,11 +30,8 @@ public class IndexingPressureTests extends OpenSearchTestCase {
     private final Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build();
 
-    final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    final ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-
     public void testMemoryBytesMarkedAndReleased() {
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
         try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(10, false);
              Releasable coordinating2 = indexingPressure.markCoordinatingOperationStarted(50, false);
              Releasable primary = indexingPressure.markPrimaryOperationStarted(15, true);
@@ -61,7 +56,7 @@ public class IndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testAvoidDoubleAccounting() {
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
         try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(10, false);
              Releasable primary = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(15)) {
             IndexingPressureStats stats = indexingPressure.stats();
@@ -79,7 +74,7 @@ public class IndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testCoordinatingPrimaryRejections() {
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
         try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1024 * 3, false);
              Releasable primary = indexingPressure.markPrimaryOperationStarted(1024 * 3, false);
              Releasable replica = indexingPressure.markReplicaOperationStarted(1024 * 3, false)) {
@@ -116,7 +111,7 @@ public class IndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testReplicaRejections() {
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
         try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1024 * 3, false);
              Releasable primary = indexingPressure.markPrimaryOperationStarted(1024 * 3, false);
              Releasable replica = indexingPressure.markReplicaOperationStarted(1024 * 3, false)) {
@@ -141,7 +136,7 @@ public class IndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testForceExecutionOnCoordinating() {
-        IndexingPressure indexingPressure = new IndexingPressure(settings, clusterService);
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
         expectThrows(OpenSearchRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1024 * 11, false));
         try (Releasable ignore = indexingPressure.markCoordinatingOperationStarted(1024 * 11, true)) {
             assertEquals(1024 * 11, indexingPressure.stats().getCurrentCoordinatingBytes());

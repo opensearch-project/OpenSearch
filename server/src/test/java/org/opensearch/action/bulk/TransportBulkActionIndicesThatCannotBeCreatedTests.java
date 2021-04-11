@@ -37,8 +37,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
-import org.opensearch.index.IndexingPressure;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -126,9 +126,9 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
         final ExecutorService direct = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
-            null, null, null, mock(ActionFilters.class), null, null, new IndexingPressure(Settings.EMPTY,
-            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null)), new SystemIndices(emptyMap())) {
+            null, null, null, mock(ActionFilters.class), null, null,
+            new IndexingPressureService(Settings.EMPTY, new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null)), new SystemIndices(emptyMap())) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                              AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {

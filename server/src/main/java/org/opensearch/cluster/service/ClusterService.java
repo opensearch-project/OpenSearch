@@ -34,9 +34,9 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.index.IndexingPressure;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -66,7 +66,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private RerouteService rerouteService;
 
-    private IndexingPressure indexingPressure;
+    private IndexingPressureService indexingPressureService;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this(settings, clusterSettings, new MasterService(settings, clusterSettings, threadPool),
@@ -194,18 +194,18 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Getter and Setter for Indexing Pressure, This method exposes IndexingPressure stats to other plugins.
+     * Getter and Setter for IndexingPressureService, This method exposes IndexingPressureService stats to other plugins.
      * Indexing Pressure instances can be accessed via Node and NodeService class but none of them are
      * present in the createComponents signature of Plugin interface currently.
      * {@link org.opensearch.plugins.Plugin#createComponents}
      */
 
-    public void setIndexingPressure(IndexingPressure indexingPressure) {
-        this.indexingPressure = indexingPressure;
+    public void setIndexingPressureService(IndexingPressureService indexingPressureService) {
+        this.indexingPressureService = indexingPressureService;
     }
 
-    public IndexingPressure getIndexingPressure() {
-        return indexingPressure;
+    public IndexingPressureService getIndexingPressureService() {
+        return indexingPressureService;
     }
 
     public ClusterApplierService getClusterApplierService() {

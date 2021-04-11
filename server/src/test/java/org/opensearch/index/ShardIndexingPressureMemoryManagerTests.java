@@ -33,16 +33,12 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
             clusterSettings, settings);
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker = store.getShardIndexingPressureTracker(shardId1);
-        tracker.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(1);
+        tracker.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(1);
         long requestStartTime = System.currentTimeMillis();
-        boolean randomBoolean = randomBoolean();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
-        if(randomBoolean) {
-            assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker, requestStartTime, hotStore, 1 * 1024));
-        } else {
-            assertFalse(memoryManager.isPrimaryShardLimitBreached(tracker, requestStartTime, hotStore, 1 * 1024));
-        }
+        assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker, requestStartTime, hotStore, 1 * 1024));
+        assertFalse(memoryManager.isPrimaryShardLimitBreached(tracker, requestStartTime, hotStore, 1 * 1024));
     }
 
     public void testReplicaShardLimitsNotBreached() {
@@ -50,7 +46,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
             clusterSettings, settings);
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker = store.getShardIndexingPressureTracker(shardId1);
-        tracker.currentReplicaBytes.addAndGet(1);
+        tracker.memory().getCurrentReplicaBytes().addAndGet(1);
         long requestStartTime = System.currentTimeMillis();
         Map<Long, ShardIndexingPressureTracker> hotStore = Collections.singletonMap((long) shardId1.hashCode(), tracker);
 
@@ -62,20 +58,16 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
             clusterSettings, settings);
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker = store.getShardIndexingPressureTracker(shardId1);
-        tracker.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(10);
-        long baseLimit = tracker.primaryAndCoordinatingLimits.get();
+        tracker.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(10);
+        long baseLimit = tracker.getPrimaryAndCoordinatingLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        boolean randomBoolean = randomBoolean();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
-        if(randomBoolean) {
-            assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker, requestStartTime, hotStore, 1 * 1024));
-        } else {
-            assertFalse(memoryManager.isPrimaryShardLimitBreached(tracker, requestStartTime, hotStore, 1 * 1024));
-        }
+        assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker, requestStartTime, hotStore, 1 * 1024));
+        assertFalse(memoryManager.isPrimaryShardLimitBreached(tracker, requestStartTime, hotStore, 1 * 1024));
 
-        assertTrue(tracker.primaryAndCoordinatingLimits.get() > baseLimit);
-        assertEquals(tracker.primaryAndCoordinatingLimits.get(), (long)(baseLimit/0.85));
+        assertTrue(tracker.getPrimaryAndCoordinatingLimits().get() > baseLimit);
+        assertEquals(tracker.getPrimaryAndCoordinatingLimits().get(), (long)(baseLimit/0.85));
     }
 
     public void testReplicaShardLimitsIncreasedAndSoftLimitNotBreached() {
@@ -83,14 +75,14 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
             clusterSettings, settings);
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker = store.getShardIndexingPressureTracker(shardId1);
-        tracker.currentReplicaBytes.addAndGet(15);
-        long baseLimit = tracker.replicaLimits.get();
+        tracker.memory().getCurrentReplicaBytes().addAndGet(15);
+        long baseLimit = tracker.getReplicaLimits().get();
         long requestStartTime = System.currentTimeMillis();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
         assertFalse(memoryManager.isReplicaShardLimitBreached(tracker, requestStartTime, hotStore, 1 * 1024));
-        assertTrue(tracker.replicaLimits.get() > baseLimit);
-        assertEquals(tracker.replicaLimits.get(), (long)(baseLimit/0.85));
+        assertTrue(tracker.getReplicaLimits().get() > baseLimit);
+        assertEquals(tracker.getReplicaLimits().get(), (long)(baseLimit/0.85));
     }
 
     public void testCoordinatingPrimarySoftLimitNotBreachedAndNodeLevelRejections() {
@@ -99,27 +91,24 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(4 * 1024);
-        tracker2.primaryAndCoordinatingLimits.addAndGet(6 * 1024);
-        long limit1 = tracker1.primaryAndCoordinatingLimits.get();
-        long limit2 = tracker2.primaryAndCoordinatingLimits.get();
+        tracker1.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(4 * 1024);
+        tracker2.getPrimaryAndCoordinatingLimits().addAndGet(6 * 1024);
+        long limit1 = tracker1.getPrimaryAndCoordinatingLimits().get();
+        long limit2 = tracker2.getPrimaryAndCoordinatingLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        boolean randomBoolean = randomBoolean();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
-        if(randomBoolean) {
-            assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 6 * 1024));
-            assertEquals(1, tracker1.coordinatingNodeLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.coordinatingNodeLimitsBreachedRejections.get());
-        } else {
-            assertTrue(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 6 * 1024));
-            assertEquals(1, tracker1.primaryNodeLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.primaryNodeLimitsBreachedRejections.get());
-        }
+        assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 6 * 1024));
+        assertEquals(1, tracker1.rejection().getCoordinatingNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getCoordinatingNodeLimitsBreachedRejections().get());
 
-        assertEquals(limit1, tracker1.primaryAndCoordinatingLimits.get());
-        assertEquals(limit2, tracker2.primaryAndCoordinatingLimits.get());
-        assertEquals(1, memoryManager.totalNodeLimitsBreachedRejections.get());
+        assertTrue(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 6 * 1024));
+        assertEquals(1, tracker1.rejection().getPrimaryNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getPrimaryNodeLimitsBreachedRejections().get());
+
+        assertEquals(limit1, tracker1.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(limit2, tracker2.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(2, memoryManager.totalNodeLimitsBreachedRejections.get());
     }
 
     public void testReplicaShardLimitsSoftLimitNotBreachedAndNodeLevelRejections() {
@@ -128,18 +117,18 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentReplicaBytes.addAndGet(5 * 1024);
-        tracker2.replicaLimits.addAndGet(10 * 1024);
-        long limit1 = tracker1.replicaLimits.get();
-        long limit2 = tracker2.replicaLimits.get();
+        tracker1.memory().getCurrentReplicaBytes().addAndGet(5 * 1024);
+        tracker2.getReplicaLimits().addAndGet(10 * 1024);
+        long limit1 = tracker1.getReplicaLimits().get();
+        long limit2 = tracker2.getReplicaLimits().get();
         long requestStartTime = System.currentTimeMillis();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
         assertTrue(memoryManager.isReplicaShardLimitBreached(tracker1, requestStartTime, hotStore, 10 * 1024));
-        assertEquals(limit1, tracker1.replicaLimits.get());
-        assertEquals(limit2, tracker2.replicaLimits.get());
-        assertEquals(1, tracker1.replicaNodeLimitsBreachedRejections.get());
-        assertEquals(0, tracker2.replicaNodeLimitsBreachedRejections.get());
+        assertEquals(limit1, tracker1.getReplicaLimits().get());
+        assertEquals(limit2, tracker2.getReplicaLimits().get());
+        assertEquals(1, tracker1.rejection().getReplicaNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getReplicaNodeLimitsBreachedRejections().get());
         assertEquals(1, memoryManager.totalNodeLimitsBreachedRejections.get());
     }
 
@@ -149,27 +138,24 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(4 * 1024);
-        tracker2.primaryAndCoordinatingLimits.addAndGet(6 * 1024);
-        long limit1 = tracker1.primaryAndCoordinatingLimits.get();
-        long limit2 = tracker2.primaryAndCoordinatingLimits.get();
+        tracker1.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(4 * 1024);
+        tracker2.getPrimaryAndCoordinatingLimits().addAndGet(6 * 1024);
+        long limit1 = tracker1.getPrimaryAndCoordinatingLimits().get();
+        long limit2 = tracker2.getPrimaryAndCoordinatingLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        boolean randomBoolean = randomBoolean();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
-        if(randomBoolean) {
-            assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(1, tracker1.coordinatingNodeLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.coordinatingNodeLimitsBreachedRejections.get());
-        } else {
-            assertTrue(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(1, tracker1.primaryNodeLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.primaryNodeLimitsBreachedRejections.get());
-        }
+        assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(1, tracker1.rejection().getCoordinatingNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getCoordinatingNodeLimitsBreachedRejections().get());
 
-        assertEquals(limit1, tracker1.primaryAndCoordinatingLimits.get());
-        assertEquals(limit2, tracker2.primaryAndCoordinatingLimits.get());
-        assertEquals(1, memoryManager.totalNodeLimitsBreachedRejections.get());
+        assertTrue(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(1, tracker1.rejection().getPrimaryNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getPrimaryNodeLimitsBreachedRejections().get());
+
+        assertEquals(limit1, tracker1.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(limit2, tracker2.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(2, memoryManager.totalNodeLimitsBreachedRejections.get());
     }
 
     public void testReplicaShardLimitsSoftLimitBreachedAndNodeLevelRejections() {
@@ -178,18 +164,18 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentReplicaBytes.addAndGet(5 * 1024);
-        tracker2.replicaLimits.addAndGet(12 * 1024);
-        long limit1 = tracker1.replicaLimits.get();
-        long limit2 = tracker2.replicaLimits.get();
+        tracker1.memory().getCurrentReplicaBytes().addAndGet(5 * 1024);
+        tracker2.getReplicaLimits().addAndGet(12 * 1024);
+        long limit1 = tracker1.getReplicaLimits().get();
+        long limit2 = tracker2.getReplicaLimits().get();
         long requestStartTime = System.currentTimeMillis();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
         assertTrue(memoryManager.isReplicaShardLimitBreached(tracker1, requestStartTime, hotStore, 12 * 1024));
-        assertEquals(limit1, tracker1.replicaLimits.get());
-        assertEquals(limit2, tracker2.replicaLimits.get());
-        assertEquals(1, tracker1.replicaNodeLimitsBreachedRejections.get());
-        assertEquals(0, tracker2.replicaNodeLimitsBreachedRejections.get());
+        assertEquals(limit1, tracker1.getReplicaLimits().get());
+        assertEquals(limit2, tracker2.getReplicaLimits().get());
+        assertEquals(1, tracker1.rejection().getReplicaNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getReplicaNodeLimitsBreachedRejections().get());
         assertEquals(1, memoryManager.totalNodeLimitsBreachedRejections.get());
     }
 
@@ -199,33 +185,31 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(4 * 1024);
-        tracker2.primaryAndCoordinatingLimits.addAndGet(6 * 1024);
-        long limit1 = tracker1.primaryAndCoordinatingLimits.get();
-        long limit2 = tracker2.primaryAndCoordinatingLimits.get();
+        tracker1.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(4 * 1024);
+        tracker2.getPrimaryAndCoordinatingLimits().addAndGet(6 * 1024);
+        long limit1 = tracker1.getPrimaryAndCoordinatingLimits().get();
+        long limit2 = tracker2.getPrimaryAndCoordinatingLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        boolean randomBoolean = randomBoolean();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
-        if(randomBoolean) {
-            tracker1.lastSuccessfulCoordinatingRequestTimestamp.addAndGet(requestStartTime - 100);
-            tracker1.totalOutstandingCoordinatingRequests.addAndGet(2);
 
-            assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(1, tracker1.coordinatingLastSuccessfulRequestLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.coordinatingLastSuccessfulRequestLimitsBreachedRejections.get());
-        } else {
-            tracker1.lastSuccessfulPrimaryRequestTimestamp.addAndGet(requestStartTime - 100);
-            tracker1.totalOutstandingPrimaryRequests.addAndGet(2);
+        tracker1.timeStamp().getLastSuccessfulCoordinatingRequestTimestamp().addAndGet(requestStartTime - 100);
+        tracker1.outstandingRequest().getTotalOutstandingCoordinatingRequests().addAndGet(2);
 
-            assertTrue(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(1, tracker1.primaryLastSuccessfulRequestLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.primaryLastSuccessfulRequestLimitsBreachedRejections.get());
-        }
+        assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(1, tracker1.rejection().getCoordinatingLastSuccessfulRequestLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getCoordinatingLastSuccessfulRequestLimitsBreachedRejections().get());
 
-        assertEquals(limit1, tracker1.primaryAndCoordinatingLimits.get());
-        assertEquals(limit2, tracker2.primaryAndCoordinatingLimits.get());
-        assertEquals(1, memoryManager.totalLastSuccessfulRequestLimitsBreachedRejections.get());
+        tracker1.timeStamp().getLastSuccessfulPrimaryRequestTimestamp().addAndGet(requestStartTime - 100);
+        tracker1.outstandingRequest().getTotalOutstandingPrimaryRequests().addAndGet(2);
+
+        assertTrue(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(1, tracker1.rejection().getPrimaryLastSuccessfulRequestLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getPrimaryLastSuccessfulRequestLimitsBreachedRejections().get());
+
+        assertEquals(limit1, tracker1.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(limit2, tracker2.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(2, memoryManager.totalLastSuccessfulRequestLimitsBreachedRejections.get());
     }
 
     public void testReplicaShardLimitsSoftLimitBreachedAndLastSuccessfulRequestLimitRejections() {
@@ -234,21 +218,21 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentReplicaBytes.addAndGet(5 * 1024);
-        tracker2.replicaLimits.addAndGet(12 * 1024);
-        long limit1 = tracker1.replicaLimits.get();
-        long limit2 = tracker2.replicaLimits.get();
+        tracker1.memory().getCurrentReplicaBytes().addAndGet(5 * 1024);
+        tracker2.getReplicaLimits().addAndGet(12 * 1024);
+        long limit1 = tracker1.getReplicaLimits().get();
+        long limit2 = tracker2.getReplicaLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        tracker1.lastSuccessfulReplicaRequestTimestamp.addAndGet(requestStartTime - 100);
-        tracker1.totalOutstandingReplicaRequests.addAndGet(2);
+        tracker1.timeStamp().getLastSuccessfulReplicaRequestTimestamp().addAndGet(requestStartTime - 100);
+        tracker1.outstandingRequest().getTotalOutstandingReplicaRequests().addAndGet(2);
 
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
         assertTrue(memoryManager.isReplicaShardLimitBreached(tracker1, requestStartTime, hotStore, 12 * 1024));
-        assertEquals(limit1, tracker1.replicaLimits.get());
-        assertEquals(limit2, tracker2.replicaLimits.get());
-        assertEquals(1, tracker1.replicaLastSuccessfulRequestLimitsBreachedRejections.get());
-        assertEquals(0, tracker2.replicaLastSuccessfulRequestLimitsBreachedRejections.get());
+        assertEquals(limit1, tracker1.getReplicaLimits().get());
+        assertEquals(limit2, tracker2.getReplicaLimits().get());
+        assertEquals(1, tracker1.rejection().getReplicaLastSuccessfulRequestLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getReplicaLastSuccessfulRequestLimitsBreachedRejections().get());
         assertEquals(1, memoryManager.totalLastSuccessfulRequestLimitsBreachedRejections.get());
     }
 
@@ -258,33 +242,30 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(1 * 1024);
-        tracker2.primaryAndCoordinatingLimits.addAndGet(6 * 1024);
-        long limit1 = tracker1.primaryAndCoordinatingLimits.get();
-        long limit2 = tracker2.primaryAndCoordinatingLimits.get();
+        tracker1.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(1 * 1024);
+        tracker2.getPrimaryAndCoordinatingLimits().addAndGet(6 * 1024);
+        long limit1 = tracker1.getPrimaryAndCoordinatingLimits().get();
+        long limit2 = tracker2.getPrimaryAndCoordinatingLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        boolean randomBoolean = randomBoolean();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
-        if(randomBoolean) {
-            tracker1.lastSuccessfulCoordinatingRequestTimestamp.addAndGet(requestStartTime - 100);
-            tracker1.totalOutstandingCoordinatingRequests.addAndGet(1);
+        tracker1.timeStamp().getLastSuccessfulCoordinatingRequestTimestamp().addAndGet(requestStartTime - 100);
+        tracker1.outstandingRequest().getTotalOutstandingCoordinatingRequests().addAndGet(1);
 
-            assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(0, tracker1.coordinatingLastSuccessfulRequestLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.coordinatingLastSuccessfulRequestLimitsBreachedRejections.get());
-        } else {
-            tracker1.lastSuccessfulPrimaryRequestTimestamp.addAndGet(requestStartTime - 100);
-            tracker1.totalOutstandingPrimaryRequests.addAndGet(1);
+        assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(0, tracker1.rejection().getCoordinatingLastSuccessfulRequestLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getCoordinatingLastSuccessfulRequestLimitsBreachedRejections().get());
 
-            assertFalse(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(0, tracker1.primaryLastSuccessfulRequestLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.primaryLastSuccessfulRequestLimitsBreachedRejections.get());
-        }
+        tracker1.timeStamp().getLastSuccessfulPrimaryRequestTimestamp().addAndGet(requestStartTime - 100);
+        tracker1.outstandingRequest().getTotalOutstandingPrimaryRequests().addAndGet(1);
 
-        assertTrue(tracker1.primaryAndCoordinatingLimits.get() > limit1);
-        assertEquals((long)(1 * 1024/0.85), tracker1.primaryAndCoordinatingLimits.get());
-        assertEquals(limit2, tracker2.primaryAndCoordinatingLimits.get());
+        assertFalse(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(0, tracker1.rejection().getPrimaryLastSuccessfulRequestLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getPrimaryLastSuccessfulRequestLimitsBreachedRejections().get());
+
+        assertTrue(tracker1.getPrimaryAndCoordinatingLimits().get() > limit1);
+        assertEquals((long)(1 * 1024/0.85), tracker1.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(limit2, tracker2.getPrimaryAndCoordinatingLimits().get());
         assertEquals(0, memoryManager.totalLastSuccessfulRequestLimitsBreachedRejections.get());
     }
 
@@ -294,22 +275,22 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentReplicaBytes.addAndGet(2 * 1024);
-        tracker2.replicaLimits.addAndGet(12 * 1024);
-        long limit1 = tracker1.replicaLimits.get();
-        long limit2 = tracker2.replicaLimits.get();
+        tracker1.memory().getCurrentReplicaBytes().addAndGet(2 * 1024);
+        tracker2.getReplicaLimits().addAndGet(12 * 1024);
+        long limit1 = tracker1.getReplicaLimits().get();
+        long limit2 = tracker2.getReplicaLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        tracker1.lastSuccessfulReplicaRequestTimestamp.addAndGet(requestStartTime - 100);
-        tracker1.totalOutstandingReplicaRequests.addAndGet(1);
+        tracker1.timeStamp().getLastSuccessfulReplicaRequestTimestamp().addAndGet(requestStartTime - 100);
+        tracker1.outstandingRequest().getTotalOutstandingReplicaRequests().addAndGet(1);
 
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
         assertFalse(memoryManager.isReplicaShardLimitBreached(tracker1, requestStartTime, hotStore, 12 * 1024));
-        assertTrue(tracker1.replicaLimits.get() > limit1);
-        assertEquals((long)(2 * 1024/0.85), tracker1.replicaLimits.get());
-        assertEquals(limit2, tracker2.replicaLimits.get());
-        assertEquals(0, tracker1.replicaLastSuccessfulRequestLimitsBreachedRejections.get());
-        assertEquals(0, tracker2.replicaLastSuccessfulRequestLimitsBreachedRejections.get());
+        assertTrue(tracker1.getReplicaLimits().get() > limit1);
+        assertEquals((long)(2 * 1024/0.85), tracker1.getReplicaLimits().get());
+        assertEquals(limit2, tracker2.getReplicaLimits().get());
+        assertEquals(0, tracker1.rejection().getReplicaLastSuccessfulRequestLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getReplicaLastSuccessfulRequestLimitsBreachedRejections().get());
         assertEquals(0, memoryManager.totalLastSuccessfulRequestLimitsBreachedRejections.get());
     }
 
@@ -319,41 +300,38 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(4 * 1024);
-        tracker2.primaryAndCoordinatingLimits.addAndGet(6 * 1024);
-        long limit1 = tracker1.primaryAndCoordinatingLimits.get();
-        long limit2 = tracker2.primaryAndCoordinatingLimits.get();
+        tracker1.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(4 * 1024);
+        tracker2.getPrimaryAndCoordinatingLimits().addAndGet(6 * 1024);
+        long limit1 = tracker1.getPrimaryAndCoordinatingLimits().get();
+        long limit2 = tracker2.getPrimaryAndCoordinatingLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        boolean randomBoolean = randomBoolean();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
-        if(randomBoolean) {
-            tracker1.coordinatingThroughputMovingAverage.addAndGet(Double.doubleToLongBits(1d));
-            tracker1.totalOutstandingCoordinatingRequests.addAndGet(2);
-            tracker1.totalCoordinatingBytes.addAndGet(60);
-            tracker1.coordinatingTimeInMillis.addAndGet(10);
-            tracker1.coordinatingThroughputMovingQueue.offer(1d);
-            tracker1.coordinatingThroughputMovingQueue.offer(2d);
+        tracker1.throughput().getCoordinatingThroughputMovingAverage().addAndGet(Double.doubleToLongBits(1d));
+        tracker1.outstandingRequest().getTotalOutstandingCoordinatingRequests().addAndGet(2);
+        tracker1.memory().getTotalCoordinatingBytes().addAndGet(60);
+        tracker1.latency().getCoordinatingTimeInMillis().addAndGet(10);
+        tracker1.throughput().getCoordinatingThroughputMovingQueue().offer(1d);
+        tracker1.throughput().getCoordinatingThroughputMovingQueue().offer(2d);
 
-            assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(1, tracker1.coordinatingThroughputDegradationLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.coordinatingThroughputDegradationLimitsBreachedRejections.get());
-        } else {
-            tracker1.primaryThroughputMovingAverage.addAndGet(Double.doubleToLongBits(1d));
-            tracker1.totalOutstandingPrimaryRequests.addAndGet(2);
-            tracker1.totalPrimaryBytes.addAndGet(60);
-            tracker1.primaryTimeInMillis.addAndGet(10);
-            tracker1.primaryThroughputMovingQueue.offer(1d);
-            tracker1.primaryThroughputMovingQueue.offer(2d);
+        assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(1, tracker1.rejection().getCoordinatingThroughputDegradationLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getCoordinatingThroughputDegradationLimitsBreachedRejections().get());
 
-            assertTrue(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(1, tracker1.primaryThroughputDegradationLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.primaryThroughputDegradationLimitsBreachedRejections.get());
-        }
+        tracker1.throughput().getPrimaryThroughputMovingAverage().addAndGet(Double.doubleToLongBits(1d));
+        tracker1.outstandingRequest().getTotalOutstandingPrimaryRequests().addAndGet(2);
+        tracker1.memory().getTotalPrimaryBytes().addAndGet(60);
+        tracker1.latency().getPrimaryTimeInMillis().addAndGet(10);
+        tracker1.throughput().getPrimaryThroughputMovingQueue().offer(1d);
+        tracker1.throughput().getPrimaryThroughputMovingQueue().offer(2d);
 
-        assertEquals(limit1, tracker1.primaryAndCoordinatingLimits.get());
-        assertEquals(limit2, tracker2.primaryAndCoordinatingLimits.get());
-        assertEquals(1, memoryManager.totalThroughputDegradationLimitsBreachedRejections.get());
+        assertTrue(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(1, tracker1.rejection().getPrimaryThroughputDegradationLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getPrimaryThroughputDegradationLimitsBreachedRejections().get());
+
+        assertEquals(limit1, tracker1.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(limit2, tracker2.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(2, memoryManager.totalThroughputDegradationLimitsBreachedRejections.get());
     }
 
     public void testReplicaShardLimitsSoftLimitBreachedAndThroughputDegradationLimitRejections() {
@@ -362,25 +340,25 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentReplicaBytes.addAndGet(5 * 1024);
-        tracker2.replicaLimits.addAndGet(12 * 1024);
-        long limit1 = tracker1.replicaLimits.get();
-        long limit2 = tracker2.replicaLimits.get();
+        tracker1.memory().getCurrentReplicaBytes().addAndGet(5 * 1024);
+        tracker2.getReplicaLimits().addAndGet(12 * 1024);
+        long limit1 = tracker1.getReplicaLimits().get();
+        long limit2 = tracker2.getReplicaLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        tracker1.replicaThroughputMovingAverage.addAndGet(Double.doubleToLongBits(1d));
-        tracker1.totalOutstandingReplicaRequests.addAndGet(2);
-        tracker1.totalReplicaBytes.addAndGet(80);
-        tracker1.replicaTimeInMillis.addAndGet(10);
-        tracker1.replicaThroughputMovingQueue.offer(1d);
-        tracker1.replicaThroughputMovingQueue.offer(2d);
+        tracker1.throughput().getReplicaThroughputMovingAverage().addAndGet(Double.doubleToLongBits(1d));
+        tracker1.outstandingRequest().getTotalOutstandingReplicaRequests().addAndGet(2);
+        tracker1.memory().getTotalReplicaBytes().addAndGet(80);
+        tracker1.latency().getReplicaTimeInMillis().addAndGet(10);
+        tracker1.throughput().getReplicaThroughputMovingQueue().offer(1d);
+        tracker1.throughput().getReplicaThroughputMovingQueue().offer(2d);
 
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
         assertTrue(memoryManager.isReplicaShardLimitBreached(tracker1, requestStartTime, hotStore, 12 * 1024));
-        assertEquals(limit1, tracker1.replicaLimits.get());
-        assertEquals(limit2, tracker2.replicaLimits.get());
-        assertEquals(1, tracker1.replicaThroughputDegradationLimitsBreachedRejections.get());
-        assertEquals(0, tracker2.replicaThroughputDegradationLimitsBreachedRejections.get());
+        assertEquals(limit1, tracker1.getReplicaLimits().get());
+        assertEquals(limit2, tracker2.getReplicaLimits().get());
+        assertEquals(1, tracker1.rejection().getReplicaThroughputDegradationLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getReplicaThroughputDegradationLimitsBreachedRejections().get());
         assertEquals(1, memoryManager.totalThroughputDegradationLimitsBreachedRejections.get());
     }
 
@@ -390,43 +368,40 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(1 * 1024);
-        tracker2.primaryAndCoordinatingLimits.addAndGet(6 * 1024);
-        long limit1 = tracker1.primaryAndCoordinatingLimits.get();
-        long limit2 = tracker2.primaryAndCoordinatingLimits.get();
+        tracker1.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(1 * 1024);
+        tracker2.getPrimaryAndCoordinatingLimits().addAndGet(6 * 1024);
+        long limit1 = tracker1.getPrimaryAndCoordinatingLimits().get();
+        long limit2 = tracker2.getPrimaryAndCoordinatingLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        boolean randomBoolean = randomBoolean();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
-        if(randomBoolean) {
-            tracker1.coordinatingThroughputMovingAverage.addAndGet(Double.doubleToLongBits(1d));
-            tracker1.totalOutstandingCoordinatingRequests.addAndGet(1);
-            tracker1.totalCoordinatingBytes.addAndGet(60);
-            tracker1.coordinatingTimeInMillis.addAndGet(10);
-            tracker1.coordinatingThroughputMovingQueue.offer(1d);
+        tracker1.throughput().getCoordinatingThroughputMovingAverage().addAndGet(Double.doubleToLongBits(1d));
+        tracker1.outstandingRequest().getTotalOutstandingCoordinatingRequests().addAndGet(1);
+        tracker1.memory().getTotalCoordinatingBytes().addAndGet(60);
+        tracker1.latency().getCoordinatingTimeInMillis().addAndGet(10);
+        tracker1.throughput().getCoordinatingThroughputMovingQueue().offer(1d);
 
-            assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(0, tracker1.coordinatingThroughputDegradationLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.coordinatingThroughputDegradationLimitsBreachedRejections.get());
-            assertEquals(0, tracker1.coordinatingNodeLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.coordinatingNodeLimitsBreachedRejections.get());
-        } else {
-            tracker1.primaryThroughputMovingAverage.addAndGet(Double.doubleToLongBits(1d));
-            tracker1.totalOutstandingPrimaryRequests.addAndGet(1);
-            tracker1.totalPrimaryBytes.addAndGet(60);
-            tracker1.primaryTimeInMillis.addAndGet(10);
-            tracker1.primaryThroughputMovingQueue.offer(1d);
+        assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(0, tracker1.rejection().getCoordinatingThroughputDegradationLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getCoordinatingThroughputDegradationLimitsBreachedRejections().get());
+        assertEquals(0, tracker1.rejection().getCoordinatingNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getCoordinatingNodeLimitsBreachedRejections().get());
 
-            assertFalse(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(0, tracker1.primaryThroughputDegradationLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.primaryThroughputDegradationLimitsBreachedRejections.get());
-            assertEquals(0, tracker1.primaryNodeLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.primaryNodeLimitsBreachedRejections.get());
-        }
+        tracker1.throughput().getPrimaryThroughputMovingAverage().addAndGet(Double.doubleToLongBits(1d));
+        tracker1.outstandingRequest().getTotalOutstandingPrimaryRequests().addAndGet(1);
+        tracker1.memory().getTotalPrimaryBytes().addAndGet(60);
+        tracker1.latency().getPrimaryTimeInMillis().addAndGet(10);
+        tracker1.throughput().getPrimaryThroughputMovingQueue().offer(1d);
 
-        assertTrue(tracker1.primaryAndCoordinatingLimits.get() > limit1);
-        assertEquals((long)(1 * 1024/0.85), tracker1.primaryAndCoordinatingLimits.get());
-        assertEquals(limit2, tracker2.primaryAndCoordinatingLimits.get());
+        assertFalse(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(0, tracker1.rejection().getPrimaryThroughputDegradationLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getPrimaryThroughputDegradationLimitsBreachedRejections().get());
+        assertEquals(0, tracker1.rejection().getPrimaryNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getPrimaryNodeLimitsBreachedRejections().get());
+
+        assertTrue(tracker1.getPrimaryAndCoordinatingLimits().get() > limit1);
+        assertEquals((long)(1 * 1024/0.85), tracker1.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(limit2, tracker2.getPrimaryAndCoordinatingLimits().get());
         assertEquals(0, memoryManager.totalThroughputDegradationLimitsBreachedRejections.get());
     }
 
@@ -436,26 +411,26 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentReplicaBytes.addAndGet(2 * 1024);
-        tracker2.replicaLimits.addAndGet(12 * 1024);
-        long limit1 = tracker1.replicaLimits.get();
-        long limit2 = tracker2.replicaLimits.get();
+        tracker1.memory().getCurrentReplicaBytes().addAndGet(2 * 1024);
+        tracker2.getReplicaLimits().addAndGet(12 * 1024);
+        long limit1 = tracker1.getReplicaLimits().get();
+        long limit2 = tracker2.getReplicaLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        tracker1.replicaThroughputMovingAverage.addAndGet(Double.doubleToLongBits(1d));
-        tracker1.totalOutstandingReplicaRequests.addAndGet(1);
-        tracker1.totalReplicaBytes.addAndGet(80);
-        tracker1.replicaTimeInMillis.addAndGet(10);
-        tracker1.replicaThroughputMovingQueue.offer(1d);
+        tracker1.throughput().getReplicaThroughputMovingAverage().addAndGet(Double.doubleToLongBits(1d));
+        tracker1.outstandingRequest().getTotalOutstandingReplicaRequests().addAndGet(1);
+        tracker1.memory().getTotalReplicaBytes().addAndGet(80);
+        tracker1.latency().getReplicaTimeInMillis().addAndGet(10);
+        tracker1.throughput().getReplicaThroughputMovingQueue().offer(1d);
 
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
         assertFalse(memoryManager.isReplicaShardLimitBreached(tracker1, requestStartTime, hotStore, 12 * 1024));
-        assertTrue(tracker1.replicaLimits.get() > limit1);
-        assertEquals((long)(2 * 1024/0.85), tracker1.replicaLimits.get());
-        assertEquals(limit2, tracker2.replicaLimits.get());
-        assertEquals(0, tracker1.replicaThroughputDegradationLimitsBreachedRejections.get());
-        assertEquals(0, tracker2.replicaThroughputDegradationLimitsBreachedRejections.get());
-        assertEquals(0, tracker1.replicaNodeLimitsBreachedRejections.get());
+        assertTrue(tracker1.getReplicaLimits().get() > limit1);
+        assertEquals((long)(2 * 1024/0.85), tracker1.getReplicaLimits().get());
+        assertEquals(limit2, tracker2.getReplicaLimits().get());
+        assertEquals(0, tracker1.rejection().getReplicaThroughputDegradationLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getReplicaThroughputDegradationLimitsBreachedRejections().get());
+        assertEquals(0, tracker1.rejection().getReplicaNodeLimitsBreachedRejections().get());
         assertEquals(0, memoryManager.totalThroughputDegradationLimitsBreachedRejections.get());
     }
 
@@ -465,39 +440,36 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(4 * 1024);
-        tracker2.primaryAndCoordinatingLimits.addAndGet(6 * 1024);
-        long limit1 = tracker1.primaryAndCoordinatingLimits.get();
-        long limit2 = tracker2.primaryAndCoordinatingLimits.get();
+        tracker1.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(4 * 1024);
+        tracker2.getPrimaryAndCoordinatingLimits().addAndGet(6 * 1024);
+        long limit1 = tracker1.getPrimaryAndCoordinatingLimits().get();
+        long limit2 = tracker2.getPrimaryAndCoordinatingLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        boolean randomBoolean = randomBoolean();
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
-        if(randomBoolean) {
-            tracker1.coordinatingThroughputMovingAverage.addAndGet(Double.doubleToLongBits(1d));
-            tracker1.totalOutstandingCoordinatingRequests.addAndGet(1);
-            tracker1.totalCoordinatingBytes.addAndGet(60);
-            tracker1.coordinatingTimeInMillis.addAndGet(10);
-            tracker1.coordinatingThroughputMovingQueue.offer(1d);
+        tracker1.throughput().getCoordinatingThroughputMovingAverage().addAndGet(Double.doubleToLongBits(1d));
+        tracker1.outstandingRequest().getTotalOutstandingCoordinatingRequests().addAndGet(1);
+        tracker1.memory().getTotalCoordinatingBytes().addAndGet(60);
+        tracker1.latency().getCoordinatingTimeInMillis().addAndGet(10);
+        tracker1.throughput().getCoordinatingThroughputMovingQueue().offer(1d);
 
-            assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(1, tracker1.coordinatingNodeLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.coordinatingNodeLimitsBreachedRejections.get());
-        } else {
-            tracker1.primaryThroughputMovingAverage.addAndGet(Double.doubleToLongBits(1d));
-            tracker1.totalOutstandingPrimaryRequests.addAndGet(1);
-            tracker1.totalPrimaryBytes.addAndGet(60);
-            tracker1.primaryTimeInMillis.addAndGet(10);
-            tracker1.primaryThroughputMovingQueue.offer(1d);
+        assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(1, tracker1.rejection().getCoordinatingNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getCoordinatingNodeLimitsBreachedRejections().get());
 
-            assertTrue(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
-            assertEquals(1, tracker1.primaryNodeLimitsBreachedRejections.get());
-            assertEquals(0, tracker2.primaryNodeLimitsBreachedRejections.get());
-        }
+        tracker1.throughput().getPrimaryThroughputMovingAverage().addAndGet(Double.doubleToLongBits(1d));
+        tracker1.outstandingRequest().getTotalOutstandingPrimaryRequests().addAndGet(1);
+        tracker1.memory().getTotalPrimaryBytes().addAndGet(60);
+        tracker1.latency().getPrimaryTimeInMillis().addAndGet(10);
+        tracker1.throughput().getPrimaryThroughputMovingQueue().offer(1d);
 
-        assertEquals(limit1, tracker1.primaryAndCoordinatingLimits.get());
-        assertEquals(limit2, tracker2.primaryAndCoordinatingLimits.get());
-        assertEquals(1, memoryManager.totalNodeLimitsBreachedRejections.get());
+        assertTrue(memoryManager.isPrimaryShardLimitBreached(tracker1, requestStartTime, hotStore, 8 * 1024));
+        assertEquals(1, tracker1.rejection().getPrimaryNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getPrimaryNodeLimitsBreachedRejections().get());
+
+        assertEquals(limit1, tracker1.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(limit2, tracker2.getPrimaryAndCoordinatingLimits().get());
+        assertEquals(2, memoryManager.totalNodeLimitsBreachedRejections.get());
     }
 
     public void testReplicaShardLimitsSoftLimitBreachedAndNoSecondaryParameterBreachedAndNodeLevelRejections() {
@@ -506,24 +478,24 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
         ShardIndexingPressureTracker tracker2 = store.getShardIndexingPressureTracker(shardId2);
-        tracker1.currentReplicaBytes.addAndGet(5 * 1024);
-        tracker2.replicaLimits.addAndGet(12 * 1024);
-        long limit1 = tracker1.replicaLimits.get();
-        long limit2 = tracker2.replicaLimits.get();
+        tracker1.memory().getCurrentReplicaBytes().addAndGet(5 * 1024);
+        tracker2.getReplicaLimits().addAndGet(12 * 1024);
+        long limit1 = tracker1.getReplicaLimits().get();
+        long limit2 = tracker2.getReplicaLimits().get();
         long requestStartTime = System.currentTimeMillis();
-        tracker1.replicaThroughputMovingAverage.addAndGet(Double.doubleToLongBits(1d));
-        tracker1.totalOutstandingReplicaRequests.addAndGet(1);
-        tracker1.totalReplicaBytes.addAndGet(80);
-        tracker1.replicaTimeInMillis.addAndGet(10);
-        tracker1.replicaThroughputMovingQueue.offer(1d);
+        tracker1.throughput().getReplicaThroughputMovingAverage().addAndGet(Double.doubleToLongBits(1d));
+        tracker1.outstandingRequest().getTotalOutstandingReplicaRequests().addAndGet(1);
+        tracker1.memory().getTotalReplicaBytes().addAndGet(80);
+        tracker1.latency().getReplicaTimeInMillis().addAndGet(10);
+        tracker1.throughput().getReplicaThroughputMovingQueue().offer(1d);
 
         Map<Long, ShardIndexingPressureTracker> hotStore = store.getShardIndexingPressureHotStore();
 
         assertTrue(memoryManager.isReplicaShardLimitBreached(tracker1, requestStartTime, hotStore, 12 * 1024));
-        assertEquals(limit1, tracker1.replicaLimits.get());
-        assertEquals(limit2, tracker2.replicaLimits.get());
-        assertEquals(1, tracker1.replicaNodeLimitsBreachedRejections.get());
-        assertEquals(0, tracker2.replicaNodeLimitsBreachedRejections.get());
+        assertEquals(limit1, tracker1.getReplicaLimits().get());
+        assertEquals(limit2, tracker2.getReplicaLimits().get());
+        assertEquals(1, tracker1.rejection().getReplicaNodeLimitsBreachedRejections().get());
+        assertEquals(0, tracker2.rejection().getReplicaNodeLimitsBreachedRejections().get());
         assertEquals(1, memoryManager.totalNodeLimitsBreachedRejections.get());
     }
 
@@ -532,13 +504,13 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
             clusterSettings, settings);
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
-        tracker1.primaryAndCoordinatingLimits.addAndGet(1 * 1024);
-        tracker1.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(0);
-        long limit1 = tracker1.primaryAndCoordinatingLimits.get();
+        tracker1.getPrimaryAndCoordinatingLimits().addAndGet(1 * 1024);
+        tracker1.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(0);
+        long limit1 = tracker1.getPrimaryAndCoordinatingLimits().get();
         memoryManager.decreaseShardPrimaryAndCoordinatingLimits(tracker1);
 
-        assertTrue(tracker1.primaryAndCoordinatingLimits.get() < limit1);
-        assertEquals(10, tracker1.primaryAndCoordinatingLimits.get());
+        assertTrue(tracker1.getPrimaryAndCoordinatingLimits().get() < limit1);
+        assertEquals(10, tracker1.getPrimaryAndCoordinatingLimits().get());
     }
 
     public void testDecreaseShardReplicaLimitsToBaseLimit() {
@@ -547,13 +519,13 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
 
-        tracker1.replicaLimits.addAndGet(1 * 1024);
-        tracker1.currentReplicaBytes.addAndGet(0);
-        long limit1 = tracker1.replicaLimits.get();
+        tracker1.getReplicaLimits().addAndGet(1 * 1024);
+        tracker1.memory().getCurrentReplicaBytes().addAndGet(0);
+        long limit1 = tracker1.getReplicaLimits().get();
         memoryManager.decreaseShardReplicaLimits(tracker1);
 
-        assertTrue(tracker1.replicaLimits.get() < limit1);
-        assertEquals(15, tracker1.replicaLimits.get());
+        assertTrue(tracker1.getReplicaLimits().get() < limit1);
+        assertEquals(15, tracker1.getReplicaLimits().get());
     }
 
     public void testDecreaseShardPrimaryAndCoordinatingLimits() {
@@ -561,13 +533,13 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
             clusterSettings, settings);
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
-        tracker1.primaryAndCoordinatingLimits.addAndGet(1 * 1024);
-        tracker1.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(512);
-        long limit1 = tracker1.primaryAndCoordinatingLimits.get();
+        tracker1.getPrimaryAndCoordinatingLimits().addAndGet(1 * 1024);
+        tracker1.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().addAndGet(512);
+        long limit1 = tracker1.getPrimaryAndCoordinatingLimits().get();
         memoryManager.decreaseShardPrimaryAndCoordinatingLimits(tracker1);
 
-        assertTrue(tracker1.primaryAndCoordinatingLimits.get() < limit1);
-        assertEquals((long)(512/0.85), tracker1.primaryAndCoordinatingLimits.get());
+        assertTrue(tracker1.getPrimaryAndCoordinatingLimits().get() < limit1);
+        assertEquals((long)(512/0.85), tracker1.getPrimaryAndCoordinatingLimits().get());
     }
 
     public void testDecreaseShardReplicaLimits() {
@@ -576,12 +548,12 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureStore store = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
         ShardIndexingPressureTracker tracker1 = store.getShardIndexingPressureTracker(shardId1);
 
-        tracker1.replicaLimits.addAndGet(1 * 1024);
-        tracker1.currentReplicaBytes.addAndGet(512);
-        long limit1 = tracker1.replicaLimits.get();
+        tracker1.getReplicaLimits().addAndGet(1 * 1024);
+        tracker1.memory().getCurrentReplicaBytes().addAndGet(512);
+        long limit1 = tracker1.getReplicaLimits().get();
         memoryManager.decreaseShardReplicaLimits(tracker1);
 
-        assertTrue(tracker1.replicaLimits.get() < limit1);
-        assertEquals((long)(512/0.85), tracker1.replicaLimits.get());
+        assertTrue(tracker1.getReplicaLimits().get() < limit1);
+        assertEquals((long)(512/0.85), tracker1.getReplicaLimits().get());
     }
 }

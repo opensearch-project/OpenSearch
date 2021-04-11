@@ -110,54 +110,60 @@ public class IndexingPressurePerShardStats implements Writeable, ToXContentFragm
     public IndexingPressurePerShardStats(ShardIndexingPressureTracker shardIndexingPressureTracker,
                                          boolean shardIndexingPressureEnforced) {
 
-        shardId = shardIndexingPressureTracker.shardId.toString();
+        shardId = shardIndexingPressureTracker.getShardId().toString();
         this.shardIndexingPressureEnforced = shardIndexingPressureEnforced;
 
-        totalCombinedCoordinatingAndPrimaryBytes = shardIndexingPressureTracker.totalCombinedCoordinatingAndPrimaryBytes.get();
-        totalCoordinatingBytes = shardIndexingPressureTracker.totalCoordinatingBytes.get();
-        totalPrimaryBytes = shardIndexingPressureTracker.totalPrimaryBytes.get();
-        totalReplicaBytes = shardIndexingPressureTracker.totalReplicaBytes.get();
+        totalCombinedCoordinatingAndPrimaryBytes =
+            shardIndexingPressureTracker.memory().getTotalCombinedCoordinatingAndPrimaryBytes().get();
+        totalCoordinatingBytes = shardIndexingPressureTracker.memory().getTotalCoordinatingBytes().get();
+        totalPrimaryBytes = shardIndexingPressureTracker.memory().getTotalPrimaryBytes().get();
+        totalReplicaBytes = shardIndexingPressureTracker.memory().getTotalReplicaBytes().get();
 
-        currentCombinedCoordinatingAndPrimaryBytes = shardIndexingPressureTracker.currentCombinedCoordinatingAndPrimaryBytes.get();
-        currentCoordinatingBytes = shardIndexingPressureTracker.currentCoordinatingBytes.get();
-        currentPrimaryBytes = shardIndexingPressureTracker.currentPrimaryBytes.get();
-        currentReplicaBytes = shardIndexingPressureTracker.currentReplicaBytes.get();
+        currentCombinedCoordinatingAndPrimaryBytes =
+            shardIndexingPressureTracker.memory().getCurrentCombinedCoordinatingAndPrimaryBytes().get();
+        currentCoordinatingBytes = shardIndexingPressureTracker.memory().getCurrentCoordinatingBytes().get();
+        currentPrimaryBytes = shardIndexingPressureTracker.memory().getCurrentPrimaryBytes().get();
+        currentReplicaBytes = shardIndexingPressureTracker.memory().getCurrentReplicaBytes().get();
 
-        totalCoordinatingCount = shardIndexingPressureTracker.coordinatingCount.get();
-        totalPrimaryCount = shardIndexingPressureTracker.primaryCount.get();
-        totalReplicaCount = shardIndexingPressureTracker.replicaCount.get();
+        totalCoordinatingCount = shardIndexingPressureTracker.count().getCoordinatingCount().get();
+        totalPrimaryCount = shardIndexingPressureTracker.count().getPrimaryCount().get();
+        totalReplicaCount = shardIndexingPressureTracker.count().getReplicaCount().get();
 
-        coordinatingRejections = shardIndexingPressureTracker.coordinatingRejections.get();
-        coordinatingNodeLimitsBreachedRejections = shardIndexingPressureTracker.coordinatingNodeLimitsBreachedRejections.get();
+        coordinatingRejections = shardIndexingPressureTracker.rejection().getCoordinatingRejections().get();
+        coordinatingNodeLimitsBreachedRejections =
+            shardIndexingPressureTracker.rejection().getCoordinatingNodeLimitsBreachedRejections().get();
         coordinatingLastSuccessfulRequestLimitsBreachedRejections =
-            shardIndexingPressureTracker.coordinatingLastSuccessfulRequestLimitsBreachedRejections.get();
+            shardIndexingPressureTracker.rejection().getCoordinatingLastSuccessfulRequestLimitsBreachedRejections().get();
         coordinatingThroughputDegradationLimitsBreachedRejections =
-            shardIndexingPressureTracker.coordinatingThroughputDegradationLimitsBreachedRejections.get();
+            shardIndexingPressureTracker.rejection().getCoordinatingThroughputDegradationLimitsBreachedRejections().get();
 
-        primaryRejections = shardIndexingPressureTracker.primaryRejections.get();
-        primaryNodeLimitsBreachedRejections = shardIndexingPressureTracker.primaryNodeLimitsBreachedRejections.get();
-        primaryLastSuccessfulRequestLimitsBreachedRejections = shardIndexingPressureTracker
-            .primaryLastSuccessfulRequestLimitsBreachedRejections.get();
-        primaryThroughputDegradationLimitsBreachedRejections = shardIndexingPressureTracker
-            .primaryThroughputDegradationLimitsBreachedRejections.get();
+        primaryRejections = shardIndexingPressureTracker.rejection().getPrimaryRejections().get();
+        primaryNodeLimitsBreachedRejections = shardIndexingPressureTracker.rejection().getPrimaryNodeLimitsBreachedRejections().get();
+        primaryLastSuccessfulRequestLimitsBreachedRejections =
+            shardIndexingPressureTracker.rejection().getPrimaryLastSuccessfulRequestLimitsBreachedRejections().get();
+        primaryThroughputDegradationLimitsBreachedRejections =
+            shardIndexingPressureTracker.rejection().getPrimaryThroughputDegradationLimitsBreachedRejections().get();
 
-        replicaRejections = shardIndexingPressureTracker.replicaRejections.get();
-        replicaNodeLimitsBreachedRejections = shardIndexingPressureTracker.replicaNodeLimitsBreachedRejections.get();
-        replicaLastSuccessfulRequestLimitsBreachedRejections = shardIndexingPressureTracker
-            .replicaLastSuccessfulRequestLimitsBreachedRejections.get();
-        replicaThroughputDegradationLimitsBreachedRejections = shardIndexingPressureTracker
-            .replicaThroughputDegradationLimitsBreachedRejections.get();
+        replicaRejections = shardIndexingPressureTracker.rejection().getReplicaRejections().get();
+        replicaNodeLimitsBreachedRejections = shardIndexingPressureTracker.rejection().getReplicaNodeLimitsBreachedRejections().get();
+        replicaLastSuccessfulRequestLimitsBreachedRejections =
+            shardIndexingPressureTracker.rejection().getReplicaLastSuccessfulRequestLimitsBreachedRejections().get();
+        replicaThroughputDegradationLimitsBreachedRejections =
+            shardIndexingPressureTracker.rejection().getReplicaThroughputDegradationLimitsBreachedRejections().get();
 
-        coordinatingTimeInMillis = shardIndexingPressureTracker.coordinatingTimeInMillis.get();
-        primaryTimeInMillis = shardIndexingPressureTracker.primaryTimeInMillis.get();
-        replicaTimeInMillis = shardIndexingPressureTracker.replicaTimeInMillis.get();
+        coordinatingTimeInMillis = shardIndexingPressureTracker.latency().getCoordinatingTimeInMillis().get();
+        primaryTimeInMillis = shardIndexingPressureTracker.latency().getPrimaryTimeInMillis().get();
+        replicaTimeInMillis = shardIndexingPressureTracker.latency().getReplicaTimeInMillis().get();
 
-        coordinatingLastSuccessfulRequestTimestampInMillis = shardIndexingPressureTracker.lastSuccessfulCoordinatingRequestTimestamp.get();
-        primaryLastSuccessfulRequestTimestampInMillis = shardIndexingPressureTracker.lastSuccessfulPrimaryRequestTimestamp.get();
-        replicaLastSuccessfulRequestTimestampInMillis = shardIndexingPressureTracker.lastSuccessfulReplicaRequestTimestamp.get();
+        coordinatingLastSuccessfulRequestTimestampInMillis =
+            shardIndexingPressureTracker.timeStamp().getLastSuccessfulCoordinatingRequestTimestamp().get();
+        primaryLastSuccessfulRequestTimestampInMillis =
+            shardIndexingPressureTracker.timeStamp().getLastSuccessfulPrimaryRequestTimestamp().get();
+        replicaLastSuccessfulRequestTimestampInMillis =
+            shardIndexingPressureTracker.timeStamp().getLastSuccessfulReplicaRequestTimestamp().get();
 
-        currentPrimaryAndCoordinatingLimits = shardIndexingPressureTracker.primaryAndCoordinatingLimits.get();
-        currentReplicaLimits = shardIndexingPressureTracker.replicaLimits.get();
+        currentPrimaryAndCoordinatingLimits = shardIndexingPressureTracker.getPrimaryAndCoordinatingLimits().get();
+        currentReplicaLimits = shardIndexingPressureTracker.getReplicaLimits().get();
 
     }
 
