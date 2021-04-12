@@ -49,6 +49,19 @@ import java.util.concurrent.atomic.AtomicLong;
  *                             and here we need the average of just last N requests.
  *
  * see {@link ShardIndexingPressureMemoryManager}
+ *
+ * ShardIndexingPressureTracker is the construct to track all the write requests targeted for a ShardId on the node, across all possible
+ * transport-actions i.e. Coordinator, Primary and Replica. Tracker is uniquely identified against a Shard-Id and contains explicit tracking
+ * fields for different kind of tracking needs against a Shard-Id, such as in-flight Coordinating requests, Coordinator + Primary requests,
+ * Primary requests and Replica requests.
+ * Currently the knowledge of shard roles (such as primary vs replica) is not explicit to the tracker, and it tracks different values based
+ * on the interaction hooks of the above layers, which are separate for different type of operations at the transport-action layers.
+ *
+ * There is room for introducing more unique identity to the trackers based on Shard-Role or Shard-Allocation-Id, but that will also
+ * increase the complexity of handling shard-lister events and handling other scenarios such as request-draining etc.
+ *
+ * To prefer simplicity for now we have modelled by keeping explicit fields for different operation tracking, while tracker by itself is
+ * agnostic of the role today. We can revisit this modelling in future as and when we add more tracking information here.
  */
 public class ShardIndexingPressureTracker {
 
