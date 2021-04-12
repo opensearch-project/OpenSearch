@@ -51,22 +51,22 @@ public class IndexingPressure {
 
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
-    final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
-    final AtomicLong currentCoordinatingBytes = new AtomicLong(0);
-    final AtomicLong currentPrimaryBytes = new AtomicLong(0);
-    final AtomicLong currentReplicaBytes = new AtomicLong(0);
+    protected final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong currentCoordinatingBytes = new AtomicLong(0);
+    protected final AtomicLong currentPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong currentReplicaBytes = new AtomicLong(0);
 
-    final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
-    final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
-    final AtomicLong totalPrimaryBytes = new AtomicLong(0);
-    final AtomicLong totalReplicaBytes = new AtomicLong(0);
+    protected final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
+    protected final AtomicLong totalPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong totalReplicaBytes = new AtomicLong(0);
 
-    final AtomicLong coordinatingRejections = new AtomicLong(0);
-    final AtomicLong primaryRejections = new AtomicLong(0);
-    final AtomicLong replicaRejections = new AtomicLong(0);
+    protected final AtomicLong coordinatingRejections = new AtomicLong(0);
+    protected final AtomicLong primaryRejections = new AtomicLong(0);
+    protected final AtomicLong replicaRejections = new AtomicLong(0);
 
-    final long primaryAndCoordinatingLimits;
-    final long replicaLimits;
+    protected final long primaryAndCoordinatingLimits;
+    protected final long replicaLimits;
 
     public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();

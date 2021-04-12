@@ -74,15 +74,17 @@ public class ShardIndexingPressureTracker {
     private final OutstandingRequestTracker outstandingRequestTracker = new OutstandingRequestTracker();
     private final ThroughputTracker throughputTracker = new ThroughputTracker();
 
-    private final AtomicLong primaryAndCoordinatingLimits = new AtomicLong(0);
-    private final AtomicLong replicaLimits = new AtomicLong(0);
+    private final AtomicLong primaryAndCoordinatingLimits;
+    private final AtomicLong replicaLimits;
 
     public ShardId getShardId() {
         return shardId;
     }
 
-    public ShardIndexingPressureTracker(ShardId shardId) {
+    public ShardIndexingPressureTracker(ShardId shardId, long primaryAndCoordinatingLimits, long replicaLimits) {
         this.shardId = shardId;
+        this.primaryAndCoordinatingLimits = new AtomicLong(primaryAndCoordinatingLimits);
+        this.replicaLimits = new AtomicLong(replicaLimits);
     }
 
     public MemoryTracker memory() {

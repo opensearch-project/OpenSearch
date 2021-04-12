@@ -65,10 +65,9 @@ public class ShardIndexingPressureStore {
             tracker = shardIndexingPressureColdStore.get((long)shardId.hashCode());
             // If not present in cold store so instantiate a new one
             if (isNull(tracker)) {
-                ShardIndexingPressureTracker newShardIndexingPressureTracker = new ShardIndexingPressureTracker(shardId);
-                newShardIndexingPressureTracker.getPrimaryAndCoordinatingLimits().set(this.shardIndexingPressureSettings
-                    .getShardPrimaryAndCoordinatingBaseLimits());
-                newShardIndexingPressureTracker.getReplicaLimits().set(this.shardIndexingPressureSettings.getShardReplicaBaseLimits());
+                ShardIndexingPressureTracker newShardIndexingPressureTracker = new ShardIndexingPressureTracker(shardId,
+                    this.shardIndexingPressureSettings.getShardPrimaryAndCoordinatingBaseLimits(),
+                    this.shardIndexingPressureSettings.getShardReplicaBaseLimits());
                 // Try update the new shard stat to the hot store
                 tracker = shardIndexingPressureHotStore.putIfAbsent((long) shardId.hashCode(), newShardIndexingPressureTracker);
                 // Update the tracker so that we use the one actual in the hot store
