@@ -45,7 +45,7 @@ The specification contains:
 * The _name_ of the API (`indices.create`), which usually corresponds to the client calls
 * Link to the documentation at the <http://opensearch.org> website.
 
-  **IMPORANT:** This should be a _live_ link. Several downstream ES clients use
+  **IMPORANT:** This should be a _live_ link. Several downstream clients use
   this link to generate their documentation. Using a broken link or linking to
   yet-to-be-created doc pages can break the [OpenSearch docs
   build](https://github.com/opensearch/docs#building-documentation).
