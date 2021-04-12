@@ -13,7 +13,7 @@
               uri: "hdfs://localhost:9998"
               path: "/user/opensearch/test/repository_create"
               security:
-                principal: "opensearch@BUILD.OPENSEARCH.CO"
+                principal: "opensearch@BUILD.OPENSEARCH.ORG"
 
     # Get repository
     - do:

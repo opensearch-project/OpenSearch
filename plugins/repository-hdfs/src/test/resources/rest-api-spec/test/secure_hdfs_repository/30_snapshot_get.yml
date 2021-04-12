@@ -14,7 +14,7 @@
             uri: "hdfs://localhost:9998"
             path: "/user/opensearch/test/snapshot_get"
             security:
-              principal: "opensearch@BUILD.OPENSEARCH.CO"
+              principal: "opensearch@BUILD.OPENSEARCH.ORG"
 
   # Create index
   - do:

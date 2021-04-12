@@ -1,4 +1,12 @@
 /*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -16,6 +24,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
 package org.opensearch.repositories.gcs;
 
 import com.google.api.services.storage.StorageScopes;
@@ -140,10 +153,9 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), credentials.v2());
 
         String endpoint;
-        // TODO: use openearch.co, will update once finalized
         if (randomBoolean()) {
-            endpoint = randomFrom("http://www.opensearch.co", "http://metadata.google.com:88/oauth", "https://www.googleapis.com",
-                    "https://www.opensearch.co:443", "http://localhost:8443", "https://www.googleapis.com/oauth/token");
+            endpoint = randomFrom("http://www.opensearch.org", "http://metadata.google.com:88/oauth", "https://www.googleapis.com",
+                    "https://www.opensearch.org:443", "http://localhost:8443", "https://www.googleapis.com/oauth/token");
             settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         } else {
             endpoint = ENDPOINT_SETTING.getDefault(Settings.EMPTY);

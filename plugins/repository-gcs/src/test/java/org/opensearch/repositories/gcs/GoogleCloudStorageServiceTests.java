@@ -1,4 +1,12 @@
 /*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -15,6 +23,11 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
+ */
+
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
  */
 
 package org.opensearch.repositories.gcs;
@@ -49,9 +62,8 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         final TimeValue connectTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
         final TimeValue readTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
         final String applicationName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        // TODO: use www.opensearch.co now, will update once finalized
         final String endpoint = randomFrom("http://", "https://")
-                + randomFrom("www.opensearch.co", "www.googleapis.com", "localhost/api", "google.com/oauth")
+                + randomFrom("www.opensearch.org", "www.googleapis.com", "localhost/api", "google.com/oauth")
                 + ":" + randomIntBetween(1, 65535);
         final String projectIdName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final Settings settings = Settings.builder()
