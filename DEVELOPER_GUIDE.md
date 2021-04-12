@@ -19,7 +19,7 @@ You can import the OpenSearch project into IntelliJ IDEA via:
  - In the subsequent dialog select **Open as Project**
 
 ## Git clone OpenSearch repo:
- git clone https://github.com/opensearch-project.git
+ git clone https://github.com/opensearch-project/OpenSearch.git
 
 
 ## Project layout
