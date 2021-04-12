@@ -49,7 +49,7 @@ public class IndexingPressureService {
         }
     }
 
-    public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted (ShardId shardId, long bytes) {
+    public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(ShardId shardId, long bytes) {
         if (isShardIndexingPressureEnabled()) {
             return shardIndexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(shardId, bytes);
         } else {
