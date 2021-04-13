@@ -43,6 +43,8 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.opensearch.cluster.routing.allocation.RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
+
 /**
  * A composite {@link AllocationDecider} combining the "decision" of multiple
  * {@link AllocationDecider} implementations into a single allocation decision.
@@ -231,6 +233,72 @@ public class AllocationDeciders extends AllocationDecider {
                 }
             } else {
                 addDecision(ret, decision, allocation);
+            }
+        }
+        return ret;
+    }
+
+    @Override
+    public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canAllocateAnyShardToNode(node, allocation);
+            if (decision.type().canPremptivelyReturn()) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Shard can not be allocated on node [{}] due to [{}]", node.nodeId(), decider.getClass().getSimpleName());
+                }
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                           && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
+
+
+    @Override
+    public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canMoveAway(shardRouting, allocation);
+            // short track if a NO is returned.
+            if (decision.type().canPremptivelyReturn()) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Shard [{}] can not be moved away due to [{}]", shardRouting, decider.getClass().getSimpleName());
+                }
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                           && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
+
+    @Override
+    public Decision canMoveAnyShard(RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canMoveAnyShard(allocation);
+            // short track if a NO is returned.
+            if (decision.type().canPremptivelyReturn()) {
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                           && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
             }
         }
         return ret;

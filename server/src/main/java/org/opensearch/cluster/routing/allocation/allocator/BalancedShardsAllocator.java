@@ -68,6 +68,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -132,9 +133,26 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return;
         }
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
-        balancer.allocateUnassigned();
-        balancer.moveShards();
-        balancer.balance();
+        if (logger.isDebugEnabled()) {
+            long start = System.currentTimeMillis();
+            balancer.allocateUnassigned();
+            logger.debug("Time taken to allocate unassigned in this cycle:[{}ms]", System.currentTimeMillis() - start);
+            start = System.currentTimeMillis();
+            balancer.moveShards();
+            logger.debug("Time taken to move shards in this cycle:[{}ms]", System.currentTimeMillis() - start);
+            start = System.currentTimeMillis();
+            balancer.balance();
+            logger.debug("Time taken to balance shards in this cycle :[{}ms]", System.currentTimeMillis() - start);
+            logger.debug("Shards processed in this cycle :[{}]", balancer.shardsProcessed);
+            logger.debug("Shards allocated in this cycle :[{}]", balancer.shardsAllocated);
+            logger.debug("Ineligible target node count :[{}]", balancer.inEligibleTargetNode.size());
+            logger.debug("Shards processing decide move in this cycle :[{}]", balancer.shardsProcessingMove);
+            logger.debug("Number of shards for which target nodes was processed :[{}]", balancer.targetNodesProcessed.size());
+        } else {
+            balancer.allocateUnassigned();
+            balancer.moveShards();
+            balancer.balance();
+        }
     }
 
     @Override
@@ -256,6 +274,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Metadata metadata;
         private final float avgShardsPerNode;
         private final NodeSorter sorter;
+        private final Set<RoutingNode> inEligibleTargetNode;
+        private int shardsProcessed;
+        private final List<Integer> targetNodesProcessed;
+        private int shardsAllocated;
+        private int shardsProcessingMove;
 
         public Balancer(Logger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
             this.logger = logger;
@@ -267,6 +290,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             sorter = newNodeSorter();
+            inEligibleTargetNode = new HashSet<>();
+            targetNodesProcessed = new LinkedList<>();
+            this.shardsAllocated = 0;
+            this.shardsProcessed = 0;
+            this.shardsProcessingMove = 0;
         }
 
         /**
@@ -646,8 +674,41 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
+
+            // Trying to eliminate target nodes so that we donot unnecessarily iterate over source nodes
+            // when no target is eligible
+            for (ModelNode currentNode : sorter.modelNodes) {
+                RoutingNode target = currentNode.getRoutingNode();
+                Decision nodeLevelAllocationDecision = allocation.deciders().canAllocateAnyShardToNode(target, allocation);
+                if (nodeLevelAllocationDecision.type() != Decision.Type.YES) {
+                    inEligibleTargetNode.add(currentNode.getRoutingNode());
+                }
+            }
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext(); ) {
                 ShardRouting shardRouting = it.next();
+                shardsProcessed++;
+                //Verify if the cluster concurrent recoveries have been reached.
+                if (allocation.deciders().canMoveAnyShard(allocation).type() != Decision.Type.YES) {
+                    logger.info("Cannot move any shard in the cluster due to cluster concurrent recoveries getting breached"
+                                    + ". Skipping shard iteration");
+                    return;
+                }
+                //Early terminate node interleaved shard iteration when no eligible target nodes are available
+                if(sorter.modelNodes.length == inEligibleTargetNode.size()) {
+                    logger.info("Cannot move any shard in the cluster as there is no node on which shards can be allocated"
+                                    + ". Skipping shard iteration");
+                    return;
+                }
+
+                // Verify if the shard is allowed to move if outgoing recovery on the node hosting the primary shard
+                // is not being throttled.
+                Decision canMoveAwayDecision = allocation.deciders().canMoveAway(shardRouting, allocation);
+                if(canMoveAwayDecision.type() != Decision.Type.YES) {
+                    if (logger.isDebugEnabled())
+                        logger.debug("Cannot move away shard [{}] Skipping this shard", shardRouting);
+                    continue;
+                }
+                shardsProcessingMove++;
                 final MoveDecision moveDecision = decideMove(shardRouting);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
@@ -659,6 +720,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     targetNode.addShard(relocatingShards.v2());
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
+                    }
+                    shardsAllocated++;
+                    // Verifying if this node can be considered ineligible for further iterations
+                    if (targetNode != null) {
+                        Decision nodeLevelAllocationDecision = allocation.deciders().canAllocateAnyShardToNode(
+                            targetNode.getRoutingNode(),
+                            allocation
+                        );
+                        if (nodeLevelAllocationDecision.type() != Decision.Type.YES) {
+                            inEligibleTargetNode.add(targetNode.getRoutingNode());
+                        }
                     }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
@@ -704,9 +776,22 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             RoutingNode targetNode = null;
             final List<NodeAllocationResult> nodeExplanationMap = explain ? new ArrayList<>() : null;
             int weightRanking = 0;
+            int targetNodeProcessed = 0;
             for (ModelNode currentNode : sorter.modelNodes) {
                 if (currentNode != sourceNode) {
                     RoutingNode target = currentNode.getRoutingNode();
+                    if(!explain && inEligibleTargetNode.contains(target))
+                        continue;
+                    // don't use canRebalance as we want hard filtering rules to apply. See #17698
+                    if (!explain) {
+                        // If we cannot allocate any shard to node marking it in eligible
+                        Decision nodeLevelAllocationDecision = allocation.deciders().canAllocateAnyShardToNode(target, allocation);
+                        if (nodeLevelAllocationDecision.type() != Decision.Type.YES) {
+                            inEligibleTargetNode.add(currentNode.getRoutingNode());
+                            continue;
+                        }
+                    }
+                    targetNodeProcessed++;
                     // don't use canRebalance as we want hard filtering rules to apply. See #17698
                     Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
                     if (explain) {
@@ -728,6 +813,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
 
+            targetNodesProcessed.add(targetNodeProcessed);
             return MoveDecision.cannotRemain(canRemain, AllocationDecision.fromDecisionType(bestDecision),
                 targetNode != null ? targetNode.node() : null, nodeExplanationMap);
         }
