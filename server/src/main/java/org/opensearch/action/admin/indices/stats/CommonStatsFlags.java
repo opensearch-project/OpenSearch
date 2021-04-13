@@ -36,7 +36,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.index.ShardIndexingPressure;
+import org.opensearch.index.ShardIndexingPressureSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -87,7 +87,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             includeAllShardIndexingPressureTrackers = in.readBoolean();
             includeOnlyTopIndexingPressureMetrics = in.readBoolean();
         } else if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            if (ShardIndexingPressure.isShardIndexingPressureAttributeEnabled()) {
+            if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
                 includeAllShardIndexingPressureTrackers = in.readBoolean();
                 includeOnlyTopIndexingPressureMetrics = in.readBoolean();
             }
@@ -114,7 +114,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             out.writeBoolean(includeAllShardIndexingPressureTrackers);
             out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
         }  else if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            if (ShardIndexingPressure.isShardIndexingPressureAttributeEnabled()) {
+            if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
                 out.writeBoolean(includeAllShardIndexingPressureTrackers);
                 out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
             }

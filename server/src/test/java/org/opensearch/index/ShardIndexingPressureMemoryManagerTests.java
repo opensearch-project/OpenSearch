@@ -5,6 +5,7 @@
 
 package org.opensearch.index;
 
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.ShardId;
@@ -22,7 +23,8 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         .build();
     private final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final ShardIndexingPressureSettings shardIndexingPressureSettings =
-        new ShardIndexingPressureSettings(clusterSettings, settings, IndexingPressure.MAX_INDEXING_BYTES.get(settings).getBytes());
+        new ShardIndexingPressureSettings(new ClusterService(settings, clusterSettings, null), settings,
+            IndexingPressure.MAX_INDEXING_BYTES.get(settings).getBytes());
 
     private final Index index = new Index("IndexName", "UUID");
     private final ShardId shardId1 = new ShardId(index, 0);

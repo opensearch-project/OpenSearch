@@ -5,9 +5,13 @@
 
 package org.opensearch.index;
 
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+
+import java.util.Iterator;
 
 /**
  * This class contains all the setting which whose owner class in ShardIndexingPressure and it will be used in
@@ -15,6 +19,8 @@ import org.opensearch.common.settings.Settings;
  * ShardIndexingPressureMemoryManager and ShardIndexingPressureStore
  */
 public final class ShardIndexingPressureSettings {
+
+    public static final String SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY = "shard_indexing_pressure_enabled";
 
     public static final Setting<Boolean> SHARD_INDEXING_PRESSURE_ENABLED =
             Setting.boolSetting("shard_indexing_pressure.enabled", false, Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -43,8 +49,12 @@ public final class ShardIndexingPressureSettings {
     private volatile int requestSizeWindow;
     private volatile double shardMinLimit;
     private final long primaryAndCoordinatingNodeLimits;
+    private static ClusterService clusterService;
 
-    public ShardIndexingPressureSettings(ClusterSettings clusterSettings, Settings settings, long primaryAndCoordinatingLimits) {
+    public ShardIndexingPressureSettings(ClusterService clusterService, Settings settings, long primaryAndCoordinatingLimits) {
+        ShardIndexingPressureSettings.clusterService = clusterService;
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+
         this.shardIndexingPressureEnabled = SHARD_INDEXING_PRESSURE_ENABLED.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SHARD_INDEXING_PRESSURE_ENABLED, this::setShardIndexingPressureEnabled);
 
@@ -60,6 +70,16 @@ public final class ShardIndexingPressureSettings {
         this.shardPrimaryAndCoordinatingBaseLimits = (long) (primaryAndCoordinatingLimits * shardMinLimit);
         this.shardReplicaBaseLimits = (long) (shardPrimaryAndCoordinatingBaseLimits * 1.5);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MIN_LIMIT, this::setShardMinLimit);
+    }
+
+    public static boolean isShardIndexingPressureAttributeEnabled() {
+        Iterator<DiscoveryNode> nodes = clusterService.state().getNodes().getNodes().valuesIt();
+        while (nodes.hasNext()) {
+            if (Boolean.parseBoolean(nodes.next().getAttributes().get(SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void setShardIndexingPressureEnabled(Boolean shardIndexingPressureEnableValue) {

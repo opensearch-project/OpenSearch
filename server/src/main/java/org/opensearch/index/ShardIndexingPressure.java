@@ -8,7 +8,6 @@ package org.opensearch.index;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
@@ -20,7 +19,6 @@ import org.opensearch.index.stats.IndexingPressurePerShardStats;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -40,19 +38,15 @@ import java.util.Map;
  */
 public class ShardIndexingPressure extends IndexingPressure {
 
-    public static final String SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY = "shard_indexing_pressure_enabled";
     private final Logger logger = LogManager.getLogger(getClass());
 
-    private static ClusterService clusterService;
     private final ShardIndexingPressureSettings shardIndexingPressureSettings;
     private final ShardIndexingPressureMemoryManager memoryManager;
     private final ShardIndexingPressureStore shardIndexingPressureStore;
 
     ShardIndexingPressure(Settings settings, ClusterService clusterService) {
         super(settings);
-        shardIndexingPressureSettings = new ShardIndexingPressureSettings(clusterService.getClusterSettings(), settings,
-            primaryAndCoordinatingLimits);
-        ShardIndexingPressure.clusterService = clusterService;
+        shardIndexingPressureSettings = new ShardIndexingPressureSettings(clusterService, settings, primaryAndCoordinatingLimits);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
 
         this.memoryManager = new ShardIndexingPressureMemoryManager(shardIndexingPressureSettings, clusterSettings, settings);
@@ -421,16 +415,6 @@ public class ShardIndexingPressure extends IndexingPressure {
 
     ShardIndexingPressureTracker getShardIndexingPressureTracker(ShardId shardId) {
         return shardIndexingPressureStore.getShardIndexingPressureTracker(shardId);
-    }
-
-    public static boolean isShardIndexingPressureAttributeEnabled() {
-        Iterator<DiscoveryNode> nodes = clusterService.state().getNodes().getNodes().valuesIt();
-        while (nodes.hasNext()) {
-            if (Boolean.parseBoolean(nodes.next().getAttributes().get(SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY)) == false) {
-                return false;
-            }
-        }
-        return true;
     }
 
     public boolean isShardIndexingPressureEnabled() {
