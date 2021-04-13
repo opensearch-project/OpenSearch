@@ -1,26 +1,88 @@
 # Developer Guide
 
-So you want to contribute code to OpenSearch?  Excellent!  We're glad you're here.  Here's what you need to do:
+So you want to contribute code to OpenSearch? Excellent! We're glad you're here. Here's what you need to do:
 
-## Importing the project into IntelliJ IDEA directly
+## Basics
 
-OpenSearch builds using Java 14. When importing into IntelliJ you will need
-to define an appropriate SDK. The convention is that **this SDK should be named
-"14"** so that the project import will detect it automatically. For more details
-on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
-SDK definitions are global, so you can add the JDK from any project, or after
-project import. Importing with a missing JDK will still work, IntelliJ will
-simply report a problem and will refuse to build until resolved.
+### Git Clone OpenSearch Repo
 
-You can import the OpenSearch project into IntelliJ IDEA via:
+Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenSearch) and clone locally, e.g. `git clone https://github.com/[username]/OpenSearch.git`.
 
- - Select **File > Open**
- - In the subsequent dialog navigate to the root `build.gradle` file
- - In the subsequent dialog select **Open as Project**
+### Prerequisites
 
-## Git clone OpenSearch repo:
- git clone https://github.com/opensearch-project/OpenSearch.git
+#### JDK 14
 
+OpenSearch builds using Java 14 at a minimum.
+
+This means you must have a JDK 14 installed with the environment variable `JAVA_HOME` referencing the path to Java home for
+your JDK 14 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-14`. 
+
+By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8, the build supports compiling with JDK 14 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
+
+To run the full suite of tests you will also need `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`, `JAVA11_HOME`, and `JAVA12_HOME`.
+
+#### git-secrets
+
+Security is our top priority. Avoid checking in credentials, install [awslabs/git-secrets](https://github.com/awslabs/git-secrets).
+
+```
+git clone https://github.com/awslabs/git-secrets.git
+cd git-secrets
+make install
+```
+
+This project runs `git-secrets` as part of its pre-commit hooks.
+
+#### Docker
+
+[Docker](https://docs.docker.com/install/) is required for building some OpenSearch artifacts and executing certain test suites.
+
+### Running Tests
+
+OpenSearch uses the Gradle wrapper for its build. You can execute Gradle using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat` script on Windows in the root of the repository.
+
+Start by running the test suite with `gradlew check`. This should complete without errors.
+
+### Running OpenSearch
+
+Run OpenSearch as follows.
+
+```
+./gradlew :run
+```
+
+That will spend a while building OpenSearch and then it will start OpenSearch, writing its log above Gradle's status message. We log a lot of stuff on startup, specifically these lines tell you that OpenSearch is ready.
+
+```
+[2020-05-29T14:50:35,167][INFO ][o.e.h.AbstractHttpServerTransport] [runTask-0] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
+[2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
+```
+
+It's typically easier to wait until the console stops scrolling, and then run `curl` in another window to check if OpenSearch instance is running.
+
+```
+curl -u opensearch:password localhost:9200
+```
+
+## Editors
+
+### IntelliJ IDEA
+
+When importing into IntelliJ you will need to define an appropriate JDK. The convention is that **this SDK should be named "14"**, and the project import will detect it automatically. For more details on defining an SDK in IntelliJ please refer to [this documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk). Note that SDK definitions are global, so you can add the JDK from any project, or after project import. Importing with a missing JDK will still work, IntelliJ will report a problem and will refuse to build until resolved.
+
+You can import the OpenSearch project into IntelliJ IDEA as follows.
+
+1. Select **File > Open**
+2. In the subsequent dialog navigate to the root `build.gradle` file
+3. In the subsequent dialog select **Open as Project**
+
+### Visual Studio Code
+
+See [Java in Visual Studio Code](https://code.visualstudio.com/docs/languages/java) for a tutorial.
+
+### Eclipse
+
+We would like to support Eclipse, but few of us use it and has fallen into disrepair.
 
 ## Project layout
 
@@ -69,45 +131,6 @@ Another example is the `discovery-gce` plugin. It is *vital* to folks running
 in [GCP](https://cloud.google.com/) but useless otherwise and it depends on a
 dozen extra jars.
 
-## Project Tools
-
-JDK 14 is required to build OpenSearch. You must have a JDK 14 installed
-with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
-However, since RENNAMEME supports JDK 8, the build supports compiling with
-JDK 14 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
-pointing to the Java home of a JDK 8 installation. Note that this mechanism can
-be used to test against other JDKs as well, this is not only limited to JDK 8.
-
-> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
-
-OpenSearch uses the Gradle wrapper for its build. You can execute Gradle
-using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
-script on Windows in the root of the repository. The examples below show the
-usage on Unix.
-
-We support development in IntelliJ versions IntelliJ 2019.2 and
-onwards. We would like to support Eclipse, but few of us use it and has fallen
-into [disrepair][eclipse].
-
-[Docker](https://docs.docker.com/install/) is required for building some OpenSearch artifacts and executing certain test suites. You can run OpenSearch without building all the artifacts with:
-
-    ./gradlew :run
-
-That'll spend a while building OpenSearch and then it'll start OpenSearch,
-writing its log above Gradle's status message. We log a lot of stuff on startup,
-specifically these lines tell you that OpenSearch is ready:
-
-    [2020-05-29T14:50:35,167][INFO ][o.e.h.AbstractHttpServerTransport] [runTask-0] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
-    [2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
-
-But to be honest its typically easier to wait until the console stops scrolling
-and then run `curl` in another window like this to check if OpenSearch instance is running:
-
-    curl -u opensearch:password localhost:9200
-
-
 ## Java Language Formatting Guidelines
 
 Java files in the OpenSearch codebase are formatted with the Eclipse JDT
@@ -151,7 +174,7 @@ Please follow these formatting guidelines:
   code. While this isn't strictly enforced, if might get called out in PR
   reviews as something to change.
 
-## Editor / IDE Support
+### Editor / IDE Support
 
 IntelliJ IDEs can
 [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
@@ -163,7 +186,7 @@ You can also tell Spotless to [format a specific
 file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
 from the command line.
 
-## Formatting failures
+### Formatting failures
 
 Sometimes Spotless will report a "misbehaving rule which can't make up its
 mind" and will recommend enabling the `paddedCell()` setting. If you
@@ -177,34 +200,29 @@ The `paddedCell()` option is disabled for normal operation in order to
 detect any misbehaviour. You can enabled the option from the command line
 by running Gradle with `-Dspotless.paddedcell`.
 
-
 > **NOTE:** If you have imported the project into IntelliJ IDEA the project will
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 
-
-
 ## Running The Full Test Suite
 
-**Note:  OpenSearch hasn't made any changes to the test suite yet beyond fixing tests that broke after removing non-Apache licensed code and non-Apache licensed code checks.  Also, while we're in pre-alpha, some tests may be failing until we finish the forking process.  We should have an issue for all failing tests, but if you find one first, feel free to open one (and fix it :) ).**
-
+**Note: OpenSearch hasn't made any changes to the test suite yet beyond fixing tests that broke after removing non-Apache licensed code and non-Apache licensed code checks. Also, while we're in pre-alpha, some tests may be failing until we finish the forking process. We should have an issue for all failing tests, but if you find one first, feel free to open one (and fix it :) ).**
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
 ```sh
 ./gradlew check
 ```
-If we're still running down issues, you may want to start with just
+
+If we're still running down issues, you may want to start with just.
 
 ```sh
 ./gradlew precommit
 ```
 
-
 #### `qa`
 
 Honestly this is kind of in flux and we're not 100% sure where we'll end up.  We welcome your throughts and help.
-
 
 Right now the directory contains
 * Tests that require multiple modules or plugins to work
@@ -237,8 +255,7 @@ running specific tests that rely on them.
 For example, we have an hdfs test that uses mini-hdfs to test our
 repository-hdfs plugin.
 
-
-### Gradle Build
+## Gradle Build
 
 We use Gradle to build OpenSearch because it is flexible enough to not only
 build and package OpenSearch, but also orchestrate all of the ways that we
@@ -270,7 +287,7 @@ that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>
 </dl>
 
-### Submitting your changes
+## Submitting your changes
 
 Once your changes and tests are ready to submit for review:
 
@@ -311,7 +328,7 @@ also not be done, that can be done when the pull request is [integrated
 via GitHub](https://github.com/blog/2141-squash-your-commits).
 
 
-### Reviewing and accepting your contribution
+## Reviewing and accepting your contribution
 
 We deeply appreciate everyone who takes the time to make a contribution.  We will review all contributions as quickly as possible, but there are a few things you can do to help us with the process:
 

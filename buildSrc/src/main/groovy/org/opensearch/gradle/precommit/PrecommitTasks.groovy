@@ -40,6 +40,7 @@ class PrecommitTasks {
 
     static void create(Project project, boolean includeDependencyLicenses) {
 
+        project.pluginManager.apply(GitSecretsPrecommitPlugin)
         project.pluginManager.apply(CheckstylePrecommitPlugin)
         project.pluginManager.apply(ForbiddenApisPrecommitPlugin)
         project.pluginManager.apply(JarHellPrecommitPlugin)
