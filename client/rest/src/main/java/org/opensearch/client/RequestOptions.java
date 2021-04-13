@@ -40,7 +40,9 @@ import org.opensearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedRespon
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -52,15 +54,17 @@ public final class RequestOptions {
      * Default request options.
      */
     public static final RequestOptions DEFAULT = new Builder(
-            Collections.emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT, null, null).build();
+        Collections.emptyList(), Collections.emptyMap(), HeapBufferedResponseConsumerFactory.DEFAULT, null, null).build();
 
     private final List<Header> headers;
+    private final Map<String, String> parameters;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
     private final WarningsHandler warningsHandler;
     private final RequestConfig requestConfig;
 
     private RequestOptions(Builder builder) {
         this.headers = Collections.unmodifiableList(new ArrayList<>(builder.headers));
+        this.parameters = Collections.unmodifiableMap(builder.parameters);
         this.httpAsyncResponseConsumerFactory = builder.httpAsyncResponseConsumerFactory;
         this.warningsHandler = builder.warningsHandler;
         this.requestConfig = builder.requestConfig;
@@ -70,7 +74,7 @@ public final class RequestOptions {
      * Create a builder that contains these options but can be modified.
      */
     public Builder toBuilder() {
-        return new Builder(headers, httpAsyncResponseConsumerFactory, warningsHandler, requestConfig);
+        return new Builder(headers, parameters, httpAsyncResponseConsumerFactory, warningsHandler, requestConfig);
     }
 
     /**
@@ -78,6 +82,13 @@ public final class RequestOptions {
      */
     public List<Header> getHeaders() {
         return headers;
+    }
+
+    /**
+     * Parameters to attach to the request.
+     */
+    public Map<String, String> getParameters() {
+        return parameters;
     }
 
     /**
@@ -175,13 +186,16 @@ public final class RequestOptions {
      */
     public static class Builder {
         private final List<Header> headers;
+        private final Map<String, String> parameters;
         private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
         private WarningsHandler warningsHandler;
         private RequestConfig requestConfig;
 
-        private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                WarningsHandler warningsHandler, RequestConfig requestConfig) {
+        private Builder(List<Header> headers, Map<String, String> parameters,
+                        HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+                        WarningsHandler warningsHandler, RequestConfig requestConfig) {
             this.headers = new ArrayList<>(headers);
+            this.parameters = new HashMap<>(parameters);
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
             this.warningsHandler = warningsHandler;
             this.requestConfig = requestConfig;
@@ -201,6 +215,16 @@ public final class RequestOptions {
             Objects.requireNonNull(name, "header name cannot be null");
             Objects.requireNonNull(value, "header value cannot be null");
             this.headers.add(new ReqHeader(name, value));
+            return this;
+        }
+
+        /**
+         * Add the provided parameter to the request.
+         */
+        public Builder addParameter(String key, String value) {
+            Objects.requireNonNull(key, "parameter key cannot be null");
+            Objects.requireNonNull(value, "parameter value cannot be null");
+            this.parameters.merge(key, value, (existingValue, newValue) -> String.join(",", existingValue, newValue));
             return this;
         }
 
