@@ -200,7 +200,7 @@ public class Archives {
         Stream.of("opensearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
 
-        Stream.of("NOTICE.txt", "LICENSE.txt", "README.asciidoc")
+        Stream.of("NOTICE.txt", "LICENSE.txt", "README.md")
             .forEach(doc -> assertThat(es.home.resolve(doc), file(File, owner, owner, p644)));
     }
 

@@ -528,7 +528,7 @@ public class Docker {
             "opensearch-node"
         ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
-        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
+        Stream.of("LICENSE.txt", "NOTICE.txt", "README.md").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
 
         // These are installed to help users who are working with certificates.
         Stream.of("zip", "unzip").forEach(cliPackage -> {
