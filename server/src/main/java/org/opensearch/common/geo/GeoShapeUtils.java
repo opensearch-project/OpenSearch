@@ -31,6 +31,7 @@
 
 package org.opensearch.common.geo;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.opensearch.geometry.Circle;
 import org.opensearch.geometry.Line;
 import org.opensearch.geometry.Point;
@@ -62,7 +63,9 @@ public class GeoShapeUtils {
     }
 
     public static org.apache.lucene.geo.Point toLucenePoint(Point point) {
-        return new org.apache.lucene.geo.Point(point.getLat(), point.getLon());
+        final double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(point.getLat()));
+        final double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getLon()));
+        return new org.apache.lucene.geo.Point(lat, lon);
     }
 
     public static org.apache.lucene.geo.Line toLuceneLine(Line line) {
