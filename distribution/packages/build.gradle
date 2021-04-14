@@ -154,7 +154,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         with binFiles(type, jdk)
       }
       from(rootProject.projectDir) {
-        include 'README.asciidoc'
+        include 'README.md'
         fileMode 0644
       }
       into('lib') {

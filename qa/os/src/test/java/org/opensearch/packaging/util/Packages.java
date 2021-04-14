@@ -209,8 +209,7 @@ public class Packages {
         Stream.of("opensearch", "opensearch-plugin", "opensearch-keystore", "opensearch-shard", "opensearch-shard")
             .forEach(executable -> assertThat(opensearch.bin(executable), file(File, "root", "root", p755)));
 
-        Stream.of("NOTICE.txt", "README.asciidoc")
-            .forEach(doc -> assertThat(opensearch.home.resolve(doc), file(File, "root", "root", p644)));
+        Stream.of("NOTICE.txt", "README.md").forEach(doc -> assertThat(opensearch.home.resolve(doc), file(File, "root", "root", p644)));
 
         assertThat(opensearch.envFile, file(File, "root", "opensearch", p660));
 
