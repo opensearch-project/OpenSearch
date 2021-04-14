@@ -32,6 +32,12 @@
 
 package org.opensearch.index.reindex;
 
+import java.util.Optional;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.index.reindex.spi.RemoteReindexExtension;
+import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.plugins.ExtensiblePlugin.ExtensionLoader;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
@@ -67,8 +73,9 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 
-public class ReindexPlugin extends Plugin implements ActionPlugin {
+public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
     public static final String NAME = "reindex";
+    private static final Logger logger = LogManager.getLogger(ReindexPlugin.class);
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -111,5 +118,23 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        logger.info("ReindexPlugin reloadSPI called");
+        Iterable<RemoteReindexExtension> iterable = loader.loadExtensions(RemoteReindexExtension.class);
+        List<RemoteReindexExtension> remoteReindexExtensionList = new ArrayList<>();
+        iterable.forEach(remoteReindexExtensionList::add);
+        if (remoteReindexExtensionList.isEmpty()) {
+            logger.info("Unable to find any implementation for RemoteReindexExtension");
+        } else {
+            if (remoteReindexExtensionList.size() > 1) {
+                logger.warn("More than one implementation found: " + remoteReindexExtensionList);
+            }
+            // We shouldn't have more than one extension. Incase there is, we simply pick the first one.
+            TransportReindexAction.remoteExtension = Optional.ofNullable(remoteReindexExtensionList.get(0));
+            logger.info("Loaded extension " + TransportReindexAction.remoteExtension);
+        }
     }
 }
