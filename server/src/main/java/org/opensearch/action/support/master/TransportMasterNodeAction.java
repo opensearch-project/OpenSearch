@@ -120,12 +120,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-        ClusterState state = clusterService.state();
-        logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());
         }
-        new AsyncSingleAction(task, request, listener).doStart(state);
+        new AsyncSingleAction(task, request, listener).start();
     }
 
     class AsyncSingleAction {
@@ -139,8 +137,14 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
             this.request = request;
-            this.listener = listener;
+            this.listener = new MasterThrottlingRetryListener(actionName, request, this::start, listener);
             this.startTime = threadPool.relativeTimeInMillis();
+        }
+
+        public void start() {
+            ClusterState state = clusterService.state();
+            logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
+            doStart(state);
         }
 
         protected void doStart(ClusterState clusterState) {
@@ -185,6 +189,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         final String actionName = getMasterActionName(masterNode);
+                        request.setRemoteRequest(true);
                         transportService.sendRequest(masterNode, actionName, request,
                             new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {
                                 @Override

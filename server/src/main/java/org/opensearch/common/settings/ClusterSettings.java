@@ -76,6 +76,7 @@ import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDec
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.MasterTaskThrottler;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
@@ -574,7 +575,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
-            IndexingPressure.MAX_INDEXING_BYTES)));
+            IndexingPressure.MAX_INDEXING_BYTES,
+            MasterTaskThrottler.ENABLE_MASTER_THROTTLING,
+            MasterTaskThrottler.THRESHOLD_SETTINGS)));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
