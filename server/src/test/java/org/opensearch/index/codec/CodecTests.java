@@ -37,7 +37,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene80.Lucene80DocValuesFormat;
 import org.apache.lucene.codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.lucene87.Lucene87StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene87.Lucene87StoredFieldsFormat.Mode;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
@@ -76,13 +75,13 @@ public class CodecTests extends OpenSearchTestCase {
     public void testDefault() throws Exception {
         Codec codec = createCodecService().codec("default");
         assertDVCompressionEquals(Lucene80DocValuesFormat.Mode.BEST_COMPRESSION, codec);
-        assertStoredFieldsFormatCompressionEquals(Lucene87StoredFieldsFormat.Mode.BEST_COMPRESSION, codec);
+        assertStoredFieldsFormatCompressionEquals(Lucene87StoredFieldsFormat.Mode.BEST_SPEED, codec);
     }
 
     public void testBestCompression() throws Exception {
         Codec codec = createCodecService().codec("best_compression");
         assertDVCompressionEquals(Lucene80DocValuesFormat.Mode.BEST_COMPRESSION, codec);
-        assertStoredFieldsFormatCompressionEquals(Mode.BEST_COMPRESSION, codec);
+        assertStoredFieldsFormatCompressionEquals(Lucene87StoredFieldsFormat.Mode.BEST_COMPRESSION, codec);
     }
 
     private void assertDVCompressionEquals(Lucene80DocValuesFormat.Mode expected, Codec actual) throws Exception {
