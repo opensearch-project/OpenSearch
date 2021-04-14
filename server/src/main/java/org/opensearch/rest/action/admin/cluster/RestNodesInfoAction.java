@@ -78,6 +78,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final NodesInfoRequest nodesInfoRequest = prepareRequest(request);
+        nodesInfoRequest.timeout(request.param("timeout"));
         settingsFilter.addFilterSettingParams(request);
 
         return channel -> client.admin().cluster().nodesInfo(nodesInfoRequest, new NodesResponseRestListener<>(channel));
