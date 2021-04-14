@@ -57,6 +57,7 @@ import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool.ThreadPoolType;
 import org.opensearch.threadpool.ThreadPoolInfo;
 import org.opensearch.transport.TransportInfo;
 
@@ -64,6 +65,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -100,6 +102,32 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
         compareJsonOutput(nodeInfo.getInfo(OsInfo.class), readNodeInfo.getInfo(OsInfo.class));
         compareJsonOutput(nodeInfo.getInfo(PluginsAndModules.class), readNodeInfo.getInfo(PluginsAndModules.class));
         compareJsonOutput(nodeInfo.getInfo(IngestInfo.class), readNodeInfo.getInfo(IngestInfo.class));
+    }
+
+    private void compareThreadpoolInfo(ThreadPoolInfo threadPoolInfo, ThreadPoolInfo readThreadPoolInfo) throws IOException {
+        if (threadPoolInfo == null || readThreadPoolInfo == null) {
+            assertTrue(threadPoolInfo == null && readThreadPoolInfo == null);
+            return;
+        }
+        Iterator<ThreadPool.Info> readIterator = readThreadPoolInfo.iterator();
+        Iterator<ThreadPool.Info> iterator = threadPoolInfo.iterator();
+        while(iterator.hasNext()) {
+            assertTrue(readIterator.hasNext());
+            ThreadPool.Info info = iterator.next();
+            ThreadPool.Info readInfo = readIterator.next();
+            if (info.getThreadPoolType() != ThreadPoolType.RESIZABLE) {
+                compareJsonOutput(info, readInfo);
+            }
+            /* The SerDe patch converts RESIZABLE threadpool type value to FIXED. Implementing
+             * the same conversion in test to maintain parity.
+             */
+            else {
+                ThreadPool.Info fixedSizeInfo =
+                    new ThreadPool.Info(info.getName(), ThreadPoolType.FIXED, info.getMin(), info.getMax(),
+                        info.getKeepAlive(), info.getQueueSize());
+                compareJsonOutput(fixedSizeInfo, readInfo);
+            }
+        }
     }
 
     private void compareJsonOutput(ToXContent param1, ToXContent param2) throws IOException {

@@ -42,6 +42,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool.ThreadPoolType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -129,6 +130,13 @@ public class ThreadPoolSerializationTests extends OpenSearchTestCase {
         StreamInput input = output.bytes().streamInput();
         ThreadPool.Info newInfo = new ThreadPool.Info(input);
 
-        assertThat(newInfo.getThreadPoolType(), is(threadPoolType));
+        /* The SerDe patch converts RESIZABLE threadpool type value to FIXED. Implementing
+         * the same conversion in test to maintain parity.
+         */
+        if (threadPoolType == ThreadPoolType.RESIZABLE) {
+            assertThat(newInfo.getThreadPoolType(), is(ThreadPoolType.FIXED));
+        } else {
+            assertThat(newInfo.getThreadPoolType(), is(threadPoolType));
+        }
     }
 }

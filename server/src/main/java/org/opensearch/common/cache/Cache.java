@@ -101,7 +101,7 @@ public class Cache<K, V> {
     private long weight = 0;
 
     // the maximum weight that this cache supports
-    private long maximumWeight = -1;
+    private volatile long maximumWeight = -1;
 
     // the weigher of entries
     private ToLongBiFunction<K, V> weigher = (k, v) -> 1;
