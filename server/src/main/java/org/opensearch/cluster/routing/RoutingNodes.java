@@ -63,8 +63,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -186,7 +186,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         // Primary shard routing, excluding the relocating primaries.
         if(routing.primary() && (primary == null || primary == routing)) {
-            assert !routing.isRelocationTarget() && !routing.relocating(): "Routing must be a non relocating primary";
+            assert routing.relocatingNodeId() == null: "Routing must be a non relocating primary";
             Recoveries.getOrAdd(primaryRecoveriesPerNode, routing.currentNodeId()).addIncoming(howMany);
             return;
         }
@@ -1106,34 +1106,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
         }
 
-        for (Map.Entry<String, Recoveries> recoveries : routingNodes.recoveriesPerNode.entrySet()) {
-            String node = recoveries.getKey();
-            final Recoveries value = recoveries.getValue();
-            int incoming = 0;
-            int outgoing = 0;
-            RoutingNode routingNode = routingNodes.nodesToShards.get(node);
-            if (routingNode != null) { // node might have dropped out of the cluster
-                for (ShardRouting routing : routingNode) {
-                    if (routing.initializing()) {
-                        incoming++;
-                    }
-                    if (routing.primary() && routing.isRelocationTarget() == false) {
-                        for (ShardRouting assigned : routingNodes.assignedShards.get(routing.shardId())) {
-                            if (assigned.initializing() && assigned.recoverySource().getType() == RecoverySource.Type.PEER) {
-                                outgoing++;
-                            }
-                        }
-                    }
-                }
-            }
-
-            int incomingRecoveries = Stream.of(routingNodes.recoveriesPerNode, routingNodes.primaryRecoveriesPerNode)
-                                     .filter(x->x.containsKey(node))
-                                     .mapToInt(x->x.get(node).getIncoming())
-                                     .sum();
-            assert incoming == incomingRecoveries : incoming + " != " + incomingRecoveries + " node: " + routingNode;
-            assert outgoing == value.outgoing : outgoing + " != " + value.outgoing + " node: " + routingNode;
-        }
+        assertRecoveriesPerNode(routingNodes, routingNodes.recoveriesPerNode, true,
+            x -> !isNonRelocatingPrimary(x));
+        assertRecoveriesPerNode(routingNodes, routingNodes.primaryRecoveriesPerNode, false,
+            x -> isNonRelocatingPrimary(x));
 
         assert unassignedPrimaryCount == routingNodes.unassignedShards.getNumPrimaries() :
                 "Unassigned primaries is [" + unassignedPrimaryCount + "] but RoutingNodes returned unassigned primaries [" +
@@ -1151,6 +1127,39 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             routingNodes.getRelocatingShardCount() + "] but expected [" + relocating + "]";
 
         return true;
+    }
+
+    private static void assertRecoveriesPerNode(RoutingNodes routingNodes, Map<String, Recoveries> recoveriesPerNode,
+                                                boolean verifyOutgoingRecoveries,
+                                                Function<ShardRouting, Boolean> incomingCountFilter) {
+        for (Map.Entry<String, Recoveries> recoveries : recoveriesPerNode.entrySet()) {
+            String node = recoveries.getKey();
+            final Recoveries value = recoveries.getValue();
+            int incoming = 0;
+            int outgoing = 0;
+            RoutingNode routingNode = routingNodes.nodesToShards.get(node);
+            if (routingNode != null) { // node might have dropped out of the cluster
+                for (ShardRouting routing : routingNode) {
+                    if (routing.initializing() && incomingCountFilter.apply(routing))
+                            incoming++;
+
+                    if (verifyOutgoingRecoveries && routing.primary() && routing.isRelocationTarget() == false) {
+                        for (ShardRouting assigned : routingNodes.assignedShards.get(routing.shardId())) {
+                            if (assigned.initializing() && assigned.recoverySource().getType() == RecoverySource.Type.PEER) {
+                                outgoing++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            assert incoming == value.incoming : incoming + " != " + value.incoming + " node: " + routingNode;
+            assert outgoing == value.outgoing : outgoing + " != " + value.outgoing + " node: " + routingNode;
+        }
+    }
+
+    private static boolean isNonRelocatingPrimary(ShardRouting routing) {
+        return routing.primary() && routing.relocatingNodeId() == null;
     }
 
     private void ensureMutable() {
