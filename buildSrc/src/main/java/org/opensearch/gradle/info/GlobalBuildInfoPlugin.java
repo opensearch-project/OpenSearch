@@ -33,7 +33,6 @@ package org.opensearch.gradle.info;
 
 import org.apache.commons.io.IOUtils;
 import org.opensearch.gradle.BwcVersions;
-import org.opensearch.gradle.OS;
 import org.opensearch.gradle.util.Util;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
@@ -50,11 +49,8 @@ import org.gradle.jvm.toolchain.JavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
 
 import javax.inject.Inject;
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -64,7 +60,6 @@ import java.nio.file.Paths;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -73,7 +68,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
