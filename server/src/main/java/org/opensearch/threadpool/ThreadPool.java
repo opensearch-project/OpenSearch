@@ -101,6 +101,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public enum ThreadPoolType {
         DIRECT("direct"),
         FIXED("fixed"),
+        RESIZABLE("resizable"),
         FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 
@@ -142,8 +143,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.LISTENER, ThreadPoolType.FIXED);
         map.put(Names.GET, ThreadPoolType.FIXED);
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
-        map.put(Names.WRITE, ThreadPoolType.FIXED);
-        map.put(Names.SEARCH, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
+        map.put(Names.WRITE, ThreadPoolType.RESIZABLE);
+        map.put(Names.SEARCH, ThreadPoolType.RESIZABLE);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
@@ -189,11 +190,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
-        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
+        builders.put(Names.WRITE, new ResizableExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
-        builders.put(Names.SEARCH, new AutoQueueAdjustingExecutorBuilder(settings,
-                        Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, 1000, 1000, 2000));
+        builders.put(Names.SEARCH, new ResizableExecutorBuilder(settings,
+            Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000));
         builders.put(Names.SEARCH_THROTTLED, new AutoQueueAdjustingExecutorBuilder(settings,
             Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
@@ -670,6 +671,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             if (type == ThreadPoolType.FIXED_AUTO_QUEUE_SIZE &&
                     out.getVersion().before(Version.V_6_0_0_alpha1)) {
                 // 5.x doesn't know about the "fixed_auto_queue_size" thread pool type, just write fixed.
+                out.writeString(ThreadPoolType.FIXED.getType());
+            } else if (type == ThreadPoolType.RESIZABLE) {
+                // old vfi doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else {
                 out.writeString(type.getType());

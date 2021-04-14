@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SizeBlockingQueue<E> extends AbstractQueue<E> implements BlockingQueue<E> {
 
     private final BlockingQueue<E> queue;
-    private final int capacity;
+    protected volatile int capacity;
 
     private final AtomicInteger size = new AtomicInteger();
 

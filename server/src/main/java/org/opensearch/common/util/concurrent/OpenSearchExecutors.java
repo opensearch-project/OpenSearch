@@ -137,6 +137,19 @@ public class OpenSearchExecutors {
             queue, threadFactory, new OpenSearchAbortPolicy(), contextHolder);
     }
 
+    public static OpenSearchThreadPoolExecutor newResizable(String name, int size, int queueCapacity,
+                                                    ThreadFactory threadFactory, ThreadContext contextHolder) {
+        BlockingQueue<Runnable> queue;
+        if (queueCapacity < 0) {
+            queue = ConcurrentCollections.newBlockingQueue();
+        } else {
+            queue = new SifiResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
+                queueCapacity);
+        }
+        return new OpenSearchThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+            queue, threadFactory, new OpenSearchAbortPolicy(), contextHolder);
+    }
+
     /**
      * Return a new executor that will automatically adjust the queue size based on queue throughput.
      *
