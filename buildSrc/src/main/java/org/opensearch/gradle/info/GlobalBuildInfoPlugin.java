@@ -289,7 +289,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private static int findDefaultParallel(Project project) {
-        // Since it costs IO to compute this, and is done at configuration time we want to cache this if possible
         // It's safe to store this in a static variable since it's just a primitive so leaking memory isn't an issue
         if (_defaultParallel == null) {
             _defaultParallel = Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
