@@ -33,7 +33,6 @@ package org.opensearch.gradle.info;
 
 import org.apache.commons.io.IOUtils;
 import org.opensearch.gradle.BwcVersions;
-import org.opensearch.gradle.OS;
 import org.opensearch.gradle.util.Util;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
@@ -50,11 +49,8 @@ import org.gradle.jvm.toolchain.JavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
 
 import javax.inject.Inject;
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -64,7 +60,6 @@ import java.nio.file.Paths;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -73,7 +68,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
@@ -295,50 +289,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private static int findDefaultParallel(Project project) {
-        // Since it costs IO to compute this, and is done at configuration time we want to cache this if possible
         // It's safe to store this in a static variable since it's just a primitive so leaking memory isn't an issue
         if (_defaultParallel == null) {
-            File cpuInfoFile = new File("/proc/cpuinfo");
-            if (cpuInfoFile.exists()) {
-                // Count physical cores on any Linux distro ( don't count hyper-threading )
-                Map<String, Integer> socketToCore = new HashMap<>();
-                String currentID = "";
-
-                try (BufferedReader reader = new BufferedReader(new FileReader(cpuInfoFile))) {
-                    for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-                        if (line.contains(":")) {
-                            List<String> parts = Arrays.stream(line.split(":", 2)).map(String::trim).collect(Collectors.toList());
-                            String name = parts.get(0);
-                            String value = parts.get(1);
-                            // the ID of the CPU socket
-                            if (name.equals("physical id")) {
-                                currentID = value;
-                            }
-                            // Number of cores not including hyper-threading
-                            if (name.equals("cpu cores")) {
-                                assert currentID.isEmpty() == false;
-                                socketToCore.put("currentID", Integer.valueOf(value));
-                                currentID = "";
-                            }
-                        }
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                _defaultParallel = socketToCore.values().stream().mapToInt(i -> i).sum();
-            } else if (OS.current() == OS.MAC) {
-                // Ask macOS to count physical CPUs for us
-                ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-                project.exec(spec -> {
-                    spec.setExecutable("sysctl");
-                    spec.args("-n", "hw.physicalcpu");
-                    spec.setStandardOutput(stdout);
-                });
-
-                _defaultParallel = Integer.parseInt(stdout.toString().trim());
-            }
-
-            _defaultParallel = Runtime.getRuntime().availableProcessors() / 2;
+            _defaultParallel = Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
         }
 
         return _defaultParallel;
