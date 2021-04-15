@@ -523,9 +523,9 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
-            .put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 100)
+            .put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 80)
             .build();
-        final int NUM_THREADS = scaledRandomIntBetween(100, 120);
+        final int NUM_THREADS = scaledRandomIntBetween(80, 100);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
