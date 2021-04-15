@@ -31,8 +31,8 @@
 
 package org.opensearch.action.support;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -246,12 +246,12 @@ public class IndicesOptions implements ToXContentFragment {
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         EnumSet<Option> options = this.options;
         // never write this out to a pre 6.6 version
-        if (out.getVersion().before(Version.V_6_6_0) && options.contains(Option.IGNORE_THROTTLED)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_6_0) && options.contains(Option.IGNORE_THROTTLED)) {
             options = EnumSet.copyOf(options);
             options.remove(Option.IGNORE_THROTTLED);
         }
         out.writeEnumSet(options);
-        if (out.getVersion().before(Version.V_7_7_0) && expandWildcards.contains(WildcardStates.HIDDEN)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_7_0) && expandWildcards.contains(WildcardStates.HIDDEN)) {
             final EnumSet<WildcardStates> states = EnumSet.copyOf(expandWildcards);
             states.remove(WildcardStates.HIDDEN);
             out.writeEnumSet(states);
@@ -263,7 +263,7 @@ public class IndicesOptions implements ToXContentFragment {
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
         EnumSet<Option> options = in.readEnumSet(Option.class);
         EnumSet<WildcardStates> states = in.readEnumSet(WildcardStates.class);
-        if (in.getVersion().before(Version.V_7_7_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_7_0)) {
             states.add(WildcardStates.HIDDEN);
         }
         return new IndicesOptions(options, states);

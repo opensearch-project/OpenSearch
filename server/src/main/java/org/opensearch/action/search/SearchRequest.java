@@ -32,7 +32,7 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -212,15 +212,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
         maxConcurrentShardRequests = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             preFilterShardSize = in.readOptionalVInt();
         } else {
             preFilterShardSize = in.readVInt();
         }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             localClusterAlias = in.readOptionalString();
             if (localClusterAlias != null) {
                 absoluteStartMillis = in.readVLong();
@@ -234,7 +234,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             ccsMinimizeRoundtrips = in.readBoolean();
         }
     }
@@ -253,22 +253,22 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
         out.writeVInt(maxConcurrentShardRequests);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             out.writeOptionalVInt(preFilterShardSize);
         } else {
             out.writeVInt(preFilterShardSize == null ? DEFAULT_BATCHED_REDUCE_SIZE : preFilterShardSize);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             out.writeOptionalString(localClusterAlias);
             if (localClusterAlias != null) {
                 out.writeVLong(absoluteStartMillis);
                 out.writeBoolean(finalReduce);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(ccsMinimizeRoundtrips);
         }
     }

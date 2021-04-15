@@ -606,13 +606,13 @@ public class NodeJoinControllerTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             badVersion = getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
         } else {
-            badVersion = randomFrom(allVersions().stream().filter(v -> v.major < Version.CURRENT.major).collect(Collectors.toList()));
+            badVersion = randomFrom(allVersions().stream().filter(v -> v.before(Version.CURRENT)).collect(Collectors.toList()));
         }
         final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), badVersion);
 
         final Version goodVersion =
-            randomFrom(allVersions().stream().filter(v -> v.major >= Version.CURRENT.major).collect(Collectors.toList()));
+            randomFrom(allVersions().stream().filter(v -> v.onOrAfter(Version.CURRENT)).collect(Collectors.toList()));
         final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), goodVersion);
 

@@ -44,7 +44,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
@@ -144,7 +144,7 @@ public class RecoverySourceHandler {
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
-        this.maxConcurrentFileChunks = request.targetNode().getVersion().onOrAfter(Version.V_6_7_0) ? maxConcurrentFileChunks : 1;
+        this.maxConcurrentFileChunks = request.targetNode().getVersion().onOrAfter(LegacyESVersion.V_6_7_0) ? maxConcurrentFileChunks : 1;
         this.maxConcurrentOperations = maxConcurrentOperations;
     }
 
@@ -366,7 +366,7 @@ public class RecoverySourceHandler {
 
     private boolean isTargetSameHistory() {
         final String targetHistoryUUID = request.metadataSnapshot().getHistoryUUID();
-        assert targetHistoryUUID != null || shard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
+        assert targetHistoryUUID != null || shard.indexSettings().getIndexVersionCreated().before(LegacyESVersion.V_6_0_0_rc1) :
             "incoming target history N/A but index was created after or on 6.0.0-rc1";
         return targetHistoryUUID != null && targetHistoryUUID.equals(shard.getHistoryUUID());
     }
@@ -617,7 +617,7 @@ public class RecoverySourceHandler {
                     // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                     // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
                     // recovery as a conservative estimate for the global checkpoint.
-                    assert shard.indexSettings().getIndexVersionCreated().before(Version.V_7_4_0)
+                    assert shard.indexSettings().getIndexVersionCreated().before(LegacyESVersion.V_7_4_0)
                         || shard.indexSettings().isSoftDeleteEnabled() == false;
                     final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
                     final long estimatedGlobalCheckpoint = startingSeqNo - 1;

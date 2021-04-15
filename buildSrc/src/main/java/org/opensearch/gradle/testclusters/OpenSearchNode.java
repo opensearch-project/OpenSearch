@@ -1151,13 +1151,13 @@ public class OpenSearchNode implements TestClusterConfiguration {
         } else {
             baseConfig.put("script.max_compilations_rate", "2048/1m");
         }
-        if (getVersion().getMajor() >= 6) {
+        if (getVersion().onOrAfter("6.0.0")) {
             baseConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }
         // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.
-        if (getVersion().getMajor() >= 7) {
+        if (getVersion().onOrAfter("7.0.0")) {
             baseConfig.put("indices.breaker.total.use_real_memory", "false");
         }
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
@@ -1236,7 +1236,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         if (version.onOrAfter("6.2.0")) {
             expansions.put("logs/gc.log", relativeLogPath.resolve("gc.log").toString());
         }
-        if (getVersion().getMajor() >= 7) {
+        if (getVersion().onOrAfter("7.0.0")) {
             expansions.put(
                 "-XX:ErrorFile=logs/hs_err_pid%p.log",
                 "-XX:ErrorFile=" + relativeLogPath.resolve("hs_err_pid%p.log").toString()

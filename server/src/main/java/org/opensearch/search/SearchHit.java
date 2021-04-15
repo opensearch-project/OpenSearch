@@ -33,8 +33,8 @@
 package org.opensearch.search;
 
 import org.apache.lucene.search.Explanation;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -162,7 +162,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         type = in.readOptionalText();
         nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
         version = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             seqNo = in.readZLong();
             primaryTerm = in.readVLong();
         }
@@ -173,7 +173,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
             documentFields = in.readMap(StreamInput::readString, DocumentField::new);
             metaFields = in.readMap(StreamInput::readString, DocumentField::new);
         } else {
@@ -260,7 +260,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         out.writeOptionalText(type);
         out.writeOptionalWriteable(nestedIdentity);
         out.writeLong(version);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             out.writeZLong(seqNo);
             out.writeVLong(primaryTerm);
         }
@@ -271,7 +271,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
             out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
             out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
         } else {

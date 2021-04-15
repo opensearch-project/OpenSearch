@@ -31,7 +31,7 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
@@ -198,7 +198,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     protected InternalAggregation(StreamInput in) throws IOException {
         name = in.readString();
         metadata = in.readMap();
-        if (in.getVersion().before(Version.V_7_8_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_8_0)) {
             in.readNamedWriteableList(PipelineAggregator.class);
         }
     }
@@ -207,7 +207,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeGenericValue(metadata);
-        if (out.getVersion().before(Version.V_7_8_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_8_0)) {
             assert pipelineAggregatorsForBwcSerialization != null :
                 "serializing to pre-7.8.0 versions should have called mergePipelineTreeForBWCSerialization";
             out.writeNamedWriteableList(pipelineAggregatorsForBwcSerialization);

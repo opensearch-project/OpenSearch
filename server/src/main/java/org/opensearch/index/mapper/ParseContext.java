@@ -37,7 +37,7 @@ import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 
@@ -457,9 +457,9 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         void postParse() {
             if (documents.size() > 1) {
                 docsReversed = true;
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_6_5_0)) {
                     /**
-                     * For indices created on or after {@link Version#V_6_5_0} we preserve the order
+                     * For indices created on or after {@link LegacyESVersion#V_6_5_0} we preserve the order
                      * of the children while ensuring that parents appear after them.
                      */
                     List<Document> newDocs = reorderParent(documents);

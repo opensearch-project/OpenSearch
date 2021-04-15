@@ -35,6 +35,7 @@ package org.opensearch.search.query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.OriginalIndicesTests;
@@ -130,7 +131,7 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
             "ldDH/A3JhdwEBCm1heF9idWNrZXQFbmFtZTEBB2J1Y2tldDH/A3JhdwEAAAIAAf////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
         byte[] bytes = Base64.getDecoder().decode(message);
         try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
-            in.setVersion(Version.V_7_0_0);
+            in.setVersion(LegacyESVersion.V_7_0_0);
             QuerySearchResult querySearchResult = new QuerySearchResult(in);
             assertEquals(100, querySearchResult.getContextId().getId());
             assertTrue(querySearchResult.hasAggs());

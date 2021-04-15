@@ -35,6 +35,7 @@ package org.opensearch.cluster;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.common.Nullable;
@@ -75,7 +76,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(Collections.emptyList());
 
-    private static final Version VERSION_IN_SNAPSHOT_VERSION = Version.V_7_7_0;
+    private static final Version VERSION_IN_SNAPSHOT_VERSION = LegacyESVersion.V_7_7_0;
 
     public static final String TYPE = "snapshots";
 

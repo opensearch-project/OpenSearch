@@ -33,7 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -85,7 +85,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         fieldName = in.readString();
         value = in.readGenericValue();
         slop = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
             zeroTermsQuery = ZeroTermsQuery.readFromStream(in);
         }
         analyzer = in.readOptionalString();
@@ -96,7 +96,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         out.writeString(fieldName);
         out.writeGenericValue(value);
         out.writeVInt(slop);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
             zeroTermsQuery.writeTo(out);
         }
         out.writeOptionalString(analyzer);

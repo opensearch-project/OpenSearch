@@ -102,7 +102,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'name'                : extension1.name,
                     'description'         : extension1.description,
                     'version'             : extension1.version,
-                    'opensearchVersion': Version.fromString(VersionProperties.getOpenSearch()).toString(),
+                    'opensearchVersion'   : Version.fromString(VersionProperties.getOpenSearch()).toString(),
                     'javaVersion'         : project.targetCompatibility as String,
                     'classname'           : extension1.classname,
                     'extendedPlugins'     : extension1.extendedPlugins.join(','),

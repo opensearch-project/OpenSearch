@@ -32,7 +32,7 @@
 
 package org.opensearch.common.rounding;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
@@ -61,7 +61,7 @@ public class RoundingDuelTests extends OpenSearchTestCase {
             oldNextRoundingValueWorks = false;
         }
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.V_7_0_0));
+        output.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0));
         rounding.writeTo(output);
 
         Rounding roundingJoda = Rounding.Streams.read(output.bytes().streamInput());

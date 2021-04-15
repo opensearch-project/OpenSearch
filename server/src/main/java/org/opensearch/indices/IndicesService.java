@@ -40,6 +40,7 @@ import org.apache.lucene.index.IndexReader.CacheHelper;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
@@ -643,7 +644,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                                          List<IndexEventListener> builtInListeners,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
-        if (idxSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)
+        if (idxSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)
             && EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(idxSettings.getSettings())) {
             throw new IllegalArgumentException(
                 "Setting [" + EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0");

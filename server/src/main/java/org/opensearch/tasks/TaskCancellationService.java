@@ -35,8 +35,8 @@ package org.opensearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchSecurityException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ChannelActionListener;
@@ -194,7 +194,7 @@ public class TaskCancellationService {
             parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
             reason = ban ? in.readString() : null;
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
                 waitForCompletion = in.readBoolean();
             } else {
                 waitForCompletion = false;
@@ -209,7 +209,7 @@ public class TaskCancellationService {
             if (ban) {
                 out.writeString(reason);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
                 out.writeBoolean(waitForCompletion);
             }
         }

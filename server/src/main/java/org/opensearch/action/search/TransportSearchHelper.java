@@ -34,6 +34,7 @@ package org.opensearch.action.search;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.RAMOutputStream;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.search.SearchPhaseResult;
@@ -55,7 +56,7 @@ final class TransportSearchHelper {
     }
 
     static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
-        boolean includeContextUUID = version.onOrAfter(Version.V_7_7_0);
+        boolean includeContextUUID = version.onOrAfter(LegacyESVersion.V_7_7_0);
         try (RAMOutputStream out = new RAMOutputStream()) {
             if (includeContextUUID) {
                 out.writeString(INCLUDE_CONTEXT_UUID);
