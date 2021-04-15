@@ -317,10 +317,6 @@ public class BwcVersions {
         int currentMajor = currentVersion.getMajor();
         List<Version> currentMajorVersions = groupByMajor.get(currentMajor);
         List<Version> previousMajorVersions = groupByMajor.get(currentMajor == 1 ? 7 : currentVersion.getMajor() - 1);
-        if (previousMajorVersions == null) {
-            System.out.println("size: " + groupByMajor.size());
-            System.out.println(currentVersion.getMajor());
-        }
 
         final Map<Integer, List<Version>> groupByMinor;
         if (currentMajorVersions.size() == 1) {
