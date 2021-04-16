@@ -358,7 +358,7 @@ public class DockerTests extends PackagingTestCase {
         // expected group.
         final Shell localSh = new Shell();
         final String findResults = localSh.run(
-            "docker run --rm --tty " + getImageName(distribution) + " bash -c ' touch data/test && find . -not -gid 0 ' "
+            "docker run --rm --tty " + getImageName() + " bash -c ' touch data/test && find . -not -gid 0 ' "
         ).stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));

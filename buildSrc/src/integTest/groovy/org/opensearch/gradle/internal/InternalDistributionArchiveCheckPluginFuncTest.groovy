@@ -89,7 +89,7 @@ class InternalDistributionArchiveCheckPluginFuncTest extends AbstractGradleFuncT
     def "fails on unexpected notice content"() {
         given:
         license(file("LICENSE.txt"))
-        file("NOTICE.txt").text = """OpenSearch
+        file("NOTICE.txt").text = """OpenSearch (https://opensearch.org/)
 Copyright 2009-2018 Acme Coorp"""
         buildFile << """
             apply plugin:'base'
