@@ -357,7 +357,7 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
   return {
     configure(commonPackageConfig('rpm', jdk, architecture))
 
-    license 'ASL 2.0'
+    license 'ASL-2.0'
 
     packageGroup 'Application/Internet'
     requires '/bin/bash'
