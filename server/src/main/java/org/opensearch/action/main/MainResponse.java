@@ -118,6 +118,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
+            .field("distribution", build.getDistribution())
             .field("number", build.getQualifiedVersion())
             .field("build_type", build.type().displayName())
             .field("build_hash", build.hash())
@@ -150,7 +151,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
                             (String) value.get("build_hash"),
                             (String) value.get("build_date"),
                             (boolean) value.get("build_snapshot"),
-                            (String) value.get("number")
+                            (String) value.get("number"),
+                            (String) value.get("distribution")
                     );
             response.version = Version.fromString(
                 ((String) value.get("number"))

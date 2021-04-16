@@ -124,7 +124,7 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
         MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
         Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
         Version indexUpgraded = VersionUtils.randomVersionBetween(random(), minCompat, VersionUtils.getPreviousVersion(Version.CURRENT));
-        Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
+        Version indexCreated = LegacyESVersion.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
         final IndexMetadata metadata = newIndexMeta("foo", Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_UPGRADED, indexUpgraded)
             .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)

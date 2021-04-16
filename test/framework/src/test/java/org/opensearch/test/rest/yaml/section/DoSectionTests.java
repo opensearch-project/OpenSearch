@@ -540,24 +540,24 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     public void testNodeSelectorByVersion() throws IOException {
         parser = createParser(YamlXContent.yamlXContent,
                 "node_selector:\n" +
-                "    version: 5.2.0-6.0.0\n" +
+                "    version: 1.2.0-2.0.0\n" +
                 "indices.get_field_mapping:\n" +
                 "    index: test_index"
         );
 
         DoSection doSection = DoSection.parse(parser);
         assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
-        Node v170 = nodeWithVersion("1.7.0");
-        Node v521 = nodeWithVersion("5.2.1");
-        Node v550 = nodeWithVersion("5.5.0");
-        Node v612 = nodeWithVersion("6.1.2");
+        Node v120 = nodeWithVersion("1.1.0");
+        Node v121 = nodeWithVersion("1.2.1");
+        Node v150 = nodeWithVersion("1.5.0");
+        Node v212 = nodeWithVersion("2.1.2");
         List<Node> nodes = new ArrayList<>();
-        nodes.add(v170);
-        nodes.add(v521);
-        nodes.add(v550);
-        nodes.add(v612);
+        nodes.add(v120);
+        nodes.add(v121);
+        nodes.add(v150);
+        nodes.add(v212);
         doSection.getApiCallSection().getNodeSelector().select(nodes);
-        assertEquals(Arrays.asList(v521, v550), nodes);
+        assertEquals(Arrays.asList(v121, v150), nodes);
         ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
         ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
         when(context.callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
@@ -646,7 +646,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     public void testNodeSelectorByTwoThings() throws IOException {
         parser = createParser(YamlXContent.yamlXContent,
                 "node_selector:\n" +
-                "    version: 5.2.0-6.0.0\n" +
+                "    version: 1.2.0-2.0.0\n" +
                 "    attribute:\n" +
                 "        attr: val\n" +
                 "indices.get_field_mapping:\n" +
@@ -655,9 +655,9 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         DoSection doSection = DoSection.parse(parser);
         assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
-        Node both = nodeWithVersionAndAttributes("5.2.1", singletonMap("attr", singletonList("val")));
-        Node badVersion = nodeWithVersionAndAttributes("5.1.1", singletonMap("attr", singletonList("val")));
-        Node badAttr = nodeWithVersionAndAttributes("5.2.1", singletonMap("notattr", singletonList("val")));
+        Node both = nodeWithVersionAndAttributes("1.2.1", singletonMap("attr", singletonList("val")));
+        Node badVersion = nodeWithVersionAndAttributes("1.1.1", singletonMap("attr", singletonList("val")));
+        Node badAttr = nodeWithVersionAndAttributes("1.2.1", singletonMap("notattr", singletonList("val")));
         List<Node> nodes = new ArrayList<>();
         nodes.add(both);
         nodes.add(badVersion);
