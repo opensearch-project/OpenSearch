@@ -215,7 +215,6 @@ class ClusterFormationTasks {
             snapshotProject = "zip"
             packaging = "zip"
         }
-        snapshotProject = snapshotProject
 
         BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
 
