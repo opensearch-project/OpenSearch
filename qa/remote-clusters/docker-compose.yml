@@ -1,12 +1,12 @@
 # Only used for testing the docker images
 version: '3.7'
 services:
-  opensearch-oss-1:
-    image: opensearch-oss:test
+  opensearch-1:
+    image: opensearch:test
     environment:
-       - node.name=opensearch-oss-1
-       - cluster.initial_master_nodes=opensearch-oss-1
-       - cluster.name=opensearch-oss-1
+       - node.name=opensearch-1
+       - cluster.initial_master_nodes=opensearch-1
+       - cluster.name=opensearch-1
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -17,8 +17,8 @@ services:
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
     volumes:
-       - ./build/oss-repo:/tmp/opensearch-repo
-       - ./build/logs/oss-1:/usr/share/opensearch/logs
+       - ./build/repo:/tmp/opensearch-repo
+       - ./build/logs/1:/usr/share/opensearch/logs
     ports:
       - "9200"
       - "9300"
@@ -35,12 +35,12 @@ services:
       interval: 10s
       timeout: 2s
       retries: 5
-  opensearch-oss-2:
-    image: opensearch-oss:test
+  opensearch-2:
+    image: opensearch:test
     environment:
-       - node.name=opensearch-oss-2
-       - cluster.initial_master_nodes=opensearch-oss-2
-       - cluster.name=opensearch-oss-2
+       - node.name=opensearch-2
+       - cluster.initial_master_nodes=opensearch-2
+       - cluster.name=opensearch-2
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -51,8 +51,8 @@ services:
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
     volumes:
-       - ./build/oss-repo:/tmp/opensearch-repo
-       - ./build/logs/oss-2:/usr/share/opensearch/logs
+       - ./build/repo:/tmp/opensearch-repo
+       - ./build/logs/2:/usr/share/opensearch/logs
     ports:
       - "9200"
       - "9300"
@@ -71,4 +71,4 @@ services:
     ports:
       - "9600"
     volumes:
-      - ./haproxy-oss.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro

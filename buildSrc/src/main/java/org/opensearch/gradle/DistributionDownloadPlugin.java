@@ -206,6 +206,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
 
         String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
-        return group + ":opensearch-oss" + ":" + distribution.getVersion() + classifier + "@" + extension;
+        return group + ":opensearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 }

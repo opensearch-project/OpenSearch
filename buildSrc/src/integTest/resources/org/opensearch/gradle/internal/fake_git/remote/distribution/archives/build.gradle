@@ -34,7 +34,7 @@ subprojects {
     tasks.register('tar', Tar) {
         from('.')
         destinationDirectory.set(file('build/distributions'))
-        archiveBaseName.set("opensearch-oss")
+        archiveBaseName.set("opensearch")
         archiveVersion.set("8.0.1-SNAPSHOT")
         archiveClassifier.set("darwin-x86_64")
         archiveExtension.set('tar.gz')

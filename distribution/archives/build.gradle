@@ -88,49 +88,49 @@ distribution_archives {
     }
   }
 
-  ossWindowsZip {
+  windowsZip {
     archiveClassifier = 'windows-x86_64'
     content {
       archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', true)
     }
   }
 
-  ossNoJdkWindowsZip {
+  noJdkWindowsZip {
     archiveClassifier = 'no-jdk-windows-x86_64'
     content {
       archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', false)
     }
   }
 
-  ossDarwinTar {
+  darwinTar {
     archiveClassifier = 'darwin-x86_64'
     content {
       archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', true)
     }
   }
 
-  ossNoJdkDarwinTar {
+  noJdkDarwinTar {
     archiveClassifier = 'no-jdk-darwin-x86_64'
     content {
       archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', false)
     }
   }
 
-  ossLinuxAarch64Tar {
+  linuxAarch64Tar {
     archiveClassifier = 'linux-aarch64'
     content {
       archiveFiles(modulesFiles('linux-aarch64'), 'tar', 'linux', 'aarch64', true)
     }
   }
 
-  ossLinuxTar {
+  linuxTar {
     archiveClassifier = 'linux-x86_64'
     content {
       archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', true)
     }
   }
 
-  ossNoJdkLinuxTar {
+  noJdkLinuxTar {
     archiveClassifier = 'no-jdk-linux-x86_64'
     content {
       archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false)
@@ -142,5 +142,5 @@ subprojects {
   apply plugin: 'distribution'
   apply plugin: 'opensearch.internal-distribution-archive-check'
 
-  group = "org.opensearch.distribution.oss"
+  group = "org.opensearch.distribution"
 }

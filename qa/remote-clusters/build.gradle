@@ -56,12 +56,12 @@ preProcessFixture {
   doLast {
     // tests expect to have an empty repo
     project.delete(
-      "${buildDir}/oss-repo"
+      "${buildDir}/repo"
     )
     createAndSetWritable(
-      "${buildDir}/oss-repo",
-      "${buildDir}/logs/oss-1",
-      "${buildDir}/logs/oss-2"
+      "${buildDir}/repo",
+      "${buildDir}/logs/1",
+      "${buildDir}/logs/2"
     )
   }
 }

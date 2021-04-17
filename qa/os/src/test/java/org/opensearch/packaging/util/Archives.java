@@ -170,10 +170,10 @@ public class Archives {
     }
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
-        verifyOssInstallation(installation, distribution, ARCHIVE_OWNER);
+        verifyInstallation(installation, distribution, ARCHIVE_OWNER);
     }
 
-    private static void verifyOssInstallation(Installation es, Distribution distribution, String owner) {
+    private static void verifyInstallation(Installation es, Distribution distribution, String owner) {
         Stream.of(es.home, es.config, es.plugins, es.modules, es.logs).forEach(dir -> assertThat(dir, file(Directory, owner, owner, p755)));
 
         assertThat(Files.exists(es.data), is(false));

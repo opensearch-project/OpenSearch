@@ -173,10 +173,10 @@ public class Packages {
     }
 
     public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) {
-        verifyOssInstallation(installation, distribution, sh);
+        verifyInstallation(installation, distribution, sh);
     }
 
-    private static void verifyOssInstallation(Installation opensearch, Distribution distribution, Shell sh) {
+    private static void verifyInstallation(Installation opensearch, Distribution distribution, Shell sh) {
 
         sh.run("id opensearch");
         sh.run("getent group opensearch");
