@@ -600,6 +600,7 @@ public class NodeJoinControllerTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("found existing node"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/577")
     public void testRejectingJoinWithIncompatibleVersion() throws InterruptedException, ExecutionException {
         addNodes(randomInt(5));
         final Version badVersion;
