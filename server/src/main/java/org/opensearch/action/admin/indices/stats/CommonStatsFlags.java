@@ -83,10 +83,10 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             includeUnloadedSegments = in.readBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_10_2)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_2)) {
             includeAllShardIndexingPressureTrackers = in.readBoolean();
             includeOnlyTopIndexingPressureMetrics = in.readBoolean();
-        } else if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+        } else if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
                 includeAllShardIndexingPressureTrackers = in.readBoolean();
                 includeOnlyTopIndexingPressureMetrics = in.readBoolean();
@@ -110,10 +110,10 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeBoolean(includeUnloadedSegments);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_10_2)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_2)) {
             out.writeBoolean(includeAllShardIndexingPressureTrackers);
             out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
-        }  else if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+        }  else if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
                 out.writeBoolean(includeAllShardIndexingPressureTrackers);
                 out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
