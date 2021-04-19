@@ -699,7 +699,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 100)
             .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), 20)
             .build();
-        final int NUM_THREADS = scaledRandomIntBetween(100, 150);
+        final int NUM_THREADS = scaledRandomIntBetween(110, 150);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
@@ -786,7 +786,7 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
             .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 100)
             .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), 20)
             .build();
-        final int NUM_THREADS = scaledRandomIntBetween(100, 150);
+        final int NUM_THREADS = scaledRandomIntBetween(110, 150);
         final Thread[] threads = new Thread[NUM_THREADS];
         final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
@@ -928,10 +928,6 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
 
-        //One request being successful
-        Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId1, 10, false);
-        replica.close();
-
         //Generating a load to such that the requests in the window shows degradation in throughput.
         for (int i = 0; i < NUM_THREADS; i++) {
             int counter = i;
@@ -963,9 +959,9 @@ public class ShardIndexingPressureMultiThreadedTests extends OpenSearchTestCase 
         assertEquals(1, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1).getReplicaRejections());
         assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1)
             .getReplicaThroughputDegradationLimitsBreachedRejections());
-        assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1)
-            .getReplicaNodeLimitsBreachedRejections());
         assertEquals(1, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1)
+            .getReplicaNodeLimitsBreachedRejections());
+        assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1)
             .getReplicaLastSuccessfulRequestLimitsBreachedRejections());
         assertEquals(384, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1).getCurrentReplicaLimits());
     }
