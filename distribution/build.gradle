@@ -88,13 +88,13 @@ tasks.withType(NoticeTask).configureEach {
 /*****************************************************************************
  *                                  Modules                                  *
  *****************************************************************************/
-String buildOutputs = 'build/outputs'
+String distOutputs = 'build/outputs/dist'
 String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
 String externalTestOutputs = 'build/outputs/external-test'
 
 def processOutputsTaskProvider = tasks.register("processOutputs", Sync) {
-  into buildOutputs
+  into distOutputs
 }
 
 def processSystemdOutputsTaskProvider = tasks.register("processSystemdOutputs", Sync) {
@@ -114,15 +114,15 @@ def processTransportOutputsTaskProvider = tasks.register("processTransportOutput
 // these are dummy tasks that can be used to depend on the relevant sub output dir
 def buildModulesTaskProvider = tasks.register("buildModules") {
   dependsOn processOutputsTaskProvider
-  outputs.dir "${buildOutputs}/modules"
+  outputs.dir "${distOutputs}/modules"
 }
 tasks.register("buildBin") {
   dependsOn "processOutputs"
-  outputs.dir "${buildOutputs}/bin"
+  outputs.dir "${distOutputs}/bin"
 }
 tasks.register("buildConfig") {
   dependsOn "processOutputs"
-  outputs.dir "${buildOutputs}/config"
+  outputs.dir "${distOutputs}/config"
 }
 def buildSystemdModuleTaskProvider = tasks.register("buildSystemdModule") {
   dependsOn "processSystemdOutputs"
@@ -175,7 +175,7 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
 def buildLog4jConfigTaskProvider = tasks.register("buildLog4jConfig") {
   dependsOn "processOutputs"
   ext.contents = []
-  ext.log4jFile = file("${buildOutputs}/log4j2.properties")
+  ext.log4jFile = file("${distOutputs}/log4j2.properties")
   outputs.file log4jFile
 }
 
