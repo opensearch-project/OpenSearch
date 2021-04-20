@@ -48,7 +48,7 @@ import static java.util.Collections.emptySet;
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Tasks API.
  * <p>
- * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
+ *
  */
 public final class TasksClient {
     private final RestHighLevelClient restHighLevelClient;
@@ -59,8 +59,7 @@ public final class TasksClient {
 
     /**
      * Get current tasks using the Task Management API.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -73,8 +72,7 @@ public final class TasksClient {
 
     /**
      * Asynchronously get current tasks using the Task Management API.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -87,8 +85,7 @@ public final class TasksClient {
 
     /**
      * Get a task using the Task Management API.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -101,8 +98,7 @@ public final class TasksClient {
 
     /**
      * Get a task using the Task Management API.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener an actionlistener that takes an optional response (404s are returned as an empty Optional)
@@ -118,8 +114,6 @@ public final class TasksClient {
     /**
      * Cancel one or more cluster tasks using the Task Management API.
      *
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      * @param cancelTasksRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -139,8 +133,6 @@ public final class TasksClient {
     /**
      * Asynchronously cancel one or more cluster tasks using the Task Management API.
      *
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      * @param cancelTasksRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
