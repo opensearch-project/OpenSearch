@@ -55,10 +55,10 @@ public class DockerYmlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
     protected String getTestRestCluster() {
         return new StringBuilder()
             .append("localhost:")
-            .append(getProperty("test.fixtures.opensearch-oss-1.tcp.9200"))
+            .append(getProperty("test.fixtures.opensearch-1.tcp.9200"))
             .append(",")
             .append("localhost:")
-            .append(getProperty("test.fixtures.opensearch-oss-2.tcp.9200"))
+            .append(getProperty("test.fixtures.opensearch-2.tcp.9200"))
             .toString();
     }
 

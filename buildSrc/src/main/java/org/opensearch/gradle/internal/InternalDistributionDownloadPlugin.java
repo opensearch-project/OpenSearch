@@ -167,8 +167,6 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             ? ""
             : "-" + architecture.toString().toLowerCase();
 
-        projectName += "oss-";
-
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }
@@ -179,7 +177,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                         ? "-zip"
                         : "-tar");
                 } else {
-                    projectName = "oss-zip";
+                    projectName = "zip";
                 }
                 break;
 

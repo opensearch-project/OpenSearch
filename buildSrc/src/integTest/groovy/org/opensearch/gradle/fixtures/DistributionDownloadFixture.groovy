@@ -65,7 +65,7 @@ class DistributionDownloadFixture {
     private static String urlPath(String version, OpenSearchDistribution.Platform platform) {
         String fileType = ((platform == OpenSearchDistribution.Platform.LINUX ||
                 platform == OpenSearchDistribution.Platform.DARWIN)) ? "tar.gz" : "zip"
-        "/downloads/opensearch/opensearch-oss-${version}-${platform}-x86_64.$fileType"
+        "/downloads/opensearch/opensearch-${version}-${platform}-x86_64.$fileType"
     }
 
     private static byte[] filebytes(String urlPath) throws IOException {

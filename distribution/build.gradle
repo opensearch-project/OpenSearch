@@ -69,11 +69,11 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
 // integ test zip only uses server, so a different notice file is needed there
 def buildServerNoticeTaskProvider = tasks.register("buildServerNotice", NoticeTask)
 
-def buildOssNoticeTaskProvider = tasks.register("buildOssNotice", NoticeTask) {
+def buildNoticeTaskProvider = tasks.register("buildNotice", NoticeTask) {
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 
-def buildOssNoJdkNoticeTaskProvider = tasks.register("buildOssNoJdkNotice", NoticeTask)
+def buildNoJdkNoticeTaskProvider = tasks.register("buildNoJdkNotice", NoticeTask)
 
 // The :server and :libs projects belong to all distributions
 tasks.withType(NoticeTask).configureEach {
@@ -88,13 +88,13 @@ tasks.withType(NoticeTask).configureEach {
 /*****************************************************************************
  *                                  Modules                                  *
  *****************************************************************************/
-String ossOutputs = 'build/outputs/oss'
+String distOutputs = 'build/outputs/dist'
 String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
 String externalTestOutputs = 'build/outputs/external-test'
 
-def processOssOutputsTaskProvider = tasks.register("processOssOutputs", Sync) {
-  into ossOutputs
+def processOutputsTaskProvider = tasks.register("processOutputs", Sync) {
+  into distOutputs
 }
 
 def processSystemdOutputsTaskProvider = tasks.register("processSystemdOutputs", Sync) {
@@ -112,17 +112,17 @@ def processTransportOutputsTaskProvider = tasks.register("processTransportOutput
 }
 
 // these are dummy tasks that can be used to depend on the relevant sub output dir
-def buildOssModulesTaskProvider = tasks.register("buildOssModules") {
-  dependsOn processOssOutputsTaskProvider
-  outputs.dir "${ossOutputs}/modules"
+def buildModulesTaskProvider = tasks.register("buildModules") {
+  dependsOn processOutputsTaskProvider
+  outputs.dir "${distOutputs}/modules"
 }
-tasks.register("buildOssBin") {
-  dependsOn "processOssOutputs"
-  outputs.dir "${ossOutputs}/bin"
+tasks.register("buildBin") {
+  dependsOn "processOutputs"
+  outputs.dir "${distOutputs}/bin"
 }
-tasks.register("buildOssConfig") {
-  dependsOn "processOssOutputs"
-  outputs.dir "${ossOutputs}/config"
+tasks.register("buildConfig") {
+  dependsOn "processOutputs"
+  outputs.dir "${distOutputs}/config"
 }
 def buildSystemdModuleTaskProvider = tasks.register("buildSystemdModule") {
   dependsOn "processSystemdOutputs"
@@ -172,10 +172,10 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
 }
 
 // log4j config could be contained in modules, so we must join it together using these tasks
-def buildOssLog4jConfigTaskProvider = tasks.register("buildOssLog4jConfig") {
-  dependsOn "processOssOutputs"
+def buildLog4jConfigTaskProvider = tasks.register("buildLog4jConfig") {
+  dependsOn "processOutputs"
   ext.contents = []
-  ext.log4jFile = file("${ossOutputs}/log4j2.properties")
+  ext.log4jFile = file("${distOutputs}/log4j2.properties")
   outputs.file log4jFile
 }
 
@@ -186,7 +186,7 @@ Closure writeLog4jProperties = {
     it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
   }
 }
-buildOssLog4jConfigTaskProvider.configure {
+buildLog4jConfigTaskProvider.configure {
   doLast(writeLog4jProperties)
 }
 
@@ -213,7 +213,7 @@ void copyLog4jProperties(TaskProvider buildTask, Project module) {
 ext.restTestExpansions = [
   'expected.modules.count': 0,
 ]
-// we create the buildOssModules task above but fill it here so we can do a single
+// we create the buildModules task above but fill it here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
 project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { Project module ->
   if (module.name == 'systemd') {
@@ -222,18 +222,18 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
   File licenses = new File(module.projectDir, 'licenses')
   if (licenses.exists()) {
-    buildOssNotice.configure {
+    buildNotice.configure {
       licensesDir licenses
       source module.file('src/main/java')
     }
   }
 
-  copyModule(processOssOutputsTaskProvider, module)
+  copyModule(processOutputsTaskProvider, module)
   if (module.name.startsWith('transport-')) {
     copyModule(processTransportOutputsTaskProvider, module)
   }
 
-  copyLog4jProperties(buildOssLog4jConfigTaskProvider, module)
+  copyLog4jProperties(buildLog4jConfigTaskProvider, module)
 
   restTestExpansions['expected.modules.count'] += 1
 }
@@ -320,7 +320,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             it.mode = 0644
           }
         }
-        def buildModules = buildOssModulesTaskProvider
+        def buildModules = buildModulesTaskProvider
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64']
         if (platform != null) {
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
@@ -353,8 +353,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude 'log4j2.properties' // this is handled separately below
           MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, jdk))
         }
-        from project(':distribution').buildOssLog4jConfig
-        from project(':distribution').buildOssConfig
+        from project(':distribution').buildLog4jConfig
+        from project(':distribution').buildConfig
       }
     }
 
@@ -384,7 +384,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          from project(':distribution').buildOssBin
+          from project(':distribution').buildBin
           if (distributionType != 'zip') {
             exclude '*.bat'
           }
@@ -398,9 +398,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from buildServerNoticeTaskProvider
         } else {
           if (jdk) {
-            from buildOssNoticeTaskProvider
+            from buildNoticeTaskProvider
           } else {
-            from buildOssNoJdkNoticeTaskProvider
+            from buildNoJdkNoticeTaskProvider
           }
         }
       }
@@ -583,13 +583,13 @@ subprojects {
   }
 }
 
-['archives:oss-windows-zip',
- 'archives:oss-darwin-tar',
- 'archives:oss-linux-aarch64-tar',
- 'archives:oss-linux-tar',
+['archives:windows-zip',
+ 'archives:darwin-tar',
+ 'archives:linux-aarch64-tar',
+ 'archives:linux-tar',
  'archives:integ-test-zip',
- 'packages:oss-rpm', 'packages:oss-deb',
- 'packages:aarch64-oss-rpm', 'packages:aarch64-oss-deb'
+ 'packages:rpm', 'packages:deb',
+ 'packages:aarch64-rpm', 'packages:aarch64-deb'
 ].forEach { subName ->
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)

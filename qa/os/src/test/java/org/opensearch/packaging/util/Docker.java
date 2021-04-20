@@ -493,13 +493,13 @@ public class Docker {
     }
 
     /**
-     * Perform a variety of checks on an installation. If the current distribution is not OSS, additional checks are carried out.
+     * Perform a variety of checks on an installation.
      */
     public static void verifyContainerInstallation(Installation installation, Distribution distribution) {
-        verifyOssInstallation(installation);
+        verifyInstallation(installation);
     }
 
-    private static void verifyOssInstallation(Installation es) {
+    private static void verifyInstallation(Installation es) {
         dockerShell.run("id opensearch");
         dockerShell.run("getent group opensearch");
 

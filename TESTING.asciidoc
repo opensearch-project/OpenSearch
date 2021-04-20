@@ -29,9 +29,9 @@ To create a platform-specific build, use the
 following depending on your operating system:
 
 -----------------------------
-./gradlew :distribution:archives:oss-linux-tar:assemble
-./gradlew :distribution:archives:oss-darwin-tar:assemble
-./gradlew :distribution:archives:oss-windows-zip:assemble
+./gradlew :distribution:archives:linux-tar:assemble
+./gradlew :distribution:archives:darwin-tar:assemble
+./gradlew :distribution:archives:windows-zip:assemble
 -----------------------------
 
 === Running OpenSearch from a checkout
@@ -72,7 +72,7 @@ In order to start with a different distribution use the `-Drun.distribution` arg
 To for example start the open source distribution:
 
 -------------------------------------
-./gradlew run -Drun.distribution=oss
+./gradlew run
 -------------------------------------
 
 ==== Other useful arguments
@@ -489,8 +489,7 @@ that'd consume a ton of ram.
 === Iterating on packaging tests
 
 Because our packaging tests are capable of testing many combinations of OS
-(e.g., Windows, Linux, etc.), package type (e.g., zip file, RPM, etc.),
-OpenSearch distribution type (e.g. OSS), and so forth, it's
+(e.g., Windows, Linux, etc.), package type (e.g., zip file, RPM, etc.) and so forth, it's
 faster to develop against smaller subsets of the tests. For example, to run
 tests for the default archive distribution on Fedora 28:
 

@@ -17,7 +17,7 @@ services:
       retries: 5
 
   opensearch:
-    image: opensearch-oss:test
+    image: opensearch:test
     environment:
       discovery.type: single-node
     ulimits:

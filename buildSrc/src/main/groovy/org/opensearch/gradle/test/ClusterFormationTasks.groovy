@@ -203,20 +203,18 @@ class ClusterFormationTasks {
             }
             return
         }
-        distro = 'oss'
 
         Version version = Version.fromString(opensearchVersion)
         String os = getOs()
         String classifier = "-${os}-x86_64"
         String packaging = os.equals('windows') ? 'zip' : 'tar.gz'
-        String artifactName = 'opensearch-oss'
+        String artifactName = 'opensearch'
         Object dependency
         String snapshotProject = "${os}-${os.equals('windows') ? 'zip' : 'tar'}"
         if (version.before("7.0.0")) {
             snapshotProject = "zip"
             packaging = "zip"
         }
-        snapshotProject = "oss-" + snapshotProject
 
         BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
 

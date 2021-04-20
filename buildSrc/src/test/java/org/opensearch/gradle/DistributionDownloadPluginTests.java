@@ -288,11 +288,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     }
 
     private static String projectName(String base, boolean bundledJdk) {
-        String prefix = "oss-";
-        if (bundledJdk == false) {
-            prefix += "no-jdk-";
-        }
-
-        return prefix + base;
+        return bundledJdk ? base : ("no-jdk-" + base);
     }
 }

@@ -67,9 +67,9 @@ plugins {
 }
 
 void addProcessFilesTask(String type, boolean jdk) {
-  String packagingFiles = "build/packaging/oss-${jdk ? '' : 'no-jdk-'}${type}"
+  String packagingFiles = "build/packaging/${jdk ? '' : 'no-jdk-'}${type}"
 
-  String taskName = "processOss'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
+  String taskName = "process'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
   tasks.register(taskName, Copy) {
     into packagingFiles
 
@@ -110,8 +110,8 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     onlyIf {
       OS.current().equals(OS.WINDOWS) == false
     }
-    dependsOn "processOss'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
-    packageName "opensearch-oss"
+    dependsOn "process'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
+    packageName "opensearch"
     if (type == 'deb') {
       if (architecture == 'x64') {
         arch('amd64')
@@ -130,13 +130,13 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     }
     // Follow opensearch's file naming convention
     String jdkString = jdk ? "" : "no-jdk-"
-    String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}oss-${jdk ? '' : 'no-jdk-'}${type}"
+    String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
     destinationDirectory = file("${prefix}/build/distributions")
 
     // SystemPackagingTask overrides default archive task convention mappings, but doesn't provide a setter so we have to override the convention mapping itself
     conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDirectory.get()}/${packageName}-${project.version}-${jdkString}${archString}.${type}")) }
 
-    String packagingFiles = "build/packaging/oss-${jdk ? '' : 'no-jdk-'}${type}"
+    String packagingFiles = "build/packaging/${jdk ? '' : 'no-jdk-'}${type}"
 
     String scripts = "${packagingFiles}/scripts"
     preInstall file("${scripts}/preinst")
@@ -336,20 +336,19 @@ Closure commonDebConfig(boolean jdk, String architecture) {
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/opensearch')
-      rename('opensearch', 'opensearch-oss')
     }
   }
 }
 
-tasks.register('buildAarch64OssDeb', Deb) {
+tasks.register('buildAarch64Deb', Deb) {
   configure(commonDebConfig(true, 'aarch64'))
 }
 
-tasks.register('buildOssDeb', Deb) {
+tasks.register('buildDeb', Deb) {
   configure(commonDebConfig(true, 'x64'))
 }
 
-tasks.register('buildOssNoJdkDeb', Deb) {
+tasks.register('buildNoJdkDeb', Deb) {
   configure(commonDebConfig(true, 'x64'))
 }
 
@@ -378,15 +377,15 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
   }
 }
 
-tasks.register('buildAarch64OssRpm', Rpm) {
+tasks.register('buildAarch64Rpm', Rpm) {
   configure(commonRpmConfig(true, 'aarch64'))
 }
 
-tasks.register('buildOssRpm', Rpm) {
+tasks.register('buildRpm', Rpm) {
   configure(commonRpmConfig(true, 'x64'))
 }
 
-tasks.register('buildOssNoJdkRpm', Rpm) {
+tasks.register('buildNoJdkRpm', Rpm) {
   configure(commonRpmConfig(true, 'x64'))
 }
 
@@ -464,7 +463,7 @@ subprojects {
           Path copyrightPath
           String expectedLicense
           String licenseFilename
-          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/opensearch-oss/copyright")
+          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/opensearch/copyright")
           expectedLicense = "ASL-2.0"
           licenseFilename = "APACHE-LICENSE-2.0.txt"
           final List<String> header = Arrays.asList("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",

@@ -119,7 +119,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.tasks.size() == 3
-        result.output.count("Unpacking opensearch-oss-${version}-linux-x86_64.tar.gz " +
+        result.output.count("Unpacking opensearch-${version}-linux-x86_64.tar.gz " +
                 "using SymbolicLinkPreservingUntarTransform.") == 1
     }
 
