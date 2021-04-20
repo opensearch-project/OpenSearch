@@ -599,6 +599,6 @@ public class Docker {
     }
 
     public static String getImageName() {
-        return "opensearch-oss:test";
+        return "opensearch:test";
     }
 }
