@@ -704,7 +704,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
      *
-     * on elastic.co</a>
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
@@ -720,7 +719,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Asynchronously checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
      *
-     * on elastic.co</a>
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -737,7 +735,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
      *
-     * on elastic.co</a>
      * @param getSourceRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
@@ -750,7 +747,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Asynchronously checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
      *
-     * on elastic.co</a>
      * @param getSourceRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -765,7 +761,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Retrieves the source field only of a document using GetSource API.
      *
-     * on elastic.co</a>
      * @param getSourceRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -778,7 +773,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Asynchronously retrieves the source field only of a document using GetSource API.
      *
-     * on elastic.co</a>
      * @param getSourceRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
