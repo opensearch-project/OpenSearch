@@ -1,0 +1,9 @@
+before_install:
+  - echo "installing sdkman..."
+  - curl -s "https://get.sdkman.io" | bash
+  - source ~/.sdkman/bin/sdkman-init.sh
+  - sdk install java 15.0.2-open
+  - sdk use java 15.0.2-open
+install:
+  - echo "Running a custom install command"
+  - ./gradlew -xtest jar publishToMavenLocal --
