@@ -51,7 +51,7 @@ import static java.util.Collections.emptySet;
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Ingest API.
  * <p>
- * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
+ *
  */
 public final class IngestClient {
 
@@ -63,8 +63,7 @@ public final class IngestClient {
 
     /**
      * Add a pipeline or update an existing pipeline.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -77,8 +76,7 @@ public final class IngestClient {
 
     /**
      * Asynchronously add a pipeline or update an existing pipeline.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -91,8 +89,7 @@ public final class IngestClient {
 
     /**
      * Get an existing pipeline.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -105,8 +102,7 @@ public final class IngestClient {
 
     /**
      * Asynchronously get an existing pipeline.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -119,9 +115,7 @@ public final class IngestClient {
 
     /**
      * Delete an existing pipeline.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
-     *     Delete Pipeline API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -134,9 +128,7 @@ public final class IngestClient {
 
     /**
      * Asynchronously delete an existing pipeline.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
-     *     Delete Pipeline API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -152,9 +144,7 @@ public final class IngestClient {
     /**
      * Simulate a pipeline on a set of documents provided in the request
      * <p>
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html">
-     *     Simulate Pipeline API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -168,9 +158,7 @@ public final class IngestClient {
     /**
      * Asynchronously simulate a pipeline on a set of documents provided in the request
      * <p>
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html">
-     *     Simulate Pipeline API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
