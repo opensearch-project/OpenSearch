@@ -68,6 +68,8 @@ restResources {
 tasks.named("test").configure {
   // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
+  // TODO: painless tests unexpectedly run extremely slow without C2
+  jvmArgs -= '-XX:TieredStopAtLevel=1'
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the

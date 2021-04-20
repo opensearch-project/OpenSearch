@@ -307,7 +307,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         });
         refresher.start();
         try {
-            for (int i = 0; i < 1000; i++) {
+            for (int i = 0; i < 100; i++) {
                 Engine.IndexResult index = index("1");
                 DummyRefreshListener listener = new DummyRefreshListener();
                 boolean immediate = listeners.addOrNotify(index.getTranslogLocation(), listener);
