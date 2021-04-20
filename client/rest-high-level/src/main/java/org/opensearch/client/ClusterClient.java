@@ -56,8 +56,6 @@ import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Cluster API.
- * <p>
- *
  */
 public final class ClusterClient {
     private final RestHighLevelClient restHighLevelClient;

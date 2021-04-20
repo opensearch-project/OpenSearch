@@ -47,8 +47,6 @@ import static java.util.Collections.emptySet;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Tasks API.
- * <p>
- *
  */
 public final class TasksClient {
     private final RestHighLevelClient restHighLevelClient;

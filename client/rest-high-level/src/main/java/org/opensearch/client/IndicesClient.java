@@ -101,7 +101,6 @@ import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
- * <p>
  */
 public final class IndicesClient {
     private final RestHighLevelClient restHighLevelClient;

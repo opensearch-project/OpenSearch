@@ -50,7 +50,6 @@ import static java.util.Collections.emptySet;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Ingest API.
- * <p>
  *
  */
 public final class IngestClient {

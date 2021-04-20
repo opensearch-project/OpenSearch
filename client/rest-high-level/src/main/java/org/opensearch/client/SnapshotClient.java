@@ -61,7 +61,6 @@ import static java.util.Collections.emptySet;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Snapshot API.
- * <p>
  *
  */
 public final class SnapshotClient {
@@ -218,8 +217,6 @@ public final class SnapshotClient {
 
     /**
      * Creates a snapshot.
-     * <p>
-     *
      */
     public CreateSnapshotResponse create(CreateSnapshotRequest createSnapshotRequest, RequestOptions options)
         throws IOException {
@@ -242,8 +239,6 @@ public final class SnapshotClient {
 
     /**
      * Clones a snapshot.
-     * <p>
-     *
      */
     public AcknowledgedResponse clone(CloneSnapshotRequest cloneSnapshotRequest, RequestOptions options)
             throws IOException {
