@@ -9,6 +9,7 @@
 package org.opensearch.cluster.service;
 
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -243,7 +244,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         assertNull(throttler.getThrottlingLimit(TestTask.class));
     }
 
-    public class TestTask {
+    public class TestTask extends DeleteSnapshotRequest {
         private final int id;
 
         TestTask(int id) {

@@ -182,7 +182,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     throw e;
                 }
             } else {
-                logger.info("Throwing Throttling Exception for [{}]. Trying to acquire [{}] permits, limit is set to [{}]",
+                logger.warn("Throwing Throttling Exception for [{}]. Trying to acquire [{}] permits, limit is set to [{}]",
                     tasks.get(0).getTask().getClass(), tasks.size(), masterTaskThrottler.getThrottlingLimit(
                         tasks.get(0).getTask().getClass()));
                 throw new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for " + tasks.get(0).getTask().getClass());
@@ -514,7 +514,7 @@ public class MasterService extends AbstractLifecycleComponent {
      * Returns the number of throttled pending tasks.
      */
     public long numberOfThrottledPendingTasks() {
-        return masterTaskThrottler.throttledTaskCount();
+        return masterTaskThrottler.getThrottlingStats().getTotalThrottledTaskCount();
     }
 
     /**

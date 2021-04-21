@@ -15,7 +15,8 @@ import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReques
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
-import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.cluster.ack.AckedRequest;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -61,9 +62,9 @@ public class MasterTaskThrottler extends Throttler<Class> {
         }
     };
     private final int DEFAULT_THRESHOLD_VALUE = -1; // Disabled throttling
-
-    private CounterMetric throttledTasksCount = new CounterMetric();
+    private final MasterThrottlingStats throttlingStats = new MasterThrottlingStats();
     private final MasterService masterService;
+
     public MasterTaskThrottler(final ClusterSettings clusterSettings, final MasterService masterService) {
         super(false);
         clusterSettings.addSettingsUpdateConsumer(ENABLE_MASTER_THROTTLING, this::setMasterThrottlingEnable, this::validateEnableSetting);
@@ -90,7 +91,12 @@ public class MasterTaskThrottler extends Throttler<Class> {
             }
             if(!taskNameToClassMapping.containsKey(key)) {
                 try {
-                    Class.forName(key.replace("/", "."));
+                    Class requestClass = Class.forName(key.replace("/", "."));
+                    // Below check is to verify if class is of any request to master node or not.
+                    // MasterNodeRequest and Cluster State update requests are the requests coming to master.
+                    if(!(AckedRequest.class.isAssignableFrom(requestClass) || MasterNodeRequest.class.isAssignableFrom(requestClass))) {
+                        throw new IllegalArgumentException("Only Master Node request and Cluster state update request are allowed.");
+                    }
                 } catch (ClassNotFoundException e) {
                     throw new IllegalArgumentException("Provide valid key, either configured task type or path of class");
                 }
@@ -119,13 +125,13 @@ public class MasterTaskThrottler extends Throttler<Class> {
     public boolean acquire(final Class type, final int permits) {
         boolean ableToAcquire = super.acquire(type, permits);
         if(!ableToAcquire) {
-            throttledTasksCount.inc(permits);
+            throttlingStats.incrementThrottlingCount(type, permits);
         }
         return ableToAcquire;
     }
 
-    public long throttledTaskCount() {
-        return throttledTasksCount.count();
+    public MasterThrottlingStats getThrottlingStats() {
+        return throttlingStats;
     }
 
     protected void updateLimit(final Class className, final int limit) {

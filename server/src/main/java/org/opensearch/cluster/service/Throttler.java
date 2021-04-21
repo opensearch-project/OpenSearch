@@ -60,8 +60,8 @@ public class Throttler<T> {
         assert permits > 0;
         AdjustableSemaphore semaphore = semaphores.get(type);
         if(throttlingEnabled && Objects.nonNull(semaphore)) {
-            assert semaphore.availablePermits() < semaphore.getMaxPermits();
             semaphore.release(permits);
+            assert semaphore.availablePermits() <= semaphore.getMaxPermits();
         }
     }
 
