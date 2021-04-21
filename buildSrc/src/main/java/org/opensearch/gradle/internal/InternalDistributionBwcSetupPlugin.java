@@ -85,6 +85,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     private void configureBwcProject(Project project, BwcVersions.UnreleasedVersionInfo versionInfo) {
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
         Provider<File> checkoutDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch));
+        Provider<File> checkoutESDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkoutES-" + info.branch));
         BwcSetupExtension bwcSetupExtension = project.getExtensions()
             .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, checkoutDir);
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
@@ -95,7 +96,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         if (versionInfoProvider.map(info -> info.version).get().getId() < 0x08000000) {
             gitExtension.setCheckoutDir(checkoutESDir);
         } else {
-            gitExtension.setBwcBranch(versionInfoProvider.map(info -> info.branch));
+            gitExtension.setCheckoutDir(checkoutDir);
         }
 
         // we want basic lifecycle tasks like `clean` here.
