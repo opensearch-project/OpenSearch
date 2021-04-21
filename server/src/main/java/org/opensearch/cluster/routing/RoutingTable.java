@@ -196,6 +196,14 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return shards;
     }
 
+    public int shardsMatchingPredicateCount(Predicate<ShardRouting> predicate) {
+        int count = 0;
+        for (IndexRoutingTable indexRoutingTable : this) {
+            count += indexRoutingTable.shardsMatchingPredicateCount(predicate);
+        }
+        return count;
+    }
+
     /**
      * All the shards (replicas) for all indices in this routing table.
      *

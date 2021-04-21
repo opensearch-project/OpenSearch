@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
@@ -413,13 +414,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Returns the number of shards that are unassigned and currently being delayed.
      */
     public static int getNumberOfDelayedUnassigned(ClusterState state) {
-        int count = 0;
-        for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
-            if (shard.unassignedInfo().isDelayed()) {
-                count++;
-            }
-        }
-        return count;
+        Predicate<ShardRouting> predicate = s -> s.state() == ShardRoutingState.UNASSIGNED && s.unassignedInfo().isDelayed();
+        return state.routingTable().shardsMatchingPredicateCount(predicate);
     }
 
     /**
