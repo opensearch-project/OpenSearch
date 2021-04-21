@@ -91,7 +91,12 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version);
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version));
         gitExtension.setBwcBranch(versionInfoProvider.map(info -> info.branch));
-        gitExtension.setCheckoutDir(checkoutDir);
+
+        if (versionInfoProvider.map(info -> info.version).get().getId() < 0x08000000) {
+            gitExtension.setCheckoutDir(checkoutESDir);
+        } else {
+            gitExtension.setBwcBranch(versionInfoProvider.map(info -> info.branch));
+        }
 
         // we want basic lifecycle tasks like `clean` here.
         project.getPlugins().apply(LifecycleBasePlugin.class);

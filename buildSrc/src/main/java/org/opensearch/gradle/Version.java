@@ -170,7 +170,7 @@ public final class Version implements Comparable<Version> {
         return revision;
     }
 
-    protected int getId() {
+    public int getId() {
         return id;
     }
 

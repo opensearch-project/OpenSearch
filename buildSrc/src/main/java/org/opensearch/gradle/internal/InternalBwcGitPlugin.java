@@ -33,7 +33,9 @@
 package org.opensearch.gradle.internal;
 
 import org.apache.commons.io.FileUtils;
+import org.opensearch.gradle.BwcVersions;
 import org.opensearch.gradle.LoggedExec;
+import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
@@ -74,7 +76,20 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
     public void apply(Project project) {
         this.project = project;
         this.gitExtension = project.getExtensions().create("bwcGitConfig", BwcGitExtension.class);
-        Provider<String> remote = providerFactory.systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("opensearch-project");
+        final Provider<String>[] remotes =
+            new Provider[]{providerFactory.systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("opensearch-project")};
+
+        BuildParams.getBwcVersions()
+            .forPreviousUnreleased(
+                (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
+                    Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> unreleasedVersion);
+                    if (versionInfoProvider.map(info -> info.version).get().getId() < 0x08000000) {
+                    //if (versionInfoProvider.map(info -> info.version).get().getClass() != Version.class) {
+                        remotes[0] =
+                            providerFactory.systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("elastic");
+                    }
+                }
+            );
 
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
@@ -92,7 +107,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             findRemote.setStandardOutput(output);
             findRemote.doLast(t -> {
                 ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
-                extraProperties.set("remoteExists", isRemoteAvailable(remote, output));
+                extraProperties.set("remoteExists", isRemoteAvailable(remotes[0], output));
             });
         });
 
@@ -100,12 +115,24 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             addRemote.dependsOn(findRemoteTaskProvider);
             addRemote.onlyIf(task -> ((boolean) project.getExtensions().getExtraProperties().get("remoteExists")) == false);
             addRemote.setWorkingDir(gitExtension.getCheckoutDir().get());
-            String remoteRepo = remote.get();
+            String remoteRepo = remotes[0].get();
             // for testing only we can override the base remote url
-            String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
+            final String[] remoteRepoUrls = new String[]{(providerFactory.systemProperty("testRemoteRepo")
                 .forUseAtConfigurationTime()
-                .getOrElse("https://github.com/" + remoteRepo + "/OpenSearch.git");
-            addRemote.setCommandLine(asList("git", "remote", "add", remoteRepo, remoteRepoUrl));
+                .getOrElse("https://github.com/" + remoteRepo + "/OpenSearch.git"))};
+
+            BuildParams.getBwcVersions()
+                .forPreviousUnreleased(
+                    (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
+                        Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> unreleasedVersion);
+                        if (versionInfoProvider.map(info -> info.version).get().getId() < 0x08000000) {
+                            remoteRepoUrls[0] = providerFactory.systemProperty("testRemoteRepo")
+                                .forUseAtConfigurationTime()
+                                .getOrElse("https://github.com/" + remoteRepo + "/elasticsearch.git");
+                        }
+                    }
+                );
+            addRemote.setCommandLine(asList("git", "remote", "add", remoteRepo, remoteRepoUrls[0]));
         });
 
         TaskProvider<LoggedExec> fetchLatestTaskProvider = tasks.register("fetchLatest", LoggedExec.class, fetchLatest -> {
@@ -134,9 +161,10 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                 Logger logger = project.getLogger();
 
                 String bwcBranch = this.gitExtension.getBwcBranch().get();
+
                 final String refspec = providerFactory.systemProperty("bwc.refspec." + bwcBranch)
                     .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
-                    .getOrElse(remote.get() + "/" + bwcBranch);
+                    .getOrElse(remotes[0].get() + "/" + bwcBranch);
 
                 String effectiveRefSpec = maybeAlignedRefSpec(logger, refspec);
 
