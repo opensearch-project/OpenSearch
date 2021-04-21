@@ -32,11 +32,6 @@
 
 package org.opensearch.index.reindex;
 
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
-import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -45,35 +40,28 @@ import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.search.builder.SearchSourceBuilder;
-
-import java.util.List;
 
 class ReindexValidator {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ReindexValidator.class);
     static final String SORT_DEPRECATED_MESSAGE = "The sort option in reindex is deprecated. " +
         "Instead consider using query filtering to find the desired subset of data.";
 
-    private final CharacterRunAutomaton remoteWhitelist;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
     private final AutoCreateIndex autoCreateIndex;
 
     ReindexValidator(Settings settings, ClusterService clusterService, IndexNameExpressionResolver resolver,
                      AutoCreateIndex autoCreateIndex) {
-        this.remoteWhitelist = buildRemoteWhitelist(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings));
         this.clusterService = clusterService;
         this.resolver = resolver;
         this.autoCreateIndex = autoCreateIndex;
     }
 
     void initialValidation(ReindexRequest request) {
-        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(), resolver, autoCreateIndex,
             state);
@@ -81,36 +69,6 @@ class ReindexValidator {
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
             deprecationLogger.deprecate("reindex_sort", SORT_DEPRECATED_MESSAGE);
         }
-    }
-
-    static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {
-        if (remoteInfo == null) {
-            return;
-        }
-        String check = remoteInfo.getHost() + ':' + remoteInfo.getPort();
-        if (whitelist.run(check)) {
-            return;
-        }
-        String whiteListKey = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey();
-        throw new IllegalArgumentException('[' + check + "] not whitelisted in " + whiteListKey);
-    }
-
-    /**
-     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and make sure that it doesn't whitelist
-     * the world.
-     */
-    static CharacterRunAutomaton buildRemoteWhitelist(List<String> whitelist) {
-        if (whitelist.isEmpty()) {
-            return new CharacterRunAutomaton(Automata.makeEmpty());
-        }
-        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
-        automaton = MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
-        if (Operations.isTotal(automaton)) {
-            throw new IllegalArgumentException("Refusing to start because whitelist " + whitelist + " accepts all addresses. "
-                + "This would allow users to reindex-from-remote any URL they like effectively having OpenSearch make HTTP GETs "
-                + "for them.");
-        }
-        return new CharacterRunAutomaton(automaton);
     }
 
     /**

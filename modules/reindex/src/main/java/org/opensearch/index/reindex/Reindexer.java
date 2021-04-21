@@ -34,12 +34,17 @@ package org.opensearch.index.reindex;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.RedirectStrategy;
+import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.protocol.HttpContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
@@ -158,12 +163,30 @@ public class Reindexer {
                     // Limit ourselves to one reactor thread because for now the search process is single threaded.
                     c.setDefaultIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
                     c.setSSLStrategy(sslConfig.getStrategy());
+                    c.setRedirectStrategy(getNoRedirectStrategy());
                     return c;
                 });
         if (Strings.hasLength(remoteInfo.getPathPrefix()) && "/".equals(remoteInfo.getPathPrefix()) == false) {
             builder.setPathPrefix(remoteInfo.getPathPrefix());
         }
         return builder.build();
+    }
+
+    /**
+     * Default rest client follows HTTP redirects. This method is an implementation to stop following the redirects.
+     *
+     * @return RedirectStrategy with redirect disabled
+     */
+    private static RedirectStrategy getNoRedirectStrategy() {
+        return new RedirectStrategy() {
+            public boolean isRedirected(HttpRequest request, HttpResponse response, HttpContext context) {
+                return false; // never redirect
+            }
+
+            public HttpUriRequest getRedirect(HttpRequest request, HttpResponse response, HttpContext context) {
+                throw new UnsupportedOperationException(); // should never happen
+            }
+        };
     }
 
     /**

@@ -306,19 +306,6 @@
             index: dest
 
 ---
-"unwhitelisted remote host fails":
-  - do:
-      catch: /\[badremote:9200\] not whitelisted in reindex.remote.whitelist/
-      reindex:
-        body:
-          source:
-            remote:
-              host: http://badremote:9200
-            index: test
-          dest:
-            index: dest
-
----
 "badly formatted remote host fails":
   - do:
       catch: /\[host\] must be of the form \[scheme\].//\[host\].\[port\]/

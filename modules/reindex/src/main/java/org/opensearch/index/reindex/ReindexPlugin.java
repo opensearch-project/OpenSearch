@@ -108,7 +108,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         final List<Setting<?>> settings = new ArrayList<>();
-        settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
     }
