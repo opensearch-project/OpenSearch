@@ -107,7 +107,7 @@ That will build OpenSearch and start it, writing its log above Gradle's status m
 It's typically easier to wait until the console stops scrolling, and then run `curl` in another window to check if OpenSearch instance is running.
 
 ```bash
-curl -u opensearch:password localhost:9200
+curl localhost:9200
 
 {
   "name" : "runTask-0",
