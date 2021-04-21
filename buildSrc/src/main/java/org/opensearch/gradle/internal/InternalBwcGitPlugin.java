@@ -76,7 +76,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
     public void apply(Project project) {
         this.project = project;
         this.gitExtension = project.getExtensions().create("bwcGitConfig", BwcGitExtension.class);
-        final Provider<String>[] remotes =
+        Provider<String>[] remotes =
             new Provider[]{providerFactory.systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("opensearch-project")};
 
         BuildParams.getBwcVersions()
@@ -84,7 +84,6 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                 (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
                     Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> unreleasedVersion);
                     if (versionInfoProvider.map(info -> info.version).get().getId() < 0x08000000) {
-                    //if (versionInfoProvider.map(info -> info.version).get().getClass() != Version.class) {
                         remotes[0] =
                             providerFactory.systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("elastic");
                     }
