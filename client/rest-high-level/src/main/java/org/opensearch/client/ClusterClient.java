@@ -56,8 +56,6 @@ import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Cluster API.
- * <p>
- * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
  */
 public final class ClusterClient {
     private final RestHighLevelClient restHighLevelClient;
@@ -68,8 +66,7 @@ public final class ClusterClient {
 
     /**
      * Updates cluster wide specific settings using the Cluster Update Settings API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
-     * API on elastic.co</a>
+     *
      * @param clusterUpdateSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -83,8 +80,7 @@ public final class ClusterClient {
 
     /**
      * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
-     * API on elastic.co</a>
+     *
      * @param clusterUpdateSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -99,8 +95,7 @@ public final class ClusterClient {
 
     /**
      * Get the cluster wide settings using the Cluster Get Settings API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-get-settings.html"> Cluster Get Settings
-     * API on elastic.co</a>
+     *
      * @param clusterGetSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -114,8 +109,7 @@ public final class ClusterClient {
 
     /**
      * Asynchronously get the cluster wide settings using the Cluster Get Settings API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-get-settings.html"> Cluster Get Settings
-     * API on elastic.co</a>
+     *
      * @param clusterGetSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -130,8 +124,7 @@ public final class ClusterClient {
 
     /**
      * Get cluster health using the Cluster Health API.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html"> Cluster Health API on elastic.co</a>
+     *
      * <p>
      * If timeout occurred, {@link ClusterHealthResponse} will have isTimedOut() == true and status() == RestStatus.REQUEST_TIMEOUT
      * @param healthRequest the request
@@ -146,8 +139,7 @@ public final class ClusterClient {
 
     /**
      * Asynchronously get cluster health using the Cluster Health API.
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html"> Cluster Health API on elastic.co</a>
+     *
      * If timeout occurred, {@link ClusterHealthResponse} will have isTimedOut() == true and status() == RestStatus.REQUEST_TIMEOUT
      * @param healthRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -162,8 +154,7 @@ public final class ClusterClient {
 
     /**
      * Get the remote cluster information using the Remote cluster info API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-remote-info.html"> Remote cluster info
-     * API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -176,8 +167,7 @@ public final class ClusterClient {
 
     /**
      * Asynchronously get remote cluster information using the Remote cluster info API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-remote-info.html"> Remote cluster info
-     * API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
