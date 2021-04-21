@@ -126,6 +126,12 @@ curl localhost:9200
 }
 ```
 
+Use `-Dtests.opensearch.` to pass additional settings to the running instance. For example, to enable OpenSearch to listen on an external IP address pass `-Dtests.opensearch.http.host`. Make sure your firewall or security policy allows external connections for this to work.
+
+```bash
+./gradlew run -Dtests.opensearch.http.host=0.0.0.0
+```
+
 ## Use an Editor
 
 ### IntelliJ IDEA
@@ -239,7 +245,7 @@ differ and infer what is the problem.
 
 The `paddedCell()` option is disabled for normal operation in order to detect any misbehaviour. You can enable the option from the command line by running Gradle with `-Dspotless.paddedcell`.
 
-> **NOTE:** If you have imported the project into IntelliJ IDEA the project will be automatically configured to add the correct license header to new source files based on the source location.
+> Note: if you have imported the project into IntelliJ IDEA the project will be automatically configured to add the correct license header to new source files based on the source location.
 
 ## Gradle Build
 
