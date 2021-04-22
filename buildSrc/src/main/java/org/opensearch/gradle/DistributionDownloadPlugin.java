@@ -156,7 +156,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             repo.setName(name);
             repo.setUrl(url);
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-            repo.patternLayout(layout -> layout.artifact("/downloads/opensearch/[module]-[revision](-[classifier]).[ext]"));
+            repo.patternLayout(layout -> layout.artifact("/releases/core/opensearch/[revision]/[module]-[revision](-[classifier]).[ext]"));
         });
         project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
             exclusiveContentRepository.filter(config -> config.includeGroup(group));
@@ -168,7 +168,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
             return;
         }
-        addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts-no-kpi.opensearch.org", FAKE_IVY_GROUP);
+        addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts.opensearch.org", FAKE_IVY_GROUP);
         addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots-no-kpi.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP);
     }
 
