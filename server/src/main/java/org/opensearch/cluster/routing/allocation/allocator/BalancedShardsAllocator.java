@@ -133,26 +133,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return;
         }
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
-        if (logger.isDebugEnabled()) {
-            long start = System.currentTimeMillis();
-            balancer.allocateUnassigned();
-            logger.debug("Time taken to allocate unassigned in this cycle:[{}ms]", System.currentTimeMillis() - start);
-            start = System.currentTimeMillis();
-            balancer.moveShards();
-            logger.debug("Time taken to move shards in this cycle:[{}ms]", System.currentTimeMillis() - start);
-            start = System.currentTimeMillis();
-            balancer.balance();
-            logger.debug("Time taken to balance shards in this cycle :[{}ms]", System.currentTimeMillis() - start);
-            logger.debug("Shards processed in this cycle :[{}]", balancer.shardsProcessed);
-            logger.debug("Shards allocated in this cycle :[{}]", balancer.shardsAllocated);
-            logger.debug("Ineligible target node count :[{}]", balancer.inEligibleTargetNode.size());
-            logger.debug("Shards processing decide move in this cycle :[{}]", balancer.shardsProcessingMove);
-            logger.debug("Number of shards for which target nodes was processed :[{}]", balancer.targetNodesProcessed.size());
-        } else {
-            balancer.allocateUnassigned();
-            balancer.moveShards();
-            balancer.balance();
-        }
+        balancer.allocateUnassigned();
+        balancer.moveShards();
+        balancer.balance();
     }
 
     @Override
@@ -661,6 +644,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
+         * Checks if target node is ineligible and if so, adds to the list
+         * of ineligible target nodes
+         */
+        private void checkAndAddInEligibleTargetNode(RoutingNode targetNode) {
+            Decision nodeLevelAllocationDecision = allocation.deciders().canAllocateAnyShardToNode(targetNode, allocation);
+            if (nodeLevelAllocationDecision.type() != Decision.Type.YES) {
+                inEligibleTargetNode.add(targetNode);
+            }
+        }
+        /**
          * Move started shards that can not be allocated to a node anymore
          *
          * For each shard to be moved this function executes a move operation
@@ -678,15 +671,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // Trying to eliminate target nodes so that we donot unnecessarily iterate over source nodes
             // when no target is eligible
             for (ModelNode currentNode : sorter.modelNodes) {
-                RoutingNode target = currentNode.getRoutingNode();
-                Decision nodeLevelAllocationDecision = allocation.deciders().canAllocateAnyShardToNode(target, allocation);
-                if (nodeLevelAllocationDecision.type() != Decision.Type.YES) {
-                    inEligibleTargetNode.add(currentNode.getRoutingNode());
-                }
+                checkAndAddInEligibleTargetNode(currentNode.getRoutingNode());
             }
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext(); ) {
-                ShardRouting shardRouting = it.next();
-                shardsProcessed++;
                 //Verify if the cluster concurrent recoveries have been reached.
                 if (allocation.deciders().canMoveAnyShard(allocation).type() != Decision.Type.YES) {
                     logger.info("Cannot move any shard in the cluster due to cluster concurrent recoveries getting breached"
@@ -699,6 +686,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                     + ". Skipping shard iteration");
                     return;
                 }
+
+                ShardRouting shardRouting = it.next();
+                shardsProcessed++;
 
                 // Verify if the shard is allowed to move if outgoing recovery on the node hosting the primary shard
                 // is not being throttled.
@@ -724,13 +714,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     shardsAllocated++;
                     // Verifying if this node can be considered ineligible for further iterations
                     if (targetNode != null) {
-                        Decision nodeLevelAllocationDecision = allocation.deciders().canAllocateAnyShardToNode(
-                            targetNode.getRoutingNode(),
-                            allocation
-                        );
-                        if (nodeLevelAllocationDecision.type() != Decision.Type.YES) {
-                            inEligibleTargetNode.add(targetNode.getRoutingNode());
-                        }
+                        checkAndAddInEligibleTargetNode(targetNode.getRoutingNode());
                     }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
