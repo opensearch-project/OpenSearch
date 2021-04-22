@@ -104,7 +104,7 @@ dependencies {
 
 testClusters {
   generateContextCluster {
-    testDistribution = 'OSS'
+    testDistribution = 'ARCHIVE'
   }
 }
 

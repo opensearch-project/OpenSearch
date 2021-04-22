@@ -44,7 +44,7 @@ dependencies {
 }
 
 testClusters.all {
-  testDistribution = 'oss'
+  testDistribution = 'archive'
 }
 
 test.enabled = false
