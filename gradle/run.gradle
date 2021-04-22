@@ -33,7 +33,7 @@ apply plugin: 'opensearch.testclusters'
 
 testClusters {
   runTask {
-    testDistribution = System.getProperty('run.distribution', 'oss')
+    testDistribution = 'archive'
   }
 }
 

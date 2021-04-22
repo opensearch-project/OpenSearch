@@ -100,7 +100,7 @@ class ClusterFormationTasks {
         Configuration currentDistro = project.configurations.create("${prefix}_opensearchDistro")
         Configuration bwcDistro = project.configurations.create("${prefix}_opensearchBwcDistro")
         Configuration bwcPlugins = project.configurations.create("${prefix}_opensearchBwcPlugins")
-        if (System.getProperty('tests.distribution', 'oss') == 'integ-test-zip') {
+        if (System.getProperty('tests.distribution', 'archive') == 'integ-test-zip') {
             throw new Exception("tests.distribution=integ-test-zip is not supported")
         }
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.getOpenSearch())

@@ -64,17 +64,6 @@ NOTE: If you have imported the project into IntelliJ according to the instructio
 link:/DEVELOPER_GUIDE.md#importing-the-project-into-intellij-idea[DEVELOPER_GUIDE.md] then a debug run configuration
 named "Debug OpenSearch" will be created for you and configured appropriately.
 
-==== Distribution
-
-By default a node is started with the zip distribution.
-In order to start with a different distribution use the `-Drun.distribution` argument.
-
-To for example start the open source distribution:
-
--------------------------------------
-./gradlew run
--------------------------------------
-
 ==== Other useful arguments
 
 - In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
