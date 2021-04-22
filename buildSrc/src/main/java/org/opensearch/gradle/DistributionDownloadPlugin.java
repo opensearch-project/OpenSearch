@@ -156,7 +156,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             repo.setName(name);
             repo.setUrl(url);
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-            repo.patternLayout(layout -> layout.artifact("/downloads/opensearch/[module]-[revision](-[classifier]).[ext]"));
+            // FIXME: this is temporary to unblock integration tests
+            // tmp: https://artifacts.opensearch.org/releases/core/opensearch/1.0.0/opensearch-1.0.0-alpha1-linux-x64.tar.gz
+            //  vs. https://artifacts.opensearch.org/downloads/opensearch/opensearch-1.0.0-SNAPSHOT-linux-x86_64.tar.gz
+            repo.patternLayout(layout -> layout.artifact("/releases/core/opensearch/1.0.0/[module]-1.0.0-alpha1-linux-x64.[ext]"));
         });
         project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
             exclusiveContentRepository.filter(config -> config.includeGroup(group));
@@ -169,7 +172,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             return;
         }
         addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts-no-kpi.opensearch.org", FAKE_IVY_GROUP);
-        addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots-no-kpi.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP);
+        addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://artifacts.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP);
     }
 
     /**
