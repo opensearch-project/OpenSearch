@@ -83,7 +83,8 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
 
     UnsafeBootstrapMasterCommand() {
         super("Forces the successful election of the current node after the permanent loss of the half or more master-eligible nodes");
-        applyClusterReadOnlyBlockOption = parser.accepts("apply-cluster-read-only-block", "Optional cluster.blocks.read_only setting, false if not specified")
+        applyClusterReadOnlyBlockOption = parser.accepts("apply-cluster-read-only-block",
+            "Optional cluster.blocks.read_only setting, false if not specified")
             .withOptionalArg().ofType(Boolean.class);
     }
 
