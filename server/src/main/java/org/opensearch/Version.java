@@ -171,49 +171,24 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     private static Version fromStringSlow(String version) {
-        final boolean snapshot; // this is some BWC for 2.x and before indices
-        if (snapshot = version.endsWith("-SNAPSHOT")) {
-            version = version.substring(0, version.length() - 9);
+        if (version.endsWith("-SNAPSHOT")) {
+            throw new IllegalArgumentException("illegal version format - snapshot labels are not supported");
         }
         String[] parts = version.split("[.-]");
-        if (parts.length < 3 || parts.length > 4) {
-            throw new IllegalArgumentException(
-                "the version needs to contain major, minor, and revision, and optionally the build: " + version);
+        // todo: add back optional build number
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("the version needs to contain major, minor, and revision" + version);
         }
 
         try {
             final int rawMajor = Integer.parseInt(parts[0]);
-            if (snapshot == true) { // we don't support snapshot as part of the version here anymore
-                throw new IllegalArgumentException("illegal version format - snapshot labels are not supported");
-            }
-            if (parts.length == 4) { // we don't support qualifier
-                throw new IllegalArgumentException("illegal version format - qualifiers are not supported");
-            }
-            final int betaOffset = 25;
+
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
-
-
             int build = 99;
-            if (parts.length == 4) {
-                String buildStr = parts[3];
-                if (buildStr.startsWith("alpha")) {
-                    build = Integer.parseInt(buildStr.substring(5));
-                    assert build < 25 : "expected a alpha build but " + build + " >= 25";
-                } else if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
-                    build = betaOffset + Integer.parseInt(buildStr.substring(4));
-                    assert build < 50 : "expected a beta build but " + build + " >= 50";
-                } else if (buildStr.startsWith("RC") || buildStr.startsWith("rc")) {
-                    build = Integer.parseInt(buildStr.substring(2)) + 50;
-                } else {
-                    throw new IllegalArgumentException("unable to parse version " + version);
-                }
-            }
-
             return fromId((major + minor + revision + build) ^ MASK);
-
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse version " + version, e);
         }
