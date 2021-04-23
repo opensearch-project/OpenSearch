@@ -88,6 +88,10 @@ public class VersionTests extends OpenSearchTestCase {
         assertThat(V_6_3_0, is(lessThan(V_7_0_0)));
         assertThat(V_6_3_0.compareTo(V_6_3_0), is(0));
         assertThat(V_7_0_0, is(greaterThan(V_6_3_0)));
+
+        assertThat(Version.V_1_0_0.compareMajor(LegacyESVersion.V_7_0_0), is(0));
+        assertThat(Version.V_1_0_0.compareMajor(LegacyESVersion.V_6_3_0), is(1));
+        assertThat(LegacyESVersion.V_6_3_0.compareMajor(Version.V_1_0_0), is(-1));
     }
 
     public void testMin() {

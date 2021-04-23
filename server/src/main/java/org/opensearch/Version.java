@@ -234,6 +234,13 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return version.id >= id;
     }
 
+    // LegacyESVersion major 7 is equivalent to Version major 1
+    public int compareMajor(Version other) {
+        int m = major == 1 ? 7 : major;
+        int om = other.major == 1 ? 7 : other.major;
+        return Integer.compare(m, om);
+    }
+
     @Override
     public int compareTo(Version other) {
         return Integer.compare(this.id, other.id);
