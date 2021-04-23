@@ -35,8 +35,6 @@ package org.opensearch;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -75,66 +73,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_1_0_0 = new Version(1000099, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version CURRENT = V_1_0_0;
 
-    private static final ImmutableOpenIntMap<Version> idToVersion;
-    private static final ImmutableOpenMap<String, Version> stringToVersion;
-
-    static {
-        final ImmutableOpenIntMap.Builder<Version> builder = ImmutableOpenIntMap.builder();
-        final ImmutableOpenMap.Builder<String, Version> builderByString = ImmutableOpenMap.builder();
-
-        for (final Field declaredField : LegacyESVersion.class.getFields()) {
-            if (declaredField.getType().equals(Version.class) || declaredField.getType().equals(LegacyESVersion.class)) {
-                final String fieldName = declaredField.getName();
-                if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY")) {
-                    continue;
-                }
-                assert fieldName.matches("V_\\d+_\\d+_\\d+(_alpha[1,2]|_beta[1,2]|_rc[1,2])?")
-                    : "expected Version field [" + fieldName + "] to match V_\\d+_\\d+_\\d+";
-                try {
-                    final Version version = (Version) declaredField.get(null);
-                    if (Assertions.ENABLED) {
-                        final String[] fields = fieldName.split("_");
-                        if (fields.length == 5) {
-                            assert (fields[1].equals("1") || fields[1].equals("6")) && fields[2].equals("0") :
-                                "field " + fieldName + " should not have a build qualifier";
-                        } else {
-                            final int major = Integer.valueOf(fields[1]) * 1000000;
-                            final int minor = Integer.valueOf(fields[2]) * 10000;
-                            final int revision = Integer.valueOf(fields[3]) * 100;
-                            final int expectedId;
-                            if (fields[1].equals("1")) {
-                                expectedId = 0x08000000 ^ (major + minor + revision + 99);
-                            } else {
-                                expectedId = (major + minor + revision + 99);
-                            }
-                            assert version.id == expectedId :
-                                "expected version [" + fieldName + "] to have id [" + expectedId + "] but was [" + version.id + "]";
-                        }
-                    }
-                    final Version maybePrevious = builder.put(version.id, version);
-                    builderByString.put(version.toString(), version);
-                    assert maybePrevious == null :
-                        "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
-                } catch (final IllegalAccessException e) {
-                    assert false : "Version field [" + fieldName + "] should be public";
-                }
-            }
-        }
-        assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
-            + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
-
-        builder.put(V_EMPTY_ID, V_EMPTY);
-        builderByString.put(V_EMPTY.toString(), V_EMPTY);
-        idToVersion = builder.build();
-        stringToVersion = builderByString.build();
-    }
-
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
     }
 
     public static Version fromId(int id) {
-        final Version known = idToVersion.get(id);
+        final Version known = LegacyESVersion.idToVersion.get(id);
         if (known != null) {
             return known;
         }
@@ -219,7 +163,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (!Strings.hasLength(version)) {
             return Version.CURRENT;
         }
-        final Version cached = stringToVersion.get(version);
+        final Version cached = LegacyESVersion.stringToVersion.get(version);
         if (cached != null) {
             return cached;
         }
@@ -227,50 +171,24 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     private static Version fromStringSlow(String version) {
-        final boolean snapshot; // this is some BWC for 2.x and before indices
-        if (snapshot = version.endsWith("-SNAPSHOT")) {
-            version = version.substring(0, version.length() - 9);
+        if (version.endsWith("-SNAPSHOT")) {
+            throw new IllegalArgumentException("illegal version format - snapshot labels are not supported");
         }
         String[] parts = version.split("[.-]");
-        if (parts.length < 3 || parts.length > 4) {
-            throw new IllegalArgumentException(
-                "the version needs to contain major, minor, and revision, and optionally the build: " + version);
+        // todo: add back optional build number
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("the version needs to contain major, minor, and revision" + version);
         }
 
         try {
             final int rawMajor = Integer.parseInt(parts[0]);
-            if (rawMajor >= 5 && snapshot) { // we don't support snapshot as part of the version here anymore
-                throw new IllegalArgumentException("illegal version format - snapshots are only supported until version 2.x");
-            }
-            if (rawMajor >=7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
-                throw new IllegalArgumentException("illegal version format - qualifiers are only supported until version 6.x");
-            }
-            final int betaOffset = rawMajor < 5 ? 0 : 25;
+
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
-
-
             int build = 99;
-            if (parts.length == 4) {
-                String buildStr = parts[3];
-                if (buildStr.startsWith("alpha")) {
-                    assert rawMajor >= 5 : "major must be >= 5 but was " + major;
-                    build = Integer.parseInt(buildStr.substring(5));
-                    assert build < 25 : "expected a alpha build but " + build + " >= 25";
-                } else if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
-                    build = betaOffset + Integer.parseInt(buildStr.substring(4));
-                    assert build < 50 : "expected a beta build but " + build + " >= 50";
-                } else if (buildStr.startsWith("RC") || buildStr.startsWith("rc")) {
-                    build = Integer.parseInt(buildStr.substring(2)) + 50;
-                } else {
-                    throw new IllegalArgumentException("unable to parse version " + version);
-                }
-            }
-
-            return fromId(major + minor + revision + build);
-
+            return fromId((major + minor + revision + build) ^ MASK);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse version " + version, e);
         }
@@ -360,7 +278,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return res;
     }
 
-    private Version computeMinCompatVersion() {
+    protected Version computeMinCompatVersion() {
         if (major == 1) {
             return Version.fromId(6080099);
         } else if (major == 6) {
@@ -382,7 +300,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             return bwcVersion == null ? this : bwcVersion;
         }
 
-        return Version.min(this, fromId((int) major * 1000000 + 0 * 10000 + 99));
+        return Version.min(this, fromId(maskId((int) major * 1000000 + 0 * 10000 + 99)));
+    }
+
+    /**
+     * this is used to ensure the version id for new versions of OpenSearch are always less than the predecessor versions
+     */
+    protected int maskId(final int id) {
+        return MASK ^ id;
     }
 
     /**

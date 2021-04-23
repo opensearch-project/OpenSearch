@@ -33,6 +33,7 @@
 package org.opensearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.transport.TransportAddress;
@@ -406,17 +407,17 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         discoBuilder.add(new DiscoveryNode("name_" + 1, "node_" + 1, buildNewFakeTransportAddress(), Collections.emptyMap(),
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
-            Version.fromString("5.1.0")));
+            LegacyESVersion.fromString("5.1.0")));
         discoBuilder.add(new DiscoveryNode("name_" + 2, "node_" + 2, buildNewFakeTransportAddress(), Collections.emptyMap(),
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
-            Version.fromString("6.3.0")));
+            LegacyESVersion.fromString("6.3.0")));
         discoBuilder.add(new DiscoveryNode("name_" + 3, "node_" + 3, buildNewFakeTransportAddress(), Collections.emptyMap(),
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
             Version.fromString("1.1.0")));
         discoBuilder.localNodeId("name_1");
         discoBuilder.masterNodeId("name_2");
         DiscoveryNodes build = discoBuilder.build();
-        assertEquals( Version.fromString("6.3.0"), build.getMaxNodeVersion());
-        assertEquals( Version.fromString("1.1.0"), build.getMinNodeVersion());
+        assertEquals( Version.fromString("1.1.0"), build.getMaxNodeVersion());
+        assertEquals( LegacyESVersion.fromString("5.1.0"), build.getMinNodeVersion());
     }
 }
