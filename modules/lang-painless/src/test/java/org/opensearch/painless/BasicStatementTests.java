@@ -32,6 +32,9 @@
 
 package org.opensearch.painless;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.script.ScriptContext;
 
@@ -44,11 +47,23 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 
 public class BasicStatementTests extends ScriptTestCase {
+    private static PainlessScriptEngine SCRIPT_ENGINE;
 
-    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
+    @BeforeClass
+    public static void beforeClass() {
+        Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
         contexts.put(OneArg.CONTEXT, Whitelist.BASE_WHITELISTS);
-        return contexts;
+        SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        SCRIPT_ENGINE = null;
+    }
+
+    @Override
+    protected PainlessScriptEngine getEngine() {
+        return SCRIPT_ENGINE;
     }
 
     public void testIfStatement() {
@@ -295,16 +310,16 @@ public class BasicStatementTests extends ScriptTestCase {
                 "List rtn = new ArrayList(); rtn.add(0); test(rtn); rtn"));
 
         ArrayList<Integer> input = new ArrayList<>();
-        scriptEngine.compile("testOneArg", "if (arg.isEmpty()) {arg.add(1); return;} arg.add(2);",
+        getEngine().compile("testOneArg", "if (arg.isEmpty()) {arg.add(1); return;} arg.add(2);",
                 OneArg.CONTEXT, emptyMap()).newInstance().execute(input);
         assertEquals(Collections.singletonList(1), input);
         input = new ArrayList<>();
-        scriptEngine.compile("testOneArg", "if (arg.isEmpty()) {arg.add(1); return} arg.add(2);",
+        getEngine().compile("testOneArg", "if (arg.isEmpty()) {arg.add(1); return} arg.add(2);",
                 OneArg.CONTEXT, emptyMap()).newInstance().execute(input);
         assertEquals(Collections.singletonList(1), input);
         input = new ArrayList<>();
         input.add(0);
-        scriptEngine.compile("testOneArg", "if (arg.isEmpty()) {arg.add(1); return} arg.add(2);",
+        getEngine().compile("testOneArg", "if (arg.isEmpty()) {arg.add(1); return} arg.add(2);",
                 OneArg.CONTEXT, emptyMap()).newInstance().execute(input);
         assertEquals(expected, input);
     }

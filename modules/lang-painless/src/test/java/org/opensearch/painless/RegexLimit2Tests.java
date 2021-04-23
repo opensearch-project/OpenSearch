@@ -33,25 +33,21 @@
 package org.opensearch.painless;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.Settings;
 
-import java.util.Collections;
-
-public class RegexLimitTests extends ScriptTestCase {
+public class RegexLimit2Tests extends ScriptTestCase {
     // This regex has backtracking due to .*?
     private static final String PATTERN = "/abc.*?def/";
     private static final String CHAR_SEQUENCE = "'abcdodef'";
     private static final String SPLIT_CHAR_SEQUENCE = "'0-abc-1-def-X-abc-2-def-Y-abc-3-def-Z-abc'";
-    private static final String REGEX_CIRCUIT_MESSAGE = "[scripting] Regular expression considered too many characters";
     private static PainlessScriptEngine SCRIPT_ENGINE;
 
     @BeforeClass
     public static void beforeClass() {
-        Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), 1).build();
+        Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), 2).build();
         SCRIPT_ENGINE = new PainlessScriptEngine(settings, newDefaultContexts());
     }
-
+    
     @AfterClass
     public static void afterClass() {
         SCRIPT_ENGINE = null;
@@ -61,14 +57,12 @@ public class RegexLimitTests extends ScriptTestCase {
     protected PainlessScriptEngine getEngine() {
         return SCRIPT_ENGINE;
     }
-
+    
     public void testRegexInject_Matcher() {
         String[] scripts = new String[]{PATTERN + ".matcher(" + CHAR_SEQUENCE + ").matches()",
             "Matcher m = " + PATTERN + ".matcher(" + CHAR_SEQUENCE + "); m.matches()"};
         for (String script : scripts) {
-            // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
-            CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-            assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+            assertEquals(Boolean.TRUE, exec(script));
         }
     }
 
@@ -76,8 +70,7 @@ public class RegexLimitTests extends ScriptTestCase {
         String[] scripts = new String[]{"def p = " + PATTERN + "; p.matcher(" + CHAR_SEQUENCE + ").matches()",
             "def p = " + PATTERN + "; def m = p.matcher(" + CHAR_SEQUENCE + "); m.matches()"};
         for (String script : scripts) {
-            CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-            assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+            assertEquals(Boolean.TRUE, exec(script));
         }
     }
 
@@ -86,8 +79,7 @@ public class RegexLimitTests extends ScriptTestCase {
             "boolean isMatch(Function func) { func.apply(" + CHAR_SEQUENCE +").matches(); } " +
                 "Pattern pattern = " + PATTERN + ";" +
                 "isMatch(pattern::matcher)";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertEquals(Boolean.TRUE, exec(script));
     }
 
     public void testRegexInject_DefMethodRef_Matcher() {
@@ -95,23 +87,20 @@ public class RegexLimitTests extends ScriptTestCase {
             "boolean isMatch(Function func) { func.apply(" + CHAR_SEQUENCE +").matches(); } " +
                 "def pattern = " + PATTERN + ";" +
                 "isMatch(pattern::matcher)";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertEquals(Boolean.TRUE, exec(script));
     }
 
     public void testRegexInject_SplitLimit() {
         String[] scripts = new String[]{PATTERN + ".split(" + SPLIT_CHAR_SEQUENCE + ", 2)",
             "Pattern p = " + PATTERN + "; p.split(" + SPLIT_CHAR_SEQUENCE + ", 2)"};
         for (String script : scripts) {
-            CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-            assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+            assertArrayEquals(new String[]{"0-", "-X-abc-2-def-Y-abc-3-def-Z-abc"}, (String[])exec(script));
         }
     }
 
     public void testRegexInject_Def_SplitLimit() {
         String script = "def p = " + PATTERN + "; p.split(" + SPLIT_CHAR_SEQUENCE + ", 2)";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertArrayEquals(new String[]{"0-", "-X-abc-2-def-Y-abc-3-def-Z-abc"}, (String[])exec(script));
     }
 
     public void testRegexInject_Ref_SplitLimit() {
@@ -119,8 +108,7 @@ public class RegexLimitTests extends ScriptTestCase {
             "String[] splitLimit(BiFunction func) { func.apply(" + SPLIT_CHAR_SEQUENCE + ", 2); } " +
                 "Pattern pattern = " + PATTERN + ";" +
                 "splitLimit(pattern::split)";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertArrayEquals(new String[]{"0-", "-X-abc-2-def-Y-abc-3-def-Z-abc"}, (String[])exec(script));
     }
 
     public void testRegexInject_DefMethodRef_SplitLimit() {
@@ -128,23 +116,20 @@ public class RegexLimitTests extends ScriptTestCase {
             "String[] splitLimit(BiFunction func) { func.apply(" + SPLIT_CHAR_SEQUENCE + ", 2); } " +
                 "def pattern = " + PATTERN + ";" +
                 "splitLimit(pattern::split)";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertArrayEquals(new String[]{"0-", "-X-abc-2-def-Y-abc-3-def-Z-abc"}, (String[])exec(script));
     }
 
     public void testRegexInject_Split() {
         String[] scripts = new String[]{PATTERN + ".split(" + SPLIT_CHAR_SEQUENCE + ")",
             "Pattern p = " + PATTERN + "; p.split(" + SPLIT_CHAR_SEQUENCE + ")"};
         for (String script : scripts) {
-            CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-            assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+            assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[])exec(script));
         }
     }
 
     public void testRegexInject_Def_Split() {
         String script = "def p = " + PATTERN + "; p.split(" + SPLIT_CHAR_SEQUENCE + ")";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[])exec(script));
     }
 
     public void testRegexInject_Ref_Split() {
@@ -152,8 +137,7 @@ public class RegexLimitTests extends ScriptTestCase {
             "String[] split(Function func) { func.apply(" + SPLIT_CHAR_SEQUENCE + "); } " +
                 "Pattern pattern = " + PATTERN + ";" +
                 "split(pattern::split)";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[])exec(script));
     }
 
     public void testRegexInject_DefMethodRef_Split() {
@@ -161,23 +145,20 @@ public class RegexLimitTests extends ScriptTestCase {
             "String[] split(Function func) { func.apply(" + SPLIT_CHAR_SEQUENCE +"); } " +
                 "def pattern = " + PATTERN + ";" +
                 "split(pattern::split)";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[])exec(script));
     }
 
     public void testRegexInject_SplitAsStream() {
         String[] scripts = new String[]{PATTERN + ".splitAsStream(" + SPLIT_CHAR_SEQUENCE + ").toArray(String[]::new)",
             "Pattern p = " + PATTERN + "; p.splitAsStream(" + SPLIT_CHAR_SEQUENCE + ").toArray(String[]::new)"};
         for (String script : scripts) {
-            CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-            assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+            assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[]) exec(script));
         }
     }
 
     public void testRegexInject_Def_SplitAsStream() {
         String script = "def p = " + PATTERN + "; p.splitAsStream(" + SPLIT_CHAR_SEQUENCE + ").toArray(String[]::new)";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[]) exec(script));
     }
 
     public void testRegexInject_Ref_SplitAsStream() {
@@ -185,8 +166,7 @@ public class RegexLimitTests extends ScriptTestCase {
             "Stream splitStream(Function func) { func.apply(" + SPLIT_CHAR_SEQUENCE +"); } " +
                 "Pattern pattern = " + PATTERN + ";" +
                 "splitStream(pattern::splitAsStream).toArray(String[]::new)";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[]) exec(script));
     }
 
     public void testRegexInject_DefMethodRef_SplitAsStream() {
@@ -194,27 +174,16 @@ public class RegexLimitTests extends ScriptTestCase {
             "Stream splitStream(Function func) { func.apply(" + SPLIT_CHAR_SEQUENCE +"); } " +
                 "def pattern = " + PATTERN + ";" +
                 "splitStream(pattern::splitAsStream).toArray(String[]::new)";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[]) exec(script));
     }
 
     public void testRegexInjectFindOperator() {
         String script = "if (" + CHAR_SEQUENCE + " =~ " + PATTERN + ") { return 100; } return 200";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
+        assertEquals(Integer.valueOf(100), (Integer) exec(script));
     }
 
     public void testRegexInjectMatchOperator() {
         String script = "if (" + CHAR_SEQUENCE + " ==~ " + PATTERN + ") { return 100; } return 200";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
-    }
-
-    public void testSnippetRegex() {
-        String charSequence = String.join("", Collections.nCopies(100, "abcdef123456"));
-        String script = "if ('" + charSequence + "' ==~ " + PATTERN + ") { return 100; } return 200";
-        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-        assertTrue(cbe.getMessage().contains(REGEX_CIRCUIT_MESSAGE));
-        assertTrue(cbe.getMessage().contains(charSequence.subSequence(0, 61) + "..."));
+        assertEquals(Integer.valueOf(100), (Integer) exec(script));
     }
 }
