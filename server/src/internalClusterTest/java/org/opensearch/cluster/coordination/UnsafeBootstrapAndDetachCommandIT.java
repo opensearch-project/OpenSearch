@@ -132,7 +132,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         boolean current_block_state = state.metadata().persistentSettings().
             getAsBoolean(Metadata.SETTING_READ_ONLY_SETTING.getKey(), false);
         if(current_block_state != expected_block_state) {
-            fail(String.format("Read only setting for the node %s don't match. Expected %s. Actual %s", node,
+            fail(String.format(Locale.ROOT, "Read only setting for the node %s don't match. Expected %s. Actual %s", node,
                 expected_block_state, current_block_state));
         }
     }
