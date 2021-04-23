@@ -71,7 +71,7 @@ Vagrant.configure(2) do |config|
 
   'ubuntu-1604'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/ubuntu-16.04-x86_64'
+      config.vm.box = 'elastic/ubuntu-16.04-x64'
       deb_common config, box, extra: <<-SHELL
         # Install Jayatana so we can work around it being present.
         [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
@@ -81,7 +81,7 @@ Vagrant.configure(2) do |config|
   end
   'ubuntu-1804'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/ubuntu-18.04-x86_64'
+      config.vm.box = 'elastic/ubuntu-18.04-x64'
       deb_common config, box, extra: <<-SHELL
        # Install Jayatana so we can work around it being present.
        [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
@@ -94,7 +94,7 @@ Vagrant.configure(2) do |config|
   # jessie and stretch for testing debian and it works fine.
   'debian-8'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/debian-8-x86_64'
+      config.vm.box = 'elastic/debian-8-x64'
       deb_common config, box, extra: <<-SHELL
         # this sometimes gets a bad ip, and doesn't appear to be needed
         rm -f /etc/apt/sources.list.d/http_debian_net_debian.list
@@ -103,59 +103,59 @@ Vagrant.configure(2) do |config|
   end
   'debian-9'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/debian-9-x86_64'
+      config.vm.box = 'elastic/debian-9-x64'
       deb_common config, box
       deb_docker config
     end
   end
   'centos-6'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/centos-6-x86_64'
+      config.vm.box = 'elastic/centos-6-x64'
       rpm_common config, box
     end
   end
   'centos-7'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/centos-7-x86_64'
+      config.vm.box = 'elastic/centos-7-x64'
       rpm_common config, box
       rpm_docker config
     end
   end
   'oel-6'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/oraclelinux-6-x86_64'
+      config.vm.box = 'elastic/oraclelinux-6-x64'
       rpm_common config, box
     end
   end
   'oel-7'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/oraclelinux-7-x86_64'
+      config.vm.box = 'elastic/oraclelinux-7-x64'
       rpm_common config, box
     end
   end
   'fedora-28'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/fedora-28-x86_64'
+      config.vm.box = 'elastic/fedora-28-x64'
       dnf_common config, box
       dnf_docker config
     end
   end
   'fedora-29'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/fedora-29-x86_64'
+      config.vm.box = 'elastic/fedora-29-x64'
       dnf_common config, box
       dnf_docker config
     end
   end
   'sles-12'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/sles-12-x86_64'
+      config.vm.box = 'elastic/sles-12-x64'
       sles_common config, box
     end
   end
   'rhel-8'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/rhel-8-x86_64'
+      config.vm.box = 'elastic/rhel-8-x64'
       rpm_common config, box
     end
   end

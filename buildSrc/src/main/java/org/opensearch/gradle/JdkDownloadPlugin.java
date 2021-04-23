@@ -116,14 +116,18 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + jdk.getBaseVersion()
                     + "-"
                     + jdk.getBuild()
-                    + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
+                    + "/[module]/"
+                    + getClassifier(jdk)
+                    + "/jdk/hotspot/normal/adoptopenjdk";
             } else {
                 // current pattern since JDK 9
                 artifactPattern = "jdk-"
                     + jdk.getBaseVersion()
                     + "+"
                     + jdk.getBuild()
-                    + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
+                    + "/[module]/"
+                    + getClassifier(jdk)
+                    + "/jdk/hotspot/normal/adoptopenjdk";
             }
         } else if (jdk.getVendor().equals(VENDOR_OPENJDK)) {
             repoUrl = "https://download.oracle.com";
@@ -135,7 +139,9 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + jdk.getHash()
                     + "/"
                     + jdk.getBuild()
-                    + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+                    + "/GPL/openjdk-[revision]_[module]-"
+                    + getClassifier(jdk)
+                    + "_bin.[ext]";
             } else {
                 // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
                 artifactPattern = "java/GA/jdk"
@@ -157,6 +163,14 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 repo.patternLayout(layout -> layout.artifact(artifactPattern));
                 repo.content(repositoryContentDescriptor -> repositoryContentDescriptor.includeGroup(groupName(jdk)));
             });
+        }
+    }
+
+    private String getClassifier(Jdk jdk) {
+        if (jdk.getArchitecture() == "arm64") {
+            return "aarch64";
+        } else {
+            return "[classifier]";
         }
     }
 

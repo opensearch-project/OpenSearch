@@ -89,51 +89,51 @@ distribution_archives {
   }
 
   windowsZip {
-    archiveClassifier = 'windows-x86_64'
+    archiveClassifier = 'windows-x64'
     content {
-      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', true)
+      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', true)
     }
   }
 
   noJdkWindowsZip {
-    archiveClassifier = 'no-jdk-windows-x86_64'
+    archiveClassifier = 'no-jdk-windows-x64'
     content {
-      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', false)
+      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', false)
     }
   }
 
   darwinTar {
-    archiveClassifier = 'darwin-x86_64'
+    archiveClassifier = 'darwin-x64'
     content {
-      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', true)
+      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', true)
     }
   }
 
   noJdkDarwinTar {
-    archiveClassifier = 'no-jdk-darwin-x86_64'
+    archiveClassifier = 'no-jdk-darwin-x64'
     content {
-      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', false)
+      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', false)
     }
   }
 
-  linuxAarch64Tar {
-    archiveClassifier = 'linux-aarch64'
+  linuxArm64Tar {
+    archiveClassifier = 'linux-arm64'
     content {
-      archiveFiles(modulesFiles('linux-aarch64'), 'tar', 'linux', 'aarch64', true)
+      archiveFiles(modulesFiles('linux-arm64'), 'tar', 'linux', 'arm64', true)
     }
   }
 
   linuxTar {
-    archiveClassifier = 'linux-x86_64'
+    archiveClassifier = 'linux-x64'
     content {
-      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', true)
+      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', true)
     }
   }
 
   noJdkLinuxTar {
-    archiveClassifier = 'no-jdk-linux-x86_64'
+    archiveClassifier = 'no-jdk-linux-x64'
     content {
-      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false)
+      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', false)
     }
   }
 }

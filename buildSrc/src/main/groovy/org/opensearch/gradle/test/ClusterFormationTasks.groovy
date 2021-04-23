@@ -206,7 +206,7 @@ class ClusterFormationTasks {
 
         Version version = Version.fromString(opensearchVersion)
         String os = getOs()
-        String classifier = "-${os}-x86_64"
+        String classifier = "-${os}-x64"
         String packaging = os.equals('windows') ? 'zip' : 'tar.gz'
         String artifactName = 'opensearch'
         Object dependency

@@ -135,7 +135,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String artifactName = "opensearch";
 
         String suffix = artifactFileName.endsWith("tar.gz") ? "tar.gz" : artifactFileName.substring(artifactFileName.length() - 3);
-        int archIndex = artifactFileName.indexOf("x86_64");
+        int archIndex = artifactFileName.indexOf("x64");
 
         bwcProject.getConfigurations().create(distributionProject.name);
         bwcProject.getArtifacts().add(distributionProject.name, distributionProject.getDistFile(), artifact -> {
@@ -146,7 +146,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             String classifier = "";
             if (archIndex != -1) {
                 int osIndex = artifactFileName.lastIndexOf('-', archIndex - 2);
-                classifier = "-" + artifactFileName.substring(osIndex + 1, archIndex - 1) + "-x86_64";
+                classifier = "-" + artifactFileName.substring(osIndex + 1, archIndex - 1) + "-x64";
             }
             artifact.setClassifier(classifier);
         });
@@ -171,7 +171,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 if (name.contains("zip") || name.contains("tar")) {
                     int index = name.lastIndexOf('-');
                     String baseName = name.substring(0, index);
-                    classifier = "-" + baseName + "-x86_64";
+                    classifier = "-" + baseName + "-x64";
                     extension = name.substring(index + 1);
                     if (extension.equals("tar")) {
                         extension += ".gz";
@@ -179,7 +179,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 } else if (name.contains("deb")) {
                     classifier = "-amd64";
                 } else if (name.contains("rpm")) {
-                    classifier = "-x86_64";
+                    classifier = "-x64";
                 }
             } else {
                 extension = name.substring(4);
