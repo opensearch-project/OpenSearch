@@ -167,6 +167,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
     }
 
     private String getClassifier(Jdk jdk) {
+        // JDK uses aarch64 for arm64.
         if (jdk.getArchitecture() == "arm64") {
             return "aarch64";
         } else {
