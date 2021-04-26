@@ -50,13 +50,13 @@ public class PluginsTests extends OpenSearchTestCase {
     }
 
     public void testMakeSpecificPlatformNames() {
-        assertEquals("darwin-x86_64", Platforms.platformName("Mac OS X", "x86_64"));
-        assertEquals("linux-x86_64", Platforms.platformName("Linux", "amd64"));
+        assertEquals("darwin-x64", Platforms.platformName("Mac OS X", "x64"));
+        assertEquals("linux-x64", Platforms.platformName("Linux", "amd64"));
         assertEquals("linux-x86", Platforms.platformName("Linux", "i386"));
-        assertEquals("windows-x86_64", Platforms.platformName("Windows Server 2008 R2", "amd64"));
+        assertEquals("windows-x64", Platforms.platformName("Windows Server 2008 R2", "amd64"));
         assertEquals("windows-x86", Platforms.platformName("Windows Server 2008", "x86"));
-        assertEquals("windows-x86_64", Platforms.platformName("Windows 8.1", "amd64"));
-        assertEquals("sunos-x86_64", Platforms.platformName("SunOS", "amd64"));
+        assertEquals("windows-x64", Platforms.platformName("Windows 8.1", "amd64"));
+        assertEquals("sunos-x64", Platforms.platformName("SunOS", "amd64"));
     }
 
 }
