@@ -101,8 +101,6 @@ import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
- * <p>
- * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
  */
 public final class IndicesClient {
     private final RestHighLevelClient restHighLevelClient;
@@ -113,8 +111,7 @@ public final class IndicesClient {
 
     /**
      * Deletes an index using the Delete Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">
-     * Delete Index API on elastic.co</a>
+     *
      * @param deleteIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -127,8 +124,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously deletes an index using the Delete Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">
-     * Delete Index API on elastic.co</a>
+     *
      * @param deleteIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -143,8 +139,7 @@ public final class IndicesClient {
 
     /**
      * Creates an index using the Create Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
-     * Create Index API on elastic.co</a>
+     *
      * @param createIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -158,8 +153,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously creates an index using the Create Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
-     * Create Index API on elastic.co</a>
+     *
      * @param createIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -174,8 +168,6 @@ public final class IndicesClient {
 
     /**
      * Creates a data stream using the Create Data Stream API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
-     * Data Streams API on elastic.co</a>
      *
      * @param createDataStreamRequest the request
      * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
@@ -191,8 +183,6 @@ public final class IndicesClient {
 
     /**
      * Asynchronously creates a data stream using the Create Data Stream API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
-     * Data Streams API on elastic.co</a>
      *
      * @param createDataStreamRequest the request
      * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
@@ -209,8 +199,6 @@ public final class IndicesClient {
 
     /**
      * Deletes a data stream using the Delete Data Stream API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
-     * Data Streams API on elastic.co</a>
      *
      * @param deleteDataStreamRequest the request
      * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
@@ -226,8 +214,6 @@ public final class IndicesClient {
 
     /**
      * Asynchronously deletes a data stream using the Delete Data Stream API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
-     * Data Streams API on elastic.co</a>
      *
      * @param deleteDataStreamRequest the request
      * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
@@ -243,8 +229,6 @@ public final class IndicesClient {
 
     /**
      * Gets one or more data streams using the Get Data Stream API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
-     * elastic.co</a>
      *
      * @param dataStreamRequest the request
      * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -258,8 +242,6 @@ public final class IndicesClient {
 
     /**
      * Asynchronously gets one or more data streams using the Get Data Stream API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
-     * elastic.co</a>
      *
      * @param dataStreamRequest the request
      * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -274,8 +256,6 @@ public final class IndicesClient {
 
     /**
      * Gets statistics about one or more data streams using the Get Data Streams Stats API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
-     * elastic.co</a>
      *
      * @param dataStreamsStatsRequest the request
      * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
@@ -291,8 +271,6 @@ public final class IndicesClient {
 
     /**
      * Asynchronously gets statistics about one or more data streams using the Get Data Streams Stats API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
-     * elastic.co</a>
      *
      * @param dataStreamsStatsRequest the request
      * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
@@ -308,8 +286,7 @@ public final class IndicesClient {
 
     /**
      * Creates an index using the Create Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
-     * Create Index API on elastic.co</a>
+     *
      * @param createIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -330,8 +307,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously creates an index using the Create Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
-     * Create Index API on elastic.co</a>
+     *
      * @param createIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -352,8 +328,7 @@ public final class IndicesClient {
 
     /**
      * Updates the mappings on an index using the Put Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
-     * Put Mapping API on elastic.co</a>
+     *
      * @param putMappingRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -366,8 +341,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously updates the mappings on an index using the Put Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
-     * Put Mapping API on elastic.co</a>
+     *
      * @param putMappingRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -381,8 +355,7 @@ public final class IndicesClient {
 
     /**
      * Updates the mappings on an index using the Put Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
-     * Put Mapping API on elastic.co</a>
+     *
      * @param putMappingRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -400,8 +373,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously updates the mappings on an index using the Put Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
-     * Put Mapping API on elastic.co</a>
+     *
      * @param putMappingRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -421,8 +393,7 @@ public final class IndicesClient {
 
     /**
      * Retrieves the mappings on an index or indices using the Get Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html">
-     * Get Mapping API on elastic.co</a>
+     *
      * @param getMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -438,8 +409,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously retrieves the mappings on an index on indices using the Get Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html">
-     * Get Mapping API on elastic.co</a>
+     *
      * @param getMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -457,8 +427,7 @@ public final class IndicesClient {
 
     /**
      * Retrieves the mappings on an index or indices using the Get Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html">
-     * Get Mapping API on elastic.co</a>
+     *
      * @param getMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -481,8 +450,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously retrieves the mappings on an index on indices using the Get Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html">
-     * Get Mapping API on elastic.co</a>
+     *
      * @param getMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -506,8 +474,7 @@ public final class IndicesClient {
 
     /**
      * Retrieves the field mappings on an index or indices using the Get Field Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-field-mapping.html">
-     * Get Field Mapping API on elastic.co</a>
+     *
      * @param getFieldMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -527,8 +494,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously retrieves the field mappings on an index on indices using the Get Field Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-field-mapping.html">
-     * Get Field Mapping API on elastic.co</a>
+     *
      * @param getFieldMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -551,8 +517,7 @@ public final class IndicesClient {
 
     /**
      * Retrieves the field mappings on an index or indices using the Get Field Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-field-mapping.html">
-     * Get Field Mapping API on elastic.co</a>
+     *
      * @param getFieldMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -567,8 +532,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously retrieves the field mappings on an index or indices using the Get Field Mapping API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-field-mapping.html">
-     * Get Field Mapping API on elastic.co</a>
+     *
      * @param getFieldMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -583,8 +547,7 @@ public final class IndicesClient {
 
     /**
      * Updates aliases using the Index Aliases API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
-     * Index Aliases API on elastic.co</a>
+     *
      * @param indicesAliasesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -597,8 +560,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously updates aliases using the Index Aliases API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
-     * Index Aliases API on elastic.co</a>
+     *
      * @param indicesAliasesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -613,8 +575,7 @@ public final class IndicesClient {
 
     /**
      * Opens an index using the Open Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
-     * Open Index API on elastic.co</a>
+     *
      * @param openIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -627,8 +588,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously opens an index using the Open Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
-     * Open Index API on elastic.co</a>
+     *
      * @param openIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -641,8 +601,7 @@ public final class IndicesClient {
 
     /**
      * Closes an index using the Close Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
-     * Close Index API on elastic.co</a>
+     *
      * @param closeIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -655,8 +614,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously closes an index using the Close Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
-     * Close Index API on elastic.co</a>
+     *
      * @param closeIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -672,8 +630,7 @@ public final class IndicesClient {
 
     /**
      * Checks if one or more aliases exist using the Aliases Exist API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
-     * Indices Aliases API on elastic.co</a>
+     *
      * @param getAliasesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -686,8 +643,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously checks if one or more aliases exist using the Aliases Exist API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
-     * Indices Aliases API on elastic.co</a>
+     *
      * @param getAliasesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -700,7 +656,7 @@ public final class IndicesClient {
 
     /**
      * Refresh one or more indices using the Refresh API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-refresh.html"> Refresh API on elastic.co</a>
+     *
      * @param refreshRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -713,7 +669,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously refresh one or more indices using the Refresh API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-refresh.html"> Refresh API on elastic.co</a>
+     *
      * @param refreshRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -726,7 +682,7 @@ public final class IndicesClient {
 
     /**
      * Flush one or more indices using the Flush API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-flush.html"> Flush API on elastic.co</a>
+     *
      * @param flushRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -739,7 +695,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously flush one or more indices using the Flush API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-flush.html"> Flush API on elastic.co</a>
+     *
      * @param flushRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -752,8 +708,7 @@ public final class IndicesClient {
 
     /**
      * Initiate a synced flush manually using the synced flush API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-synced-flush-api.html">
-     *     Synced flush API on elastic.co</a>
+     *
      * @param syncedFlushRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -769,8 +724,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously initiate a synced flush manually using the synced flush API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-synced-flush-api.html">
-     *     Synced flush API on elastic.co</a>
+     *
      * @param syncedFlushRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -787,8 +741,7 @@ public final class IndicesClient {
 
     /**
      * Retrieve the settings of one or more indices.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-settings.html">
-     * Indices Get Settings API on elastic.co</a>
+     *
      * @param getSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -801,8 +754,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously retrieve the settings of one or more indices.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-settings.html">
-     * Indices Get Settings API on elastic.co</a>
+     *
      * @param getSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -816,8 +768,7 @@ public final class IndicesClient {
 
     /**
      * Retrieve information about one or more indexes
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
-     * Indices Get Index API on elastic.co</a>
+     *
      * @param getIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -830,8 +781,7 @@ public final class IndicesClient {
 
     /**
      * Retrieve information about one or more indexes
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
-     * Indices Get Index API on elastic.co</a>
+     *
      * @param getIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -845,8 +795,7 @@ public final class IndicesClient {
 
     /**
      * Retrieve information about one or more indexes
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
-     * Indices Get Index API on elastic.co</a>
+     *
      * @param getIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -863,8 +812,7 @@ public final class IndicesClient {
 
     /**
      * Retrieve information about one or more indexes
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
-     * Indices Get Index API on elastic.co</a>
+     *
      * @param getIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -881,8 +829,7 @@ public final class IndicesClient {
 
     /**
      * Force merge one or more indices using the Force Merge API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
-     * Force Merge API on elastic.co</a>
+     *
      * @param forceMergeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -896,8 +843,7 @@ public final class IndicesClient {
 
     /**
      * Force merge one or more indices using the Force Merge API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
-     * Force Merge API on elastic.co</a>
+     *
      * @param forceMergeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -910,8 +856,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously force merge one or more indices using the Force Merge API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
-     * Force Merge API on elastic.co</a>
+     *
      * @param forceMergeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -926,8 +871,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously force merge one or more indices using the Force Merge API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
-     * Force Merge API on elastic.co</a>
+     *
      * @param forceMergeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -942,8 +886,7 @@ public final class IndicesClient {
 
     /**
      * Clears the cache of one or more indices using the Clear Cache API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clearcache.html">
-     * Clear Cache API on elastic.co</a>
+     *
      * @param clearIndicesCacheRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -957,8 +900,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously clears the cache of one or more indices using the Clear Cache API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clearcache.html">
-     * Clear Cache API on elastic.co</a>
+     *
      * @param clearIndicesCacheRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -973,8 +915,7 @@ public final class IndicesClient {
 
     /**
      * Checks if the index (indices) exists or not.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
-     * Indices Exists API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -992,8 +933,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously checks if the index (indices) exists or not.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
-     * Indices Exists API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1012,8 +952,7 @@ public final class IndicesClient {
 
     /**
      * Checks if the index (indices) exists or not.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
-     * Indices Exists API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1034,8 +973,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously checks if the index (indices) exists or not.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
-     * Indices Exists API on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1058,8 +996,7 @@ public final class IndicesClient {
 
     /**
      * Shrinks an index using the Shrink Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-shrink-index.html">
-     * Shrink Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1072,8 +1009,7 @@ public final class IndicesClient {
 
     /**
      * Shrinks an index using the Shrink Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-shrink-index.html">
-     * Shrink Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1089,8 +1025,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously shrinks an index using the Shrink index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-shrink-index.html">
-     * Shrink Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1103,8 +1038,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously shrinks an index using the Shrink index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-shrink-index.html">
-     * Shrink Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1120,8 +1054,7 @@ public final class IndicesClient {
 
     /**
      * Splits an index using the Split Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-split-index.html">
-     * Split Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1134,8 +1067,7 @@ public final class IndicesClient {
 
     /**
      * Splits an index using the Split Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-split-index.html">
-     * Split Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1151,8 +1083,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously splits an index using the Split Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-split-index.html">
-     * Split Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1165,8 +1096,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously splits an index using the Split Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-split-index.html">
-     * Split Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1182,8 +1112,7 @@ public final class IndicesClient {
 
     /**
      * Clones an index using the Clone Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clone-index.html">
-     * Clone Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1196,8 +1125,7 @@ public final class IndicesClient {
 
     /**
      * Clones an index using the Clone Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clone-index.html">
-     * Clone Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1213,8 +1141,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously clones an index using the Clone Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clone-index.html">
-     * Clone Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1227,8 +1154,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously clones an index using the Clone Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clone-index.html">
-     * Clone Index API on elastic.co</a>
+     *
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1244,8 +1170,7 @@ public final class IndicesClient {
 
     /**
      * Rolls over an index using the Rollover Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
-     * Rollover Index API on elastic.co</a>
+     *
      * @param rolloverRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1258,8 +1183,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously rolls over an index using the Rollover Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
-     * Rollover Index API on elastic.co</a>
+     *
      * @param rolloverRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1273,8 +1197,7 @@ public final class IndicesClient {
 
     /**
      * Rolls over an index using the Rollover Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
-     * Rollover Index API on elastic.co</a>
+     *
      * @param rolloverRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1293,8 +1216,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously rolls over an index using the Rollover Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
-     * Rollover Index API on elastic.co</a>
+     *
      * @param rolloverRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1314,8 +1236,7 @@ public final class IndicesClient {
 
     /**
      * Gets one or more aliases using the Get Index Aliases API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Indices Aliases API on
-     * elastic.co</a>
+     *
      * @param getAliasesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1328,8 +1249,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously gets one or more aliases using the Get Index Aliases API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Indices Aliases API on
-     * elastic.co</a>
+     *
      * @param getAliasesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1344,8 +1264,7 @@ public final class IndicesClient {
 
     /**
      * Updates specific index level settings using the Update Indices Settings API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"> Update Indices Settings
-     * API on elastic.co</a>
+     *
      * @param updateSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1358,8 +1277,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously updates specific index level settings using the Update Indices Settings API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"> Update Indices Settings
-     * API on elastic.co</a>
+     *
      * @param updateSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1375,8 +1293,7 @@ public final class IndicesClient {
 
     /**
      * Puts an index template using the Index Templates API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param putIndexTemplateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1394,8 +1311,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously puts an index template using the Index Templates API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param putIndexTemplateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1416,8 +1332,7 @@ public final class IndicesClient {
 
     /**
      * Puts an index template using the Index Templates API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param putIndexTemplateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1432,8 +1347,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously puts an index template using the Index Templates API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param putIndexTemplateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1448,8 +1362,7 @@ public final class IndicesClient {
 
     /**
      * Puts an index template using the Index Templates API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param putIndexTemplateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1463,8 +1376,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously puts an index template using the Index Templates API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param putIndexTemplateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1478,8 +1390,7 @@ public final class IndicesClient {
 
     /**
      * Simulates matching index name against the existing index templates in the system.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      *
      * @param simulateIndexTemplateRequest the request
      * @param options                      the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
@@ -1495,8 +1406,6 @@ public final class IndicesClient {
 
     /**
      * Asynchronously simulates matching index name against the existing index templates in the system.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
      *
      * @param simulateIndexTemplateRequest the request
      * @param options                      the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
@@ -1513,8 +1422,7 @@ public final class IndicesClient {
     /**
      * Validate a potentially expensive query without executing it.
      * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
-     * on elastic.co</a>
+     *
      * @param validateQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1530,8 +1438,7 @@ public final class IndicesClient {
     /**
      * Asynchronously validate a potentially expensive query without executing it.
      * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
-     * on elastic.co</a>
+     *
      * @param validateQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1547,8 +1454,7 @@ public final class IndicesClient {
     /**
      * Gets index templates using the Index Templates API. The mappings will be returned in a legacy deprecated format, where the
      * mapping definition is nested under the type name.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param getIndexTemplatesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1567,8 +1473,7 @@ public final class IndicesClient {
 
     /**
      * Gets index templates using the Index Templates API
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param getIndexTemplatesRequest the request
      * @return the response
@@ -1582,8 +1487,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously gets index templates using the Index Templates API
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param getIndexTemplatesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1597,8 +1501,7 @@ public final class IndicesClient {
 
     /**
      * Gets index templates using the Index Templates API
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param getIndexTemplatesRequest the request
      * @return the response
@@ -1614,8 +1517,7 @@ public final class IndicesClient {
     /**
      * Asynchronously gets index templates using the Index Templates API. The mappings will be returned in a legacy deprecated format,
      * where the mapping definition is nested under the type name.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param getIndexTemplatesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1635,8 +1537,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously gets index templates using the Index Templates API
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param getIndexTemplatesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1714,8 +1615,6 @@ public final class IndicesClient {
     /**
      * Calls the analyze API
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-analyze.html">Analyze API on elastic.co</a>
-     *
      * @param request   the request
      * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
@@ -1727,7 +1626,6 @@ public final class IndicesClient {
     /**
      * Asynchronously calls the analyze API
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-analyze.html">Analyze API on elastic.co</a>
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1741,8 +1639,6 @@ public final class IndicesClient {
 
     /**
      * Delete an index template using the Index Templates API
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
      *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1755,8 +1651,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously delete an index template using the Index Templates API
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param request  the request
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1770,8 +1665,6 @@ public final class IndicesClient {
 
     /**
      * Delete an index template using the Index Templates API
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
      *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1785,8 +1678,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously delete an index template using the Index Templates API
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
-     * on elastic.co</a>
+     *
      * @param request  the request
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion

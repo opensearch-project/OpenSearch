@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.settings.get;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.ValidateActions;
@@ -83,7 +83,7 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         names = in.readStringArray();
         humanReadable = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             includeDefaults = in.readBoolean();
         }
     }
@@ -95,7 +95,7 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(names);
         out.writeBoolean(humanReadable);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             out.writeBoolean(includeDefaults);
         }
     }

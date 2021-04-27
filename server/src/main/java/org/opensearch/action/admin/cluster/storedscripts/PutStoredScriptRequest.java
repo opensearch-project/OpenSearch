@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.bytes.BytesReference;
@@ -59,13 +59,13 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
     public PutStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_0_0_alpha2)) {
             in.readString(); // read lang from previous versions
         }
         id = in.readOptionalString();
         content = in.readBytesReference();
         xContentType = in.readEnum(XContentType.class);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha2)) {
             context = in.readOptionalString();
             source = new StoredScriptSource(in);
         } else {
@@ -147,13 +147,13 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        if (out.getVersion().before(Version.V_6_0_0_alpha2)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_0_0_alpha2)) {
             out.writeString(source == null ? "" : source.getLang());
         }
         out.writeOptionalString(id);
         out.writeBytesReference(content);
         out.writeEnum(xContentType);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha2)) {
             out.writeOptionalString(context);
             source.writeTo(out);
         }

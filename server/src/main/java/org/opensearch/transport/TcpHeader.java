@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamOutput;
 
@@ -39,7 +40,7 @@ import java.io.IOException;
 
 public class TcpHeader {
 
-    public static final Version VERSION_WITH_HEADER_SIZE = Version.V_7_6_0;
+    public static final Version VERSION_WITH_HEADER_SIZE = LegacyESVersion.V_7_6_0;
 
     public static final int MARKER_BYTES_SIZE = 2;
 

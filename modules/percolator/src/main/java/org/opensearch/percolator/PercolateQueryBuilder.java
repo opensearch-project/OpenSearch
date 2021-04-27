@@ -55,6 +55,7 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
@@ -264,10 +265,10 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     PercolateQueryBuilder(StreamInput in) throws IOException {
         super(in);
         field = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             name = in.readOptionalString();
         }
-        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_0_0_beta1)) {
             documentType = in.readString();
         } else {
             documentType = in.readOptionalString();
@@ -282,7 +283,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             indexedDocumentVersion = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             documents = in.readList(StreamInput::readBytesReference);
         } else {
             BytesReference document = in.readOptionalBytesReference();
@@ -311,10 +312,10 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             throw new IllegalStateException("supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
         }
         out.writeString(field);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             out.writeOptionalString(name);
         }
-        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_0_0_beta1)) {
             out.writeString(documentType);
         } else {
             out.writeOptionalString(documentType);
@@ -330,7 +331,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             out.writeVInt(documents.size());
             for (BytesReference document : documents) {
                 out.writeBytesReference(document);
@@ -657,7 +658,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             if (binaryDocValues == null) {
                 return docId -> null;
             }
-            if (indexVersion.onOrAfter(Version.V_6_0_0_beta2)) {
+            if (indexVersion.onOrAfter(LegacyESVersion.V_6_0_0_beta2)) {
                 return docId -> {
                     if (binaryDocValues.advanceExact(docId)) {
                         BytesRef qbSource = binaryDocValues.binaryValue();

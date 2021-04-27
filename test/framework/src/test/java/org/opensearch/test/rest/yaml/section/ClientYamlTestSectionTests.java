@@ -32,7 +32,7 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
@@ -121,9 +121,9 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
         assertThat(testSection.getSkipSection(), notNullValue());
-        assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(Version.V_6_0_0));
+        assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(LegacyESVersion.V_6_0_0));
         assertThat(testSection.getSkipSection().getUpperVersion(),
-                equalTo(Version.V_6_2_0));
+                equalTo(LegacyESVersion.V_6_2_0));
         assertThat(testSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
         DoSection doSection = (DoSection)testSection.getExecutableSections().get(0);

@@ -66,7 +66,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         }
       }
       from(rootProject.projectDir) {
-        include 'README.asciidoc'
+        include 'README.md'
       }
       from(rootProject.file('licenses')) {
         include 'APACHE-LICENSE-2.0.txt'
@@ -88,52 +88,52 @@ distribution_archives {
     }
   }
 
-  ossWindowsZip {
-    archiveClassifier = 'windows-x86_64'
+  windowsZip {
+    archiveClassifier = 'windows-x64'
     content {
-      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', true)
+      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', true)
     }
   }
 
-  ossNoJdkWindowsZip {
-    archiveClassifier = 'no-jdk-windows-x86_64'
+  noJdkWindowsZip {
+    archiveClassifier = 'no-jdk-windows-x64'
     content {
-      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', false)
+      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', false)
     }
   }
 
-  ossDarwinTar {
-    archiveClassifier = 'darwin-x86_64'
+  darwinTar {
+    archiveClassifier = 'darwin-x64'
     content {
-      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', true)
+      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', true)
     }
   }
 
-  ossNoJdkDarwinTar {
-    archiveClassifier = 'no-jdk-darwin-x86_64'
+  noJdkDarwinTar {
+    archiveClassifier = 'no-jdk-darwin-x64'
     content {
-      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', false)
+      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', false)
     }
   }
 
-  ossLinuxAarch64Tar {
-    archiveClassifier = 'linux-aarch64'
+  linuxArm64Tar {
+    archiveClassifier = 'linux-arm64'
     content {
-      archiveFiles(modulesFiles('linux-aarch64'), 'tar', 'linux', 'aarch64', true)
+      archiveFiles(modulesFiles('linux-arm64'), 'tar', 'linux', 'arm64', true)
     }
   }
 
-  ossLinuxTar {
-    archiveClassifier = 'linux-x86_64'
+  linuxTar {
+    archiveClassifier = 'linux-x64'
     content {
-      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', true)
+      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', true)
     }
   }
 
-  ossNoJdkLinuxTar {
-    archiveClassifier = 'no-jdk-linux-x86_64'
+  noJdkLinuxTar {
+    archiveClassifier = 'no-jdk-linux-x64'
     content {
-      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false)
+      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', false)
     }
   }
 }
@@ -142,5 +142,5 @@ subprojects {
   apply plugin: 'distribution'
   apply plugin: 'opensearch.internal-distribution-archive-check'
 
-  group = "org.opensearch.distribution.oss"
+  group = "org.opensearch.distribution"
 }

@@ -34,7 +34,7 @@ package org.opensearch.monitor.os;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -465,7 +465,7 @@ public class OsStats implements Writeable, ToXContentFragment {
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
             cpuStat = new CpuStat(in);
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
                 memoryControlGroup = in.readOptionalString();
                 memoryLimitInBytes = in.readOptionalString();
                 memoryUsageInBytes = in.readOptionalString();
@@ -484,7 +484,7 @@ public class OsStats implements Writeable, ToXContentFragment {
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
             cpuStat.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
                 out.writeOptionalString(memoryControlGroup);
                 out.writeOptionalString(memoryLimitInBytes);
                 out.writeOptionalString(memoryUsageInBytes);

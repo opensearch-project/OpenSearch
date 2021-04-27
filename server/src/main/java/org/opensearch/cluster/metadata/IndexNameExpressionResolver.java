@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
@@ -80,7 +81,7 @@ public class IndexNameExpressionResolver {
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "opensearch.excluded_ds";
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
-    public static final Version SYSTEM_INDEX_ENFORCEMENT_VERSION = Version.V_7_10_0;
+    public static final Version SYSTEM_INDEX_ENFORCEMENT_VERSION = LegacyESVersion.V_7_10_0;
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();

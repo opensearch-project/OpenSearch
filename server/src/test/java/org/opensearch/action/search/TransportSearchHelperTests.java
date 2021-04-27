@@ -31,6 +31,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.concurrent.AtomicArray;
@@ -67,7 +68,7 @@ public class TransportSearchHelperTests extends OpenSearchTestCase {
 
     public void testParseScrollId()  {
         final Version version = VersionUtils.randomVersion(random());
-        boolean includeUUID = version.onOrAfter(Version.V_7_7_0);
+        boolean includeUUID = version.onOrAfter(LegacyESVersion.V_7_7_0);
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
         String scrollId = TransportSearchHelper.buildScrollId(queryResults, version);
         ParsedScrollId parseScrollId = TransportSearchHelper.parseScrollId(scrollId);

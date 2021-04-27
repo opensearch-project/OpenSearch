@@ -120,9 +120,10 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     public void setArchitecture(final String architecture) {
-        if (ALLOWED_ARCHITECTURES.contains(architecture) == false) {
+        String jdkArchitecture = translateJdkArchitecture(architecture);
+        if (ALLOWED_ARCHITECTURES.contains(jdkArchitecture) == false) {
             throw new IllegalArgumentException(
-                "unknown architecture [" + architecture + "] for jdk [" + name + "], must be one of " + ALLOWED_ARCHITECTURES
+                "unknown architecture [" + jdkArchitecture + "] for jdk [" + name + "], must be one of " + ALLOWED_ARCHITECTURES
             );
         }
         this.architecture.set(architecture);
@@ -227,6 +228,13 @@ public class Jdk implements Buildable, Iterable<File> {
         major = jdkVersionMatcher.group(1);
         build = jdkVersionMatcher.group(3);
         hash = jdkVersionMatcher.group(5);
+    }
+
+    private String translateJdkArchitecture(String architecture) {
+        /*
+         * Jdk uses aarch64 from ARM. Translating from arm64 to aarch64 which Jdk understands.
+         */
+        return architecture == "arm64" ? "aarch64" : architecture;
     }
 
 }

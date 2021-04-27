@@ -147,6 +147,11 @@ tasks.withType(JavaCompile).configureEach {
     options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 }
 
+tasks.named("internalClusterTest").configure {
+  // TODO: these run faster with C2 only because they run for so, so long
+  jvmArgs -= '-XX:TieredStopAtLevel=1'
+}
+
 // Until this project is always being formatted with spotless, we need to
 // guard against `spotless()` not existing.
 try {

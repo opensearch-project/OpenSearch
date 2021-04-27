@@ -35,9 +35,9 @@ package org.opensearch.indices.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.RetryableAction;
@@ -109,7 +109,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionTimeout())
                 .build();
-        this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_7_9_0);
+        this.retriesSupported = targetNode.getVersion().onOrAfter(LegacyESVersion.V_7_9_0);
     }
 
     public DiscoveryNode targetNode() {

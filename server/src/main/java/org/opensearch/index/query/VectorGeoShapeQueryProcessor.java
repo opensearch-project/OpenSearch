@@ -33,10 +33,11 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.geo.GeoLineDecomposer;
 import org.opensearch.common.geo.GeoPolygonDecomposer;
 import org.opensearch.common.geo.GeoShapeUtils;
@@ -62,7 +63,7 @@ public class VectorGeoShapeQueryProcessor {
 
     public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
-        if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
+        if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(LegacyESVersion.V_7_5_0)) {
             throw new QueryShardException(context,
                 ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
         }
@@ -155,7 +156,12 @@ public class VectorGeoShapeQueryProcessor {
         @Override
         public Void visit(Point point) {
             if (point.isEmpty() == false) {
-                geometries.add(GeoShapeUtils.toLucenePoint(point));
+                // points are a special "shape" case: for queries we need to quantize since the Lucene
+                // tessellator doesn't do anything with them.
+                // todo this is a sandy lucene experience so we should investigate fixing this upstream
+                double quantizedLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(point.getLat()));
+                double quantizedLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getLon()));
+                geometries.add(new org.apache.lucene.geo.Point(quantizedLat, quantizedLon));
             }
             return null;
 

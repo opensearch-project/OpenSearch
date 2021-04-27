@@ -381,8 +381,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             )) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     if (bundledJdk == false) {
-                        // We'll never publish an ARM (aarch64) build without a bundled JDK.
-                        if (architecture == Architecture.AARCH64) {
+                        // We'll never publish an ARM (arm64) build without a bundled JDK.
+                        if (architecture == Architecture.ARM64) {
                             continue;
                         }
                         // All our Docker images include a bundled JDK so it doesn't make sense to test without one.

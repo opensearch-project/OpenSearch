@@ -219,6 +219,7 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         // TODO: these charfilters are not yet exposed: useful?
         // handling of zwnj for persian
         .put("persian",        Void.class)
+        .put("cjkwidth",       Void.class)
         .immutableMap();
 
     /**

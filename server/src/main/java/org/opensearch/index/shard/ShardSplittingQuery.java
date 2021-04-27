@@ -54,6 +54,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.OperationRouting;
@@ -78,9 +79,9 @@ final class ShardSplittingQuery extends Query {
     private final BitSetProducer nestedParentBitSetProducer;
 
     ShardSplittingQuery(IndexMetadata indexMetadata, int shardId, boolean hasNested) {
-        if (indexMetadata.getCreationVersion().before(Version.V_6_0_0_rc2)) {
+        if (indexMetadata.getCreationVersion().before(LegacyESVersion.V_6_0_0_rc2)) {
             throw new IllegalArgumentException("Splitting query can only be executed on an index created with version "
-                + Version.V_6_0_0_rc2 + " or higher");
+                + LegacyESVersion.V_6_0_0_rc2 + " or higher");
         }
         this.indexMetadata = indexMetadata;
         this.shardId = shardId;

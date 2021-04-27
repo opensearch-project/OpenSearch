@@ -33,6 +33,7 @@
 package org.opensearch.action.main;
 
 import org.opensearch.Build;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.Strings;
@@ -55,10 +56,10 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_1, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_1, Version.CURRENT);
         Build build = new Build(
             Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
-            version.toString()
+            version.toString(), version.onOrAfter(Version.V_1_0_0) ? randomAlphaOfLength(10) : ""
         );
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build);
     }
@@ -78,7 +79,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         final Build current = Build.CURRENT;
         Build build = new Build(
             current.type(), current.hash(), current.date(), current.isSnapshot(),
-            current.getQualifiedVersion()
+            current.getQualifiedVersion(), current.getDistribution()
         );
         Version version = Version.CURRENT;
         MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build);
@@ -89,6 +90,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                 + "\"cluster_name\":\"clusterName\","
                 + "\"cluster_uuid\":\"" + clusterUUID + "\","
                 + "\"version\":{"
+                    + "\"distribution\":\"" + build.getDistribution() + "\","
                     + "\"number\":\"" + build.getQualifiedVersion() + "\","
                     + "\"build_type\":\"" + current.type().displayName() + "\","
                     + "\"build_hash\":\"" + current.hash() + "\","
@@ -118,7 +120,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                 // toggle the snapshot flag of the original Build parameter
                 build = new Build(
                     Build.Type.UNKNOWN, build.hash(), build.date(), !build.isSnapshot(),
-                    build.getQualifiedVersion()
+                    build.getQualifiedVersion(), build.getDistribution()
                 );
                 break;
             case 3:

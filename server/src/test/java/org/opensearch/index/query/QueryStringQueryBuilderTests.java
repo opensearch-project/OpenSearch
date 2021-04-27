@@ -66,7 +66,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
@@ -1072,7 +1072,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
-        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(LegacyESVersion.V_6_1_0)
                 && (context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms())) {
             assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
         } else {
@@ -1083,7 +1083,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             String value = (quoted ? "\"" : "") + TEXT_FIELD_NAME + (quoted ? "\"" : "");
             queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
             query = queryBuilder.toQuery(context);
-            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(LegacyESVersion.V_6_1_0)
                 && (context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms())) {
                 assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
             } else {

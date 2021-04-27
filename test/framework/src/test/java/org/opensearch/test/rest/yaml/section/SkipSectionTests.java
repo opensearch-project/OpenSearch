@@ -32,6 +32,7 @@
 
 package org.opensearch.test.rest.yaml.section;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
@@ -70,7 +71,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         SkipSection section = new SkipSection("6.0.0 - 6.1.0",
                 randomBoolean() ? Collections.emptyList() : Collections.singletonList("warnings"), "foobar");
         assertFalse(section.skip(Version.CURRENT));
-        assertTrue(section.skip(Version.V_6_0_0));
+        assertTrue(section.skip(LegacyESVersion.V_6_0_0));
         section = new SkipSection(randomBoolean() ? null : "6.0.0 - 6.1.0",
                 Collections.singletonList("boom"), "foobar");
         assertTrue(section.skip(Version.CURRENT));
@@ -95,7 +96,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
         assertThat(skipSection.getLowerVersion(), equalTo(VersionUtils.getFirstVersion()));
-        assertThat(skipSection.getUpperVersion(), equalTo(Version.V_6_1_1));
+        assertThat(skipSection.getUpperVersion(), equalTo(LegacyESVersion.V_6_1_1));
         assertThat(skipSection.getFeatures().size(), equalTo(0));
         assertThat(skipSection.getReason(), equalTo("Delete ignores the parent param"));
     }

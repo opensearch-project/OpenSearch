@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.node.usage;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -47,7 +47,7 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
     public NodesUsageRequest(StreamInput in) throws IOException {
         super(in);
         this.restActions = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
             this.aggregations = in.readBoolean();
         }
     }
@@ -112,7 +112,7 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(restActions);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
             out.writeBoolean(aggregations);
         }
     }

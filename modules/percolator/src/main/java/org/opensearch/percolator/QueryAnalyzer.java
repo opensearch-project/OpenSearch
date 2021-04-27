@@ -53,6 +53,7 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
@@ -222,7 +223,7 @@ final class QueryAnalyzer {
             boolean verified = isVerified(query);
             Set<QueryExtraction> qe = Arrays.stream(terms).map(QueryExtraction::new).collect(Collectors.toSet());
             if (qe.size() > 0) {
-                if (version.before(Version.V_6_1_0) && conjunction) {
+                if (version.before(LegacyESVersion.V_6_1_0) && conjunction) {
                     Optional<QueryExtraction> longest = qe.stream()
                         .filter(q -> q.term != null)
                         .max(Comparator.comparingInt(q -> q.term.bytes().length));
@@ -290,7 +291,7 @@ final class QueryAnalyzer {
         if (conjunctionsWithUnknowns.size() == 1) {
             return conjunctionsWithUnknowns.get(0);
         }
-        if (version.onOrAfter(Version.V_6_1_0)) {
+        if (version.onOrAfter(LegacyESVersion.V_6_1_0)) {
             for (Result subResult : conjunctions) {
                 if (subResult.isMatchNoDocs()) {
                     return subResult;
@@ -382,7 +383,7 @@ final class QueryAnalyzer {
         // Keep track of the msm for each clause:
         List<Integer> clauses = new ArrayList<>(disjunctions.size());
         boolean verified;
-        if (version.before(Version.V_6_1_0)) {
+        if (version.before(LegacyESVersion.V_6_1_0)) {
             verified = requiredShouldClauses <= 1;
         } else {
             verified = true;
@@ -433,7 +434,7 @@ final class QueryAnalyzer {
         boolean matchAllDocs = numMatchAllClauses > 0 && numMatchAllClauses >= requiredShouldClauses;
 
         int msm = 0;
-        if (version.onOrAfter(Version.V_6_1_0) &&
+        if (version.onOrAfter(LegacyESVersion.V_6_1_0) &&
             // Having ranges would mean we need to juggle with the msm and that complicates this logic a lot,
             // so for now lets not do it.
             hasRangeExtractions == false) {

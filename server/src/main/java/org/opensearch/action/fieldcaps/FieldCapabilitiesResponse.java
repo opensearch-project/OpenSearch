@@ -32,7 +32,7 @@
 
 package org.opensearch.action.fieldcaps;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
@@ -82,7 +82,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             indices = in.readStringArray();
         } else {
             indices = Strings.EMPTY_ARRAY;
@@ -135,7 +135,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeStringArray(indices);
         }
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);

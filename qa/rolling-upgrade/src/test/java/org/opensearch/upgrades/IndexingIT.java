@@ -32,6 +32,7 @@
 package org.opensearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -91,8 +92,8 @@ public class IndexingIT extends AbstractRollingTestCase {
             {
                 Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
                 assertThat("this branch is not needed if we aren't compatible with 6.0",
-                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
-                if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
+                    minimumIndexCompatibilityVersion.onOrBefore(LegacyESVersion.V_6_0_0), equalTo(true));
+                if (minimumIndexCompatibilityVersion.before(LegacyESVersion.V_7_0_0)) {
                     XContentBuilder template = jsonBuilder();
                     template.startObject();
                     {
@@ -203,7 +204,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     }
                 }
 
-                if (minNodeVersion.before(Version.V_7_5_0)) {
+                if (minNodeVersion.before(LegacyESVersion.V_7_5_0)) {
                     ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
                     assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
                     assertThat(e.getMessage(),

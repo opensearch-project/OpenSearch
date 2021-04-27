@@ -32,6 +32,9 @@
 
 package org.opensearch.painless;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.painless.spi.WhitelistLoader;
 import org.opensearch.script.ScriptContext;
@@ -45,15 +48,25 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 public class AugmentationTests extends ScriptTestCase {
+    private static PainlessScriptEngine SCRIPT_ENGINE;
 
-    @Override
-    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
+    @BeforeClass
+    public static void beforeClass() {
+        Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
         List<Whitelist> digestWhitelist = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         digestWhitelist.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.ingest.txt"));
         contexts.put(DigestTestScript.CONTEXT, digestWhitelist);
+        SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
+    }
 
-        return contexts;
+    @AfterClass
+    public static void afterClass() {
+        SCRIPT_ENGINE = null;
+    }
+
+    @Override
+    protected PainlessScriptEngine getEngine() {
+        return SCRIPT_ENGINE;
     }
 
     public abstract static class DigestTestScript {
@@ -280,7 +293,7 @@ public class AugmentationTests extends ScriptTestCase {
     }
 
     public String execDigest(String script) {
-        return scriptEngine.compile(
+        return getEngine().compile(
             "digest_test",
             script,
             DigestTestScript.CONTEXT, Collections.emptyMap()

@@ -36,5 +36,5 @@ package org.opensearch.gradle.testclusters;
  */
 public enum TestDistribution {
     INTEG_TEST,
-    OSS
+    ARCHIVE
 }

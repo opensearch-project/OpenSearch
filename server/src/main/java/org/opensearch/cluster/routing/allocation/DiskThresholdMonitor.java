@@ -37,7 +37,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.client.Client;
@@ -116,7 +116,7 @@ public class DiskThresholdMonitor {
         if (diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {
             deprecationLogger.deprecate(DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
                 "[{}] will be removed in version {}",
-                DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
+                DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, LegacyESVersion.V_7_4_0.major + 1);
         }
     }
 
@@ -327,7 +327,7 @@ public class DiskThresholdMonitor {
                 deprecationLogger.deprecate(
                     DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
                     "[{}] will be removed in version {}",
-                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
+                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, LegacyESVersion.V_7_4_0.major + 1);
                 logger.debug("[{}] disabled, not releasing read-only-allow-delete block on indices: [{}]",
                     DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, indicesToAutoRelease);
                 listener.onResponse(null);

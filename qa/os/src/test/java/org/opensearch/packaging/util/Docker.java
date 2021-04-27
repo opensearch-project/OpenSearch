@@ -493,13 +493,13 @@ public class Docker {
     }
 
     /**
-     * Perform a variety of checks on an installation. If the current distribution is not OSS, additional checks are carried out.
+     * Perform a variety of checks on an installation.
      */
     public static void verifyContainerInstallation(Installation installation, Distribution distribution) {
-        verifyOssInstallation(installation);
+        verifyInstallation(installation);
     }
 
-    private static void verifyOssInstallation(Installation es) {
+    private static void verifyInstallation(Installation es) {
         dockerShell.run("id opensearch");
         dockerShell.run("getent group opensearch");
 
@@ -528,7 +528,7 @@ public class Docker {
             "opensearch-node"
         ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
-        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
+        Stream.of("LICENSE.txt", "NOTICE.txt", "README.md").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
 
         // These are installed to help users who are working with certificates.
         Stream.of("zip", "unzip").forEach(cliPackage -> {

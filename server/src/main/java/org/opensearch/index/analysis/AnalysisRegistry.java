@@ -35,6 +35,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -201,7 +202,7 @@ public final class AnalysisRegistry implements Closeable {
                         }}
             );
         } else if ("standard_html_strip".equals(analyzer)) {
-            if (Version.CURRENT.onOrAfter(Version.V_7_0_0)) {
+            if (Version.CURRENT.onOrAfter(LegacyESVersion.V_7_0_0)) {
                 throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
                     "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
             }

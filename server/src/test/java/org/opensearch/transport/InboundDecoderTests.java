@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
@@ -124,7 +125,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
         boolean isCompressed = randomBoolean();
         String action = "test-request";
         long requestId = randomNonNegativeLong();
-        final Version preHeaderVariableInt = Version.V_7_5_0;
+        final Version preHeaderVariableInt = LegacyESVersion.V_7_5_0;
         final String contentValue = randomAlphaOfLength(100);
         final OutboundMessage message = new OutboundMessage.Request(threadContext,  new String[0], new TestRequest(contentValue),
             preHeaderVariableInt, action, requestId, true, isCompressed);
@@ -315,7 +316,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
             + version.minimumCompatibilityVersion() + "]", ise.getMessage());
 
         // For handshake we are compatible with N-2
-        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, true);
+        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.8.0"), version, true);
         assertNull(ise);
 
         ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, false);

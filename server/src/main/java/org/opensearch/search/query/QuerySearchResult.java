@@ -40,7 +40,7 @@ import java.io.IOException;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -91,7 +91,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public QuerySearchResult(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             isNull = in.readBoolean();
         } else {
             isNull = false;
@@ -345,11 +345,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         }
         setTopDocs(readTopDocs(in));
-        if (in.getVersion().before(Version.V_7_7_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_7_0)) {
             if (hasAggs = in.readBoolean()) {
                 aggregations = DelayableWriteable.referencing(InternalAggregations.readFrom(in));
             }
-            if (in.getVersion().before(Version.V_7_2_0)) {
+            if (in.getVersion().before(LegacyESVersion.V_7_2_0)) {
                 // The list of PipelineAggregators is sent by old versions. We don't need it anyway.
                 in.readNamedWriteableList(PipelineAggregator.class);
             }
@@ -367,7 +367,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasProfileResults = profileShardResults != null;
         serviceTimeEWMA = in.readZLong();
         nodeQueueSize = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
             setRescoreDocIds(new RescoreDocIds(in));
         }
@@ -375,7 +375,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             out.writeBoolean(isNull);
         }
         if (isNull == false) {
@@ -398,7 +398,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         writeTopDocs(out, topDocsAndMaxScore);
         if (aggregations == null) {
             out.writeBoolean(false);
-            if (out.getVersion().before(Version.V_7_2_0)) {
+            if (out.getVersion().before(LegacyESVersion.V_7_2_0)) {
                 /*
                  * Earlier versions expect sibling pipeline aggs separately
                  * as they used to be set to QuerySearchResult directly, while
@@ -412,10 +412,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         } else {
             out.writeBoolean(true);
-            if (out.getVersion().before(Version.V_7_7_0)) {
+            if (out.getVersion().before(LegacyESVersion.V_7_7_0)) {
                 InternalAggregations aggs = aggregations.expand();
                 aggs.writeTo(out);
-                if (out.getVersion().before(Version.V_7_2_0)) {
+                if (out.getVersion().before(LegacyESVersion.V_7_2_0)) {
                     /*
                      * Earlier versions expect sibling pipeline aggs separately
                      * as they used to be set to QuerySearchResult directly, while
@@ -442,7 +442,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         out.writeZLong(serviceTimeEWMA);
         out.writeInt(nodeQueueSize);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeOptionalWriteable(getShardSearchRequest());
             getRescoreDocIds().writeTo(out);
         }

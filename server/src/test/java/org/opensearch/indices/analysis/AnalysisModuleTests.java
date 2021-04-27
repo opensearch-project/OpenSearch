@@ -43,6 +43,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.Streams;
@@ -149,7 +150,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
         Settings settings2 = Settings.builder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_0_0)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_0_0)
                 .build();
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
@@ -162,9 +163,9 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
 
         // analysis service has the expected version
         assertThat(indexAnalyzers.get("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(Version.V_6_0_0.luceneVersion,
+        assertEquals(LegacyESVersion.V_6_0_0.luceneVersion,
                 indexAnalyzers.get("standard").analyzer().getVersion());
-        assertEquals(Version.V_6_0_0.luceneVersion,
+        assertEquals(LegacyESVersion.V_6_0_0.luceneVersion,
                 indexAnalyzers.get("stop").analyzer().getVersion());
 
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
@@ -245,7 +246,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
         // cacheing bug meant that it was still possible to create indexes using a standard
         // filter until 7.6
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, Version.CURRENT);
+            Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_6_0, Version.CURRENT);
             final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -255,7 +256,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
             assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
         }
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_2);
+            Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_2);
             final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).put(IndexMetadata.SETTING_VERSION_CREATED, version)
