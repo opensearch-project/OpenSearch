@@ -52,11 +52,11 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     private static Project packagesProject;
     private static Project bwcProject;
 
-    private static final Version BWC_MAJOR_VERSION = Version.fromString("2.0.0");
-    private static final Version BWC_MINOR_VERSION = Version.fromString("1.1.0");
-    private static final Version BWC_STAGED_VERSION = Version.fromString("1.0.0");
-    private static final Version BWC_BUGFIX_VERSION = Version.fromString("1.0.1");
-    private static final Version BWC_MAINTENANCE_VERSION = Version.fromString("0.90.1");
+    private static final Version BWC_MAJOR_VERSION = Version.fromString("4.0.0");
+    private static final Version BWC_MINOR_VERSION = Version.fromString("3.1.0");
+    private static final Version BWC_STAGED_VERSION = Version.fromString("3.0.0");
+    private static final Version BWC_BUGFIX_VERSION = Version.fromString("3.0.1");
+    private static final Version BWC_MAINTENANCE_VERSION = Version.fromString("2.90.1");
     private static final BwcVersions BWC_MINOR = new BwcVersions(
         new TreeSet<>(Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)),
         BWC_MAJOR_VERSION

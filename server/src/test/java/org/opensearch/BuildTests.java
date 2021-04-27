@@ -199,13 +199,15 @@ public class BuildTests extends OpenSearchTestCase {
         final WriteableBuild dockerBuild = new WriteableBuild(new Build(Build.Type.DOCKER,
             randomAlphaOfLength(6), randomAlphaOfLength(6), randomBoolean(), randomAlphaOfLength(6)));
 
-        final List<Version> versions = Version.getDeclaredVersions(Version.class);
-        final Version pre63Version = randomFrom(versions.stream().filter(v -> v.before(Version.V_6_3_0)).collect(Collectors.toList()));
+        final List<Version> versions = Version.getDeclaredVersions(LegacyESVersion.class);
+        final Version pre63Version =
+            randomFrom(versions.stream().filter(v -> v.before(LegacyESVersion.V_6_3_0)).collect(Collectors.toList()));
         final Version post63Pre67Version = randomFrom(versions.stream()
-            .filter(v -> v.onOrAfter(Version.V_6_3_0) && v.before(Version.V_6_7_0)).collect(Collectors.toList()));
+            .filter(v -> v.onOrAfter(LegacyESVersion.V_6_3_0) && v.before(LegacyESVersion.V_6_7_0)).collect(Collectors.toList()));
         final Version post67Pre70Version = randomFrom(versions.stream()
-            .filter(v -> v.onOrAfter(Version.V_6_7_0) && v.before(Version.V_7_0_0)).collect(Collectors.toList()));
-        final Version post70Version = randomFrom(versions.stream().filter(v -> v.onOrAfter(Version.V_7_0_0)).collect(Collectors.toList()));
+            .filter(v -> v.onOrAfter(LegacyESVersion.V_6_7_0) && v.before(LegacyESVersion.V_7_0_0)).collect(Collectors.toList()));
+        final Version post70Version =
+            randomFrom(versions.stream().filter(v -> v.onOrAfter(LegacyESVersion.V_7_0_0)).collect(Collectors.toList()));
 
         final WriteableBuild pre63 = copyWriteable(dockerBuild, writableRegistry(), WriteableBuild::new, pre63Version);
         final WriteableBuild post63pre67 = copyWriteable(dockerBuild, writableRegistry(), WriteableBuild::new, post63Pre67Version);

@@ -31,7 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -171,7 +171,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
                 out.writeString(key);
             } else {
                 out.writeOptionalString(key);
@@ -257,7 +257,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            String key = in.getVersion().onOrAfter(Version.V_6_4_0)
+            String key = in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)
                 ? in.readString()
                 : in.readOptionalString();
             ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(),

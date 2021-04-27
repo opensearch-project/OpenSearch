@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.script.MockScriptEngine;
@@ -278,7 +278,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             original,
             getNamedWriteableRegistry(),
             InternalAggregation.class,
-            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_8_0))
+            VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_8_0))
         );
         assertThat(roundTripped, equalTo(original));
 
@@ -294,7 +294,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             unreduced,
             getNamedWriteableRegistry(),
             InternalAggregation.class,
-            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_8_0))
+            VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_8_0))
         ));
         assertThat(e.getMessage(), equalTo("scripted_metric doesn't support cross cluster search until 7.8.0"));
     }

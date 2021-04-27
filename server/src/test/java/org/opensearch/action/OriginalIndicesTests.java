@@ -32,12 +32,12 @@
 
 package org.opensearch.action;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.OriginalIndices;
 
 import java.io.IOException;
 
@@ -67,7 +67,7 @@ public class OriginalIndicesTests extends OpenSearchTestCase {
             // indices options are not equivalent when sent to an older version and re-read due
             // to the addition of hidden indices as expand to hidden indices is always true when
             // read from a prior version
-            if (out.getVersion().onOrAfter(Version.V_7_7_0) || originalIndices.indicesOptions().expandWildcardsHidden()) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) || originalIndices.indicesOptions().expandWildcardsHidden()) {
                 assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
             } else if (originalIndices.indicesOptions().expandWildcardsHidden()) {
                 assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));

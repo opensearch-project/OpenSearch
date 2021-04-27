@@ -32,6 +32,7 @@
 
 package org.opensearch.action.bulk;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.support.WriteResponse;
@@ -44,7 +45,7 @@ import java.io.IOException;
 
 public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
-    private static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
+    private static final Version COMPACT_SHARD_ID_VERSION = LegacyESVersion.V_7_9_0;
 
     private final ShardId shardId;
     private final BulkItemResponse[] responses;

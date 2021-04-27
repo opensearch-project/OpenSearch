@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
@@ -1559,7 +1559,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     // TODO: only here temporarily for BWC development, remove once complete
     public static boolean isZen1Node(DiscoveryNode discoveryNode) {
-        return discoveryNode.getVersion().before(Version.V_7_0_0) ||
+        return discoveryNode.getVersion().before(LegacyESVersion.V_7_0_0) ||
             (Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false")));
     }
 }

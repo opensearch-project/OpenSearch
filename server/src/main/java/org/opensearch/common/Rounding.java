@@ -34,8 +34,8 @@ package org.opensearch.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
 import org.opensearch.common.io.stream.StreamInput;
@@ -466,13 +466,13 @@ public abstract class Rounding implements Writeable {
 
         TimeUnitRounding(StreamInput in) throws IOException {
             this(DateTimeUnit.resolve(in.readByte()),
-                    in.getVersion().onOrAfter(Version.V_7_0_0) ? in.readZoneId() : DateUtils.of(in.readString()));
+                    in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? in.readZoneId() : DateUtils.of(in.readString()));
         }
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
                 out.writeZoneId(timeZone);
             } else {
                 out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
@@ -908,13 +908,13 @@ public abstract class Rounding implements Writeable {
 
         TimeIntervalRounding(StreamInput in) throws IOException {
             this(in.readVLong(),
-                    in.getVersion().onOrAfter(Version.V_7_0_0) ? in.readZoneId() : DateUtils.of(in.readString()));
+                    in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? in.readZoneId() : DateUtils.of(in.readString()));
         }
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
                 out.writeZoneId(timeZone);
             } else {
                 out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
@@ -1228,7 +1228,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_7_6_0)) {
+            if (out.getVersion().before(LegacyESVersion.V_7_6_0)) {
                 throw new IllegalArgumentException("Offset rounding not supported before 7.6.0");
             }
             delegate.writeTo(out);

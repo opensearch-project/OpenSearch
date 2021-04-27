@@ -32,6 +32,7 @@
 
 package org.opensearch.index.store;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -50,7 +51,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
      */
     public static final long UNKNOWN_RESERVED_BYTES = -1L;
 
-    public static final Version RESERVED_BYTES_VERSION = Version.V_7_9_0;
+    public static final Version RESERVED_BYTES_VERSION = LegacyESVersion.V_7_9_0;
 
     private long sizeInBytes;
     private long reservedSize;
@@ -61,7 +62,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
 
     public StoreStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
             in.readVLong(); // throttleTimeInNanos
         }
         if (in.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
@@ -121,7 +122,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
             out.writeVLong(0L); // throttleTimeInNanos
         }
         if (out.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {

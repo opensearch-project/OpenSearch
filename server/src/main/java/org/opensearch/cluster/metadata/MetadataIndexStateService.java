@@ -36,6 +36,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -735,7 +736,7 @@ public class MetadataIndexStateService {
 
         // Remove the index routing table of closed indices if the cluster is in a mixed version
         // that does not support the replication of closed indices
-        final boolean removeRoutingTable = currentState.nodes().getMinNodeVersion().before(Version.V_7_2_0);
+        final boolean removeRoutingTable = currentState.nodes().getMinNodeVersion().before(LegacyESVersion.V_7_2_0);
 
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());

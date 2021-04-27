@@ -35,7 +35,7 @@ package org.opensearch.index.translog;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
@@ -1214,7 +1214,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_7_0_0) ? SERIALIZATION_FORMAT : FORMAT_6_0;
+            final int format = out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? SERIALIZATION_FORMAT : FORMAT_6_0;
             out.writeVInt(format);
             out.writeString(id);
             out.writeString(type);
@@ -1381,7 +1381,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_7_0_0) ? SERIALIZATION_FORMAT : FORMAT_6_0;
+            final int format = out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? SERIALIZATION_FORMAT : FORMAT_6_0;
             out.writeVInt(format);
             out.writeString(type);
             out.writeString(id);

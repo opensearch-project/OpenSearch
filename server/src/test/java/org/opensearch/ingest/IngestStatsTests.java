@@ -32,7 +32,7 @@
 
 package org.opensearch.ingest;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -64,7 +64,7 @@ public class IngestStatsTests extends OpenSearchTestCase {
 
         //legacy output logic
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(VersionUtils.getPreviousVersion(Version.V_6_5_0));
+        out.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_6_5_0));
         totalStats.writeTo(out);
         out.writeVInt(pipelineStats.size());
         for (IngestStats.PipelineStat pipelineStat : pipelineStats) {
@@ -73,7 +73,7 @@ public class IngestStatsTests extends OpenSearchTestCase {
         }
 
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(VersionUtils.getPreviousVersion(Version.V_6_5_0));
+        in.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_6_5_0));
         IngestStats serializedStats = new IngestStats(in);
         IngestStats expectedStats = new IngestStats(totalStats, pipelineStats, Collections.emptyMap());
         assertIngestStats(expectedStats, serializedStats, false, true);
@@ -87,11 +87,11 @@ public class IngestStatsTests extends OpenSearchTestCase {
 
         //legacy output logic
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(VersionUtils.getPreviousVersion(Version.V_7_6_0));
+        out.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_6_0));
         expectedIngestStats.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(VersionUtils.getPreviousVersion(Version.V_7_6_0));
+        in.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_6_0));
         IngestStats serializedStats = new IngestStats(in);
         assertIngestStats(expectedIngestStats, serializedStats, true, false);
     }

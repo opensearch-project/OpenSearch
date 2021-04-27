@@ -41,7 +41,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.Assertions;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -746,7 +746,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         if (Assertions.ENABLED
                 && currentIndexMetadata != null
-                && currentIndexMetadata.getCreationVersion().onOrAfter(Version.V_6_5_0)) {
+                && currentIndexMetadata.getCreationVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
             final long currentSettingsVersion = currentIndexMetadata.getSettingsVersion();
             final long newSettingsVersion = newIndexMetadata.getSettingsVersion();
             if (currentSettingsVersion == newSettingsVersion) {

@@ -32,7 +32,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -70,7 +70,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     }
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
-        if (input.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (input.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
             RemoteConnectionStrategy.ConnectionStrategy mode = input.readEnum(RemoteConnectionStrategy.ConnectionStrategy.class);
             modeInfo = mode.getReader().read(input);
             initialConnectionTimeout = input.readTimeValue();
@@ -78,7 +78,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
             skipUnavailable = input.readBoolean();
         } else {
             List<String> seedNodes;
-            if (input.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (input.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
                 seedNodes = Arrays.asList(input.readStringArray());
             } else {
                 // versions prior to 7.0.0 sent the resolved transport address of the seed nodes
@@ -129,14 +129,14 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
             out.writeEnum(modeInfo.modeType());
             modeInfo.writeTo(out);
             out.writeTimeValue(initialConnectionTimeout);
         } else {
             if (modeInfo.modeType() == RemoteConnectionStrategy.ConnectionStrategy.SNIFF) {
                 SniffConnectionStrategy.SniffModeInfo sniffInfo = (SniffConnectionStrategy.SniffModeInfo) this.modeInfo;
-                if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
                     out.writeStringArray(sniffInfo.seedNodes.toArray(new String[0]));
                 } else {
                     // versions prior to 7.0.0 received the resolved transport address of the seed nodes
@@ -170,7 +170,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
                 out.writeTimeValue(initialConnectionTimeout);
                 out.writeVInt(sniffInfo.numNodesConnected);
             } else {
-                if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
                     out.writeStringArray(new String[0]);
                 } else {
                     // versions prior to 7.0.0 received the resolved transport address of the seed nodes

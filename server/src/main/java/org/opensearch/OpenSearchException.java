@@ -299,7 +299,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     public static OpenSearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> opensearchException = ID_TO_SUPPLIER.get(id);
         if (opensearchException == null) {
-            if (id == 127 && input.getVersion().before(Version.V_7_5_0)) {
+            if (id == 127 && input.getVersion().before(LegacyESVersion.V_7_5_0)) {
                 // was SearchContextException
                 return new SearchException(input);
             }
@@ -1016,53 +1016,53 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                                            org.opensearch.env.ShardLockObtainFailedException::new, 147, UNKNOWN_VERSION_ADDED),
         // 148 was UnknownNamedObjectException
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
-            MultiBucketConsumerService.TooManyBucketsException::new, 149, Version.V_6_2_0),
+            MultiBucketConsumerService.TooManyBucketsException::new, 149, LegacyESVersion.V_6_2_0),
         COORDINATION_STATE_REJECTED_EXCEPTION(org.opensearch.cluster.coordination.CoordinationStateRejectedException.class,
-            org.opensearch.cluster.coordination.CoordinationStateRejectedException::new, 150, Version.V_7_0_0),
+            org.opensearch.cluster.coordination.CoordinationStateRejectedException::new, 150, LegacyESVersion.V_7_0_0),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(org.opensearch.snapshots.SnapshotInProgressException.class,
-            org.opensearch.snapshots.SnapshotInProgressException::new, 151, Version.V_6_7_0),
+            org.opensearch.snapshots.SnapshotInProgressException::new, 151, LegacyESVersion.V_6_7_0),
         NO_SUCH_REMOTE_CLUSTER_EXCEPTION(org.opensearch.transport.NoSuchRemoteClusterException.class,
-            org.opensearch.transport.NoSuchRemoteClusterException::new, 152, Version.V_6_7_0),
+            org.opensearch.transport.NoSuchRemoteClusterException::new, 152, LegacyESVersion.V_6_7_0),
         RETENTION_LEASE_ALREADY_EXISTS_EXCEPTION(
                 org.opensearch.index.seqno.RetentionLeaseAlreadyExistsException.class,
                 org.opensearch.index.seqno.RetentionLeaseAlreadyExistsException::new,
                 153,
-                Version.V_6_7_0),
+                LegacyESVersion.V_6_7_0),
         RETENTION_LEASE_NOT_FOUND_EXCEPTION(
                 org.opensearch.index.seqno.RetentionLeaseNotFoundException.class,
                 org.opensearch.index.seqno.RetentionLeaseNotFoundException::new,
                 154,
-                Version.V_6_7_0),
+                LegacyESVersion.V_6_7_0),
         SHARD_NOT_IN_PRIMARY_MODE_EXCEPTION(
                 org.opensearch.index.shard.ShardNotInPrimaryModeException.class,
                 org.opensearch.index.shard.ShardNotInPrimaryModeException::new,
                 155,
-                Version.V_6_8_1),
+                LegacyESVersion.V_6_8_1),
         RETENTION_LEASE_INVALID_RETAINING_SEQUENCE_NUMBER_EXCEPTION(
                 org.opensearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
                 org.opensearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
                 156,
-                Version.V_7_5_0),
+                LegacyESVersion.V_7_5_0),
         INGEST_PROCESSOR_EXCEPTION(
                 org.opensearch.ingest.IngestProcessorException.class,
                 org.opensearch.ingest.IngestProcessorException::new,
                 157,
-                Version.V_7_5_0),
+                LegacyESVersion.V_7_5_0),
         PEER_RECOVERY_NOT_FOUND_EXCEPTION(
                 org.opensearch.indices.recovery.PeerRecoveryNotFound.class,
                 org.opensearch.indices.recovery.PeerRecoveryNotFound::new,
                 158,
-                Version.V_7_9_0),
+                LegacyESVersion.V_7_9_0),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
                 org.opensearch.cluster.coordination.NodeHealthCheckFailureException.class,
                 org.opensearch.cluster.coordination.NodeHealthCheckFailureException::new,
                 159,
-                Version.V_7_9_0),
+                LegacyESVersion.V_7_9_0),
         NO_SEED_NODE_LEFT_EXCEPTION(
                 org.opensearch.transport.NoSeedNodeLeftException.class,
                 org.opensearch.transport.NoSeedNodeLeftException::new,
                 160,
-                Version.V_7_10_0);
+                LegacyESVersion.V_7_10_0);
 
         final Class<? extends OpenSearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> constructor;
