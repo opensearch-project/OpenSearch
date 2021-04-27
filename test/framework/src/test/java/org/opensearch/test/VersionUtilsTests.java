@@ -199,45 +199,13 @@ public class VersionUtilsTests extends OpenSearchTestCase {
             TestStableBranchBehindStableBranch.V_5_5_0)));
     }
 
-    public static class TestUnstableBranch {
-        public static final Version V_5_3_0 = Version.fromString("5.3.0");
-        public static final Version V_5_3_1 = Version.fromString("5.3.1");
-        public static final Version V_5_3_2 = Version.fromString("5.3.2");
-        public static final Version V_5_4_0 = Version.fromString("5.4.0");
-        public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
-        public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
-        public static final Version V_6_0_0_beta1 = Version.fromString("6.0.0-beta1");
-        public static final Version CURRENT = V_6_0_0_beta1;
-    }
-
-    public void testResolveReleasedVersionsForUnstableBranch() {
-        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestUnstableBranch.CURRENT,
-                TestUnstableBranch.class);
-        List<Version> released = t.v1();
-        List<Version> unreleased = t.v2();
-
-        assertThat(released, equalTo(Arrays.asList(
-            TestUnstableBranch.V_5_3_0,
-            TestUnstableBranch.V_5_3_1,
-            TestUnstableBranch.V_6_0_0_alpha1,
-            TestUnstableBranch.V_6_0_0_alpha2)));
-        assertThat(unreleased, equalTo(Arrays.asList(
-            TestUnstableBranch.V_5_3_2,
-            TestUnstableBranch.V_5_4_0,
-            TestUnstableBranch.V_6_0_0_beta1)));
-    }
-
     public static class TestNewMajorRelease {
-        public static final Version V_5_6_0 = Version.fromString("5.6.0");
-        public static final Version V_5_6_1 = Version.fromString("5.6.1");
-        public static final Version V_5_6_2 = Version.fromString("5.6.2");
-        public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
-        public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
-        public static final Version V_6_0_0_beta1 = Version.fromString("6.0.0-beta1");
-        public static final Version V_6_0_0_beta2 = Version.fromString("6.0.0-beta2");
-        public static final Version V_6_0_0 = Version.fromString("6.0.0");
-        public static final Version V_6_0_1 = Version.fromString("6.0.1");
-        public static final Version CURRENT = V_6_0_1;
+        public static final Version V_4_6_0 = Version.fromString("4.6.0");
+        public static final Version V_4_6_1 = Version.fromString("4.6.1");
+        public static final Version V_4_6_2 = Version.fromString("4.6.2");
+        public static final Version V_5_0_0 = Version.fromString("5.0.0");
+        public static final Version V_5_0_1 = Version.fromString("5.0.1");
+        public static final Version CURRENT = V_5_0_1;
     }
 
     public void testResolveReleasedVersionsAtNewMajorRelease() {
@@ -247,67 +215,51 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
-            TestNewMajorRelease.V_5_6_0,
-            TestNewMajorRelease.V_5_6_1,
-            TestNewMajorRelease.V_6_0_0_alpha1,
-            TestNewMajorRelease.V_6_0_0_alpha2,
-            TestNewMajorRelease.V_6_0_0_beta1,
-            TestNewMajorRelease.V_6_0_0_beta2,
-            TestNewMajorRelease.V_6_0_0)));
+            TestNewMajorRelease.V_4_6_0,
+            TestNewMajorRelease.V_4_6_1,
+            TestNewMajorRelease.V_5_0_0)));
         assertThat(unreleased, equalTo(Arrays.asList(
-            TestNewMajorRelease.V_5_6_2,
-            TestNewMajorRelease.V_6_0_1)));
+            TestNewMajorRelease.V_4_6_2,
+            TestNewMajorRelease.V_5_0_1)));
     }
 
-    public static class TestVersionBumpIn6x {
-        public static final Version V_5_6_0 = Version.fromString("5.6.0");
-        public static final Version V_5_6_1 = Version.fromString("5.6.1");
-        public static final Version V_5_6_2 = Version.fromString("5.6.2");
-        public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
-        public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
-        public static final Version V_6_0_0_beta1 = Version.fromString("6.0.0-beta1");
-        public static final Version V_6_0_0_beta2 = Version.fromString("6.0.0-beta2");
-        public static final Version V_6_0_0 = Version.fromString("6.0.0");
-        public static final Version V_6_0_1 = Version.fromString("6.0.1");
-        public static final Version V_6_1_0 = Version.fromString("6.1.0");
-        public static final Version CURRENT = V_6_1_0;
+    public static class TestVersionBumpIn2x {
+        public static final Version V_1_6_0 = Version.fromString("1.6.0");
+        public static final Version V_1_6_1 = Version.fromString("1.6.1");
+        public static final Version V_1_6_2 = Version.fromString("1.6.2");
+        public static final Version V_2_0_0 = Version.fromString("2.0.0");
+        public static final Version V_2_0_1 = Version.fromString("2.0.1");
+        public static final Version V_2_1_0 = Version.fromString("2.1.0");
+        public static final Version CURRENT = V_2_1_0;
     }
 
-    public void testResolveReleasedVersionsAtVersionBumpIn6x() {
-        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestVersionBumpIn6x.CURRENT,
-            TestVersionBumpIn6x.class);
+    public void testResolveReleasedVersionsAtVersionBumpIn2x() {
+        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestVersionBumpIn2x.CURRENT,
+            TestVersionBumpIn2x.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
-            TestVersionBumpIn6x.V_5_6_0,
-            TestVersionBumpIn6x.V_5_6_1,
-            TestVersionBumpIn6x.V_6_0_0_alpha1,
-            TestVersionBumpIn6x.V_6_0_0_alpha2,
-            TestVersionBumpIn6x.V_6_0_0_beta1,
-            TestVersionBumpIn6x.V_6_0_0_beta2,
-            TestVersionBumpIn6x.V_6_0_0)));
+            TestVersionBumpIn2x.V_1_6_0,
+            TestVersionBumpIn2x.V_1_6_1,
+            TestVersionBumpIn2x.V_2_0_0)));
         assertThat(unreleased, equalTo(Arrays.asList(
-            TestVersionBumpIn6x.V_5_6_2,
-            TestVersionBumpIn6x.V_6_0_1,
-            TestVersionBumpIn6x.V_6_1_0)));
+            TestVersionBumpIn2x.V_1_6_2,
+            TestVersionBumpIn2x.V_2_0_1,
+            TestVersionBumpIn2x.V_2_1_0)));
     }
 
     public static class TestNewMinorBranchIn6x {
-        public static final Version V_5_6_0 = Version.fromString("5.6.0");
-        public static final Version V_5_6_1 = Version.fromString("5.6.1");
-        public static final Version V_5_6_2 = Version.fromString("5.6.2");
-        public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
-        public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
-        public static final Version V_6_0_0_beta1 = Version.fromString("6.0.0-beta1");
-        public static final Version V_6_0_0_beta2 = Version.fromString("6.0.0-beta2");
-        public static final Version V_6_0_0 = Version.fromString("6.0.0");
-        public static final Version V_6_0_1 = Version.fromString("6.0.1");
-        public static final Version V_6_1_0 = Version.fromString("6.1.0");
-        public static final Version V_6_1_1 = Version.fromString("6.1.1");
-        public static final Version V_6_1_2 = Version.fromString("6.1.2");
-        public static final Version V_6_2_0 = Version.fromString("6.2.0");
-        public static final Version CURRENT = V_6_2_0;
+        public static final Version V_1_6_0 = Version.fromString("1.6.0");
+        public static final Version V_1_6_1 = Version.fromString("1.6.1");
+        public static final Version V_1_6_2 = Version.fromString("1.6.2");
+        public static final Version V_2_0_0 = Version.fromString("2.0.0");
+        public static final Version V_2_0_1 = Version.fromString("2.0.1");
+        public static final Version V_2_1_0 = Version.fromString("2.1.0");
+        public static final Version V_2_1_1 = Version.fromString("2.1.1");
+        public static final Version V_2_1_2 = Version.fromString("2.1.2");
+        public static final Version V_2_2_0 = Version.fromString("2.2.0");
+        public static final Version CURRENT = V_2_2_0;
     }
 
     public void testResolveReleasedVersionsAtNewMinorBranchIn6x() {
@@ -317,20 +269,16 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
-            TestNewMinorBranchIn6x.V_5_6_0,
-            TestNewMinorBranchIn6x.V_5_6_1,
-            TestNewMinorBranchIn6x.V_6_0_0_alpha1,
-            TestNewMinorBranchIn6x.V_6_0_0_alpha2,
-            TestNewMinorBranchIn6x.V_6_0_0_beta1,
-            TestNewMinorBranchIn6x.V_6_0_0_beta2,
-            TestNewMinorBranchIn6x.V_6_0_0,
-            TestNewMinorBranchIn6x.V_6_0_1,
-            TestNewMinorBranchIn6x.V_6_1_0,
-            TestNewMinorBranchIn6x.V_6_1_1)));
+            TestNewMinorBranchIn6x.V_1_6_0,
+            TestNewMinorBranchIn6x.V_1_6_1,
+            TestNewMinorBranchIn6x.V_2_0_0,
+            TestNewMinorBranchIn6x.V_2_0_1,
+            TestNewMinorBranchIn6x.V_2_1_0,
+            TestNewMinorBranchIn6x.V_2_1_1)));
         assertThat(unreleased, equalTo(Arrays.asList(
-            TestNewMinorBranchIn6x.V_5_6_2,
-            TestNewMinorBranchIn6x.V_6_1_2,
-            TestNewMinorBranchIn6x.V_6_2_0)));
+            TestNewMinorBranchIn6x.V_1_6_2,
+            TestNewMinorBranchIn6x.V_2_1_2,
+            TestNewMinorBranchIn6x.V_2_2_0)));
     }
 
     /**

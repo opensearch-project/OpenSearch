@@ -150,6 +150,7 @@ public class BwcVersions {
         groupByMajor = allVersions.stream()
             // We only care about the last 2 majors when it comes to BWC.
             // It might take us time to remove the older ones from versionLines, so we allow them to exist.
+            // Adjust the major number since OpenSearch 1.x is released after predecessor version 7.x
             .filter(
                 version -> (version.getMajor() == 1 ? 7 : version.getMajor()) > (currentVersion.getMajor() == 1
                     ? 7
@@ -316,11 +317,7 @@ public class BwcVersions {
     private Map<Integer, List<Version>> getReleasedMajorGroupedByMinor() {
         int currentMajor = currentVersion.getMajor();
         List<Version> currentMajorVersions = groupByMajor.get(currentMajor);
-        List<Version> previousMajorVersions = groupByMajor.get(currentMajor == 1 ? 7 : currentVersion.getMajor() - 1);
-        if (previousMajorVersions == null) {
-            System.out.println("size: " + groupByMajor.size());
-            System.out.println(currentVersion.getMajor());
-        }
+        List<Version> previousMajorVersions = groupByMajor.get(getPreviousMajor(currentMajor));
 
         final Map<Integer, List<Version>> groupByMinor;
         if (currentMajorVersions.size() == 1) {
@@ -367,7 +364,7 @@ public class BwcVersions {
 
     public List<Version> getIndexCompatible() {
         int currentMajor = currentVersion.getMajor();
-        int prevMajor = currentMajor == 1 ? 7 : currentMajor - 1;
+        int prevMajor = getPreviousMajor(currentMajor);
         List<Version> result = Stream.concat(groupByMajor.get(prevMajor).stream(), groupByMajor.get(currentMajor).stream())
             .filter(version -> version.equals(currentVersion) == false)
             .collect(Collectors.toList());
@@ -412,6 +409,10 @@ public class BwcVersions {
         List<Version> unreleasedWireCompatible = new ArrayList<>(getWireCompatible());
         unreleasedWireCompatible.retainAll(getUnreleased());
         return unmodifiableList(unreleasedWireCompatible);
+    }
+
+    private int getPreviousMajor(int currentMajor) {
+        return currentMajor == 1 ? 7 : currentMajor - 1;
     }
 
 }

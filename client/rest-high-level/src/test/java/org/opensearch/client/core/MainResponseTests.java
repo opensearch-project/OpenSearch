@@ -56,7 +56,7 @@ public class MainResponseTests extends AbstractResponseTestCase<org.opensearch.a
         Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_1, Version.CURRENT);
         Build build = new Build(
             Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
-            version.toString()
+            version.toString(), version.before(Version.V_1_0_0) ? null : "opensearch"
         );
         return new org.opensearch.action.main.MainResponse(nodeName, version, clusterName, clusterUuid , build);
     }

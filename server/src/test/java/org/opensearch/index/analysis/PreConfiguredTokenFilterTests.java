@@ -131,7 +131,7 @@ public class PreConfiguredTokenFilterTests extends OpenSearchTestCase {
                 pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "lucene_version", settings1);
         assertSame(tff_v1_1, tff_v1_2);
 
-        byte major = VersionUtils.getFirstVersion().major;
+        byte major = VersionUtils.getPreviousVersion().major;
         Version version2 = Version.fromString(major - 1 + ".0.0");
         Settings settings2 = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version2)
                 .build();

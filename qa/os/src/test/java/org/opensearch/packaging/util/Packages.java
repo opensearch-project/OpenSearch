@@ -173,10 +173,10 @@ public class Packages {
     }
 
     public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) {
-        verifyOssInstallation(installation, distribution, sh);
+        verifyInstallation(installation, distribution, sh);
     }
 
-    private static void verifyOssInstallation(Installation opensearch, Distribution distribution, Shell sh) {
+    private static void verifyInstallation(Installation opensearch, Distribution distribution, Shell sh) {
 
         sh.run("id opensearch");
         sh.run("getent group opensearch");
@@ -209,8 +209,7 @@ public class Packages {
         Stream.of("opensearch", "opensearch-plugin", "opensearch-keystore", "opensearch-shard", "opensearch-shard")
             .forEach(executable -> assertThat(opensearch.bin(executable), file(File, "root", "root", p755)));
 
-        Stream.of("NOTICE.txt", "README.asciidoc")
-            .forEach(doc -> assertThat(opensearch.home.resolve(doc), file(File, "root", "root", p644)));
+        Stream.of("NOTICE.txt", "README.md").forEach(doc -> assertThat(opensearch.home.resolve(doc), file(File, "root", "root", p644)));
 
         assertThat(opensearch.envFile, file(File, "root", "opensearch", p660));
 

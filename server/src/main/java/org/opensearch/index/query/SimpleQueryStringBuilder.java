@@ -87,10 +87,6 @@ import java.util.Objects;
  * {@code fields} - fields to search, defaults to _all if not set, allows
  * boosting a field with ^n
  *
- * For more detailed explanation of the query string syntax see also the <a
- * href=
- * "https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html"
- * > online documentation</a>.
  */
 public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
 

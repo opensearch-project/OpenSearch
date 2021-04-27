@@ -104,11 +104,12 @@ public class Build {
         final String date;
         final boolean isSnapshot;
         final String version;
+        final String distribution = "opensearch";
 
         // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
         type = Type.fromDisplayName(System.getProperty("opensearch.distribution.type", "unknown"), true);
 
-        final String opensearchPrefix = "opensearch-" + Version.CURRENT;
+        final String opensearchPrefix = distribution + "-" + Version.CURRENT;
         final URL url = getOpenSearchCodeSourceLocation();
         final String urlStr = url == null ? "" : url.toString();
         if (urlStr.startsWith("file:/") && (
@@ -155,7 +156,7 @@ public class Build {
                 "Stopping OpenSearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
 
-        CURRENT = new Build(type, hash, date, isSnapshot, version);
+        CURRENT = new Build(type, hash, date, isSnapshot, version, distribution);
     }
 
     private final boolean isSnapshot;
@@ -174,16 +175,18 @@ public class Build {
     private final String hash;
     private final String date;
     private final String version;
+    private final String distribution;
 
     public Build(
         final Type type, final String hash, final String date, boolean isSnapshot,
-        String version
-    ) {
+        String version,
+        String distribution) {
         this.type = type;
         this.hash = hash;
         this.date = date;
         this.isSnapshot = isSnapshot;
         this.version = version;
+        this.distribution = distribution;
     }
 
     public String hash() {
@@ -195,8 +198,16 @@ public class Build {
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
+        final String distribution;
         final String flavor;
         final Type type;
+        // the following is new for opensearch: we write the distribution to support any "forks"
+        if (in.getVersion().onOrAfter(Version.V_1_0_0)) {
+            distribution = in.readString();
+        } else {
+            distribution = "other";
+        }
+
         // The following block is kept for existing BWS tests to pass.
         // TODO - clean up this code when we remove all v6 bwc tests.
         // TODO - clean this up when OSS flavor is removed in all of the code base
@@ -221,10 +232,15 @@ public class Build {
         } else {
             version = in.getVersion().toString();
         }
-        return new Build(type, hash, date, snapshot, version);
+        return new Build(type, hash, date, snapshot, version, distribution);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
+        // the following is new for opensearch: we write the distribution name to support any "forks" of the code
+        if (out.getVersion().onOrAfter(Version.V_1_0_0)) {
+            out.writeString(build.distribution);
+        }
+
         // The following block is kept for existing BWS tests to pass.
         // TODO - clean up this code when we remove all v6 bwc tests.
         // TODO - clean this up when OSS flavor is removed in all of the code base
@@ -247,6 +263,14 @@ public class Build {
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             out.writeString(build.getQualifiedVersion());
         }
+    }
+
+    /**
+     * Get the distribution name (expected to be OpenSearch; empty if legacy; something else if forked)
+     * @return distribution name as a string
+     */
+    public String getDistribution() {
+        return distribution;
     }
 
     /**

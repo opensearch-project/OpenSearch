@@ -316,7 +316,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
             + version.minimumCompatibilityVersion() + "]", ise.getMessage());
 
         // For handshake we are compatible with N-2
-        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, true);
+        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.8.0"), version, true);
         assertNull(ise);
 
         ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, false);
