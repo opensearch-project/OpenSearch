@@ -122,7 +122,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     } else {
       assert type == 'rpm' : type
       if (architecture == 'x64') {
-        arch('X86_64')
+        arch('x86_64')
       } else {
         assert architecture == 'arm64' : architecture
         arch('aarch64')
