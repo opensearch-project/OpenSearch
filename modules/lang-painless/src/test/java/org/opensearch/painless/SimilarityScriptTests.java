@@ -49,6 +49,9 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.similarity.ScriptedSimilarity;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.script.ScriptContext;
@@ -62,17 +65,28 @@ import java.util.List;
 import java.util.Map;
 
 public class SimilarityScriptTests extends ScriptTestCase {
+    private static PainlessScriptEngine SCRIPT_ENGINE;
 
-    @Override
-    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+    @BeforeClass
+    public static void beforeClass() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         contexts.put(SimilarityScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(SimilarityWeightScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        return contexts;
+        SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        SCRIPT_ENGINE = null;
+    }
+
+    @Override
+    protected PainlessScriptEngine getEngine() {
+        return SCRIPT_ENGINE;
     }
 
     public void testBasics() throws IOException {
-        SimilarityScript.Factory factory = scriptEngine.compile(
+        SimilarityScript.Factory factory = getEngine().compile(
                 "foobar", "return query.boost * doc.freq / doc.length", SimilarityScript.CONTEXT, Collections.emptyMap());
         ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", factory::newInstance, true);
         Directory dir = new ByteBuffersDirectory();
@@ -109,9 +123,9 @@ public class SimilarityScriptTests extends ScriptTestCase {
     }
 
     public void testWeightScript() throws IOException {
-        SimilarityWeightScript.Factory weightFactory = scriptEngine.compile(
+        SimilarityWeightScript.Factory weightFactory = getEngine().compile(
                 "foobar", "return query.boost", SimilarityWeightScript.CONTEXT, Collections.emptyMap());
-        SimilarityScript.Factory factory = scriptEngine.compile(
+        SimilarityScript.Factory factory = getEngine().compile(
                 "foobar", "return weight * doc.freq / doc.length", SimilarityScript.CONTEXT, Collections.emptyMap());
         ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightFactory::newInstance, "foobaz", factory::newInstance, true);
         Directory dir = new ByteBuffersDirectory();

@@ -35,6 +35,9 @@ package org.opensearch.painless;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Scorable;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptedMetricAggContexts;
@@ -53,18 +56,30 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ScriptedMetricAggContextsTests extends ScriptTestCase {
-    @Override
-    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+    private static PainlessScriptEngine SCRIPT_ENGINE;
+
+    @BeforeClass
+    public static void beforeClass() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(ScriptedMetricAggContexts.MapScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(ScriptedMetricAggContexts.CombineScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(ScriptedMetricAggContexts.ReduceScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        return contexts;
+        SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        SCRIPT_ENGINE = null;
+    }
+
+    @Override
+    protected PainlessScriptEngine getEngine() {
+        return SCRIPT_ENGINE;
     }
 
     public void testInitBasic() {
-        ScriptedMetricAggContexts.InitScript.Factory factory = scriptEngine.compile("test",
+        ScriptedMetricAggContexts.InitScript.Factory factory = getEngine().compile("test",
             "state.testField = params.initialVal", ScriptedMetricAggContexts.InitScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
@@ -80,7 +95,7 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     }
 
     public void testMapBasic() throws IOException {
-        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile("test",
+        ScriptedMetricAggContexts.MapScript.Factory factory = getEngine().compile("test",
             "state.testField = 2*_score", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
@@ -105,7 +120,7 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     }
 
     public void testReturnSource() throws IOException {
-        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile("test",
+        ScriptedMetricAggContexts.MapScript.Factory factory = getEngine().compile("test",
                 "state._source = params._source", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
@@ -132,7 +147,7 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     }
 
     public void testMapSourceAccess() throws IOException {
-        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile("test",
+        ScriptedMetricAggContexts.MapScript.Factory factory = getEngine().compile("test",
             "state.testField = params._source.three", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
@@ -158,7 +173,7 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     }
 
     public void testCombineBasic() {
-        ScriptedMetricAggContexts.CombineScript.Factory factory = scriptEngine.compile("test",
+        ScriptedMetricAggContexts.CombineScript.Factory factory = getEngine().compile("test",
             "state.testField = params.initialVal; return state.testField + params.inc", ScriptedMetricAggContexts.CombineScript.CONTEXT,
             Collections.emptyMap());
 
@@ -177,7 +192,7 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     }
 
     public void testReduceBasic() {
-        ScriptedMetricAggContexts.ReduceScript.Factory factory = scriptEngine.compile("test",
+        ScriptedMetricAggContexts.ReduceScript.Factory factory = getEngine().compile("test",
             "states[0].testField + states[1].testField", ScriptedMetricAggContexts.ReduceScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
