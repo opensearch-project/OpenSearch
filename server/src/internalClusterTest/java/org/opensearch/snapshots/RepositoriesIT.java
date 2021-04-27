@@ -43,8 +43,10 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.RepositoryVerificationException;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
@@ -122,6 +124,63 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         client.admin().cluster().prepareDeleteRepository("test-repo-2").get();
         repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(0));
+    }
+
+    public void testResidualStaleIndicesAreDeletedByConsecutiveDelete() throws Exception {
+        Client client = client();
+        Path repositoryPath = randomRepoPath();
+        final String repositoryName = "test-repo";
+        final String snapshot1Name = "test-snap-1";
+        final String snapshot2Name = "test-snap-2";
+
+        logger.info("-->  creating repository at {}", repositoryPath.toAbsolutePath());
+        createRepository(repositoryName, "mock", repositoryPath);
+
+        int numberOfFiles = numberOfFiles(repositoryPath);
+
+        logger.info("--> creating index-1 and ingest data");
+        createIndex("test-idx-1");
+        ensureGreen();
+        for (int j = 0; j < 10; j++) {
+            index("test-idx-1", "_doc", Integer.toString( 10 + j), "foo", "bar" +  10 + j);
+        }
+        refresh();
+
+        logger.info("--> creating first snapshot");
+        createFullSnapshot(repositoryName, snapshot1Name);
+
+        logger.info("--> creating index-2 and ingest data");
+        createIndex("test-idx-2");
+        ensureGreen();
+        for (int j = 0; j < 10; j++) {
+            index("test-idx-2", "_doc", Integer.toString( 10 + j), "foo", "bar" +  10 + j);
+        }
+        refresh();
+
+        logger.info("--> creating second snapshot");
+        createFullSnapshot(repositoryName, snapshot2Name);
+
+        // Make repository to throw exception when trying to delete stale indices
+        // This will make sure stale indices stays in repository after snapshot delete
+        String masterNode = internalCluster().getMasterName();
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterNode).repository("test-repo")).
+            setThrowExceptionWhileDelete(true);
+
+        logger.info("--> delete the second snapshot");
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot2Name).get();
+
+        // Make repository to work normally
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterNode).repository("test-repo")).
+            setThrowExceptionWhileDelete(false);
+
+        // This snapshot should delete last snapshot's residual stale indices as well
+        logger.info("--> delete snapshot one");
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot1Name).get();
+
+        logger.info("--> make sure that number of files is back to what it was when the first snapshot was made");
+        assertFileCount(repositoryPath, numberOfFiles + 2);
+
+        logger.info("--> done");
     }
 
     private RepositoryMetadata findRepository(List<RepositoryMetadata> repositories, String name) {
