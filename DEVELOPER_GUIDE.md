@@ -4,7 +4,7 @@ So you want to contribute code to OpenSearch? Excellent! We're glad you're here.
 
 - [Getting Started](#getting-started)
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
-    - [Prerequisites](#prerequisites)
+    - [Install Prerequisites](#install-prerequisites)
     - [Run Tests](#run-tests)
     - [Run OpenSearch](#run-opensearch)
 - [Use an Editor](#use-an-editor)
@@ -33,13 +33,22 @@ So you want to contribute code to OpenSearch? Excellent! We're glad you're here.
 
 ### Git Clone OpenSearch Repo
 
-Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenSearch) and clone locally, e.g. `git clone https://github.com/[username]/OpenSearch.git`.
+Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenSearch) and clone locally, e.g. `git clone https://github.com/[your username]/OpenSearch.git`.
 
-### Prerequisites
+### Install Prerequisites
 
 #### JDK 14
 
 OpenSearch builds using Java 14 at a minimum. This means you must have a JDK 14 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 14 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-14`.
+
+One easy way to get Java 14 on *nix is to use [sdkman](https://sdkman.io/). 
+
+```bash
+curl -s "https://get.sdkman.io" | bash
+source ~/.sdkman/bin/sdkman-init.sh
+sdk install java 14.0.2-open
+sdk use java 14.0.2-open
+```
 
 By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8, the build supports compiling with JDK 14 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
 
@@ -97,8 +106,8 @@ That will build OpenSearch and start it, writing its log above Gradle's status m
 
 It's typically easier to wait until the console stops scrolling, and then run `curl` in another window to check if OpenSearch instance is running.
 
-```
-curl -u opensearch:password localhost:9200
+```bash
+curl localhost:9200
 
 {
   "name" : "runTask-0",
@@ -115,6 +124,12 @@ curl -u opensearch:password localhost:9200
     "minimum_index_compatibility_version" : "6.0.0-beta1"
   }
 }
+```
+
+Use `-Dtests.opensearch.` to pass additional settings to the running instance. For example, to enable OpenSearch to listen on an external IP address pass `-Dtests.opensearch.http.host`. Make sure your firewall or security policy allows external connections for this to work.
+
+```bash
+./gradlew run -Dtests.opensearch.http.host=0.0.0.0
 ```
 
 ## Use an Editor
@@ -230,7 +245,7 @@ differ and infer what is the problem.
 
 The `paddedCell()` option is disabled for normal operation in order to detect any misbehaviour. You can enable the option from the command line by running Gradle with `-Dspotless.paddedcell`.
 
-> **NOTE:** If you have imported the project into IntelliJ IDEA the project will be automatically configured to add the correct license header to new source files based on the source location.
+> Note: if you have imported the project into IntelliJ IDEA the project will be automatically configured to add the correct license header to new source files based on the source location.
 
 ## Gradle Build
 
