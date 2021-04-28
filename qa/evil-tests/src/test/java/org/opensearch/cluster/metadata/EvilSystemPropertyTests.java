@@ -35,7 +35,9 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.*;
+import static org.opensearch.cluster.metadata.IndexMetadata.DEFAULT_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.MAX_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 
 public class EvilSystemPropertyTests extends OpenSearchTestCase {
 
@@ -49,31 +51,31 @@ public class EvilSystemPropertyTests extends OpenSearchTestCase {
         Integer numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 100).build());
         assertEquals(100, numShards.intValue());
         int limit = randomIntBetween(1, 10);
-        System.setProperty(MAX_NUMBER_OF_SHARDS_SYSTEM_PROPERTY, Integer.toString(limit));
+        System.setProperty(MAX_NUMBER_OF_SHARDS, Integer.toString(limit));
         try {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
                 IndexMetadata.buildNumberOfShardsSetting()
                     .get(Settings.builder().put("index.number_of_shards", 11).build()));
             assertEquals("Failed to parse value [11] for setting [index.number_of_shards] must be <= " + limit, e.getMessage());
-            System.clearProperty(MAX_NUMBER_OF_SHARDS_SYSTEM_PROPERTY);
+            System.clearProperty(MAX_NUMBER_OF_SHARDS);
 
             Integer defaultFromSetting = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY);
             assertEquals(1, defaultFromSetting.intValue());
 
             int randomDefault = randomIntBetween(1, 10);
-            System.setProperty(DEFAULT_NUMBER_OF_SHARDS_SYSTEM_PROPERTY, Integer.toString(randomDefault));
+            System.setProperty(DEFAULT_NUMBER_OF_SHARDS, Integer.toString(randomDefault));
             defaultFromSetting = IndexMetadata.buildNumberOfShardsSetting().getDefault(Settings.EMPTY);
             assertEquals(randomDefault, defaultFromSetting.intValue());
 
             randomDefault = randomIntBetween(1, 10);
-            System.setProperty(MAX_NUMBER_OF_SHARDS_SYSTEM_PROPERTY, Integer.toString(randomDefault));
-            System.setProperty(DEFAULT_NUMBER_OF_SHARDS_SYSTEM_PROPERTY, Integer.toString(randomDefault + 1));
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, IndexMetadata::buildNumberOfShardsSetting);
-            assertEquals(DEFAULT_NUMBER_OF_SHARDS_SYSTEM_PROPERTY+ " value [" + (randomDefault + 1) + "] must between " +
-                "1 and " + MAX_NUMBER_OF_SHARDS_SYSTEM_PROPERTY + " [" + randomDefault + "]", e.getMessage());
+            System.setProperty(MAX_NUMBER_OF_SHARDS, Integer.toString(randomDefault));
+            System.setProperty(DEFAULT_NUMBER_OF_SHARDS, Integer.toString(randomDefault + 1));
+            e = expectThrows(IllegalArgumentException.class, IndexMetadata::buildNumberOfShardsSetting);
+            assertEquals(DEFAULT_NUMBER_OF_SHARDS + " value [" + (randomDefault + 1) + "] must between " +
+                "1 and " + MAX_NUMBER_OF_SHARDS + " [" + randomDefault + "]", e.getMessage());
         } finally {
-            System.clearProperty(MAX_NUMBER_OF_SHARDS_SYSTEM_PROPERTY);
-            System.clearProperty(DEFAULT_NUMBER_OF_SHARDS_SYSTEM_PROPERTY);
+            System.clearProperty(MAX_NUMBER_OF_SHARDS);
+            System.clearProperty(DEFAULT_NUMBER_OF_SHARDS);
         }
     }
 }
