@@ -151,7 +151,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repositoryName, snapshotToBeDeletedLastName);
 
         // Create more snapshots to be deleted in bulk
-        int maxThreadsForSnapshotDeletion = internalCluster().getMasterNodeInstance(ThreadPool.class).info(ThreadPool.Names.SNAPSHOT).getMax();
+        int maxThreadsForSnapshotDeletion = internalCluster().getMasterNodeInstance(ThreadPool.class)
+            .info(ThreadPool.Names.SNAPSHOT).getMax();
         for (int i = 1; i<= maxThreadsForSnapshotDeletion + 1; i++) {
             String snapshotName = "test-snap-" + i;
             String testIndexName = "test-idx-" + i;
