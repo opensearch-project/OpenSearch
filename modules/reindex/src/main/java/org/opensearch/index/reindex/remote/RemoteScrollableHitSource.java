@@ -186,8 +186,9 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             }
                             if (xContentType == null) {
                                 try {
+                                    logger.debug("Response didn't include Content-Type: " + bodyMessage(response.getEntity()));
                                     throw new OpenSearchException(
-                                        "Response didn't include Content-Type: " + bodyMessage(response.getEntity()));
+                                        "Response didn't include supported Content-Type, remote is likely not an OpenSearch instance");
                                 } catch (IOException e) {
                                     OpenSearchException ee = new OpenSearchException("Error extracting body from response");
                                     ee.addSuppressed(e);
