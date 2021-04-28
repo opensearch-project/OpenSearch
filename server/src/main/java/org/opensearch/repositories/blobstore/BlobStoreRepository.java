@@ -1088,27 +1088,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private void executeOneStaleIndexDelete(BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete,
                                             GroupedActionListener<DeleteResult> listener) throws InterruptedException {
-        Map.Entry<String, BlobContainer> indexEntry  = staleIndicesToDelete.poll(0L, TimeUnit.MILLISECONDS);
-        if (indexEntry == null) {
-            return;
-        } else {
+        Map.Entry<String, BlobContainer> indexEntry = staleIndicesToDelete.poll(0L, TimeUnit.MILLISECONDS);
+        if (indexEntry != null) {
             final String indexSnId = indexEntry.getKey();
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
+                DeleteResult deleteResult = DeleteResult.ZERO;
                 try {
-                    DeleteResult staleIndexDeleteResult = indexEntry.getValue().delete();
+                    logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
+                    deleteResult = indexEntry.getValue().delete();
                     logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
-                    executeOneStaleIndexDelete(staleIndicesToDelete, listener);
-                    return staleIndexDeleteResult;
                 } catch (IOException e) {
                     logger.warn(() -> new ParameterizedMessage(
                         "[{}] index {} is no longer part of any snapshots in the repository, " +
                             "but failed to clean up their index folders", metadata.name(), indexSnId), e);
-                    return DeleteResult.ZERO;
                 } catch (Exception e) {
                     assert false : e;
                     logger.warn(new ParameterizedMessage("[{}] Exception during single stale index delete", metadata.name()), e);
-                    return DeleteResult.ZERO;
                 }
+
+                executeOneStaleIndexDelete(staleIndicesToDelete, listener);
+                return deleteResult;
             }));
         }
     }
