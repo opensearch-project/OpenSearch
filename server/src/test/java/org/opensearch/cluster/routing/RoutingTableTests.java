@@ -50,6 +50,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.function.Predicate;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.containsString;
@@ -181,6 +182,33 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         startInitializingShards(TEST_INDEX_1);
         startInitializingShards(TEST_INDEX_2);
         assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.STARTED).size(), is(this.totalNumberOfShards));
+    }
+
+    public void testShardsMatchingPredicateCount(){
+        MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build()).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+        clusterState = allocation.reroute(clusterState, "reroute");
+
+        Predicate<ShardRouting> predicate = s -> s.state() == ShardRoutingState.UNASSIGNED && s.unassignedInfo().isDelayed();
+        assertThat(clusterState.routingTable().shardsMatchingPredicateCount(predicate), is(0));
+
+        // starting primaries
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
+        // starting replicas
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
+        // remove node2 and reroute
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
+        // make sure both replicas are marked as delayed (i.e. not reallocated)
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        assertThat(clusterState.routingTable().shardsMatchingPredicateCount(predicate), is(2));
     }
 
     public void testActivePrimaryShardsGrouped() {
