@@ -232,6 +232,12 @@ if (project != rootProject) {
     }
   }
 
+  // disable fail-on-warnings for this specific task which trips Java 11 bug
+  // https://bugs.openjdk.java.net/browse/JDK-8209058
+  tasks.named("compileTestFixturesJava").configure {
+    options.compilerArgs -= '-Werror'
+  }
+
   tasks.register("integTest", Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version

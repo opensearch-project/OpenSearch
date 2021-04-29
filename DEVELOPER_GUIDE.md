@@ -37,11 +37,11 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 ### Install Prerequisites
 
-#### JDK 14
+#### JDK 11
 
-OpenSearch builds using Java 14 at a minimum. This means you must have a JDK 14 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 14 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-14`.
+OpenSearch builds using Java 11 at a minimum. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`.
 
-One easy way to get Java 14 on *nix is to use [sdkman](https://sdkman.io/). 
+One easy way to get Java on *nix is to use [sdkman](https://sdkman.io/).
 
 ```bash
 curl -s "https://get.sdkman.io" | bash
@@ -50,7 +50,7 @@ sdk install java 14.0.2-open
 sdk use java 14.0.2-open
 ```
 
-By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8, the build supports compiling with JDK 14 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
+By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
 
 To run the full suite of tests you will also need `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`, `JAVA11_HOME`, and `JAVA12_HOME`.
 
