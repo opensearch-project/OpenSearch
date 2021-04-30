@@ -45,7 +45,7 @@ class DocsTestPlugin implements Plugin<Project> {
         project.pluginManager.apply('opensearch.standalone-rest-test')
         project.pluginManager.apply('opensearch.rest-test')
 
-        String distribution = System.getProperty('tests.distribution', 'oss')
+        String distribution = System.getProperty('tests.distribution', 'archive')
         // The distribution can be configured with -Dtests.distribution on the command line
         project.testClusters.integTest.testDistribution = distribution.toUpperCase()
 

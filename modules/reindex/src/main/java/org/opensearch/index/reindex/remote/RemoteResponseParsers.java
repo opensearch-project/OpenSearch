@@ -33,6 +33,7 @@
 package org.opensearch.index.reindex.remote;
 
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
@@ -292,11 +293,17 @@ final class RemoteResponseParsers {
             "/", true, a -> (Version) a[0]);
     static {
         ConstructingObjectParser<Version, XContentType> versionParser = new ConstructingObjectParser<>(
-                "version", true, a -> Version.fromString(
-                    ((String) a[0])
+                "version", true, a -> a[0] == null ?
+            LegacyESVersion.fromString(
+                    ((String) a[1])
                         .replace("-SNAPSHOT", "")
-                        .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
-        ));
+                        .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")) :
+            Version.fromString(
+                ((String) a[1])
+                    .replace("-SNAPSHOT", "")
+                    .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", ""))
+            );
+        versionParser.declareStringOrNull(optionalConstructorArg(), new ParseField("distribution"));
         versionParser.declareString(constructorArg(), new ParseField("number"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));
     }

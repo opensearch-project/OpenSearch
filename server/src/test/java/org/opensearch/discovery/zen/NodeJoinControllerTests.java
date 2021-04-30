@@ -600,20 +600,24 @@ public class NodeJoinControllerTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("found existing node"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/577")
-    public void testRejectingJoinWithIncompatibleVersion() throws InterruptedException, ExecutionException {
+    public void testRejectingJoinWithBeforeMinCompatibleVersion() throws ExecutionException, InterruptedException {
+        final Version badVersion = getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
+        assertRejectingJoinWithIncompatibleVersion(badVersion);
+    }
+
+    public void testRejectingJoinWithPreviousMajorVersion() throws ExecutionException, InterruptedException {
+        final Version badVersion =
+            randomFrom(allVersions().stream().filter(v -> v.compareMajor(Version.CURRENT) < 0).collect(Collectors.toList()));
+        assertRejectingJoinWithIncompatibleVersion(badVersion);
+    }
+
+    private void assertRejectingJoinWithIncompatibleVersion(final Version badVersion) throws InterruptedException, ExecutionException {
         addNodes(randomInt(5));
-        final Version badVersion;
-        if (randomBoolean()) {
-            badVersion = getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
-        } else {
-            badVersion = randomFrom(allVersions().stream().filter(v -> v.before(Version.CURRENT)).collect(Collectors.toList()));
-        }
         final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), badVersion);
 
         final Version goodVersion =
-            randomFrom(allVersions().stream().filter(v -> v.onOrAfter(Version.CURRENT)).collect(Collectors.toList()));
+            randomFrom(allVersions().stream().filter(v -> v.compareMajor(Version.CURRENT) >= 0).collect(Collectors.toList()));
         final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), goodVersion);
 

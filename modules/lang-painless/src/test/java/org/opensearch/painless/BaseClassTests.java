@@ -32,6 +32,9 @@
 
 package org.opensearch.painless;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.script.ScriptContext;
 
@@ -49,8 +52,10 @@ import static org.hamcrest.Matchers.startsWith;
  * Tests for Painless implementing different interfaces.
  */
 public class BaseClassTests extends ScriptTestCase {
+    private static PainlessScriptEngine SCRIPT_ENGINE;
 
-    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+    @BeforeClass
+    public static void beforeClass() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         contexts.put(Gets.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(NoArgs.CONTEXT, Whitelist.BASE_WHITELISTS);
@@ -73,7 +78,17 @@ public class BaseClassTests extends ScriptTestCase {
         contexts.put(UnknownReturnType.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(UnknownArgTypeInArray.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(TwoExecuteMethods.CONTEXT, Whitelist.BASE_WHITELISTS);
-        return contexts;
+        SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        SCRIPT_ENGINE = null;
+    }
+
+    @Override
+    protected PainlessScriptEngine getEngine() {
+        return SCRIPT_ENGINE;
     }
 
     public abstract static class Gets {
@@ -111,15 +126,16 @@ public class BaseClassTests extends ScriptTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("s", 1);
 
-        assertEquals(1, scriptEngine.compile("testGets0", "testInt", Gets.CONTEXT, emptyMap()).newInstance("s", -1, null).execute());
+        assertEquals(1, getEngine().compile("testGets0", "testInt", Gets.CONTEXT, emptyMap()).newInstance("s", -1, null).execute());
         assertEquals(Collections.emptyMap(),
-                scriptEngine.compile("testGets1", "testMap", Gets.CONTEXT, emptyMap()).newInstance("s", -1, null).execute());
+                getEngine().compile("testGets1", "testMap", Gets.CONTEXT, emptyMap()).newInstance("s", -1, null).execute());
         assertEquals(Collections.singletonMap("1", "1"),
-                scriptEngine.compile("testGets2", "testMap", Gets.CONTEXT, emptyMap())
+                getEngine().compile("testGets2", "testMap", Gets.CONTEXT, emptyMap())
                         .newInstance("s", -1, Collections.singletonMap("1", "1")).execute());
-        assertEquals("s", scriptEngine.compile("testGets3", "testString", Gets.CONTEXT, emptyMap()).newInstance("s", -1, null).execute());
+        assertEquals("s",
+                getEngine().compile("testGets3", "testString", Gets.CONTEXT, emptyMap()).newInstance("s", -1, null).execute());
         assertEquals(map,
-                scriptEngine.compile("testGets4", "testMap.put(testString, testInt); testMap", Gets.CONTEXT, emptyMap())
+                getEngine().compile("testGets4", "testMap.put(testString, testInt); testMap", Gets.CONTEXT, emptyMap())
                         .newInstance("s", -1, null).execute());
     }
 
@@ -134,14 +150,14 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract Object execute();
     }
     public void testNoArgs() throws Exception {
-        assertEquals(1, scriptEngine.compile("testNoArgs0", "1", NoArgs.CONTEXT, emptyMap()).newInstance().execute());
-        assertEquals("foo", scriptEngine.compile("testNoArgs1", "'foo'", NoArgs.CONTEXT, emptyMap()).newInstance().execute());
+        assertEquals(1, getEngine().compile("testNoArgs0", "1", NoArgs.CONTEXT, emptyMap()).newInstance().execute());
+        assertEquals("foo", getEngine().compile("testNoArgs1", "'foo'", NoArgs.CONTEXT, emptyMap()).newInstance().execute());
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
-                scriptEngine.compile("testNoArgs2", "doc", NoArgs.CONTEXT, emptyMap()));
+                getEngine().compile("testNoArgs2", "doc", NoArgs.CONTEXT, emptyMap()));
         assertEquals("cannot resolve symbol [doc]", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () ->
-                scriptEngine.compile("testNoArgs3", "_score", NoArgs.CONTEXT, emptyMap()));
+                getEngine().compile("testNoArgs3", "_score", NoArgs.CONTEXT, emptyMap()));
         assertEquals("cannot resolve symbol [_score]", e.getMessage());
 
         String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings());
@@ -161,9 +177,9 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testOneArg() throws Exception {
         Object rando = randomInt();
-        assertEquals(rando, scriptEngine.compile("testOneArg0", "arg", OneArg.CONTEXT, emptyMap()).newInstance().execute(rando));
+        assertEquals(rando, getEngine().compile("testOneArg0", "arg", OneArg.CONTEXT, emptyMap()).newInstance().execute(rando));
         rando = randomAlphaOfLength(5);
-        assertEquals(rando, scriptEngine.compile("testOneArg1", "arg", OneArg.CONTEXT, emptyMap()).newInstance().execute(rando));
+        assertEquals(rando, getEngine().compile("testOneArg1", "arg", OneArg.CONTEXT, emptyMap()).newInstance().execute(rando));
     }
 
     public abstract static class ArrayArg {
@@ -179,7 +195,7 @@ public class BaseClassTests extends ScriptTestCase {
     public void testArrayArg() throws Exception {
         String rando = randomAlphaOfLength(5);
         assertEquals(rando,
-                scriptEngine.compile("testArrayArg0", "arg[0]", ArrayArg.CONTEXT, emptyMap())
+                getEngine().compile("testArrayArg0", "arg[0]", ArrayArg.CONTEXT, emptyMap())
                         .newInstance().execute(new String[] {rando, "foo"}));
     }
 
@@ -196,7 +212,7 @@ public class BaseClassTests extends ScriptTestCase {
     public void testPrimitiveArrayArg() throws Exception {
         int rando = randomInt();
         assertEquals(rando,
-                scriptEngine.compile("PrimitiveArrayArg0", "arg[0]", PrimitiveArrayArg.CONTEXT, emptyMap())
+                getEngine().compile("PrimitiveArrayArg0", "arg[0]", PrimitiveArrayArg.CONTEXT, emptyMap())
                         .newInstance().execute(new int[] {rando, 10}));
     }
 
@@ -213,13 +229,13 @@ public class BaseClassTests extends ScriptTestCase {
     public void testDefArrayArg()throws Exception {
         Object rando = randomInt();
         assertEquals(rando,
-                scriptEngine.compile("testDefArray0", "arg[0]", DefArrayArg.CONTEXT, emptyMap())
+                getEngine().compile("testDefArray0", "arg[0]", DefArrayArg.CONTEXT, emptyMap())
                         .newInstance().execute(new Object[] {rando, 10}));
         rando = randomAlphaOfLength(5);
         assertEquals(rando,
-                scriptEngine.compile("testDefArray1", "arg[0]", DefArrayArg.CONTEXT, emptyMap())
+                getEngine().compile("testDefArray1", "arg[0]", DefArrayArg.CONTEXT, emptyMap())
                         .newInstance().execute(new Object[] {rando, 10}));
-        assertEquals(5, scriptEngine.compile(
+        assertEquals(5, getEngine().compile(
                 "testDefArray2", "arg[0].length()", DefArrayArg.CONTEXT, emptyMap())
                 .newInstance().execute(new Object[] {rando, 10}));
     }
@@ -241,22 +257,22 @@ public class BaseClassTests extends ScriptTestCase {
     public void testManyArgs() throws Exception {
         int rando = randomInt();
         assertEquals(rando,
-                scriptEngine.compile("testManyArgs0", "a", ManyArgs.CONTEXT, emptyMap()).newInstance().execute(rando, 0, 0, 0));
+                getEngine().compile("testManyArgs0", "a", ManyArgs.CONTEXT, emptyMap()).newInstance().execute(rando, 0, 0, 0));
         assertEquals(10,
-                scriptEngine.compile("testManyArgs1", "a + b + c + d", ManyArgs.CONTEXT, emptyMap()).newInstance().execute(1, 2, 3, 4));
+                getEngine().compile("testManyArgs1", "a + b + c + d", ManyArgs.CONTEXT, emptyMap()).newInstance().execute(1, 2, 3, 4));
 
         // While we're here we can verify that painless correctly finds used variables
-        ManyArgs script = scriptEngine.compile("testManyArgs2", "a", ManyArgs.CONTEXT, emptyMap()).newInstance();
+        ManyArgs script = getEngine().compile("testManyArgs2", "a", ManyArgs.CONTEXT, emptyMap()).newInstance();
         assertTrue(script.needsA());
         assertFalse(script.needsB());
         assertFalse(script.needsC());
         assertFalse(script.needsD());
-        script = scriptEngine.compile("testManyArgs3", "a + b + c", ManyArgs.CONTEXT, emptyMap()).newInstance();
+        script = getEngine().compile("testManyArgs3", "a + b + c", ManyArgs.CONTEXT, emptyMap()).newInstance();
         assertTrue(script.needsA());
         assertTrue(script.needsB());
         assertTrue(script.needsC());
         assertFalse(script.needsD());
-        script = scriptEngine.compile("testManyArgs4", "a + b + c + d", ManyArgs.CONTEXT, emptyMap()).newInstance();
+        script = getEngine().compile("testManyArgs4", "a + b + c + d", ManyArgs.CONTEXT, emptyMap()).newInstance();
         assertTrue(script.needsA());
         assertTrue(script.needsB());
         assertTrue(script.needsC());
@@ -275,7 +291,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testVarArgs() throws Exception {
         assertEquals("foo bar baz",
-                scriptEngine.compile("testVarArgs0", "String.join(' ', Arrays.asList(arg))", VarArgs.CONTEXT, emptyMap())
+                getEngine().compile("testVarArgs0", "String.join(' ', Arrays.asList(arg))", VarArgs.CONTEXT, emptyMap())
                         .newInstance().execute("foo", "bar", "baz"));
     }
 
@@ -298,18 +314,18 @@ public class BaseClassTests extends ScriptTestCase {
     public void testDefaultMethods() throws Exception {
         int rando = randomInt();
         assertEquals(rando,
-                scriptEngine.compile("testDefaultMethods0", "a", DefaultMethods.CONTEXT, emptyMap()).newInstance().execute(rando, 0, 0, 0));
+                getEngine().compile("testDefaultMethods0", "a", DefaultMethods.CONTEXT, emptyMap()).newInstance().execute(rando, 0, 0, 0));
         assertEquals(rando,
-                scriptEngine.compile("testDefaultMethods1", "a", DefaultMethods.CONTEXT, emptyMap())
+                getEngine().compile("testDefaultMethods1", "a", DefaultMethods.CONTEXT, emptyMap())
                         .newInstance().executeWithASingleOne(rando, 0, 0));
         assertEquals(10,
-                scriptEngine.compile("testDefaultMethods2", "a + b + c + d", DefaultMethods.CONTEXT, emptyMap())
+                getEngine().compile("testDefaultMethods2", "a + b + c + d", DefaultMethods.CONTEXT, emptyMap())
                         .newInstance().execute(1, 2, 3, 4));
         assertEquals(4,
-                scriptEngine.compile("testDefaultMethods3", "a + b + c + d", DefaultMethods.CONTEXT, emptyMap())
+                getEngine().compile("testDefaultMethods3", "a + b + c + d", DefaultMethods.CONTEXT, emptyMap())
                         .newInstance().executeWithOne());
         assertEquals(7,
-                scriptEngine.compile("testDefaultMethods4", "a + b + c + d", DefaultMethods.CONTEXT, emptyMap())
+                getEngine().compile("testDefaultMethods4", "a + b + c + d", DefaultMethods.CONTEXT, emptyMap())
                         .newInstance().executeWithASingleOne(1, 2, 3));
     }
 
@@ -325,9 +341,9 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testReturnsVoid() throws Exception {
         Map<String, Object> map = new HashMap<>();
-        scriptEngine.compile("testReturnsVoid0", "map.a = 'foo'", ReturnsVoid.CONTEXT, emptyMap()).newInstance().execute(map);
+        getEngine().compile("testReturnsVoid0", "map.a = 'foo'", ReturnsVoid.CONTEXT, emptyMap()).newInstance().execute(map);
         assertEquals(Collections.singletonMap("a", "foo"), map);
-        scriptEngine.compile("testReturnsVoid1", "map.remove('a')", ReturnsVoid.CONTEXT, emptyMap()).newInstance().execute(map);
+        getEngine().compile("testReturnsVoid1", "map.remove('a')", ReturnsVoid.CONTEXT, emptyMap()).newInstance().execute(map);
         assertEquals(emptyMap(), map);
 
         String debug = Debugger.toString(ReturnsVoid.class, "int i = 0", new CompilerSettings());
@@ -349,26 +365,26 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testReturnsPrimitiveBoolean() throws Exception {
         assertTrue(
-                scriptEngine.compile("testReturnsPrimitiveBoolean0", "true", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean0", "true", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertFalse(
-                scriptEngine.compile("testReturnsPrimitiveBoolean1", "false", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean1", "false", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertTrue(
-                scriptEngine.compile("testReturnsPrimitiveBoolean2", "Boolean.TRUE", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean2", "Boolean.TRUE", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertFalse(
-                scriptEngine.compile("testReturnsPrimitiveBoolean3", "Boolean.FALSE", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean3", "Boolean.FALSE", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
 
         assertTrue(
-                scriptEngine.compile("testReturnsPrimitiveBoolean4", "def i = true; i", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean4", "def i = true; i", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertTrue(
-                scriptEngine.compile("testReturnsPrimitiveBoolean5", "def i = Boolean.TRUE; i", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean5", "def i = Boolean.TRUE; i", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertTrue(
-                scriptEngine.compile("testReturnsPrimitiveBoolean6", "true || false", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean6", "true || false", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
 
         String debug = Debugger.toString(ReturnsPrimitiveBoolean.class, "false", new CompilerSettings());
@@ -377,29 +393,29 @@ public class BaseClassTests extends ScriptTestCase {
         assertThat(debug, containsString("IRETURN"));
 
         Exception e = expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveBoolean7", "1L",ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean7", "1L",ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertEquals("Cannot cast from [long] to [boolean].", e.getMessage());
         e = expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveBoolean8", "1.1f", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean8", "1.1f", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertEquals("Cannot cast from [float] to [boolean].", e.getMessage());
         e = expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveBoolean9", "1.1d", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean9", "1.1d", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertEquals("Cannot cast from [double] to [boolean].", e.getMessage());
         expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveBoolean10", "def i = 1L; i", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean10", "def i = 1L; i", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
         expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveBoolean11", "def i = 1.1f; i", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean11", "def i = 1.1f; i", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
         expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveBoolean12", "def i = 1.1d; i", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean12", "def i = 1.1d; i", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
 
         assertFalse(
-                scriptEngine.compile("testReturnsPrimitiveBoolean13", "int i = 0", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveBoolean13", "int i = 0", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
     }
 
@@ -415,29 +431,29 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testReturnsPrimitiveInt() throws Exception {
         assertEquals(1,
-                scriptEngine.compile("testReturnsPrimitiveInt0", "1", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveInt0", "1", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertEquals(1,
-                scriptEngine.compile("testReturnsPrimitiveInt1", "(int) 1L", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveInt1", "(int) 1L", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
-        assertEquals(1, scriptEngine.compile("testReturnsPrimitiveInt2", "(int) 1.1d", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+        assertEquals(1, getEngine().compile("testReturnsPrimitiveInt2", "(int) 1.1d", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                 .newInstance().execute());
         assertEquals(1,
-                scriptEngine.compile("testReturnsPrimitiveInt3", "(int) 1.1f", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveInt3", "(int) 1.1f", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertEquals(1,
-                scriptEngine.compile("testReturnsPrimitiveInt4", "Integer.valueOf(1)", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveInt4", "Integer.valueOf(1)", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
 
         assertEquals(1,
-                scriptEngine.compile("testReturnsPrimitiveInt5", "def i = 1; i", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveInt5", "def i = 1; i", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertEquals(1,
-                scriptEngine.compile("testReturnsPrimitiveInt6", "def i = Integer.valueOf(1); i", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveInt6", "def i = Integer.valueOf(1); i", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
 
         assertEquals(2,
-                scriptEngine.compile("testReturnsPrimitiveInt7", "1 + 1", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute());
+                getEngine().compile("testReturnsPrimitiveInt7", "1 + 1", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute());
 
         String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings());
         assertThat(debug, containsString("ICONST_1"));
@@ -445,25 +461,25 @@ public class BaseClassTests extends ScriptTestCase {
         assertThat(debug, containsString("IRETURN"));
 
         Exception e = expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveInt8", "1L", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute());
+                getEngine().compile("testReturnsPrimitiveInt8", "1L", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute());
         assertEquals("Cannot cast from [long] to [int].", e.getMessage());
         e = expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveInt9", "1.1f", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute());
+                getEngine().compile("testReturnsPrimitiveInt9", "1.1f", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute());
         assertEquals("Cannot cast from [float] to [int].", e.getMessage());
         e = expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveInt10", "1.1d", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute());
+                getEngine().compile("testReturnsPrimitiveInt10", "1.1d", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute());
         assertEquals("Cannot cast from [double] to [int].", e.getMessage());
         expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveInt11", "def i = 1L; i", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveInt11", "def i = 1L; i", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
         expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveInt12", "def i = 1.1f; i", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveInt12", "def i = 1.1f; i", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
         expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveInt13", "def i = 1.1d; i", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveInt13", "def i = 1.1d; i", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
 
-        assertEquals(0, scriptEngine.compile("testReturnsPrimitiveInt14", "int i = 0", ReturnsPrimitiveInt.CONTEXT, emptyMap())
+        assertEquals(0, getEngine().compile("testReturnsPrimitiveInt14", "int i = 0", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                 .newInstance().execute());
     }
 
@@ -479,30 +495,30 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testReturnsPrimitiveFloat() throws Exception {
         assertEquals(1.1f,
-                scriptEngine.compile("testReturnsPrimitiveFloat0", "1.1f", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveFloat0", "1.1f", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
         assertEquals(1.1f,
-                scriptEngine.compile("testReturnsPrimitiveFloat1", "(float) 1.1d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveFloat1", "(float) 1.1d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
         assertEquals(1.1f,
-                scriptEngine.compile("testReturnsPrimitiveFloat2", "def d = 1.1f; d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveFloat2", "def d = 1.1f; d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
-        assertEquals(1.1f, scriptEngine.compile(
+        assertEquals(1.1f, getEngine().compile(
                 "testReturnsPrimitiveFloat3", "def d = Float.valueOf(1.1f); d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                 .newInstance().execute(), 0);
 
         assertEquals(1.1f + 6.7f,
-                scriptEngine.compile("testReturnsPrimitiveFloat4", "1.1f + 6.7f", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveFloat4", "1.1f + 6.7f", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
 
         Exception e = expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveFloat5", "1.1d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveFloat5", "1.1d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertEquals("Cannot cast from [double] to [float].", e.getMessage());
         e = expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile("testReturnsPrimitiveFloat6", "def d = 1.1d; d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveFloat6", "def d = 1.1d; d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                         .newInstance().execute());
-        e = expectScriptThrows(ClassCastException.class, () -> scriptEngine.compile(
+        e = expectScriptThrows(ClassCastException.class, () -> getEngine().compile(
                 "testReturnsPrimitiveFloat7", "def d = Double.valueOf(1.1); d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                 .newInstance().execute());
 
@@ -512,7 +528,7 @@ public class BaseClassTests extends ScriptTestCase {
         assertThat(debug, containsString("FRETURN"));
 
         assertEquals(0.0f,
-                scriptEngine.compile("testReturnsPrimitiveFloat8", "int i = 0", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveFloat8", "int i = 0", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
     }
 
@@ -528,45 +544,45 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testReturnsPrimitiveDouble() throws Exception {
         assertEquals(1.0,
-                scriptEngine.compile("testReturnsPrimitiveDouble0", "1", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveDouble0", "1", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
         assertEquals(1.0,
-                scriptEngine.compile("testReturnsPrimitiveDouble1", "1L", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveDouble1", "1L", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
         assertEquals(1.1,
-                scriptEngine.compile("testReturnsPrimitiveDouble2", "1.1d", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveDouble2", "1.1d", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
         assertEquals((double) 1.1f,
-                scriptEngine.compile("testReturnsPrimitiveDouble3", "1.1f", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveDouble3", "1.1f", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
-        assertEquals(1.1, scriptEngine.compile(
+        assertEquals(1.1, getEngine().compile(
                 "testReturnsPrimitiveDouble4", "Double.valueOf(1.1)", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                 .newInstance().execute(), 0);
-        assertEquals((double) 1.1f, scriptEngine.compile(
+        assertEquals((double) 1.1f, getEngine().compile(
                 "testReturnsPrimitiveDouble5", "Float.valueOf(1.1f)", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                 .newInstance().execute(), 0);
 
         assertEquals(1.0,
-                scriptEngine.compile("testReturnsPrimitiveDouble6", "def d = 1; d", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveDouble6", "def d = 1; d", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
         assertEquals(1.0,
-                scriptEngine.compile("testReturnsPrimitiveDouble7", "def d = 1L; d", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveDouble7", "def d = 1L; d", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
         assertEquals(1.1,
-                scriptEngine.compile("testReturnsPrimitiveDouble8", "def d = 1.1d; d", ReturnsPrimitiveDouble.CONTEXT, emptyMap()).
+                getEngine().compile("testReturnsPrimitiveDouble8", "def d = 1.1d; d", ReturnsPrimitiveDouble.CONTEXT, emptyMap()).
                         newInstance().execute(), 0);
         assertEquals((double) 1.1f,
-                scriptEngine.compile("testReturnsPrimitiveDouble9", "def d = 1.1f; d", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveDouble9", "def d = 1.1f; d", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
-        assertEquals(1.1, scriptEngine.compile(
+        assertEquals(1.1, getEngine().compile(
                 "testReturnsPrimitiveDouble10", "def d = Double.valueOf(1.1); d", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                 .newInstance().execute(), 0);
-        assertEquals((double) 1.1f, scriptEngine.compile(
+        assertEquals((double) 1.1f, getEngine().compile(
                 "testReturnsPrimitiveDouble11", "def d = Float.valueOf(1.1f); d", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                 .newInstance().execute(), 0);
 
         assertEquals(1.1 + 6.7,
-                scriptEngine.compile("testReturnsPrimitiveDouble12", "1.1 + 6.7", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveDouble12", "1.1 + 6.7", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
 
         String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings());
@@ -574,7 +590,7 @@ public class BaseClassTests extends ScriptTestCase {
         assertThat(debug, containsString("DRETURN"));
 
         assertEquals(0.0,
-                scriptEngine.compile("testReturnsPrimitiveDouble13", "int i = 0", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
+                getEngine().compile("testReturnsPrimitiveDouble13", "int i = 0", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
     }
 
@@ -589,7 +605,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testNoArgsConstant() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile("testNoArgsConstant0", "1", NoArgsConstant.CONTEXT, emptyMap()).newInstance().execute("constant"));
+            getEngine().compile("testNoArgsConstant0", "1", NoArgsConstant.CONTEXT, emptyMap()).newInstance().execute("constant"));
         assertThat(e.getMessage(), startsWith(
                 "Painless needs a constant [String[] PARAMETERS] on all interfaces it implements with the "
                 + "names of the method arguments but [" + NoArgsConstant.class.getName() + "] doesn't have one."));
@@ -607,7 +623,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testWrongArgsConstant() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile("testWrongArgsConstant0", "1", WrongArgsConstant.CONTEXT, emptyMap()));
+            getEngine().compile("testWrongArgsConstant0", "1", WrongArgsConstant.CONTEXT, emptyMap()));
         assertThat(e.getMessage(), startsWith(
                 "Painless needs a constant [String[] PARAMETERS] on all interfaces it implements with the "
                 + "names of the method arguments but [" + WrongArgsConstant.class.getName() + "] doesn't have one."));
@@ -625,7 +641,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testWrongLengthOfArgConstant() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile("testWrongLengthOfArgConstant", "1", WrongLengthOfArgConstant.CONTEXT, emptyMap()));
+            getEngine().compile("testWrongLengthOfArgConstant", "1", WrongLengthOfArgConstant.CONTEXT, emptyMap()));
         assertThat(e.getMessage(), startsWith("[" + WrongLengthOfArgConstant.class.getName() + "#ARGUMENTS] has length [2] but ["
                 + WrongLengthOfArgConstant.class.getName() + "#execute] takes [1] argument."));
     }
@@ -642,7 +658,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testUnknownArgType() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile("testUnknownArgType0", "1", UnknownArgType.CONTEXT, emptyMap()));
+            getEngine().compile("testUnknownArgType0", "1", UnknownArgType.CONTEXT, emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgType.class.getName() + ". Painless interfaces can only accept arguments "
                 + "that are of whitelisted types.", e.getMessage());
     }
@@ -659,7 +675,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testUnknownReturnType() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile("testUnknownReturnType0", "1", UnknownReturnType.CONTEXT, emptyMap()));
+            getEngine().compile("testUnknownReturnType0", "1", UnknownReturnType.CONTEXT, emptyMap()));
         assertEquals("Painless can only implement execute methods returning a whitelisted type but [" + UnknownReturnType.class.getName()
                 + "#execute] returns [" + UnknownReturnType.class.getName() + "] which isn't whitelisted.", e.getMessage());
     }
@@ -676,7 +692,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testUnknownArgTypeInArray() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile("testUnknownAryTypeInArray0", "1", UnknownArgTypeInArray.CONTEXT, emptyMap()));
+            getEngine().compile("testUnknownAryTypeInArray0", "1", UnknownArgTypeInArray.CONTEXT, emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgTypeInArray.class.getName() + ". Painless interfaces can only accept "
                 + "arguments that are of whitelisted types.", e.getMessage());
     }
@@ -693,7 +709,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
     public void testTwoExecuteMethods() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile("testTwoExecuteMethods0", "null", TwoExecuteMethods.CONTEXT, emptyMap()));
+            getEngine().compile("testTwoExecuteMethods0", "null", TwoExecuteMethods.CONTEXT, emptyMap()));
         assertEquals("Painless can only implement interfaces that have a single method named [execute] but ["
                 + TwoExecuteMethods.class.getName() + "] has more than one.", e.getMessage());
     }

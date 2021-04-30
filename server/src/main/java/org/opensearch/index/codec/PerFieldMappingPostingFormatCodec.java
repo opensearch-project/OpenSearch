@@ -34,8 +34,9 @@ package org.opensearch.index.codec;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene87.Lucene87StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene80.Lucene80DocValuesFormat;
 import org.apache.lucene.codecs.lucene87.Lucene87Codec;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.mapper.CompletionFieldMapper;
@@ -53,13 +54,14 @@ import org.opensearch.index.mapper.MapperService;
 public class PerFieldMappingPostingFormatCodec extends Lucene87Codec {
     private final Logger logger;
     private final MapperService mapperService;
+    private final DocValuesFormat dvFormat = new Lucene80DocValuesFormat(Lucene80DocValuesFormat.Mode.BEST_COMPRESSION);
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class) :
             "PerFieldMappingPostingFormatCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMappingPostingFormatCodec(Lucene87StoredFieldsFormat.Mode compressionMode, MapperService mapperService, Logger logger) {
+    public PerFieldMappingPostingFormatCodec(Mode compressionMode, MapperService mapperService, Logger logger) {
         super(compressionMode);
         this.mapperService = mapperService;
         this.logger = logger;
@@ -76,4 +78,8 @@ public class PerFieldMappingPostingFormatCodec extends Lucene87Codec {
         return super.getPostingsFormatForField(field);
     }
 
+    @Override
+    public DocValuesFormat getDocValuesFormatForField(String field) {
+        return dvFormat;
+    }
 }

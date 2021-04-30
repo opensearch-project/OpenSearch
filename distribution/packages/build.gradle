@@ -116,7 +116,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       if (architecture == 'x64') {
         arch('amd64')
       } else {
-        assert architecture == 'aarch64' : architecture
+        assert architecture == 'arm64' : architecture
         arch('arm64')
       }
     } else {
@@ -124,13 +124,13 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       if (architecture == 'x64') {
         arch('X86_64')
       } else {
-        assert architecture == 'aarch64' : architecture
+        assert architecture == 'arm64' : architecture
         arch('aarch64')
       }
     }
     // Follow opensearch's file naming convention
     String jdkString = jdk ? "" : "-no-jdk"
-    String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
+    String prefix = "${architecture == 'arm64' ? 'arm64-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
     destinationDirectory = file("${prefix}/build/distributions")
 
     // SystemPackagingTask overrides default archive task convention mappings, but doesn't provide a setter so we have to override the convention mapping itself
@@ -166,7 +166,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         with libFiles()
       }
       into('modules') {
-        with modulesFiles('linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))
+        with modulesFiles('linux-' + ((architecture == 'x64') ? 'x64' : architecture))
       }
       if (jdk) {
         into('jdk') {
@@ -345,8 +345,8 @@ Closure commonDebConfig(boolean jdk, String architecture) {
   }
 }
 
-tasks.register('buildAarch64Deb', Deb) {
-  configure(commonDebConfig(true, 'aarch64'))
+tasks.register('buildArm64Deb', Deb) {
+  configure(commonDebConfig(true, 'arm64'))
 }
 
 tasks.register('buildDeb', Deb) {
@@ -382,8 +382,8 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
   }
 }
 
-tasks.register('buildAarch64Rpm', Rpm) {
-  configure(commonRpmConfig(true, 'aarch64'))
+tasks.register('buildArm64Rpm', Rpm) {
+  configure(commonRpmConfig(true, 'arm64'))
 }
 
 tasks.register('buildRpm', Rpm) {

@@ -102,7 +102,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
         normalizedOutput(result.output)
                 .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/distribution/archives/darwin-tar/" +
-                        "build/distributions/opensearch-8.0.1-SNAPSHOT-darwin-x86_64.tar.gz")
+                        "build/distributions/opensearch-8.0.1-SNAPSHOT-darwin-x64.tar.gz")
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
