@@ -189,6 +189,14 @@ The canonical example of this is the ICU analysis plugin. It is important for fo
 
 Another example is the `discovery-gce` plugin. It is *vital* to folks running in [GCP](https://cloud.google.com/) but useless otherwise and it depends on a dozen extra jars.
 
+### `sandbox`
+
+A separate space provided for the community to innovate and add more general purpose experimental features to OpenSearch. These modules will be included only in the snapshot distributions. Once a certain feature is deemed worthy to be included in the OpenSearch release, it will be promoted to the *modules* directory. However, the sandbox modules will not have any other guarantees such as backwards compatibility or long term support and can be removed at any time.
+
+To exclude the modules from snapshot distributions, use the `enable.sandbox` system property.
+
+    ./gradlew assemble -Denable.sandbox=false
+
 ### `qa`
 
 Honestly this is kind of in flux and we're not 100% sure where we'll end up. We welcome your thoughts and help.

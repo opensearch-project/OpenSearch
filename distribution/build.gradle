@@ -238,6 +238,28 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   restTestExpansions['expected.modules.count'] += 1
 }
 
+// copy all sandbox modules if the distribution is a snapshot
+if (VersionProperties.isOpenSearchSnapshot()) {
+  Properties sysProps = System.getProperties();
+  // setting this property to false will exclude the sandbox modules from the distribution
+  final String enableSandbox = sysProps.getProperty("enable.sandbox", "true");
+  if(sysProps != null && enableSandbox == "true") {
+    project.rootProject.subprojects.findAll { it.parent.path == ':sandbox' }.each { Project module ->
+      File licenses = new File(module.projectDir, 'licenses')
+      if (licenses.exists()) {
+        buildNotice.configure {
+          licensesDir licenses
+          source module.file('src/main/java')
+        }
+      }
+
+      copyModule(processOutputsTaskProvider, module)
+      copyLog4jProperties(buildLog4jConfigTaskProvider, module)
+      restTestExpansions['expected.modules.count'] += 1
+    }
+  }
+}
+
 copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
 
 project(':test:external-modules').subprojects.each { Project testModule ->
