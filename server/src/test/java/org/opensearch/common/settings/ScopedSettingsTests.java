@@ -1298,4 +1298,54 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
                 equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).collect(Collectors.toList())));
     }
 
+    // upgrades a opendistro.one setting into opensearch.one setting
+    public void testUpgradeFromOpenDistroToOpenSearchNameSettings() {
+        final Setting<String> opensearchSetting = Setting.simpleString("opensearch.one", Property.NodeScope);
+        final Setting<String> opendistroSetting = opensearchSetting.withKey("opendistro.one");
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(
+                        Settings.EMPTY,
+                        new HashSet<>(Arrays.asList(opensearchSetting, opendistroSetting)),
+                        Collections.singleton(
+                            new GenericSettingUpgrader<>(opendistroSetting, opensearchSetting)
+                        )
+                    );
+
+        final Settings settings =
+                Settings.builder()
+                        .put("opendistro.one", "value")
+                        .build();
+        final Settings upgradedSettings = service.upgradeSettings(settings);
+
+        assertTrue(opensearchSetting.exists(upgradedSettings));
+        assertFalse(opendistroSetting.exists(upgradedSettings));
+        assertThat(opensearchSetting.get(upgradedSettings), equalTo("value"));
+    }
+
+    // uses the new opensearch.one value if the old one is not present
+    public void testUpgradeFromOpenDistroToOpenSearchOverwritesValue() {
+        final Setting<String> opensearchSetting = Setting.simpleString("opensearch.one", Property.NodeScope);
+        final Setting<String> opendistroSetting = opensearchSetting.withKey("opendistro.one");
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(
+                        Settings.EMPTY,
+                        new HashSet<>(Arrays.asList(opensearchSetting, opendistroSetting)),
+                        Collections.singleton(
+                            new GenericSettingUpgrader<>(opendistroSetting, opensearchSetting)
+                        )
+                    );
+
+        final Settings settings =
+                Settings.builder()
+                        .put("opendistro.one", "bad")
+                        .put("opensearch.one", "good")
+                        .build();
+        final Settings upgradedSettings = service.upgradeSettings(settings);
+
+        assertTrue(opensearchSetting.exists(upgradedSettings));
+        assertFalse(opendistroSetting.exists(upgradedSettings));
+        assertThat(opensearchSetting.get(upgradedSettings), equalTo("good"));
+    }
 }

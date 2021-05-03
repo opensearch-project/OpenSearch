@@ -205,14 +205,36 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Creates a new Setting instance
-     * @param key the settings key for this setting.
-     * @param defaultValue a default value function that returns the default values string representation.
-     * @param parser a parser that parses the string rep into a complex datatype.
-     * @param properties properties for this setting like scope, filtering...
+     * Creates a new Setting instance.
+     * @param key the settings key for this setting
+     * @param defaultValue a default value function that returns the default values string representation
+     * @param parser a parser that parses the string rep into a complex datatype
+     * @param properties properties for this setting like scope, filtering, etc.
      */
     public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
         this(key, defaultValue, parser, v -> {}, properties);
+    }
+
+    /**
+     * Creates a Setting with a new name based on another setting.
+     * 
+     * @param key the settings key for this setting
+     * @param setting another setting to copy from
+     */
+    public Setting(Key key, Setting<T> setting) {
+        this.key = key;
+        this.fallbackSetting = setting.fallbackSetting;
+        this.defaultValue = setting.defaultValue;
+        this.parser = setting.parser;
+        this.validator = setting.validator;
+        this.properties = setting.properties;
+    }
+
+    /**
+     * Creates a copy of this Setting with a new key.
+     */
+    public Setting<T> withKey(String key) {
+        return new Setting<T>(new SimpleKey(key), this);
     }
 
     /**
