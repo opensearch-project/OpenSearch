@@ -219,7 +219,7 @@ Print all the logging output from the test runs to the commandline
 even if tests are passing.
 
 ------------------------------
-./gradlew test -Dtests.output=always
+./gradlew test -Dtests.output=true
 ------------------------------
 
 Configure the heap size.
