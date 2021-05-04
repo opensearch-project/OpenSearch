@@ -198,6 +198,7 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 logging.setShowExceptions(true);
                 logging.setShowCauses(true);
                 logging.setExceptionFormat("full");
+                logging.setShowStandardStreams(Util.getBooleanProperty("tests.output", false));
             });
 
             if (OS.current().equals(OS.WINDOWS) && System.getProperty("tests.timeoutSuite") == null) {
