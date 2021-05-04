@@ -48,7 +48,7 @@ opensearchplugin {
 }
 
 versions << [
-  'hadoop2': '2.8.5'
+  'hadoop2': '2.10.1'
 ]
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
@@ -78,6 +78,8 @@ dependencies {
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  implementation 'com.fasterxml.woodstox:woodstox-core:6.1.1'
+  implementation 'org.codehaus.woodstox:stax2-api:4.2.1'
 
   hdfsFixture project(':test:fixtures:hdfs-fixture')
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
@@ -337,5 +339,10 @@ thirdPartyAudit {
 
     // internal java api: sun.misc.SignalHandler
     'org.apache.hadoop.util.SignalLogger$Handler',
+
+    'org.apache.hadoop.hdfs.server.datanode.checker.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.hdfs.server.datanode.checker.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.service.launcher.InterruptEscalator',
+    'org.apache.hadoop.service.launcher.IrqHandler',
   )
 }
