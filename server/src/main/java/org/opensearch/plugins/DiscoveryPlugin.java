@@ -49,14 +49,14 @@ import java.util.function.Supplier;
  * An additional extension point for {@link Plugin}s that extends OpenSearch's discovery functionality. To add an additional
  * {@link NetworkService.CustomNameResolver} just implement the interface and implement the {@link #getCustomNameResolver(Settings)} method:
  *
- * <pre>{@code
+ * <pre>
  * public class MyDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
  *     &#64;Override
  *     public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
  *         return new YourCustomNameResolverInstance(settings);
  *     }
  * }
- * }</pre>
+ * </pre>
  */
 public interface DiscoveryPlugin {
 
