@@ -10,7 +10,7 @@
 # vim: ft=ruby ts=2 sw=2 sts=2 et:
 
 # This Vagrantfile exists to test packaging. Read more about its use in the
-# vagrant section in TESTING.asciidoc.
+# vagrant section in TESTING.md.
 
 # Licensed to Elasticsearch under one or more contributor
 # license agreements. See the NOTICE file distributed with
