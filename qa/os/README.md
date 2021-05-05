@@ -17,7 +17,7 @@ tests should be added to this set of tests if possible.
 
 ## Running these tests
 
-See the section in [TESTING.asciidoc](../../TESTING.asciidoc#testing-packaging)
+See the section in [TESTING.md](../../TESTING.md#testing-packaging)
 
 ## Adding a new test class
 
