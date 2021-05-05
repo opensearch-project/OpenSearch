@@ -43,8 +43,6 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.opensearch.cluster.routing.allocation.RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
-
 /**
  * A composite {@link AllocationDecider} combining the "decision" of multiple
  * {@link AllocationDecider} implementations into a single allocation decision.

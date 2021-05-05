@@ -138,7 +138,7 @@ public class AllocationDecidersTests extends OpenSearchTestCase {
         verify(deciders.canForceAllocatePrimary(shardRouting, routingNode, allocation), matcher);
         verify(deciders.shouldAutoExpandToNode(idx, null, allocation), matcher);
         verify(deciders.canMoveAway(shardRouting, allocation), matcher);
-        verify(deciders.canMoveAwayAnyShard(allocation), matcher);
+        verify(deciders.canMoveAnyShard(allocation), matcher);
         verify(deciders.canAllocateAnyShardToNode(routingNode, allocation), matcher);
     }
 
