@@ -60,14 +60,14 @@ import static java.util.Collections.emptyMap;
  * An additional extension point for {@link Plugin}s that extends OpenSearch's analysis functionality. To add an additional
  * {@link TokenFilter} just implement the interface and implement the {@link #getTokenFilters()} method:
  *
- * <pre>{@code
+ * <pre>
  * public class AnalysisPhoneticPlugin extends Plugin implements AnalysisPlugin {
  *     &#64;Override
- *     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+ *     public Map&#60;String, AnalysisProvider&#60;TokenFilterFactory&#62;&#62; getTokenFilters() {
  *         return singletonMap("phonetic", PhoneticTokenFilterFactory::new);
  *     }
  * }
- * }</pre>
+ * </pre>
  *
  * OpenSearch doesn't have any automatic mechanism to share these components between indexes. If any component is heavy enough to warrant
  * such sharing then it is the Plugin's responsibility to do it in their {@link AnalysisProvider} implementation. We recommend against doing
