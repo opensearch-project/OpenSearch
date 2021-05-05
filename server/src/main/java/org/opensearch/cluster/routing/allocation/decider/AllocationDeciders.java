@@ -252,9 +252,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS
-                           && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                ret.add(decision);
+            } else {
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -276,9 +275,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS
-                           && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                ret.add(decision);
+            } else {
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -296,9 +294,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS
-                           && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                ret.add(decision);
+            } else {
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;

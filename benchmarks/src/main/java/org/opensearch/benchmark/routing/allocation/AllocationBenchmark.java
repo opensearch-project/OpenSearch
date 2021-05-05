@@ -197,6 +197,7 @@ public class AllocationBenchmark {
                 initialClusterState,
                 initialClusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING)
             );
+            initialClusterState = initialClusterStrategy.reroute(initialClusterState, "reroute");
         }
         // Ensure all shards are started
         while (initialClusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size() > 0) {
