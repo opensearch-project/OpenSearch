@@ -139,7 +139,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
     private void removeBlock() {
         if (isInternalCluster()) {
-            Settings settings = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build()  ;
+            Settings settings = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
         }
     }
@@ -356,7 +356,8 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         detachCluster(environmentMaster3, false);
 
         logger.info("--> start 2nd and 3rd master-eligible nodes and ensure 4 nodes stable cluster");
-        bootstrappedNodes.addAll(internalCluster().startMasterOnlyNodes(2));
+        bootstrappedNodes.add(internalCluster().startMasterOnlyNode(master2DataPathSettings));
+        bootstrappedNodes.add(internalCluster().startMasterOnlyNode(master3DataPathSettings));
         ensureStableCluster(4);
         bootstrappedNodes.forEach(node-> ensureReadOnlyBlock(true, node));
         removeBlock();
@@ -465,7 +466,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         final Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(masterNodeDataPathSettings).build());
         detachCluster(environment);
-        unsafeBootstrap(environment); //Default read-only block will be false after bootstrap
+        unsafeBootstrap(environment); //read-only block will remain same as one before bootstrap, in this case it is false
 
         String masterNode2 = internalCluster().startMasterOnlyNode(masterNodeDataPathSettings);
         ensureGreen();

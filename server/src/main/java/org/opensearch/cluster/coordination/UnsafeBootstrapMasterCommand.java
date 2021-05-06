@@ -84,7 +84,7 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
     UnsafeBootstrapMasterCommand() {
         super("Forces the successful election of the current node after the permanent loss of the half or more master-eligible nodes");
         applyClusterReadOnlyBlockOption = parser.accepts("apply-cluster-read-only-block",
-            "Optional cluster.blocks.read_only setting, false if not specified")
+            "Optional cluster.blocks.read_only setting")
             .withOptionalArg().ofType(Boolean.class);
     }
 
@@ -103,11 +103,6 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
         throws IOException {
         final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
-
-        Boolean applyClusterReadOnlyBlock = applyClusterReadOnlyBlockOption.value(options);
-        if(Objects.isNull(applyClusterReadOnlyBlock)) {
-            applyClusterReadOnlyBlock = false;
-        }
 
         final Tuple<Long, ClusterState> state = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = state.v2();
@@ -134,8 +129,15 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
         Settings persistentSettings = Settings.builder()
             .put(metadata.persistentSettings())
             .put(UNSAFE_BOOTSTRAP.getKey(), true)
-            .put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), applyClusterReadOnlyBlock)
             .build();
+
+        Boolean applyClusterReadOnlyBlock = applyClusterReadOnlyBlockOption.value(options);
+        if(Objects.nonNull(applyClusterReadOnlyBlock)) {
+            persistentSettings = Settings.builder()
+                .put(persistentSettings)
+                .put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), applyClusterReadOnlyBlock)
+                .build();
+        }
 
         Metadata.Builder newMetadata = Metadata.builder(metadata)
             .clusterUUID(Metadata.UNKNOWN_CLUSTER_UUID)
