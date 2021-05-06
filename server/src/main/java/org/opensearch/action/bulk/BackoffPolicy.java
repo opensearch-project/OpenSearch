@@ -198,8 +198,8 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         private final int maxDelay;
         private final int baseDelay;
 
-        private ExponentialEqualJitterBackoff(int baseDelay, int maxDealy) {
-            this.maxDelay = maxDealy;
+        private ExponentialEqualJitterBackoff(int baseDelay, int maxDelay) {
+            this.maxDelay = maxDelay;
             this.baseDelay = baseDelay;
         }
 

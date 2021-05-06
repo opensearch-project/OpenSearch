@@ -271,6 +271,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             @Override
+            public String getMasterThrottlingKey() {
+                return "delete-pipeline";
+            }
+
+            @Override
             public ClusterState execute(ClusterState currentState) {
                 return innerDelete(request, currentState);
             }
@@ -357,6 +362,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     @Override
                     protected AcknowledgedResponse newResponse(boolean acknowledged) {
                         return new AcknowledgedResponse(acknowledged);
+                    }
+
+                    @Override
+                    public String getMasterThrottlingKey() {
+                        return "put-pipeline";
                     }
 
                     @Override

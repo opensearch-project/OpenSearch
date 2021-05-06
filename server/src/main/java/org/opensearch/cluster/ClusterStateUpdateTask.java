@@ -77,6 +77,10 @@ public abstract class ClusterStateUpdateTask
      */
     public abstract void onFailure(String source, Exception e);
 
+//    public String getMasterThrottlingKey() {
+//        return "sample key";
+//    }
+
     @Override
     public final void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
         // final, empty implementation here as this method should only be defined in combination

@@ -75,6 +75,17 @@ public interface ClusterStateTaskExecutor<T> {
     }
 
     /**
+     * Throttling key for Master task throttling.
+     * Master node can perform the throttling of tasks based on Executor,
+     * so it needs to provides the throttling key using which master will throttle this task executors request.
+     *
+     * Generally we can make it as task name.
+     */
+    default String getMasterThrottlingKey() {
+        return "";
+    }
+
+    /**
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
      */

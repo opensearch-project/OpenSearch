@@ -488,6 +488,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             }
 
             @Override
+            public String getMasterThrottlingKey() {
+                return "put-script";
+            }
+
+            @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
                 smd = ScriptMetadata.putStoredScript(smd, request.id(), source);
@@ -506,6 +511,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             @Override
             protected AcknowledgedResponse newResponse(boolean acknowledged) {
                 return new AcknowledgedResponse(acknowledged);
+            }
+
+            @Override
+            public String getMasterThrottlingKey() {
+                return "delete-script";
             }
 
             @Override

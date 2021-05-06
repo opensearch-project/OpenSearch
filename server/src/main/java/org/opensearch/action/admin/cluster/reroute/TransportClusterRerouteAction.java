@@ -194,6 +194,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         }
 
         @Override
+        public String getMasterThrottlingKey() {
+            return "cluster-reroute-api";
+        }
+
+        @Override
         protected ClusterRerouteResponse newResponse(boolean acknowledged) {
             return new ClusterRerouteResponse(acknowledged, clusterStateToSend, explanations);
         }

@@ -118,6 +118,11 @@ public class TransportClusterUpdateSettingsAction extends
             }
 
             @Override
+            public String getMasterThrottlingKey() {
+                return "cluster-update-settings";
+            }
+
+            @Override
             public void onAllNodesAcked(@Nullable Exception e) {
                 if (changed) {
                     reroute(true);

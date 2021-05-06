@@ -15,7 +15,6 @@ import org.opensearch.action.support.master.MasterThrottlingRetryListener;
 import org.opensearch.cluster.service.MasterTaskThrottlingException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.cluster.service.MasterTaskThrottler;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.TransportMessageListener;
@@ -54,8 +53,7 @@ public class MasterTaskThrottlingIT extends OpenSearchIntegTestCase {
 
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
             Settings settings = Settings.builder()
-                    .put(MasterTaskThrottler.ENABLE_MASTER_THROTTLING.getKey(), true)
-                    .put("master.throttling.thresholds.put_mapping.value", throttlingLimit)
+                    .put("master.throttling.thresholds.put-mapping.value", throttlingLimit)
                     .build();
             settingsRequest.transientSettings(settings);
             assertAcked(client().admin().cluster().updateSettings(settingsRequest).actionGet());
@@ -125,8 +123,7 @@ public class MasterTaskThrottlingIT extends OpenSearchIntegTestCase {
         finally {
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
             Settings settings = Settings.builder()
-                    .put(MasterTaskThrottler.ENABLE_MASTER_THROTTLING.getKey(), (String) null)
-                    .put("master.throttling.thresholds.put_mapping.value", (String) null)
+                    .put("master.throttling.thresholds.put-mapping.value", (String) null)
                     .build();
             settingsRequest.transientSettings(settings);
             assertAcked(client().admin().cluster().updateSettings(settingsRequest).actionGet());
@@ -150,8 +147,7 @@ public class MasterTaskThrottlingIT extends OpenSearchIntegTestCase {
 
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
             Settings settings = Settings.builder()
-                    .put(MasterTaskThrottler.ENABLE_MASTER_THROTTLING.getKey(), true)
-                    .put("master.throttling.thresholds.put_mapping.value", throttlingLimit)
+                    .put("master.throttling.thresholds.put-mapping.value", throttlingLimit)
                     .build();
             settingsRequest.transientSettings(settings);
             assertAcked(client().admin().cluster().updateSettings(settingsRequest).actionGet());
@@ -200,8 +196,7 @@ public class MasterTaskThrottlingIT extends OpenSearchIntegTestCase {
         finally {
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
             Settings settings = Settings.builder()
-                    .put(MasterTaskThrottler.ENABLE_MASTER_THROTTLING.getKey(), (String) null)
-                    .put("master.throttling.thresholds.put_mapping.value", (String) null)
+                    .put("master.throttling.thresholds.put-mapping.value", (String) null)
                     .build();
             settingsRequest.transientSettings(settings);
             assertAcked(client().admin().cluster().updateSettings(settingsRequest).actionGet());

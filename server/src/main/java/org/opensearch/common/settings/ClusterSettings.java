@@ -576,7 +576,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
             IndexingPressure.MAX_INDEXING_BYTES,
-            MasterTaskThrottler.ENABLE_MASTER_THROTTLING,
             MasterTaskThrottler.THRESHOLD_SETTINGS)));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

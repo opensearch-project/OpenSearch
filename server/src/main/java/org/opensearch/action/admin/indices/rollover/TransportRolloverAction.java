@@ -159,6 +159,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             }
 
                             @Override
+                            public String getMasterThrottlingKey() {
+                                return "rollover-index";
+                            }
+
+                            @Override
                             public void onFailure(String source, Exception e) {
                                 listener.onFailure(e);
                             }

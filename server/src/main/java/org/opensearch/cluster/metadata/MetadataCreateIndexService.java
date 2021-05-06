@@ -309,6 +309,11 @@ public class MetadataCreateIndexService {
                 }
 
                 @Override
+                public String getMasterThrottlingKey() {
+                    return "create-index";
+                }
+
+                @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return applyCreateIndexRequest(currentState, request, false);
                 }

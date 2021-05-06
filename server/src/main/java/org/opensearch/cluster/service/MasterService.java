@@ -157,14 +157,16 @@ public class MasterService extends AbstractLifecycleComponent {
                 () -> tasks.forEach(
                     task -> ((UpdateTask) task).listener.onFailure(task.source,
                         new ProcessClusterEventTimeoutException(timeout, task.source))));
-            masterTaskThrottler.release(tasks.get(0).task.getClass(), tasks.size());
+            String masterThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
+            masterTaskThrottler.release(masterThrottlingKey, tasks.size());
         }
 
         @Override
         protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
-            // All the batched tasks will have same task class so once they are executed in batch
+            // All the batched tasks will have same executor so once they are executed in batch
             // we will release all batch's permit from master task throttling.
-            masterTaskThrottler.release(tasks.get(0).task.getClass(), tasks.size());
+            String masterThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
+            masterTaskThrottler.release(masterThrottlingKey, tasks.size());
             ClusterStateTaskExecutor<Object> taskExecutor = (ClusterStateTaskExecutor<Object>) batchingKey;
             List<UpdateTask> updateTasks = (List<UpdateTask>) tasks;
             runTasks(new TaskInputs(taskExecutor, updateTasks, tasksSummary));
@@ -174,17 +176,18 @@ public class MasterService extends AbstractLifecycleComponent {
         public void submitTasks(
             List<? extends BatchedTask> tasks, @Nullable TimeValue timeout) throws OpenSearchRejectedExecutionException {
             assert tasks.size() > 0;
-            if(masterTaskThrottler.acquire(tasks.get(0).getTask().getClass(), tasks.size())) {
+            String masterThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
+            if(masterTaskThrottler.acquire(masterThrottlingKey, tasks.size())) {
                 try {
                     super.submitTasks(tasks, timeout);
                 } catch (Exception e) {
-                    masterTaskThrottler.release(tasks.get(0).getTask().getClass(), tasks.size());
+                    masterTaskThrottler.release(masterThrottlingKey, tasks.size());
                     throw e;
                 }
             } else {
                 logger.warn("Throwing Throttling Exception for [{}]. Trying to acquire [{}] permits, limit is set to [{}]",
                     tasks.get(0).getTask().getClass(), tasks.size(), masterTaskThrottler.getThrottlingLimit(
-                        tasks.get(0).getTask().getClass()));
+                        masterThrottlingKey));
                 throw new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for " + tasks.get(0).getTask().getClass());
             }
         }

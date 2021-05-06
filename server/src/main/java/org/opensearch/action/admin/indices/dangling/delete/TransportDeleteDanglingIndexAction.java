@@ -154,6 +154,11 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
                         }
 
                         @Override
+                        public String getMasterThrottlingKey() {
+                            return "delete-dangling-index";
+                        }
+
+                        @Override
                         public ClusterState execute(final ClusterState currentState) {
                             return deleteDanglingIndex(currentState, indexToDelete);
                         }

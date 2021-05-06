@@ -19,9 +19,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class MasterThrottlingStats {
 
-    private Map<Class, CounterMetric> throttledTasksCount = new ConcurrentHashMap<>();
+    private Map<String, CounterMetric> throttledTasksCount = new ConcurrentHashMap<>();
 
-    public void incrementThrottlingCount(Class type, final int permits) {
+    public void incrementThrottlingCount(String type, final int permits) {
         if(!throttledTasksCount.containsKey(type)) {
             throttledTasksCount.put(type, new CounterMetric());
         }

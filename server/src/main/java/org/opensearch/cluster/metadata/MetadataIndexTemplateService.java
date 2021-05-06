@@ -146,6 +146,11 @@ public class MetadataIndexTemplateService {
             }
 
             @Override
+            public String getMasterThrottlingKey() {
+                return "remove-index-template";
+            }
+
+            @Override
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = new HashSet<>();
                 for (ObjectCursor<String> cursor : currentState.metadata().templates().keys()) {
@@ -194,6 +199,11 @@ public class MetadataIndexTemplateService {
                 @Override
                 public void onFailure(String source, Exception e) {
                     listener.onFailure(e);
+                }
+
+                @Override
+                public String getMasterThrottlingKey() {
+                    return "create-component-template";
                 }
 
                 @Override
@@ -331,6 +341,11 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
+                public String getMasterThrottlingKey() {
+                    return "remove-component-template";
+                }
+
+                @Override
                 public ClusterState execute(ClusterState currentState) {
                     Set<String> templateNames = new HashSet<>();
                     for (String templateName : currentState.metadata().componentTemplates().keySet()) {
@@ -407,6 +422,11 @@ public class MetadataIndexTemplateService {
                 @Override
                 public void onFailure(String source, Exception e) {
                     listener.onFailure(e);
+                }
+
+                @Override
+                public String getMasterThrottlingKey() {
+                    return "create-index-template-v2";
                 }
 
                 @Override
@@ -665,6 +685,11 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
+                public String getMasterThrottlingKey() {
+                    return "remove-index-template-v2";
+                }
+
+                @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerRemoveIndexTemplateV2(currentState, name);
                 }
@@ -757,6 +782,11 @@ public class MetadataIndexTemplateService {
             @Override
             public void onFailure(String source, Exception e) {
                 listener.onFailure(e);
+            }
+
+            @Override
+            public String getMasterThrottlingKey() {
+                return "create-index-template";
             }
 
             @Override

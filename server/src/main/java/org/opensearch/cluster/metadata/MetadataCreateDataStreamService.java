@@ -111,6 +111,11 @@ public class MetadataCreateDataStreamService {
                 }
 
                 @Override
+                public String getMasterThrottlingKey() {
+                    return "create-data-stream";
+                }
+
+                @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
                 }

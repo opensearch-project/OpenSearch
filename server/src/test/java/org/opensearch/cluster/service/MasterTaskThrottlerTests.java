@@ -9,13 +9,11 @@
 package org.opensearch.cluster.service;
 
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.snapshots.UpdateIndexShardSnapshotStatusRequest;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -75,13 +73,12 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings =
                 new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
-        assertFalse(throttler.isThrottlingEnabled());
-        for(String key : throttler.taskNameToClassMapping.keySet()) {
-            assertNull(throttler.getThrottlingLimit(throttler.taskNameToClassMapping.get(key)));
+        for(String key : MasterTaskThrottler.CONFIGURED_TASK_FOR_THROTTLING) {
+            assertNull(throttler.getThrottlingLimit(key));
         }
     }
 
-    public void testValidateEnableThrottlingForDifferentVersion() {
+    public void testValidateSettingsForDifferentVersion() {
         DiscoveryNode masterNode = new DiscoveryNode("local_master_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
                 Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.V_7_10_3);
         DiscoveryNode dataNode = new DiscoveryNode("local_data_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
@@ -92,16 +89,23 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
 
+        // set some limit for update snapshot tasks
+        int newLimit = randomIntBetween(1, 10);
+
+        Settings newSettings = Settings.builder()
+            .put("master.throttling.thresholds.update_snapshot.value", newLimit)
+            .build();
+
         AtomicBoolean exceptionThrown = new AtomicBoolean();
         try {
-            throttler.validateEnableSetting(true);
+            throttler.validateSetting(newSettings);
         } catch (IllegalArgumentException e){
             exceptionThrown.set(true);
         }
         assertTrue(exceptionThrown.get());
     }
 
-    public void testValidateEnableThrottlingForHappyCase() {
+    public void testValidateSettingsForUnknownTask() {
         DiscoveryNode masterNode = new DiscoveryNode("local_master_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.V_7_10_3);
         DiscoveryNode dataNode = new DiscoveryNode("local_data_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
@@ -112,118 +116,14 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
 
-        AtomicBoolean exceptionThrown = new AtomicBoolean();
-        try {
-            throttler.validateEnableSetting(true);
-        } catch (IllegalArgumentException e){
-            exceptionThrown.set(true);
-        }
-        assertFalse(exceptionThrown.get());
-    }
-
-    public void testUpdateEnableThrottling() {
-        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, new DiscoveryNode[]{localNode}));
-        ClusterSettings clusterSettings =
-                new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
-
-        Settings newSettings = Settings.builder()
-                .put(MasterTaskThrottler.ENABLE_MASTER_THROTTLING.getKey(), true)
-                .build();
-        clusterSettings.applySettings(newSettings);
-        assertTrue(throttler.isThrottlingEnabled());
-    }
-
-    public void testFlippingEnableThrottling() {
-        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, new DiscoveryNode[]{localNode}));
-
-        ClusterSettings clusterSettings =
-                new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
-
-        // set some limit for update snapshot tasks
-        int limit = randomIntBetween(1, 10);
-
-        Settings newSettings = Settings.builder()
-                .put(MasterTaskThrottler.ENABLE_MASTER_THROTTLING.getKey(), true)
-                .put("master.throttling.thresholds.update_snapshot.value", limit)
-                .build();
-        clusterSettings.applySettings(newSettings);
-        assertTrue(throttler.isThrottlingEnabled());
-        assertEquals(limit, throttler.getThrottlingLimit(UpdateIndexShardSnapshotStatusRequest.class).intValue());
-
-        newSettings = Settings.builder()
-                .put(MasterTaskThrottler.ENABLE_MASTER_THROTTLING.getKey(), false)
-                .build();
-        clusterSettings.applySettings(newSettings);
-
-        newSettings = Settings.builder()
-                .put(MasterTaskThrottler.ENABLE_MASTER_THROTTLING.getKey(), true)
-                .build();
-        clusterSettings.applySettings(newSettings);
-
-        assertEquals(limit, throttler.getThrottlingLimit(UpdateIndexShardSnapshotStatusRequest.class).intValue());
-    }
-
-    public void testUpdateThrottlingLimit() {
-        ClusterSettings clusterSettings =
-                new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
-        throttler.setThrottlingEnabled(true);
-
         // set some limit for update snapshot tasks
         int newLimit = randomIntBetween(1, 10);
 
         Settings newSettings = Settings.builder()
-                .put("master.throttling.thresholds.update_snapshot.value", newLimit)
-                .build();
-        clusterSettings.applySettings(newSettings);
-        assertEquals(newLimit, throttler.getThrottlingLimit(UpdateIndexShardSnapshotStatusRequest.class).intValue());
+            .put("master.throttling.thresholds.random-task.value", newLimit)
+            .build();
 
-        // set update snapshot task limit to default
-        newSettings = Settings.builder()
-                .put("master.throttling.thresholds.update_snapshot.values", -1)
-                .build();
-        clusterSettings.applySettings(newSettings);
-        assertNull(throttler.getThrottlingLimit(UpdateIndexShardSnapshotStatusRequest.class));
-    }
-
-    public void testUpdateLimitWithClassPath() {
-        ClusterSettings clusterSettings =
-                new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
-        throttler.setThrottlingEnabled(true);
-
-        // set some limit for update snapshot tasks
-        int newLimit = randomIntBetween(1, 10);
-
-        Settings newSettings = Settings.builder()
-                .put("master.throttling.thresholds.org/opensearch/cluster/service/MasterTaskThrottlerTests$TestTask.value", newLimit)
-                .build();
-        clusterSettings.applySettings(newSettings);
-        assertEquals(newLimit, throttler.getThrottlingLimit(TestTask.class).intValue());
-    }
-
-    public void testValidateSetting() {
-        ClusterSettings clusterSettings =
-                new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
-
-        Settings newSettings = Settings.builder()
-                .put("master.throttling.thresholds.update_snapshot.values", -5)
-                .build();
         AtomicBoolean exceptionThrown = new AtomicBoolean();
-        try {
-            throttler.validateSetting(newSettings);
-        } catch (IllegalArgumentException e){
-            exceptionThrown.set(true);
-        }
-        assertTrue(exceptionThrown.getAndSet(false));
-
-        newSettings = Settings.builder()
-                .put("master.throttling.thresholds.randomClassPath.values", 5)
-                .build();
-
         try {
             throttler.validateSetting(newSettings);
         } catch (IllegalArgumentException e){
@@ -232,23 +132,67 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         assertTrue(exceptionThrown.get());
     }
 
+    public void testUpdateThrottlingLimitForHappyCase() {
+        DiscoveryNode masterNode = new DiscoveryNode("local_master_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.V_7_10_3);
+        DiscoveryNode dataNode = new DiscoveryNode("local_data_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.V_7_10_3);
+        setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[]{masterNode, dataNode}));
+
+        ClusterSettings clusterSettings =
+                new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
+        throttler.setThrottlingEnabled(true);
+
+        // set some limit for update snapshot tasks
+        int newLimit = randomIntBetween(1, 10);
+
+        Settings newSettings = Settings.builder()
+                .put("master.throttling.thresholds.create-index.value", newLimit)
+                .build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(newLimit, throttler.getThrottlingLimit("create-index").intValue());
+
+        // set update snapshot task limit to default
+        newSettings = Settings.builder()
+                .put("master.throttling.thresholds.create-index.value", -1)
+                .build();
+        clusterSettings.applySettings(newSettings);
+        assertNull(throttler.getThrottlingLimit("create-index"));
+    }
+
+    public void testValidateSettingForLimit() {
+        DiscoveryNode masterNode = new DiscoveryNode("local_master_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.V_7_10_3);
+        DiscoveryNode dataNode = new DiscoveryNode("local_data_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.V_7_10_3);
+        setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[]{masterNode, dataNode}));
+
+        ClusterSettings clusterSettings =
+                new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
+
+        Settings newSettings = Settings.builder()
+                .put("master.throttling.thresholds.create-index.values", -5)
+                .build();
+        AtomicBoolean exceptionThrown = new AtomicBoolean();
+        try {
+            throttler.validateSetting(newSettings);
+        } catch (IllegalArgumentException e){
+            exceptionThrown.set(true);
+        }
+        assertTrue(exceptionThrown.getAndSet(false));
+    }
+
     public void testUpdateLimit() {
         ClusterSettings clusterSettings =
                 new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
         throttler.setThrottlingEnabled(true);
 
-        throttler.updateLimit(TestTask.class, 5);
-        assertEquals(5, throttler.getThrottlingLimit(TestTask.class).intValue());
-        throttler.updateLimit(TestTask.class, -1);
-        assertNull(throttler.getThrottlingLimit(TestTask.class));
-    }
-
-    public class TestTask extends DeleteSnapshotRequest {
-        private final int id;
-
-        TestTask(int id) {
-            this.id = id;
-        }
+        throttler.updateLimit("test", 5);
+        assertEquals(5, throttler.getThrottlingLimit("test").intValue());
+        throttler.updateLimit("test", -1);
+        assertNull(throttler.getThrottlingLimit("test"));
     }
 }
