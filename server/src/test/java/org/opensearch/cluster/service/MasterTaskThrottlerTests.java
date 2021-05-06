@@ -8,7 +8,7 @@
 
 package org.opensearch.cluster.service;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -51,7 +51,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         super.setUp();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         localNode = new DiscoveryNode("local_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.V_7_10_3);
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), LegacyESVersion.V_7_10_3);
         allNodes = new DiscoveryNode[]{localNode};
     }
 
@@ -80,9 +80,9 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testValidateSettingsForDifferentVersion() {
         DiscoveryNode masterNode = new DiscoveryNode("local_master_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.V_7_10_3);
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), LegacyESVersion.V_7_10_3);
         DiscoveryNode dataNode = new DiscoveryNode("local_data_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.V_7_1_0);
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), LegacyESVersion.V_7_1_0);
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[]{masterNode, dataNode}));
 
         ClusterSettings clusterSettings =
@@ -107,9 +107,9 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testValidateSettingsForUnknownTask() {
         DiscoveryNode masterNode = new DiscoveryNode("local_master_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.V_7_10_3);
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), LegacyESVersion.V_7_10_3);
         DiscoveryNode dataNode = new DiscoveryNode("local_data_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.V_7_10_3);
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), LegacyESVersion.V_7_10_3);
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[]{masterNode, dataNode}));
 
         ClusterSettings clusterSettings =
@@ -134,9 +134,9 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testUpdateThrottlingLimitForHappyCase() {
         DiscoveryNode masterNode = new DiscoveryNode("local_master_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.V_7_10_3);
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), LegacyESVersion.V_7_10_3);
         DiscoveryNode dataNode = new DiscoveryNode("local_data_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.V_7_10_3);
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), LegacyESVersion.V_7_10_3);
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[]{masterNode, dataNode}));
 
         ClusterSettings clusterSettings =
@@ -163,9 +163,9 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testValidateSettingForLimit() {
         DiscoveryNode masterNode = new DiscoveryNode("local_master_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.V_7_10_3);
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), LegacyESVersion.V_7_10_3);
         DiscoveryNode dataNode = new DiscoveryNode("local_data_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.V_7_10_3);
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), LegacyESVersion.V_7_10_3);
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[]{masterNode, dataNode}));
 
         ClusterSettings clusterSettings =

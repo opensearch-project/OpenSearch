@@ -33,7 +33,7 @@
 package org.opensearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.Strings;
@@ -157,7 +157,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testQueryBuilderBWC() throws Exception {
-        final String type = getOldClusterVersion().before(Version.V_7_0_0) ? "doc" : "_doc";
+        final String type = getOldClusterVersion().before(LegacyESVersion.V_7_0_0) ? "doc" : "_doc";
         String index = "queries";
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();

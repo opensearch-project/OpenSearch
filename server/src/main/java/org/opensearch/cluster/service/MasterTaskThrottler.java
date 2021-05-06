@@ -10,7 +10,7 @@ package org.opensearch.cluster.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -78,7 +78,7 @@ public class MasterTaskThrottler extends Throttler<String> {
         /**
          * TODO: Change the version number of check as per version in which this change will be merged.
          */
-        if(masterService.state().nodes().getMinNodeVersion().compareTo(Version.V_7_10_3) < 0) {
+        if(masterService.state().nodes().getMinNodeVersion().compareTo(LegacyESVersion.V_7_10_3) < 0) {
             throw new IllegalArgumentException("All the nodes in cluster should be on version later than 7.10.3");
         }
         Map<String, Settings> groups = settings.getAsGroups();

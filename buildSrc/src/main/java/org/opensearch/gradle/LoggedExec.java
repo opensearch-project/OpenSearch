@@ -55,6 +55,8 @@ import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -142,6 +144,11 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
         return genericExec(project::javaexec, action);
     }
 
+    /** Returns JVM arguments suitable for a short-lived forked task */
+    public static final List<String> shortLivedArgs() {
+        return Arrays.asList(new String[] { "-XX:TieredStopAtLevel=1" });
+    }
+
     private static final Pattern NEWLINE = Pattern.compile(System.lineSeparator());
 
     private static <T extends BaseExecSpec> ExecResult genericExec(Function<Action<T>, ExecResult> function, Action<T> action) {
@@ -153,6 +160,10 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
             return function.apply(spec -> {
                 spec.setStandardOutput(output);
                 spec.setErrorOutput(output);
+                // optimize for short-lived process
+                if (spec instanceof JavaExecSpec) {
+                    ((JavaExecSpec) spec).setJvmArgs(shortLivedArgs());
+                }
                 action.execute(spec);
                 try {
                     output.write(("Output for " + spec.getExecutable() + ":").getBytes(StandardCharsets.UTF_8));

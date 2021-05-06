@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoBoundingBoxTests;
@@ -73,10 +74,10 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
     }
 
     public void testSerializationPreBounds() throws Exception {
-        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_5_0);
+        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_5_0);
         GeoHashGridAggregationBuilder builder = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_7_6_0);
+            output.setVersion(LegacyESVersion.V_7_6_0);
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
                 new NamedWriteableRegistry(Collections.emptyList()))) {

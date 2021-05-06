@@ -32,6 +32,7 @@
 
 package org.opensearch.search.geo;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -62,7 +63,7 @@ public class GeoPolygonIT extends OpenSearchIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 

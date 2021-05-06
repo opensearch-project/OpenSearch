@@ -37,10 +37,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.ChannelActionListener;
@@ -648,7 +648,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             if (cause instanceof ConnectTransportException) {
                 logger.info("recovery of {} from [{}] interrupted by network disconnect, will retry in [{}]; cause: [{}]",
                     request.shardId(), request.sourceNode(), recoverySettings.retryDelayNetwork(), cause.getMessage());
-                if (request.sourceNode().getVersion().onOrAfter(Version.V_7_9_0)) {
+                if (request.sourceNode().getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
                     reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
                 } else {
                     retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(),

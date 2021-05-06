@@ -31,9 +31,9 @@
 
 package org.opensearch.action.admin.indices.template.put;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -105,7 +105,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         cause = in.readString();
         name = in.readString();
 
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             indexPatterns = in.readStringList();
         } else {
             indexPatterns = Collections.singletonList(in.readString());
@@ -119,7 +119,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             String mappingSource = in.readString();
             mappings.put(type, mappingSource);
         }
-        if (in.getVersion().before(Version.V_6_5_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_5_0)) {
             // Used to be used for custom index metadata
             int customSize = in.readVInt();
             assert customSize == 0 : "expected not to have any custom metadata";
@@ -496,7 +496,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         super.writeTo(out);
         out.writeString(cause);
         out.writeString(name);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             out.writeStringCollection(indexPatterns);
         } else {
             out.writeString(indexPatterns.size() > 0 ? indexPatterns.get(0) : "");
@@ -509,7 +509,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        if (out.getVersion().before(Version.V_6_5_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_5_0)) {
             out.writeVInt(0);
         }
         out.writeVInt(aliases.size());

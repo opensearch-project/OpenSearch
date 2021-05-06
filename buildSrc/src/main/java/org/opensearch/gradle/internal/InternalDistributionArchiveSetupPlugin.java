@@ -121,7 +121,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         project.getTasks().withType(AbstractArchiveTask.class).configureEach(t -> {
             String subdir = archiveTaskToSubprojectName(t.getName());
             t.getDestinationDirectory().set(project.file(subdir + "/build/distributions"));
-            t.getArchiveBaseName().set("opensearch-oss");
+            t.getArchiveBaseName().set("opensearch");
         });
     }
 

@@ -31,8 +31,8 @@
 
 package org.opensearch.common.breaker;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -53,7 +53,7 @@ public class CircuitBreakingException extends OpenSearchException {
         super(in);
         byteLimit = in.readLong();
         bytesWanted = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             durability = in.readEnum(CircuitBreaker.Durability.class);
         } else {
             durability = CircuitBreaker.Durability.PERMANENT;
@@ -76,7 +76,7 @@ public class CircuitBreakingException extends OpenSearchException {
         super.writeTo(out);
         out.writeLong(byteLimit);
         out.writeLong(bytesWanted);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             out.writeEnum(durability);
         }
     }

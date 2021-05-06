@@ -116,11 +116,10 @@ public class Cleanup {
             // Doing rpm erase on both packages in one command will remove neither since both cannot be installed
             // this may leave behind config files in /etc/opensearch, but a later step in this cleanup will get them
             sh.runIgnoreExitCode("rpm --quiet -e opensearch");
-            sh.runIgnoreExitCode("rpm --quiet -e opensearch-oss");
         }
 
         if (isDPKG()) {
-            sh.runIgnoreExitCode("dpkg --purge opensearch opensearch-oss");
+            sh.runIgnoreExitCode("dpkg --purge opensearch");
         }
     }
 }

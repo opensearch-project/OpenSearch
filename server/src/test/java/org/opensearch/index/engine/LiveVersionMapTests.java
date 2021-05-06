@@ -61,7 +61,7 @@ public class LiveVersionMapTests extends OpenSearchTestCase {
 
     public void testRamBytesUsed() throws Exception {
         LiveVersionMap map = new LiveVersionMap();
-        for (int i = 0; i < 100000; ++i) {
+        for (int i = 0; i < 10000; ++i) {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
             try (Releasable r = map.acquireLock(uid.toBytesRef())) {
@@ -77,7 +77,7 @@ public class LiveVersionMapTests extends OpenSearchTestCase {
         map.beforeRefresh();
         map.afterRefresh(true);
 
-        for (int i = 0; i < 100000; ++i) {
+        for (int i = 0; i < 10000; ++i) {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
             try (Releasable r = map.acquireLock(uid.toBytesRef())) {

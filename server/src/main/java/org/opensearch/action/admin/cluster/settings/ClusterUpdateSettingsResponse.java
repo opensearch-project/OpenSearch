@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -69,8 +69,8 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
     final Settings persistentSettings;
 
     ClusterUpdateSettingsResponse(StreamInput in) throws IOException {
-        super(in, in.getVersion().onOrAfter(Version.V_6_4_0));
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0));
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
         } else {
@@ -96,7 +96,7 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             super.writeTo(out);
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);

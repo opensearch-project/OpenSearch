@@ -61,7 +61,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         buildFile << """
             testClusters {
               myCluster {
-                testDistribution = 'oss'
+                testDistribution = 'archive'
               }
             }
 
@@ -87,7 +87,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         buildFile << """
             testClusters {
               myCluster {
-                testDistribution = 'oss'
+                testDistribution = 'archive'
                 extraJarFile(file('${someJar().absolutePath}'))
               }
             }

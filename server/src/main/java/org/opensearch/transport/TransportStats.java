@@ -32,7 +32,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -62,7 +62,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
 
     public TransportStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             totalOutboundConnections = in.readVLong();
         } else {
             totalOutboundConnections = 0L;
@@ -76,7 +76,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeVLong(totalOutboundConnections);
         }
         out.writeVLong(rxCount);

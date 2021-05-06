@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.Nullable;
@@ -66,7 +67,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
 
-    private static final Version FORCE_MERGE_UUID_VERSION = Version.V_7_7_0;
+    private static final Version FORCE_MERGE_UUID_VERSION = LegacyESVersion.V_7_7_0;
 
     /**
      * Force merge UUID to store in the live commit data of a shard under

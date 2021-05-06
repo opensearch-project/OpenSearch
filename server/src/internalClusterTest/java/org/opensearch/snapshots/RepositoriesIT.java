@@ -43,9 +43,12 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.RepositoryVerificationException;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -122,6 +125,70 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         client.admin().cluster().prepareDeleteRepository("test-repo-2").get();
         repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(0));
+    }
+
+    public void testResidualStaleIndicesAreDeletedByConsecutiveDelete() throws Exception {
+        Client client = client();
+        Path repositoryPath = randomRepoPath();
+        final String repositoryName = "test-repo";
+        final String snapshotToBeDeletedLastName = "test-snapshot-to-be-deleted-last";
+        final String bulkSnapshotsPattern = "test-snap-*";
+
+        logger.info("-->  creating repository at {}", repositoryPath.toAbsolutePath());
+        createRepository(repositoryName, "mock", repositoryPath);
+
+        int numberOfFiles = numberOfFiles(repositoryPath);
+
+        logger.info("--> creating index-0 and ingest data");
+        createIndex("test-idx-0");
+        ensureGreen();
+        for (int j = 0; j < 10; j++) {
+            index("test-idx-0", "_doc", Integer.toString( 10 + j), "foo", "bar" +  10 + j);
+        }
+        refresh();
+
+        logger.info("--> creating first snapshot");
+        createFullSnapshot(repositoryName, snapshotToBeDeletedLastName);
+
+        // Create more snapshots to be deleted in bulk
+        int maxThreadsForSnapshotDeletion = internalCluster().getMasterNodeInstance(ThreadPool.class)
+            .info(ThreadPool.Names.SNAPSHOT).getMax();
+        for (int i = 1; i<= maxThreadsForSnapshotDeletion + 1; i++) {
+            String snapshotName = "test-snap-" + i;
+            String testIndexName = "test-idx-" + i;
+            logger.info("--> creating index-" + i + " and ingest data");
+            createIndex(testIndexName);
+            ensureGreen();
+            for (int j = 0; j < 10; j++) {
+                index(testIndexName, "_doc", Integer.toString( 10 + j), "foo", "bar" +  10 + j);
+            }
+            refresh();
+
+            logger.info("--> creating snapshot: {}", snapshotName);
+            createFullSnapshot(repositoryName, snapshotName);
+        }
+
+        // Make repository to throw exception when trying to delete stale indices
+        // This will make sure stale indices stays in repository after snapshot delete
+        String masterNode = internalCluster().getMasterName();
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterNode).repository("test-repo")).
+            setThrowExceptionWhileDelete(true);
+
+        logger.info("--> delete the bulk of the snapshots");
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, bulkSnapshotsPattern).get();
+
+        // Make repository to work normally
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterNode).repository("test-repo")).
+            setThrowExceptionWhileDelete(false);
+
+        // This snapshot should delete last snapshot's residual stale indices as well
+        logger.info("--> delete first snapshot");
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotToBeDeletedLastName).get();
+
+        logger.info("--> make sure that number of files is back to what it was when the first snapshot was made");
+        assertFileCount(repositoryPath, numberOfFiles + 2);
+
+        logger.info("--> done");
     }
 
     private RepositoryMetadata findRepository(List<RepositoryMetadata> repositories, String name) {

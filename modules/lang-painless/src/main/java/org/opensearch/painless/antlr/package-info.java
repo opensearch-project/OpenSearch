@@ -26,7 +26,7 @@
  */
 
 /**
- * Lexer, parser, and tree {@link Walker} responsible for turning the code
+ * Lexer, parser, and tree walker responsible for turning the code
  * generating nodes in {@link org.opensearch.painless.node}.
  */
 /*

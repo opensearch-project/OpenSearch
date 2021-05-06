@@ -37,6 +37,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Assertions;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.action.support.ActiveShardCount;
@@ -151,15 +152,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          * if a cluster should allow to create more than 1024 shards per index. NOTE: this does not limit the number of shards
          * per cluster. this also prevents creating stuff like a new index with millions of shards by accident which essentially
          * kills the entire cluster with OOM on the spot.*/
-        final int maxNumShards = Integer.parseInt(System.getProperty("opensearch.index.max_number_of_shards", "1024"));
+        final int maxNumShards = Integer.parseInt(System.getProperty(MAX_NUMBER_OF_SHARDS, "1024"));
         if (maxNumShards < 1) {
-            throw new IllegalArgumentException("opensearch.index.max_number_of_shards must be > 0");
+            throw new IllegalArgumentException(MAX_NUMBER_OF_SHARDS + " must be > 0");
         }
-        return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, 1, 1, maxNumShards, Property.IndexScope, Property.Final);
+        /* This property should be provided if the default number of shards for any new index has to be changed to a value
+         * other than 1. This value is applicable only if the index.number_of_shards setting is not provided as part of the
+         * index creation request. */
+        final int defaultNumShards = Integer.parseInt(System.getProperty(DEFAULT_NUMBER_OF_SHARDS, "1"));
+        if (defaultNumShards < 1 || defaultNumShards > maxNumShards) {
+            throw new IllegalArgumentException(DEFAULT_NUMBER_OF_SHARDS + " value [" + defaultNumShards + "] must between " +
+                "1 and " + MAX_NUMBER_OF_SHARDS + " [" + maxNumShards + "]");
+        }
+        return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, defaultNumShards, 1, maxNumShards, Property.IndexScope, Property.Final);
     }
 
     public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
+    static final String DEFAULT_NUMBER_OF_SHARDS = "opensearch.index.default_number_of_shards";
+    static final String MAX_NUMBER_OF_SHARDS = "opensearch.index.max_number_of_shards";
     public static final Setting<Integer> INDEX_NUMBER_OF_SHARDS_SETTING = buildNumberOfShardsSetting();
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
     public static final Setting<Integer> INDEX_NUMBER_OF_REPLICAS_SETTING =
@@ -357,7 +368,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
-    static final Version SYSTEM_INDEX_FLAG_ADDED = Version.V_7_10_0;
+    static final Version SYSTEM_INDEX_FLAG_ADDED = LegacyESVersion.V_7_10_0;
 
     private final int routingNumShards;
     private final int routingFactor;
@@ -816,17 +827,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             index = in.readString();
             routingNumShards = in.readInt();
             version = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
                 mappingVersion = in.readVLong();
             } else {
                 mappingVersion = 1;
             }
-            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
                 settingsVersion = in.readVLong();
             } else {
                 settingsVersion = 1;
             }
-            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
                 aliasesVersion = in.readVLong();
             } else {
                 aliasesVersion = 1;
@@ -853,13 +864,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeString(index);
             out.writeInt(routingNumShards);
             out.writeLong(version);
-            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
                 out.writeVLong(mappingVersion);
             }
-            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
                 out.writeVLong(settingsVersion);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
                 out.writeVLong(aliasesVersion);
             }
             out.writeByte(state.id);
@@ -869,7 +880,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             aliases.writeTo(out);
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
                 rolloverInfos.writeTo(out);
             }
             if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
@@ -901,17 +912,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static IndexMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
             builder.mappingVersion(in.readVLong());
         } else {
             builder.mappingVersion(1);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
             builder.settingsVersion(in.readVLong());
         } else {
             builder.settingsVersion(1);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             builder.aliasesVersion(in.readVLong());
         } else {
             builder.aliasesVersion(1);
@@ -942,7 +953,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Set<String> allocationIds = DiffableUtils.StringSetValueSerializer.getInstance().read(in, key);
             builder.putInSyncAllocationIds(key, allocationIds);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             int rolloverAliasesSize = in.readVInt();
             for (int i = 0; i < rolloverAliasesSize; i++) {
                 builder.putRolloverInfo(new RolloverInfo(in));
@@ -958,13 +969,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
             out.writeVLong(mappingVersion);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
             out.writeVLong(settingsVersion);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeVLong(aliasesVersion);
         }
         out.writeInt(routingNumShards);
@@ -979,7 +990,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (ObjectCursor<AliasMetadata> cursor : aliases.values()) {
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
             out.writeVInt(customData.size());
             for (final ObjectObjectCursor<String, DiffableStringMap> cursor : customData) {
                 out.writeString(cursor.key);
@@ -993,7 +1004,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeVInt(cursor.key);
             DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.value, out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             out.writeVInt(rolloverInfos.size());
             for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
                 cursor.value.writeTo(out);
@@ -1617,13 +1628,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_6_5_0)) {
+            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_6_5_0)) {
                 assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_6_5_0)) {
+            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_6_5_0)) {
                 assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_7_2_0)) {
+            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_7_2_0)) {
                 assert aliasesVersion : "aliases version should be present for indices created on or after 7.2.0";
             }
             return builder.build();

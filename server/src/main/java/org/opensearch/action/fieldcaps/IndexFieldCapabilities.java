@@ -32,7 +32,7 @@
 
 package org.opensearch.action.fieldcaps;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -74,7 +74,7 @@ public class IndexFieldCapabilities implements Writeable {
     }
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             this.name = in.readString();
             this.type = in.readString();
             this.isSearchable = in.readBoolean();
@@ -95,7 +95,7 @@ public class IndexFieldCapabilities implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             out.writeString(name);
             out.writeString(type);
             out.writeBoolean(isSearchable);

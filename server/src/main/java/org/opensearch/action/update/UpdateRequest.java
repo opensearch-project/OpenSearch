@@ -33,7 +33,7 @@
 package org.opensearch.action.update;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -156,7 +156,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         if (in.readBoolean()) {
@@ -167,7 +167,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (in.readBoolean()) {
             doc = new IndexRequest(shardId, in);
         }
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             String[] fields = in.readOptionalStringArray();
             if (fields != null) {
                 throw new IllegalArgumentException("[fields] is no longer supported");
@@ -178,7 +178,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             upsertRequest = new IndexRequest(shardId, in);
         }
         docAsUpsert = in.readBoolean();
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             long version = in.readLong();
             VersionType versionType = VersionType.readFromStream(in);
             if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
@@ -190,7 +190,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             requireAlias = in.readBoolean();
         } else {
             requireAlias = false;
@@ -925,7 +925,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeString(type());
         out.writeString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
 
@@ -950,7 +950,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 doc.writeTo(out);
             }
         }
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeOptionalStringArray(null);
         }
         out.writeOptionalWriteable(fetchSourceContext);
@@ -969,7 +969,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             }
         }
         out.writeBoolean(docAsUpsert);
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeLong(Versions.MATCH_ANY);
             out.writeByte(VersionType.INTERNAL.getValue());
         }
@@ -977,7 +977,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
     }

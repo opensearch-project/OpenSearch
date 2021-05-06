@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -41,14 +42,7 @@ import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.IndexRoutingTable;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.ShardRoutingState;
-import org.opensearch.cluster.routing.TestShardRouting;
-import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.FailedShard;
@@ -129,7 +123,7 @@ public class UnassignedInfoTests extends OpenSearchAllocationTestCase {
     public void testBwcSerialization() throws Exception {
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, "message");
         BytesStreamOutput out = new BytesStreamOutput();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
         out.setVersion(version);
         unassignedInfo.writeTo(out);
         out.close();
@@ -137,7 +131,7 @@ public class UnassignedInfoTests extends OpenSearchAllocationTestCase {
         StreamInput in = out.bytes().streamInput();
         in.setVersion(version);
         UnassignedInfo read = new UnassignedInfo(in);
-        if (version.before(Version.V_7_0_0)) {
+        if (version.before(LegacyESVersion.V_7_0_0)) {
             assertThat(read.getReason(), equalTo(UnassignedInfo.Reason.REINITIALIZED));
         } else {
             assertThat(read.getReason(), equalTo(UnassignedInfo.Reason.INDEX_CLOSED));

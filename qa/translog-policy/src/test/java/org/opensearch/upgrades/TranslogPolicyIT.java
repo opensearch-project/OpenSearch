@@ -32,7 +32,7 @@
 
 package org.opensearch.upgrades;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.client.Request;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
@@ -95,7 +95,7 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
 
     @Before
     public void setType() {
-        type = getOldClusterVersion().before(Version.V_6_7_0) ? "doc" : "_doc";
+        type = getOldClusterVersion().before(LegacyESVersion.V_6_7_0) ? "doc" : "_doc";
     }
 
     public void testEmptyIndex() throws Exception {
@@ -103,7 +103,7 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1));
-            if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+            if (getOldClusterVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             if (randomBoolean()) {
@@ -121,7 +121,7 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
-            if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+            if (getOldClusterVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             if (randomBoolean()) {

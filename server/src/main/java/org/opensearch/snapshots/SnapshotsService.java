@@ -38,6 +38,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
@@ -143,19 +144,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Minimum node version which does not use {@link Repository#initializeSnapshot(SnapshotId, List, Metadata)} to write snapshot metadata
      * when starting a snapshot.
      */
-    public static final Version NO_REPO_INITIALIZE_VERSION = Version.V_7_5_0;
+    public static final Version NO_REPO_INITIALIZE_VERSION = LegacyESVersion.V_7_5_0;
 
-    public static final Version FULL_CONCURRENCY_VERSION = Version.V_7_9_0;
+    public static final Version FULL_CONCURRENCY_VERSION = LegacyESVersion.V_7_9_0;
 
-    public static final Version CLONE_SNAPSHOT_VERSION = Version.V_7_10_0;
+    public static final Version CLONE_SNAPSHOT_VERSION = LegacyESVersion.V_7_10_0;
 
-    public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_7_6_0;
+    public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = LegacyESVersion.V_7_6_0;
 
-    public static final Version INDEX_GEN_IN_REPO_DATA_VERSION = Version.V_7_9_0;
+    public static final Version INDEX_GEN_IN_REPO_DATA_VERSION = LegacyESVersion.V_7_9_0;
 
-    public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
+    public static final Version OLD_SNAPSHOT_FORMAT = LegacyESVersion.V_7_5_0;
 
-    public static final Version MULTI_DELETE_VERSION = Version.V_7_8_0;
+    public static final Version MULTI_DELETE_VERSION = LegacyESVersion.V_7_8_0;
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 

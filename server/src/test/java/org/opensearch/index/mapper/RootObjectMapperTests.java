@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
@@ -484,7 +485,7 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        Version createdVersion = randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_6_0);
+        Version createdVersion = randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_6_0);
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
             .build();

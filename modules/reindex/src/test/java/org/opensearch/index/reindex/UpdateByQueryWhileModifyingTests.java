@@ -50,8 +50,8 @@ import static org.hamcrest.Matchers.equalTo;
  * always sticks. Update-by-query should never revert documents.
  */
 public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
-    private static final int MAX_MUTATIONS = 50;
-    private static final int MAX_ATTEMPTS = 50;
+    private static final int MAX_MUTATIONS = 10;
+    private static final int MAX_ATTEMPTS = 10;
 
     public void testUpdateWhileReindexing() throws Exception {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));

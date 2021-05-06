@@ -32,6 +32,8 @@
 
 package org.opensearch.painless;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.script.ScriptException;
 
@@ -43,13 +45,24 @@ import java.util.regex.Pattern;
 import static java.util.Collections.singletonMap;
 
 public class RegexTests extends ScriptTestCase {
+    private static PainlessScriptEngine SCRIPT_ENGINE;
 
-    @Override
-    protected Settings scriptEngineSettings() {
-        // Enable regexes just for this test. They are disabled by default.
-        return Settings.builder()
+    @BeforeClass
+    public static void beforeClass() {
+        Settings settings = Settings.builder()
                 .put(CompilerSettings.REGEX_ENABLED.getKey(), true)
                 .build();
+        SCRIPT_ENGINE = new PainlessScriptEngine(settings, newDefaultContexts());
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        SCRIPT_ENGINE = null;
+    }
+
+    @Override
+    protected PainlessScriptEngine getEngine() {
+        return SCRIPT_ENGINE;
     }
 
     public void testPatternAfterReturn() {
@@ -293,5 +306,42 @@ public class RegexTests extends ScriptTestCase {
             exec("/asdf/b", false); // Not picky so we get a non-assertion error
         });
         assertEquals("unexpected token ['b'] was expecting one of [{<EOF>, ';'}].", e.getMessage());
+    }
+
+    // This regex has backtracking due to .*?
+    private final String pattern = "/abc.*?def/";
+    private final String charSequence = "'abcdodef'";
+    private final String splitCharSequence = "'0-abc-1-def-X-abc-2-def-Y-abc-3-def-Z-abc'";
+
+    public void testRegexInjectUnlimited_Matcher() {
+        String[] scripts = new String[]{pattern + ".matcher(" + charSequence + ").matches()",
+            "Matcher m = " + pattern + ".matcher(" + charSequence + "); m.matches()"};
+        for (String script : scripts) {
+            assertEquals(Boolean.TRUE, exec(script));
+        }
+    }
+
+    public void testRegexInjectUnlimited_SplitLimit() {
+        String[] scripts = new String[]{pattern + ".split(" + splitCharSequence + ", 2)",
+            "Pattern p = " + pattern + "; p.split(" + splitCharSequence + ", 2)"};
+        for (String script : scripts) {
+            assertArrayEquals(new String[]{"0-", "-X-abc-2-def-Y-abc-3-def-Z-abc"}, (String[])exec(script));
+        }
+    }
+
+    public void testRegexInjectUnlimited_Split() {
+        String[] scripts = new String[]{pattern + ".split(" + splitCharSequence + ")",
+            "Pattern p = " + pattern + "; p.split(" + splitCharSequence + ")"};
+        for (String script : scripts) {
+            assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[])exec(script));
+        }
+    }
+
+    public void testRegexInjectUnlimited_SplitAsStream() {
+        String[] scripts = new String[]{pattern + ".splitAsStream(" + splitCharSequence + ").toArray(String[]::new)",
+            "Pattern p = " + pattern + "; p.splitAsStream(" + splitCharSequence + ").toArray(String[]::new)"};
+        for (String script : scripts) {
+            assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[]) exec(script));
+        }
     }
 }

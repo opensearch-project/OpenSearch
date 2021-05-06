@@ -33,7 +33,7 @@
 package org.opensearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -104,7 +104,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 shardFailures[i] = ShardSearchFailure.readShardSearchFailure(in);
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             clusters = new Clusters(in);
         } else {
             clusters = Clusters.EMPTY;
@@ -112,7 +112,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             pointInTimeId = in.readOptionalString();
         } else {
             pointInTimeId = null;
@@ -420,13 +420,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         for (ShardSearchFailure shardSearchFailure : shardFailures) {
             shardSearchFailure.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             clusters.writeTo(out);
         }
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeOptionalString(pointInTimeId);
         }
     }

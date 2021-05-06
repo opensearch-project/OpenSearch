@@ -39,6 +39,7 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.Constants;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -370,7 +371,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
 
     public void testCreateSplitIndex() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_rc2, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0_rc2, Version.CURRENT);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings())
             .put("number_of_shards", 1)
             .put("index.version.created", version)
