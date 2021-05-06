@@ -225,8 +225,10 @@ public class Setting<T> implements ToXContentObject {
      * @param properties   properties for this setting
      */
     public Setting(
-            Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Validator<T> validator, Property... properties) {
-        this(key, null, defaultValue, parser, validator, properties);
+            Key key, Function<Settings, String> defaultValue, Function<String, T> parser, 
+                Validator<T> validator, Property... properties) {
+        this(key, null, defaultValue, parser,
+            validator, properties);
     }
 
     /**
@@ -249,8 +251,10 @@ public class Setting<T> implements ToXContentObject {
      * @param validator    a {@link Validator} for validating this setting
      * @param properties   properties for this setting
      */
-    public Setting(String key, String defaultValue, Function<String, T> parser, Validator<T> validator, Property... properties) {
-        this(new SimpleKey(key), s -> defaultValue, parser, validator, properties);
+    public Setting(String key, String defaultValue, Function<String, T> parser, 
+        Validator<T> validator, Property... properties) {
+        this(new SimpleKey(key), s -> defaultValue, parser,
+            validator, properties);
     }
 
     /**
@@ -1193,8 +1197,10 @@ public class Setting<T> implements ToXContentObject {
         return floatSetting(key, defaultValue, minValue, maxValue, v -> {}, properties);
     }
 
-    public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, float maxValue, Validator<Float> validator, Property... properties) {
-        return new Setting<>(key, Float.toString(defaultValue), (s) -> parseFloat(s, minValue, maxValue, key, isFiltered(properties)), validator, properties);
+    public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, float maxValue, 
+        Validator<Float> validator, Property... properties) {
+        return new Setting<>(key, Float.toString(defaultValue), (s) -> parseFloat(s, minValue, maxValue, key, isFiltered(properties)), 
+            validator, properties);
     }
 
     // Setting<Float> with fallback
@@ -1207,12 +1213,15 @@ public class Setting<T> implements ToXContentObject {
         return floatSetting(key, fallbackSetting, minValue, Float.MAX_VALUE, properties);
     }
 
-    public static Setting<Float> floatSetting(String key, Setting<Float> fallbackSetting, float minValue, float maxValue, Property... properties) {
+    public static Setting<Float> floatSetting(String key, Setting<Float> fallbackSetting, float minValue, float maxValue, 
+        Property... properties) {
         return floatSetting(key, fallbackSetting, minValue, maxValue, v -> {}, properties);
     }
 
-    public static Setting<Float> floatSetting(String key, Setting<Float> fallbackSetting, float minValue, float maxValue, Validator<Float> validator, Property... properties) {
-        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseFloat(s, minValue, maxValue, key, isFiltered(properties)), validator, properties);
+    public static Setting<Float> floatSetting(String key, Setting<Float> fallbackSetting, float minValue, float maxValue, 
+        Validator<Float> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseFloat(s, minValue, maxValue, key, 
+            isFiltered(properties)), validator, properties);
     }
     
     // Integer
@@ -1252,12 +1261,16 @@ public class Setting<T> implements ToXContentObject {
         return intSetting(key, defaultValue, minValue, maxValue, v -> {}, properties);
     }
 
-    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, Validator<Integer> validator, Property... properties) {
-        return intSetting(key, defaultValue, minValue, Integer.MAX_VALUE, validator, properties);
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, 
+        Validator<Integer> validator, Property... properties) {
+        return intSetting(key, defaultValue, minValue, Integer.MAX_VALUE,
+            validator, properties);
     }
 
-    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, Validator<Integer> validator, Property... properties) {
-        return new Setting<>(key, Integer.toString(defaultValue), (s) -> parseInt(s, minValue, maxValue, key, isFiltered(properties)), validator, properties);
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, 
+        Validator<Integer> validator, Property... properties) {
+        return new Setting<>(key, Integer.toString(defaultValue), (s) -> parseInt(s, minValue, maxValue, key, isFiltered(properties)), 
+            validator, properties);
     }
 
     // Setting<Integer> with fallback
@@ -1270,16 +1283,21 @@ public class Setting<T> implements ToXContentObject {
         return intSetting(key, fallbackSetting, minValue, Integer.MAX_VALUE, properties);
     }
 
-    public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, int maxValue, Property... properties) {
+    public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, int maxValue, 
+        Property... properties) {
         return intSetting(key, fallbackSetting, minValue, maxValue, v -> {}, properties);
     }
 
-    public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, Validator<Integer> validator, Property... properties) {
-        return intSetting(key, fallbackSetting, minValue, Integer.MAX_VALUE, validator, properties);
+    public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, 
+        Validator<Integer> validator, Property... properties) {
+        return intSetting(key, fallbackSetting, minValue, Integer.MAX_VALUE,
+            validator, properties);
     }
     
-    public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, int maxValue, Validator<Integer> validator, Property... properties) {
-        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseInt(s, minValue, maxValue, key, isFiltered(properties)), validator, properties);
+    public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, int maxValue, 
+        Validator<Integer> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseInt(s, minValue, maxValue, key, 
+            isFiltered(properties)), validator, properties);
     }
 
     // Long
@@ -1311,8 +1329,10 @@ public class Setting<T> implements ToXContentObject {
         return longSetting(key, defaultValue, minValue, maxValue, v -> {}, properties);
     }
 
-    public static Setting<Long> longSetting(String key, long defaultValue, long minValue, long maxValue, Validator<Long> validator, Property... properties) {
-        return new Setting<>(key, Long.toString(defaultValue), (s) -> parseLong(s, minValue, maxValue, key, isFiltered(properties)), validator, properties);
+    public static Setting<Long> longSetting(String key, long defaultValue, long minValue, long maxValue, 
+        Validator<Long> validator, Property... properties) {
+        return new Setting<>(key, Long.toString(defaultValue), (s) -> parseLong(s, minValue, maxValue, key, 
+            isFiltered(properties)), validator, properties);
     }
 
     // Setting<Long> with fallback
@@ -1325,16 +1345,21 @@ public class Setting<T> implements ToXContentObject {
         return longSetting(key, fallbackSetting, minValue, Long.MAX_VALUE, properties);
     }
 
-    public static Setting<Long> longSetting(String key, Setting<Long> fallbackSetting, long minValue, long maxValue, Property... properties) {
+    public static Setting<Long> longSetting(String key, Setting<Long> fallbackSetting, long minValue, long maxValue, 
+        Property... properties) {
         return longSetting(key, fallbackSetting, minValue, maxValue, v -> {}, properties);
     }
 
-    public static Setting<Long> longSetting(String key, Setting<Long> fallbackSetting, long minValue, Validator<Long> validator, Property... properties) {
-        return longSetting(key, fallbackSetting, minValue, Long.MAX_VALUE, validator, properties);
+    public static Setting<Long> longSetting(String key, Setting<Long> fallbackSetting, long minValue, 
+        Validator<Long> validator, Property... properties) {
+        return longSetting(key, fallbackSetting, minValue, Long.MAX_VALUE,
+            validator, properties);
     }
 
-    public static Setting<Long> longSetting(String key, Setting<Long> fallbackSetting, long minValue, long maxValue, Validator<Long> validator, Property... properties) {
-        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseLong(s, minValue, maxValue, key, isFiltered(properties)), validator, properties);
+    public static Setting<Long> longSetting(String key, Setting<Long> fallbackSetting, long minValue, long maxValue, 
+        Validator<Long> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseLong(s, minValue, maxValue, key, 
+            isFiltered(properties)), validator, properties);
     }
 
     // Double
@@ -1366,8 +1391,10 @@ public class Setting<T> implements ToXContentObject {
         return doubleSetting(key, defaultValue, minValue, maxValue, v -> {}, properties);
     }
 
-    public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, double maxValue, Validator<Double> validator, Property... properties) {
-        return new Setting<>(key, Double.toString(defaultValue), (s) -> parseDouble(s, minValue, maxValue, key, isFiltered(properties)), validator, properties);
+    public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, double maxValue, 
+        Validator<Double> validator, Property... properties) {
+        return new Setting<>(key, Double.toString(defaultValue), (s) -> parseDouble(s, minValue, maxValue, key, isFiltered(properties)),
+            validator, properties);
     }
 
     // Setting<Double> with fallback
@@ -1380,12 +1407,15 @@ public class Setting<T> implements ToXContentObject {
         return doubleSetting(key, fallbackSetting, minValue, Double.MAX_VALUE, properties);
     }
 
-    public static Setting<Double> doubleSetting(String key, Setting<Double> fallbackSetting, double minValue, double maxValue, Property... properties) {
+    public static Setting<Double> doubleSetting(String key, Setting<Double> fallbackSetting, double minValue, double maxValue, 
+        Property... properties) {
         return doubleSetting(key, fallbackSetting, minValue, maxValue, v -> {}, properties);
     }
 
-    public static Setting<Double> doubleSetting(String key, Setting<Double> fallbackSetting, double minValue, double maxValue, Validator<Double> validator, Property... properties) {
-        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseDouble(s, minValue, maxValue, key, isFiltered(properties)), validator, properties);
+    public static Setting<Double> doubleSetting(String key, Setting<Double> fallbackSetting, double minValue, double maxValue, 
+        Validator<Double> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseDouble(s, minValue, maxValue, key, 
+            isFiltered(properties)), validator, properties);
     }
     
     /// simpleString
@@ -1394,17 +1424,23 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, s -> "", Function.identity(), properties);
     }
 
-    public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
-        return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
+    public static Setting<String> simpleString(String key, 
+        Validator<String> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(),
+            validator, properties);
     }
 
-    public static Setting<String> simpleString(String key, Validator<String> validator, Setting<String> fallback, Property... properties) {
-        return new Setting<>(new SimpleKey(key), fallback, fallback::getRaw, Function.identity(), validator, properties);
+    public static Setting<String> simpleString(String key, 
+        Validator<String> validator, Setting<String> fallback, Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallback, fallback::getRaw, Function.identity(),
+            validator, properties);
     }
 
-    public static Setting<String> simpleString(String key, String defaultValue, Validator<String> validator, Property... properties) {
+    public static Setting<String> simpleString(String key, String defaultValue, 
+        Validator<String> validator, Property... properties) {
         validator.validate(defaultValue);
-        return new Setting<>(new SimpleKey(key), null, s -> defaultValue, Function.identity(), validator, properties);
+        return new Setting<>(new SimpleKey(key), null, s -> defaultValue, Function.identity(),
+            validator, properties);
     }
 
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
@@ -1447,14 +1483,18 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallbackSetting, b -> parseBoolean(b, key, isFiltered(properties)), properties);
     }
 
-    public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Validator<Boolean> validator,
+    public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, 
+        Validator<Boolean> validator,
                                                Property... properties) {
         return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, b -> parseBoolean(b, key,
-            isFiltered(properties)), validator, properties);
+            isFiltered(properties)),
+                validator, properties);
     }
 
-    public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Validator<Boolean> validator, Property... properties) {
-        return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
+    public static Setting<Boolean> boolSetting(String key, boolean defaultValue, 
+        Validator<Boolean> validator, Property... properties) {
+        return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)),
+            validator, properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
@@ -1578,7 +1618,8 @@ public class Setting<T> implements ToXContentObject {
         final Function<String, T> singleValueParser,
         final Validator<List<T>> validator,
         final Property... properties) {
-        return listSetting(key, null, singleValueParser, (s) -> defaultStringValue, validator, properties);
+        return listSetting(key, null, singleValueParser, (s) -> defaultStringValue,
+            validator, properties);
     }
 
     // TODO this one's two argument get is still broken
@@ -1604,7 +1645,8 @@ public class Setting<T> implements ToXContentObject {
         final Function<Settings, List<String>> defaultStringValue,
         final Validator<List<T>> validator,
         final Property... properties) {
-        return listSetting(key, null, singleValueParser, defaultStringValue, validator, properties);
+        return listSetting(key, null, singleValueParser, defaultStringValue,
+            validator, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(
@@ -1629,7 +1671,8 @@ public class Setting<T> implements ToXContentObject {
         Function<String, List<T>> parser = (s) ->
             parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
-        return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, validator, properties);
+        return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser,
+            validator, properties);
     }
 
     private static List<String> parseableStringToList(String parsableString) {
@@ -1727,7 +1770,8 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Settings> groupSetting(String key, Consumer<Settings> validator, Property... properties) {
-        return new GroupSetting(key, validator, properties);
+        return new GroupSetting(key,
+            validator, properties);
     }
 
     public static Setting<TimeValue> timeSetting(
@@ -1822,15 +1866,18 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
-    public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallBackSetting, Validator<TimeValue> validator, Property... properties) {
-        return new Setting<>(new SimpleKey(key), fallBackSetting, fallBackSetting::getRaw, (s) -> TimeValue.parseTimeValue(s, key), validator, properties);
+    public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallBackSetting, 
+        Validator<TimeValue> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallBackSetting, fallBackSetting::getRaw, (s) -> TimeValue.parseTimeValue(s, key),
+            validator, properties);
     }
 
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
         return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
     }
 
-    public static Setting<TimeValue> positiveTimeSetting(final String key, final Setting<TimeValue> fallbackSetting, final Property... properties) {
+    public static Setting<TimeValue> positiveTimeSetting(final String key, final Setting<TimeValue> fallbackSetting, 
+        final Property... properties) {
         return timeSetting(key, fallbackSetting, TimeValue.timeValueMillis(0), properties);
     }
 
