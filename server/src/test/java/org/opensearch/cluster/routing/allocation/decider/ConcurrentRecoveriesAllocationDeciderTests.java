@@ -11,7 +11,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.cluster.routing.allocation;
+package org.opensearch.cluster.routing.allocation.decider;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
@@ -23,6 +23,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 
