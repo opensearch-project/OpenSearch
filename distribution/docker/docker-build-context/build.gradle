@@ -13,13 +13,13 @@ import org.opensearch.gradle.DockerBase
 
 apply plugin: 'base'
 
-tasks.register("buildOssDockerBuildContext", Tar) {
+tasks.register("buildDockerBuildContext", Tar) {
   archiveExtension = 'tar.gz'
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
-  archiveBaseName = "opensearch-oss"
+  archiveBaseName = "opensearch"
   // Non-local builds don't need to specify an architecture.
   with dockerBuildContext(null, DockerBase.CENTOS, false)
 }
 
-tasks.named("assemble").configure { dependsOn "buildOssDockerBuildContext" }
+tasks.named("assemble").configure { dependsOn "buildDockerBuildContext" }

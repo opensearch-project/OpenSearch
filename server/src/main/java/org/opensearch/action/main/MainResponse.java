@@ -33,6 +33,7 @@
 package org.opensearch.action.main;
 
 import org.opensearch.Build;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterName;
@@ -64,7 +65,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
         build = Build.readBuild(in);
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             in.readBoolean();
         }
     }
@@ -105,7 +106,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(true);
         }
     }
@@ -117,6 +118,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
+            .field("distribution", build.getDistribution())
             .field("number", build.getQualifiedVersion())
             .field("build_type", build.type().displayName())
             .field("build_hash", build.hash())
@@ -149,7 +151,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
                             (String) value.get("build_hash"),
                             (String) value.get("build_date"),
                             (boolean) value.get("build_snapshot"),
-                            (String) value.get("number")
+                            (String) value.get("number"),
+                            (String) value.get("distribution")
                     );
             response.version = Version.fromString(
                 ((String) value.get("number"))

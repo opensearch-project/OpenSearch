@@ -82,7 +82,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
 
         then:
-        result.task(":distribution:archives:oss-linux-tar:buildExpanded").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:archives:linux-tar:buildExpanded").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
         assertExtractedDistroIsCreated("build/distro", 'current-marker.txt')
     }
@@ -154,24 +154,24 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
             apply plugin:'base'
 
             // packed distro
-            configurations.create("oss-linux-tar")
+            configurations.create("linux-tar")
             tasks.register("buildBwcTask", Tar) {
                 from('bwc-marker.txt')
                 archiveExtension = "tar.gz"
                 compression = Compression.GZIP
             }
             artifacts {
-                it.add("oss-linux-tar", buildBwcTask)
+                it.add("linux-tar", buildBwcTask)
             }
 
             // expanded distro
-            configurations.create("expanded-oss-linux-tar")
+            configurations.create("expanded-linux-tar")
             def expandedTask = tasks.register("buildBwcExpandedTask", Copy) {
                 from('bwc-marker.txt')
                 into('build/install/opensearch-distro')
             }
             artifacts {
-                it.add("expanded-oss-linux-tar", file('build/install')) {
+                it.add("expanded-linux-tar", file('build/install')) {
                     builtBy expandedTask
                     type = 'directory'
                 }
@@ -181,9 +181,9 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
     private void localDistroSetup() {
         settingsFile << """
-        include ":distribution:archives:oss-linux-tar"
+        include ":distribution:archives:linux-tar"
         """
-        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", "oss-linux-tar")
+        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", "linux-tar")
         new File(bwcSubProjectFolder, 'current-marker.txt') << "current"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             import org.gradle.api.internal.artifacts.ArtifactAttributes;

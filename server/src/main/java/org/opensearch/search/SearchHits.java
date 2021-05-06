@@ -35,7 +35,7 @@ package org.opensearch.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -108,7 +108,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
                 hits[i] = new SearchHit(in);
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
             sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
             collapseField = in.readOptionalString();
             collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
@@ -133,7 +133,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
                 hit.writeTo(out);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
             out.writeOptionalArray(Lucene::writeSortField, sortFields);
             out.writeOptionalString(collapseField);
             out.writeOptionalArray(Lucene::writeSortValue, collapseValues);

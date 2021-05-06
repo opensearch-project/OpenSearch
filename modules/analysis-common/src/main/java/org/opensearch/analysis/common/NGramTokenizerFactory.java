@@ -34,7 +34,7 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -125,7 +125,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         int ngramDiff = maxGram - minGram;
         if (ngramDiff > maxAllowedNgramDiff) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
                 throw new IllegalArgumentException(
                     "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
                         + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["

@@ -33,6 +33,7 @@ package org.opensearch.gradle.precommit;
 
 import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
+import org.opensearch.gradle.LoggedExec;
 import org.opensearch.gradle.OS;
 import org.opensearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.gradle.api.DefaultTask;
@@ -358,6 +359,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
             );
             spec.jvmArgs("-Xmx1g");
+            spec.jvmArgs(LoggedExec.shortLivedArgs());
             spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
             spec.setErrorOutput(errorOut);

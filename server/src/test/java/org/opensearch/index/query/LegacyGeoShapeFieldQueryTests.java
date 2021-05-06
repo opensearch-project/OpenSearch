@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.ShapeRelation;
@@ -54,7 +55,7 @@ public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
     @Override
     protected Settings createTestIndexSettings() {
         // force the legacy shape impl
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_5_0);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_6_5_0);
         return Settings.builder()
                 .put(super.createTestIndexSettings())
                 .put(IndexMetadata.SETTING_VERSION_CREATED, version)

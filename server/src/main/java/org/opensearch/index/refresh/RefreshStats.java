@@ -32,7 +32,7 @@
 
 package org.opensearch.index.refresh;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -64,7 +64,7 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public RefreshStats(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             externalTotal = in.readVLong();
             externalTotalTimeInMillis = in.readVLong();
         }
@@ -75,7 +75,7 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeVLong(externalTotal);
             out.writeVLong(externalTotalTimeInMillis);
         }

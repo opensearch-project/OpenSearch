@@ -107,7 +107,7 @@ public class InboundPipelineTests extends OpenSearchTestCase {
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
         final FakeTcpChannel channel = new FakeTcpChannel();
 
-        final int iterations = randomIntBetween(100, 500);
+        final int iterations = randomIntBetween(5, 10);
         long totalMessages = 0;
         long bytesReceived = 0;
 

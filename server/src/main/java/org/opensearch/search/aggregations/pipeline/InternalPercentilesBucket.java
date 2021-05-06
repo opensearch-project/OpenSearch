@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -85,7 +85,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
 
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             keyed = in.readBoolean();
         }
 
@@ -98,7 +98,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         out.writeDoubleArray(percentiles);
         out.writeDoubleArray(percents);
 
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(keyed);
         }
     }

@@ -55,6 +55,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.ParsingException;
@@ -286,7 +287,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             }
 
             BooleanQuery.Builder candidateQuery = new BooleanQuery.Builder();
-            if (canUseMinimumShouldMatchField && indexVersion.onOrAfter(Version.V_6_1_0)) {
+            if (canUseMinimumShouldMatchField && indexVersion.onOrAfter(LegacyESVersion.V_6_1_0)) {
                 LongValuesSource valuesSource = LongValuesSource.fromIntField(minimumShouldMatchField.name());
                 for (BytesRef extractedTerm : extractedTerms) {
                     subQueries.add(new TermQuery(new Term(queryTermsField.name(), extractedTerm)));
@@ -393,7 +394,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
                                         QueryBuilder queryBuilder, ParseContext context) throws IOException {
-        if (indexVersion.onOrAfter(Version.V_6_0_0_beta2)) {
+        if (indexVersion.onOrAfter(LegacyESVersion.V_6_0_0_beta2)) {
             try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
                 try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
                     out.setVersion(indexVersion);
@@ -457,7 +458,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         }
 
         createFieldNamesField(context);
-        if (indexVersionCreated.onOrAfter(Version.V_6_1_0)) {
+        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_6_1_0)) {
             doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
         }
     }

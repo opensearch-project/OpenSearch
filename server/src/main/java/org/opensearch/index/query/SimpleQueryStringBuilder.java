@@ -35,7 +35,7 @@ package org.opensearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -87,10 +87,6 @@ import java.util.Objects;
  * {@code fields} - fields to search, defaults to _all if not set, allows
  * boosting a field with ^n
  *
- * For more detailed explanation of the query string syntax see also the <a
- * href=
- * "https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html"
- * > online documentation</a>.
  */
 public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
 
@@ -186,7 +182,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         settings.analyzeWildcard(in.readBoolean());
         minimumShouldMatch = in.readOptionalString();
         settings.quoteFieldSuffix(in.readOptionalString());
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             settings.autoGenerateSynonymsPhraseQuery(in.readBoolean());
             settings.fuzzyPrefixLength(in.readVInt());
             settings.fuzzyMaxExpansions(in.readVInt());
@@ -210,7 +206,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeBoolean(settings.analyzeWildcard());
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(settings.quoteFieldSuffix());
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             out.writeBoolean(settings.autoGenerateSynonymsPhraseQuery());
             out.writeVInt(settings.fuzzyPrefixLength());
             out.writeVInt(settings.fuzzyMaxExpansions());

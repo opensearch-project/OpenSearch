@@ -409,7 +409,7 @@ public class RoundingTests extends OpenSearchTestCase {
     }
 
     public void testRandomTimeIntervalRounding() {
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 100; i++) {
             int unitCount = randomIntBetween(1, 365);
             TimeUnit unit = randomFrom(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
             long interval = unit.toMillis(unitCount);
@@ -433,7 +433,7 @@ public class RoundingTests extends OpenSearchTestCase {
 
             // Round a whole bunch of dates and make sure they line up with the known good java time implementation
             Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
-            for (int d = 0; d < 1000; d++) {
+            for (int d = 0; d < 100; d++) {
                 long date = dateBetween(min, max);
                 long javaRounded = javaTimeRounding.round(date);
                 long esRounded = prepared.round(date);

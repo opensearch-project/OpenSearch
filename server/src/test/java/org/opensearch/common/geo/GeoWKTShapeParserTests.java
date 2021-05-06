@@ -32,9 +32,9 @@
 package org.opensearch.common.geo;
 
 import org.apache.lucene.geo.GeoTestUtil;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.geo.builders.CoordinatesBuilder;
@@ -322,7 +322,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         parser.nextToken();
 
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_7_0_0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_7_0_0)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
@@ -361,7 +361,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         parser.nextToken();
 
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_3_0)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
@@ -391,7 +391,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         parser.nextToken();
 
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_3_0)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
@@ -412,7 +412,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         parser.nextToken();
 
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_3_0)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();

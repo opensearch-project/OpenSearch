@@ -31,8 +31,8 @@
 
 package org.opensearch.action.ingest;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -97,7 +97,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
      * Read from a stream.
      */
     public SimulateDocumentBaseResult(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
             failure = in.readException();
             ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         } else {
@@ -113,7 +113,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
             out.writeException(failure);
             out.writeOptionalWriteable(ingestDocument);
         } else {

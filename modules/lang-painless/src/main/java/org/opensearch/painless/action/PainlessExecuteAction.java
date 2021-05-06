@@ -42,7 +42,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.opensearch.action.ActionRequestValidationException;
@@ -297,7 +297,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         Request(StreamInput in) throws IOException {
             super(in);
             script = new Script(in);
-            if (in.getVersion().before(Version.V_6_4_0)) {
+            if (in.getVersion().before(LegacyESVersion.V_6_4_0)) {
                 byte scriptContextId = in.readByte();
                 assert scriptContextId == 0;
                 context = null;
@@ -341,7 +341,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             script.writeTo(out);
-            if (out.getVersion().before(Version.V_6_4_0)) {
+            if (out.getVersion().before(LegacyESVersion.V_6_4_0)) {
                 out.writeByte((byte) 0);
             } else {
                 out.writeString(context.name);

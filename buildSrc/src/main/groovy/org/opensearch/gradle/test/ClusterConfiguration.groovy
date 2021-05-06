@@ -39,7 +39,7 @@ class ClusterConfiguration {
     private final Project project
 
     @Input
-    String distribution = 'oss'
+    String distribution = 'archive'
 
     @Input
     int numNodes = 1

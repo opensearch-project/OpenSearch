@@ -64,6 +64,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.Streams;
@@ -1545,7 +1546,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
             // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
             // To avoid this issue, we only select index commits whose translog are fully retained.
-            if (indexVersionCreated.before(org.opensearch.Version.V_6_2_0)) {
+            if (indexVersionCreated.before(LegacyESVersion.V_6_2_0)) {
                 final List<IndexCommit> recoverableCommits = new ArrayList<>();
                 for (IndexCommit commit : existingCommits) {
                     final String translogGeneration = commit.getUserData().get("translog_generation");

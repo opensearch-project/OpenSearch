@@ -360,7 +360,7 @@ allprojects {
   }
 
   File licenseHeaderFile
-  licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
+  licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/license-header.txt')
 
   String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
   String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)

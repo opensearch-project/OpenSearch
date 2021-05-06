@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.mapping;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -74,7 +74,7 @@ public class LegacyUpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
                     .admin()
                     .indices()
                     .prepareCreate("test")
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0).build())
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_3_0).build())
                     .addMapping(MapperService.DEFAULT_MAPPING, defaultMapping)
                     .get();
         }

@@ -3241,7 +3241,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testReadSnapshotAndCheckIndexConcurrently() throws Exception {
         final boolean isPrimary = randomBoolean();
         IndexShard indexShard = newStartedShard(isPrimary);
-        final long numDocs = between(10, 100);
+        final long numDocs = between(10, 20);
         for (long i = 0; i < numDocs; i++) {
             indexDoc(indexShard, "_doc", Long.toString(i), "{}");
             if (randomBoolean()) {
@@ -3289,7 +3289,7 @@ public class IndexShardTests extends IndexShardTestCase {
             newShard.markAsRecovering("peer", new RecoveryState(newShard.routingEntry(),
                 getFakeDiscoNode(newShard.routingEntry().currentNodeId()), getFakeDiscoNode(newShard.routingEntry().currentNodeId())));
         }
-        int iters = iterations(10, 100);
+        int iters = iterations(5, 10);
         latch.await();
         for (int i = 0; i < iters; i++) {
             newShard.checkIndex();
@@ -3584,9 +3584,9 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
 
-        int threadCount = randomIntBetween(2, 6);
+        int threadCount = randomIntBetween(2, 4);
         List<Thread> threads = new ArrayList<>(threadCount);
-        int iterations = randomIntBetween(50, 100);
+        int iterations = randomIntBetween(10, 20);
         List<Engine.Searcher> searchers = Collections.synchronizedList(new ArrayList<>());
 
         logger.info("--> running with {} threads and {} iterations each", threadCount, iterations);

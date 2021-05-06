@@ -69,6 +69,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.lucene.Lucene;
@@ -368,7 +369,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
              * or a multi-field). This way search will continue to work on old indices and new indices
              * will use the expected full name.
              */
-            String fullName = indexCreatedVersion.before(Version.V_7_2_1) ? name() : buildFullName(context);
+            String fullName = indexCreatedVersion.before(LegacyESVersion.V_7_2_1) ? name() : buildFullName(context);
             // Copy the index options of the main field to allow phrase queries on
             // the prefix field.
             FieldType pft = new FieldType(fieldType);

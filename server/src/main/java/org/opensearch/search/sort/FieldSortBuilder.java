@@ -38,8 +38,8 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.SortField;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -156,10 +156,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         order = in.readOptionalWriteable(SortOrder::readFromStream);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             numericType = in.readOptionalString();
         }
     }
@@ -173,10 +173,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(order);
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(unmappedType);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             out.writeOptionalWriteable(nestedSort);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeOptionalString(numericType);
         }
     }
@@ -542,7 +542,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (nestedSort == null) {
             return resolveNested(context, nestedPath, nestedFilter);
         }
-        if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+        if (context.indexVersionCreated().before(LegacyESVersion.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
             throw new QueryShardException(context,
                 "max_children is only supported on v6.5.0 or higher");
         }

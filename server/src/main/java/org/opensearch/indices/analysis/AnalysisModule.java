@@ -34,6 +34,7 @@ package org.opensearch.indices.analysis;
 
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.NamedRegistry;
@@ -136,7 +137,7 @@ public final class AnalysisModule {
         tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-                if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
+                if (indexSettings.getIndexVersionCreated().before(LegacyESVersion.V_7_0_0)) {
                     deprecationLogger.deprecate("standard_deprecation",
                         "The [standard] token filter name is deprecated and will be removed in a future version.");
                 } else {
@@ -197,7 +198,7 @@ public final class AnalysisModule {
                 // This was originally removed in 7_0_0 but due to a cacheing bug it was still possible
                 // in certain circumstances to create a new index referencing the standard token filter
                 // until version 7_5_2
-                if (version.before(Version.V_7_6_0)) {
+                if (version.before(LegacyESVersion.V_7_6_0)) {
                     deprecationLogger.deprecate("standard_deprecation",
                         "The [standard] token filter is deprecated and will be removed in a future version.");
                 } else {

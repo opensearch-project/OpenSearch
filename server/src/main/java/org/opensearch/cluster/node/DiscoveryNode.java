@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.node;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
@@ -285,12 +286,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         int rolesSize = in.readVInt();
         final Set<DiscoveryNodeRole> roles = new HashSet<>(rolesSize);
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
             for (int i = 0; i < rolesSize; i++) {
                 final String roleName = in.readString();
                 final String roleNameAbbreviation = in.readString();
                 final boolean canContainData;
-                if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+                if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
                     canContainData = in.readBoolean();
                 } else {
                     canContainData = roleName.equals(DiscoveryNodeRole.DATA_ROLE.roleName());
@@ -341,13 +342,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
             out.writeVInt(roles.size());
             for (final DiscoveryNodeRole role : roles) {
                 final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
                 out.writeString(compatibleRole.roleName());
                 out.writeString(compatibleRole.roleNameAbbreviation());
-                if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+                if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
                     out.writeBoolean(compatibleRole.canContainData());
                 }
             }

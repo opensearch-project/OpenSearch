@@ -36,7 +36,7 @@ import com.ibm.icu.text.FilteredNormalizer2;
 import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.UnicodeSet;
 import org.apache.lucene.analysis.TokenStream;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -71,7 +71,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
                                                 final Normalizer2 normalizer,
                                                 final Settings settings) {
         String unicodeSetFilter = settings.get("unicodeSetFilter");
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
             if (unicodeSetFilter != null) {
                 deprecationLogger.deprecate("icu_normalizer_unicode_set_filter",
                     "[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
