@@ -100,7 +100,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             Setting.positiveTimeSetting(
                     "cluster.remote.initial_connect_timeout",
                     SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING, // the default needs to be thirty seconds when fallback is removed
-                    TimeValue.timeValueSeconds(30),
                     Setting.Property.NodeScope);
 
     public static final Setting<String> SEARCH_REMOTE_NODE_ATTRIBUTE =

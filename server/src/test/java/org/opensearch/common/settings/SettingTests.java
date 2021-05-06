@@ -896,7 +896,22 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(fix1.get(Settings.builder().put("abc.qrx", 30).build()), Integer.valueOf(30));
     }
 
-    public void testMinMaxInt() {
+    // Integer
+
+    public void testIntWithDefaultValue() {
+        Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 42);
+        assertEquals(integerSetting.get(Settings.EMPTY), Integer.valueOf(42));
+    }
+
+    public void testIntWithFallbackValue() {
+        Setting<Integer> fallbackSetting = Setting.intSetting("foo.baz", 2);
+        Setting<Integer> integerSetting = Setting.intSetting("foo.bar", fallbackSetting);
+        assertEquals(integerSetting.get(Settings.EMPTY), Integer.valueOf(2));
+        assertEquals(integerSetting.get(Settings.builder().put("foo.bar", 3).build()), Integer.valueOf(3));
+        assertEquals(integerSetting.get(Settings.builder().put("foo.baz", 3).build()), Integer.valueOf(3));
+    }
+
+    public void testIntWithMinMax() {
         Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, Property.NodeScope);
         try {
             integerSetting.get(Settings.builder().put("foo.bar", 11).build());
@@ -915,6 +930,111 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(5, integerSetting.get(Settings.builder().put("foo.bar", 5).build()).intValue());
         assertEquals(1, integerSetting.get(Settings.EMPTY).intValue());
     }
+
+    // Long
+
+    public void testLongWithDefaultValue() {
+        Setting<Long> longSetting = Setting.longSetting("foo.bar", 42);
+        assertEquals(longSetting.get(Settings.EMPTY), Long.valueOf(42));
+    }
+
+    public void testLongWithFallbackValue() {
+        Setting<Long> fallbackSetting = Setting.longSetting("foo.baz", 2);
+        Setting<Long> longSetting = Setting.longSetting("foo.bar", fallbackSetting);
+        assertEquals(longSetting.get(Settings.EMPTY), Long.valueOf(2));
+        assertEquals(longSetting.get(Settings.builder().put("foo.bar", 3).build()), Long.valueOf(3));
+        assertEquals(longSetting.get(Settings.builder().put("foo.baz", 3).build()), Long.valueOf(3));
+    }
+
+    public void testLongWithMinMax() {
+        Setting<Long> longSetting = Setting.longSetting("foo.bar", 1, 0, 10, Property.NodeScope);
+        try {
+            longSetting.get(Settings.builder().put("foo.bar", 11).build());
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [11] for setting [foo.bar] must be <= 10", ex.getMessage());
+        }
+
+        try {
+            longSetting.get(Settings.builder().put("foo.bar", -1).build());
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [-1] for setting [foo.bar] must be >= 0", ex.getMessage());
+        }
+
+        assertEquals(5, longSetting.get(Settings.builder().put("foo.bar", 5).build()).longValue());
+        assertEquals(1, longSetting.get(Settings.EMPTY).longValue());
+    }    
+
+    // Float
+
+    public void testFloatWithDefaultValue() {
+        Setting<Float> floatSetting = Setting.floatSetting("foo.bar", (float) 42.1);
+        assertEquals(floatSetting.get(Settings.EMPTY), Float.valueOf((float) 42.1));
+    }
+
+    public void testFloatWithFallbackValue() {
+        Setting<Float> fallbackSetting = Setting.floatSetting("foo.baz", (float) 2.1);
+        Setting<Float> floatSetting = Setting.floatSetting("foo.bar", fallbackSetting);
+        assertEquals(floatSetting.get(Settings.EMPTY), Float.valueOf((float) 2.1));
+        assertEquals(floatSetting.get(Settings.builder().put("foo.bar", 3.2).build()), Float.valueOf((float) 3.2));
+        assertEquals(floatSetting.get(Settings.builder().put("foo.baz", 3.2).build()), Float.valueOf((float) 3.2));
+    }
+
+    public void testFloatWithMinMax() {
+        Setting<Float> floatSetting = Setting.floatSetting("foo.bar", (float) 1.2, 0, 10, Property.NodeScope);
+        try {
+            floatSetting.get(Settings.builder().put("foo.bar", (float) 11.3).build());
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [11.3] for setting [foo.bar] must be <= 10.0", ex.getMessage());
+        }
+
+        try {
+            floatSetting.get(Settings.builder().put("foo.bar", (float) -1.4).build());
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [-1.4] for setting [foo.bar] must be >= 0.0", ex.getMessage());
+        }
+
+        assertEquals(5.6, floatSetting.get(Settings.builder().put("foo.bar", (float) 5.6).build()).floatValue(), 0.01);
+        assertEquals(1.2, floatSetting.get(Settings.EMPTY).floatValue(), 0.01);
+    }
+
+    // Double
+
+    public void testDoubleWithDefaultValue() {
+        Setting<Double> doubleSetting = Setting.doubleSetting("foo.bar", 42.1);
+        assertEquals(doubleSetting.get(Settings.EMPTY), Double.valueOf(42.1));
+    }
+
+    public void testDoubleWithFallbackValue() {
+        Setting<Double> fallbackSetting = Setting.doubleSetting("foo.baz", 2.1);
+        Setting<Double> doubleSetting = Setting.doubleSetting("foo.bar", fallbackSetting);
+        assertEquals(doubleSetting.get(Settings.EMPTY), Double.valueOf(2.1));
+        assertEquals(doubleSetting.get(Settings.builder().put("foo.bar", 3.2).build()), Double.valueOf(3.2));
+        assertEquals(doubleSetting.get(Settings.builder().put("foo.baz", 3.2).build()), Double.valueOf(3.2));
+    }
+
+    public void testDoubleWithMinMax() {
+        Setting<Double> doubleSetting = Setting.doubleSetting("foo.bar", 1.2, 0, 10, Property.NodeScope);
+        try {
+            doubleSetting.get(Settings.builder().put("foo.bar", 11.3).build());
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [11.3] for setting [foo.bar] must be <= 10.0", ex.getMessage());
+        }
+
+        try {
+            doubleSetting.get(Settings.builder().put("foo.bar", -1.4).build());
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [-1.4] for setting [foo.bar] must be >= 0.0", ex.getMessage());
+        }
+
+        assertEquals(5.6, doubleSetting.get(Settings.builder().put("foo.bar", 5.6).build()).doubleValue(), 0.01);
+        assertEquals(1.2, doubleSetting.get(Settings.EMPTY).doubleValue(), 0.01);
+    }    
 
     /**
      * Only one single scope can be added to any setting
