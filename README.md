@@ -8,7 +8,8 @@ We officially began work on the new fork on January 21st, 2021.  Since then, we'
 
 ## Getting Started
 
-If you would like to install or run this project please see the [Developer Guide](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md). There will be binary distributions coming soon which will enable faster installations. 
+If you would like to use a binary, unzip and run this project, please see the [Downloads Page](https://opensearch.org/downloads.html).
+If you would like to build, install and run this project please see the [Developer Guide](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md).
 
 ## Guiding Principles
 
@@ -44,4 +45,4 @@ As we've been working, we've come up with a bunch of questions that we wanted to
 
 ### Questions?  Feedback?
 
-Let us know in the [forums](https://discuss.opendistrocommunity.dev/).
+Let us know in the [issue](https://github.com/opensearch-project/OpenSearch/issues/new/choose).
