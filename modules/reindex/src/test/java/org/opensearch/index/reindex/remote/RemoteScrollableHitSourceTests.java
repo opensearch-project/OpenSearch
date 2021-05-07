@@ -94,7 +94,6 @@ import java.util.stream.Stream;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -472,7 +471,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     public void testNoContentTypeIsError() {
         RuntimeException e = expectListenerFailure(RuntimeException.class, (RejectAwareActionListener<Version> listener) ->
                 sourceWithMockedRemoteCall(false, null, "main/0_20_5.json").lookupRemoteVersion(listener));
-        assertThat(e.getMessage(), containsString("Response didn't include Content-Type: body={"));
+        assertEquals(e.getMessage(), "Response didn't include supported Content-Type, remote is likely not an OpenSearch instance");
     }
 
     public void testInvalidJsonThinksRemoteIsNotES() throws IOException {
