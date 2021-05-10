@@ -35,6 +35,7 @@ package org.opensearch.indices;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.index.mapper.AllFieldMapper;
+import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
@@ -90,12 +91,12 @@ public class IndicesModuleTests extends OpenSearchTestCase {
     });
 
     private static String[] EXPECTED_METADATA_FIELDS = new String[]{IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
-            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
+        RoutingFieldMapper.NAME, IndexFieldMapper.NAME, DataStreamFieldMapper.NAME, SourceFieldMapper.NAME,
+        TypeFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
 
     private static String[] EXPECTED_METADATA_FIELDS_6x = new String[]{AllFieldMapper.NAME, IgnoredFieldMapper.NAME,
-        IdFieldMapper.NAME, RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
-        VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
+        IdFieldMapper.NAME, RoutingFieldMapper.NAME, IndexFieldMapper.NAME, DataStreamFieldMapper.NAME, SourceFieldMapper.NAME,
+        TypeFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
