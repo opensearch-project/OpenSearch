@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hamcrest.Matcher;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
@@ -48,7 +49,13 @@ import org.opensearch.common.settings.Settings;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.anyOf;
 
 public class ShardsLimitAllocationTests extends OpenSearchAllocationTestCase {
     private final Logger logger = LogManager.getLogger(ShardsLimitAllocationTests.class);
@@ -201,13 +208,20 @@ public class ShardsLimitAllocationTests extends OpenSearchAllocationTestCase {
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(RoutingNodesUtils.numberOfShardsOfType(clusterState.getRoutingNodes(), STARTED), equalTo(10));
+        // AllocationConstraints will choose node2 for 3 test1 shards and the rest are assigned to node1
+        // These shards then relocate to node2 after balanceByWeights() is invoked
+        assertThat(RoutingNodesUtils.numberOfShardsOfType(clusterState.getRoutingNodes(), STARTED), equalTo(8));
+        assertThat(RoutingNodesUtils.numberOfShardsOfType(clusterState.getRoutingNodes(), RELOCATING), equalTo(2));
 
+        // Expected values depend on which index shards were chosen for relocation.
+        String relocatingIndex = getRelocatingIndex(clusterState);
+        Matcher<String> node1Matcher = anyOf(equalTo("test"), equalTo("test1"));
+        Matcher<String> node2Matcher = relocatingIndex.equals("test1") ? equalTo("test1") : node1Matcher;
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node1")) {
-            assertThat(shardRouting.getIndexName(), equalTo("test"));
+                assertThat(shardRouting.getIndexName(), node1Matcher);
         }
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node2")) {
-            assertThat(shardRouting.getIndexName(), equalTo("test1"));
+                assertThat(shardRouting.getIndexName(), node2Matcher);
         }
 
         logger.info("update {} for test, see that things move",
@@ -226,15 +240,26 @@ public class ShardsLimitAllocationTests extends OpenSearchAllocationTestCase {
         logger.info("reroute after setting");
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(3));
-        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(RELOCATING), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(RELOCATING), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(3));
+        int node1RelocCount = relocatingIndex.equals("test1") ? 4 : 2;
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(RELOCATING), equalTo(node1RelocCount));
+
+        int node2RelocCount = relocatingIndex.equals("test1") ? 2 : 0;
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(RELOCATING), equalTo(node2RelocCount));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(3 - node2RelocCount));
         // the first move will destroy the balance and the balancer will move 2 shards from node2 to node one right after
         // moving the nodes to node2 since we consider INITIALIZING nodes during rebalance
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         // now we are done compared to EvenShardCountAllocator since the Balancer is not soely based on the average
         assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(5));
         assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(5));
+    }
+
+    private String getRelocatingIndex(ClusterState clusterState) {
+            final Set<String> indices = Stream.of(clusterState.getRoutingNodes())
+                            .flatMap(node -> node.shardsWithState(RELOCATING).stream().map(x -> x.getIndexName()))
+                            .collect(Collectors.toSet());
+            assertThat(indices.size(), equalTo(1));
+            return indices.iterator().next();
+
     }
 }
