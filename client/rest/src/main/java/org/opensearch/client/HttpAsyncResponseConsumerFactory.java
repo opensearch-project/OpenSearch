@@ -66,6 +66,11 @@ public interface HttpAsyncResponseConsumerFactory {
 
         private final int bufferLimit;
 
+        /**
+         * Creates a {@link HeapBufferedResponseConsumerFactory} instance with the given buffer limit.
+         *
+         * @param bufferLimitBytes the buffer limit to be applied to this instance
+         */
         public HeapBufferedResponseConsumerFactory(int bufferLimitBytes) {
             this.bufferLimit = bufferLimitBytes;
         }

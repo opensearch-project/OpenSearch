@@ -96,6 +96,8 @@ public class Response {
      * Returns the value of the first header with a specified name of this message.
      * If there is more than one matching header in the message the first element is returned.
      * If there is no matching header in the message <code>null</code> is returned.
+     *
+     * @param name header name
      */
     public String getHeader(String name) {
         Header header = response.getFirstHeader(name);

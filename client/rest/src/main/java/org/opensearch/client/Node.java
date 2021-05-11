@@ -77,6 +77,13 @@ public class Node {
      * Create a {@linkplain Node} with metadata. All parameters except
      * {@code host} are nullable and implementations of {@link NodeSelector}
      * need to decide what to do in their absence.
+     *
+     * @param host       primary host address
+     * @param boundHosts addresses on which the host is listening
+     * @param name       name of the node
+     * @param version    version of OpenSearch
+     * @param roles      roles that the OpenSearch process has on the host
+     * @param attributes attributes declared on the node
      */
     public Node(HttpHost host, Set<HttpHost> boundHosts, String name, String version,
             Roles roles, Map<String, List<String>> attributes) {
@@ -93,6 +100,8 @@ public class Node {
 
     /**
      * Create a {@linkplain Node} without any metadata.
+     *
+     * @param host primary host address
      */
     public Node(HttpHost host) {
         this(host, null, null, null, null, null);
@@ -192,6 +201,11 @@ public class Node {
 
         private final Set<String> roles;
 
+        /**
+         * Create a {@link Roles} instance of the given string set.
+         *
+         * @param roles set of role names.
+         */
         public Roles(final Set<String> roles) {
             this.roles = new TreeSet<>(roles);
         }

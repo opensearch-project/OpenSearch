@@ -47,6 +47,11 @@ public final class ResponseException extends IOException {
 
     private final Response response;
 
+    /**
+     * Creates a ResponseException containing the given {@code Response}.
+     *
+     * @param response The error response.
+     */
     public ResponseException(Response response) throws IOException {
         super(buildMessage(response));
         this.response = response;

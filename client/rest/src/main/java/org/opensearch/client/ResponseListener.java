@@ -44,7 +44,9 @@ package org.opensearch.client;
 public interface ResponseListener {
 
     /**
-     * Method invoked if the request yielded a successful response
+     * Method invoked if the request yielded a successful response.
+     *
+     * @param response success response
      */
     void onSuccess(Response response);
 
@@ -52,6 +54,8 @@ public interface ResponseListener {
      * Method invoked if the request failed. There are two main categories of failures: connection failures (usually
      * {@link java.io.IOException}s, or responses that were treated as errors based on their error response code
      * ({@link ResponseException}s).
+     *
+     * @param exception the failure exception
      */
     void onFailure(Exception exception);
 }
