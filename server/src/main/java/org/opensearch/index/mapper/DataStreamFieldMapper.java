@@ -8,8 +8,7 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.opensearch.cluster.metadata.DataStream.TimestampField;
@@ -138,10 +137,12 @@ public class DataStreamFieldMapper extends MetadataFieldMapper {
         Document document = context.doc();
         IndexableField[] fields = document.getFields(timestampField.getName());
 
-        // Documents should contain exactly one value for the timestamp field.
-        if ((fields.length == 2 &&
-            fields[0] instanceof LongPoint &&
-            fields[1] instanceof SortedNumericDocValuesField) == false) {
+        // Documents must contain exactly one value for the timestamp field.
+        long numTimestampValues = Arrays.stream(fields)
+            .filter(field -> field.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
+            .count();
+
+        if (numTimestampValues != 1) {
             throw new IllegalArgumentException(
                 "documents must contain a single-valued timestamp field '" + timestampField.getName() + "' of date type"
             );
