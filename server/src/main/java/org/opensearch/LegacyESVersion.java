@@ -183,6 +183,8 @@ public class LegacyESVersion extends Version {
                         "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
                 } catch (final IllegalAccessException e) {
                     assert false : "Version field [" + fieldName + "] should be public";
+                } catch (final RuntimeException e) {
+                    assert false : "Version field [" + fieldName + "] threw [" + e + "] during initialization";
                 }
             }
         }
