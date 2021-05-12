@@ -281,10 +281,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
         private Stats getOrCreateStats(Object coreKey) {
             final ShardId shardId = shardKeyMap.getShardId(coreKey);
-            Stats stats = shardStats.get(shardId);
+            Stats stats = shardStats.putIfAbsent(shardId, new Stats(shardId));
             if (stats == null) {
-                stats = new Stats(shardId);
-                shardStats.put(shardId, stats);
+                stats = shardStats.get(shardId);
             }
             return stats;
         }
