@@ -82,6 +82,22 @@ public class UserAgentProcessor extends AbstractProcessor {
         return ignoreMissing;
     }
 
+    String versionToString(VersionedName version) {
+        StringBuilder builder = new StringBuilder();
+
+        if (version.minor != null) {
+            builder.append(".").append(version.minor);
+            if (version.patch != null) {
+                builder.append(".").append(version.patch);
+                if (version.build != null) {
+                    builder.append(".").append(version.build);
+                }
+            }
+        }
+
+        return builder.toString();
+    }
+
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) {
         String userAgent = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
@@ -114,15 +130,8 @@ public class UserAgentProcessor extends AbstractProcessor {
                         StringBuilder version = new StringBuilder();
                         if (uaClient.userAgent != null && uaClient.userAgent.major != null) {
                             version.append(uaClient.userAgent.major);
-                            if (uaClient.userAgent.minor != null) {
-                                version.append(".").append(uaClient.userAgent.minor);
-                                if (uaClient.userAgent.patch != null) {
-                                    version.append(".").append(uaClient.userAgent.patch);
-                                    if (uaClient.userAgent.build != null) {
-                                        version.append(".").append(uaClient.userAgent.build);
-                                    }
-                                }
-                            }
+                            version.append(this.versionToString(uaClient.userAgent));
+
                             uaDetails.put("version", version.toString());
                         }
                         break;
@@ -134,15 +143,8 @@ public class UserAgentProcessor extends AbstractProcessor {
                                 StringBuilder sb = new StringBuilder();
                                 if (uaClient.operatingSystem.major != null) {
                                     sb.append(uaClient.operatingSystem.major);
-                                    if (uaClient.operatingSystem.minor != null) {
-                                        sb.append(".").append(uaClient.operatingSystem.minor);
-                                        if (uaClient.operatingSystem.patch != null) {
-                                            sb.append(".").append(uaClient.operatingSystem.patch);
-                                            if (uaClient.operatingSystem.build != null) {
-                                                sb.append(".").append(uaClient.operatingSystem.build);
-                                            }
-                                        }
-                                    }
+                                    sb.append(this.versionToString(uaClient.operatingSystem));
+
                                     osDetails.put("version", sb.toString());
                                     osDetails.put("full", uaClient.operatingSystem.name + " " + sb.toString());
                                 }
