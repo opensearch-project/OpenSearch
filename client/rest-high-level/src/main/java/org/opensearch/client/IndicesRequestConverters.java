@@ -723,16 +723,7 @@ final class IndicesRequestConverters {
     }
 
     static Request getIndexTemplates(GetComposableIndexTemplateRequest getIndexTemplatesRequest) {
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_index_template")
-            .addPathPart(getIndexTemplatesRequest.name())
-            .build();
-        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        final RequestConverters.Params params = new RequestConverters.Params();
-        params.withLocal(getIndexTemplatesRequest.isLocal());
-        params.withMasterTimeout(getIndexTemplatesRequest.getMasterNodeTimeout());
-        request.addParameters(params.asMap());
-        return request;
+        return getIndexTemplateRequest(getIndexTemplatesRequest);
     }
 
     static Request templatesExist(IndexTemplatesExistRequest indexTemplatesExistRequest) {
@@ -749,16 +740,7 @@ final class IndicesRequestConverters {
     }
 
     static Request templatesExist(ComposableIndexTemplateExistRequest indexTemplatesExistRequest) {
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_index_template")
-            .addPathPart(indexTemplatesExistRequest.name())
-            .build();
-        final Request request = new Request(HttpHead.METHOD_NAME, endpoint);
-        final RequestConverters.Params params = new RequestConverters.Params();
-        params.withLocal(indexTemplatesExistRequest.isLocal());
-        params.withMasterTimeout(indexTemplatesExistRequest.getMasterNodeTimeout());
-        request.addParameters(params.asMap());
-        return request;
+        return getIndexTemplateRequest(indexTemplatesExistRequest);
     }
 
     static Request analyze(AnalyzeRequest request) throws IOException {
@@ -804,5 +786,27 @@ final class IndicesRequestConverters {
         parameters.withMasterTimeout(deleteAliasRequest.masterNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
+    }
+
+    static Request getIndexTemplateRequest(Object inRequest)
+    {
+        if (inRequest instanceof GetComposableIndexTemplateRequest || inRequest instanceof ComposableIndexTemplateExistRequest)
+        {
+            final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_index_template")
+            .addPathPart(inRequest.name())
+            .build();
+    
+            final Request request = new Request(HttpHead.METHOD_NAME, endpoint);
+            final RequestConverters.Params params = new RequestConverters.Params();
+    
+            params.withLocal(inRequest.isLocal());
+            params.withMasterTimeout(inRequest.getMasterNodeTimeout());
+            request.addParameters(params.asMap());
+            return request;
+        }
+        else {
+            return null;
+        }
     }
 }
