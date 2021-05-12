@@ -38,7 +38,7 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
 
 # Requirements
 
-You will need the following pieces of software to run these tests: 
+You will need the following pieces of software to run these tests:
 
 - Docker & Docker Compose
 - Vagrant
@@ -65,14 +65,14 @@ In order to run OpenSearch from source without building a package, you can run i
 
 ### Launching and debugging from an IDE
 
-If you want to run OpenSearch from your IDE, the `./gradlew run` task supports a remote debugging option:
+**NOTE:** If you have imported the project into IntelliJ according to the instructions in [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md#importing-the-project-into-intellij-idea), then a debug run configuration named **Debug OpenSearch** will be created for you and configured appropriately.
 
-    ./gradlew run --debug-jvm
+To run OpenSearch in debug mode,
+
+1. Start the `Debug OpenSearch` in IntelliJ by pressing the debug icon.
+2. From a terminal run the following `./gradlew run --debug-jvm`. You can also run this task in IntelliJ.
 
 This will instruct all JVMs (including any that run cli tools such as creating the keyring or adding users) to suspend and initiate a debug connection on port incrementing from `5005`. As such, the IDE needs to be instructed to listen for connections on this port. Since we might run multiple JVMs as part of configuring and starting the cluster, it's recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting needs to be configured with a greater value (ie 10 or more).
-
-If you have imported the project into IntelliJ according to the instructions in [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md#importing-the-project-into-intellij-idea), then a debug run configuration named "Debug OpenSearch" will be created
-for you and configured appropriately.
 
 ### Other useful arguments
 
@@ -145,7 +145,7 @@ Default value provided below in \[brackets\].
 
 ## Load balancing and caches
 
-By default the tests run on multiple processes using all the available cores on all available CPUs. Not including hyper-threading. If you want to explicitly specify the number of JVMs you can do so on the command line:
+By default, the tests run on multiple processes using all the available cores on all available CPUs. Not including hyper-threading. If you want to explicitly specify the number of JVMs you can do so on the command line:
 
     ./gradlew test -Dtests.jvms=8
 
@@ -153,11 +153,11 @@ Or in `~/.gradle/gradle.properties`:
 
     systemProp.tests.jvms=8
 
-Its difficult to pick the "right" number here. Hypercores don’t count for CPU intensive tests and you should leave some slack for JVM-interal threads like the garbage collector. And you have to have enough RAM to handle each JVM.
+It's difficult to pick the "right" number here. Hypercores don’t count for CPU intensive tests, and you should leave some slack for JVM-internal threads like the garbage collector. And you have to have enough RAM to handle each JVM.
 
 ## Test compatibility
 
-It is possible to provide a version that allows to adapt the tests behaviour to older features or bugs that have been changed or fixed in the meantime.
+It is possible to provide a version that allows to adapt the tests' behaviour to older features or bugs that have been changed or fixed in the meantime.
 
     ./gradlew test -Dtests.compatibility=1.0.0
 
@@ -216,7 +216,7 @@ Some of these checks will require `docker-compose` installed for bringing up tes
 
 The REST layer is tested through specific tests that are executed against a cluster that is configured and initialized via Gradle. The tests themselves can be written in either Java or with a YAML based DSL.
 
-YAML based REST tests should be preferred since these are shared between clients. The YAML based tests describe the operations to be executed and the obtained results that need to be tested.
+YAML based REST tests should be preferred since these are shared between clients. The YAML based tests describe the operations to be executed, and the obtained results that need to be tested.
 
 The YAML tests support various operators defined in the [rest-api-spec](/rest-api-spec/src/main/resources/rest-api-spec/test/README.md) and adhere to the [OpenSearch REST API JSON specification](/rest-api-spec/README.md). In order to run the YAML tests, the relevant API specification needs to be on the test classpath. Any gradle project that has support for REST tests will get the primary API on it’s class path. However, to better support Gradle incremental builds, it is recommended to explicitly declare which parts of the API the tests depend upon.
 
@@ -271,7 +271,7 @@ When you run a packaging test, Gradle will set up the target VM and mount your r
 
         vagrant plugin install vagrant-cachier
 
-3.  You can run all of the OS packaging tests with `./gradlew packagingTest`. This task includes our legacy `bats` tests. 
+3.  You can run all the OS packaging tests with `./gradlew packagingTest`. This task includes our legacy `bats` tests.
 
     To run only the OS tests that are written in Java, run `.gradlew distroTest`, will cause Gradle to build the tar, zip, and deb packages and all the plugins. It will then run the tests on every available system. This will take a very long time.
 
@@ -279,13 +279,13 @@ When you run a packaging test, Gradle will set up the target VM and mount your r
 
         ./gradlew :qa:os:ubuntu-1804:tasks
 
-    If you want a quick test of the tarball and RPM packagings for Centos 7, you would run:
+    If you want a quick test of the tarball and RPM packaging for Centos 7, you would run:
 
         ./gradlew :qa:os:centos-7:distroTest.rpm :qa:os:centos-7:distroTest.linux-archive
 
-Note that if you interrupt Gradle in the middle of running these tasks, any boxes started will remain running and you’ll have to stop them manually with `./gradlew --stop` or `vagrant halt`.
+Note that if you interrupt Gradle in the middle of running these tasks, any boxes started will remain running, and you’ll have to stop them manually with `./gradlew --stop` or `vagrant halt`.
 
-All the regular vagrant commands should just work so you can get a shell in a VM running trusty by running `vagrant up ubuntu-1604 --provider virtualbox && vagrant ssh ubuntu-1604`.
+All the regular vagrant commands should just work, so you can get a shell in a VM running trusty by running `vagrant up ubuntu-1604 --provider virtualbox && vagrant ssh ubuntu-1604`.
 
 These are the linux flavors supported, all of which we provide images for
 
@@ -303,7 +303,7 @@ These are the linux flavors supported, all of which we provide images for
 -   sles-12
 -   opensuse-42 aka Leap
 
-We’re missing the following from the support matrix because there aren’t high quality boxes available in vagrant atlas:
+We’re missing the following from the support matrix because there are no high quality boxes available in vagrant atlas:
 
 -   sles-11
 
@@ -346,7 +346,7 @@ Some vagrant commands will work on all VMs at once:
     vagrant halt
     vagrant destroy -f
 
-`vagrant up` would normally start all the VMs but we’ve prevented that because that’d consume a ton of ram.
+`vagrant up` would normally start all the VMs, but we’ve prevented that because that’d consume a ton of ram.
 
 ## Iterating on packaging tests
 
@@ -374,7 +374,7 @@ Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example 
      -Dtests.class=org.opensearch.upgrades.UpgradeClusterClientYamlTestSuiteIT \
      -Dtests.method="test {p0=*/40_ml_datafeed_crud/*}"
 
-Tests are ran for versions that are not yet released but with which the current version will be compatible with. These are automatically checked out and built from source. See [VersionCollection](./buildSrc/src/main/java/org/opensearch/gradle/VersionCollection.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
+Tests are run for versions that are not yet released but with which the current version will be compatible with. These are automatically checked out and built from source. See [VersionCollection](./buildSrc/src/main/java/org/opensearch/gradle/VersionCollection.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
 
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
 
@@ -414,7 +414,7 @@ Unit tests are the preferred way to test some functionality: most of the time th
 
 The reason why `OpenSearchSingleNodeTestCase` exists is that all our components used to be very hard to set up in isolation, which had led us to having a number of integration tests but close to no unit tests. `OpenSearchSingleNodeTestCase` is a workaround for this issue which provides an easy way to spin up a node and get access to components that are hard to instantiate like `IndicesService`. Whenever practical, you should prefer unit tests.
 
-Many tests extend `OpenSearchIntegTestCase`, mostly because this is how most tests used to work in the early days of Elasticsearch. However the complexity of these tests tends to make them hard to debug. Whenever the functionality that is being tested isn’t intimately dependent on how OpenSearch behaves as a cluster, it is recommended to write unit tests or REST tests instead.
+Many tests extend `OpenSearchIntegTestCase`, mostly because this is how most tests used to work in the early days of Elasticsearch. However, the complexity of these tests tends to make them hard to debug. Whenever the functionality that is being tested isn’t intimately dependent on how OpenSearch behaves as a cluster, it is recommended to write unit tests or REST tests instead.
 
 In short, most new functionality should come with unit tests, and optionally REST tests to test integration.
 
@@ -428,7 +428,7 @@ Unfortunately, a large part of our code base is still hard to unit test. Sometim
 
 In general, randomization should be used for parameters that are not expected to affect the behavior of the functionality that is being tested. For instance the number of shards should not impact `date_histogram` aggregations, and the choice of the `store` type (`niofs` vs `mmapfs`) does not affect the results of a query. Such randomization helps improve confidence that we are not relying on implementation details of one component or specifics of some setup.
 
-However it should not be used for coverage. For instance if you are testing a piece of functionality that enters different code paths depending on whether the index has 1 shards or 2+ shards, then we shouldn’t just test against an index with a random number of shards: there should be one test for the 1-shard case, and another test for the 2+ shards case.
+However, it should not be used for coverage. For instance if you are testing a piece of functionality that enters different code paths depending on whether the index has 1 shards or 2+ shards, then we shouldn’t just test against an index with a random number of shards: there should be one test for the 1-shard case, and another test for the 2+ shards case.
 
 ### Abuse randomization in multi-threaded tests
 
