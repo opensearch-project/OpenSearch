@@ -47,6 +47,12 @@ public final class WarningFailureException extends RuntimeException {
 
     private final Response response;
 
+    /**
+     * Creates a {@link WarningFailureException} instance.
+     *
+     * @param response the response that contains warnings.
+     * @throws IOException if there is a problem building the exception message.
+     */
     public WarningFailureException(Response response) throws IOException {
         super(buildMessage(response));
         this.response = response;
@@ -56,6 +62,8 @@ public final class WarningFailureException extends RuntimeException {
      * Wrap a {@linkplain WarningFailureException} with another one with the current
      * stack trace. This is used during synchronous calls so that the caller
      * ends up in the stack trace of the exception thrown.
+     *
+     * @param e the exception to be wrapped.
      */
     WarningFailureException(WarningFailureException e) {
         super(e.getMessage(), e);

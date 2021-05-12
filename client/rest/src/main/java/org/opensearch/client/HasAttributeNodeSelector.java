@@ -45,6 +45,13 @@ public final class HasAttributeNodeSelector implements NodeSelector {
     private final String key;
     private final String value;
 
+    /**
+     * Create a {link HasAttributeNodeSelector} instance using the provided
+     * attribute key value pair.
+     *
+     * @param key The attribute name.
+     * @param value The attribute value.
+     */
     public HasAttributeNodeSelector(String key, String value) {
         this.key = key;
         this.value = value;
