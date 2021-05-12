@@ -53,11 +53,11 @@ public class MonitorService extends AbstractLifecycleComponent {
     private final FsService fsService;
 
     public MonitorService(Settings settings, NodeEnvironment nodeEnvironment, ThreadPool threadPool) throws IOException {
-        this.jvmGcMonitorService = new JvmGcMonitorService(settings, threadPool);
         this.osService = new OsService(settings);
         this.processService = new ProcessService(settings);
         this.jvmService = new JvmService(settings);
         this.fsService = new FsService(settings, nodeEnvironment);
+        this.jvmGcMonitorService = new JvmGcMonitorService(settings, threadPool);
     }
 
     public OsService osService() {
