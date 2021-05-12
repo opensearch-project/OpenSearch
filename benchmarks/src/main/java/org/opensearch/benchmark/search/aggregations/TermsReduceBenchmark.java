@@ -105,16 +105,31 @@ public class TermsReduceBenchmark {
 
             @Override
             public InternalAggregation.ReduceContext forFinalReduction() {
-                final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
-                    Integer.MAX_VALUE,
-                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-                );
-                return InternalAggregation.ReduceContext.forFinalReduction(
-                    null,
-                    null,
-                    bucketConsumer,
-                    PipelineAggregator.PipelineTree.EMPTY
-                );
+                try
+                {
+                    final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                        Integer.MAX_VALUE,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                    );
+
+                    return InternalAggregation.ReduceContext.forFinalReduction(
+                        null,
+                        null,
+                        bucketConsumer,
+                        PipelineAggregator.PipelineTree.EMPTY
+                    );
+                }
+                catch (Exception e) {
+                    return InternalAggregation.ReduceContext.forFinalReduction(
+                        null,
+                        null,
+                        null,
+                        PipelineAggregator.PipelineTree.EMPTY
+                    );
+                }
+                finally {
+                    bucketConsumer.reset();
+                }
             }
         }
     );

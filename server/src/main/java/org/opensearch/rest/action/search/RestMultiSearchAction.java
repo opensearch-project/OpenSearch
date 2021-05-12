@@ -113,8 +113,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
             }
         }
         return channel -> {
-            final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(MultiSearchAction.INSTANCE, multiSearchRequest, new RestToXContentListener<>(channel));
+            try { 
+                final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                cancellableClient.execute(MultiSearchAction.INSTANCE, multiSearchRequest, new RestToXContentListener<>(channel));
+            } finally {
+                cancellableClient.close();
+            }
         };
     }
 
