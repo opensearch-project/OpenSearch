@@ -1287,20 +1287,26 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         scriptScope.putDecoration(userRegexNode, new IRNodeDecoration(irLoadFieldMemberNode));
     }
 
-    @Override
-    public void visitLambda(ELambda userLambdaNode, ScriptScope scriptScope) {
+
+    private ReferenceNode getReferenceNode(AExpression node, ScriptScope scope) {
         ReferenceNode irReferenceNode;
 
-        if (scriptScope.hasDecoration(userLambdaNode, TargetType.class)) {
-            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode(userLambdaNode.getLocation());
-            typedInterfaceReferenceNode.setReference(scriptScope.getDecoration(userLambdaNode, ReferenceDecoration.class).getReference());
+        if (scope.hasDecoration(node, TargetType.class)) {
+            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode(node.getLocation());
+            typedInterfaceReferenceNode.setReference(scope.getDecoration(node, ReferenceDecoration.class).getReference());
             irReferenceNode = typedInterfaceReferenceNode;
         } else {
-            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode(userLambdaNode.getLocation());
-            defInterfaceReferenceNode.setDefReferenceEncoding(
-                    scriptScope.getDecoration(userLambdaNode, EncodingDecoration.class).getEncoding());
+            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode(node.getLocation());
+            defInterfaceReferenceNode.setDefReferenceEncoding(scope.getDecoration(node, EncodingDecoration.class).getEncoding());
             irReferenceNode = defInterfaceReferenceNode;
         }
+
+        return irReferenceNode;
+    }
+
+    @Override
+    public void visitLambda(ELambda userLambdaNode, ScriptScope scriptScope) {
+        ReferenceNode irReferenceNode = this.getReferenceNode(userLambdaNode, scriptScope);
 
         FunctionNode irFunctionNode = new FunctionNode(userLambdaNode.getLocation());
         irFunctionNode.setBlockNode((BlockNode)visit(userLambdaNode.getBlockNode(), scriptScope));
@@ -1357,22 +1363,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         scriptScope.putDecoration(userFunctionRefNode, new IRNodeDecoration(irReferenceNode));
     }
 
+
     @Override
     public void visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, ScriptScope scriptScope) {
-        ReferenceNode irReferenceNode;
-
-        if (scriptScope.hasDecoration(userNewArrayFunctionRefNode, TargetType.class)) {
-            TypedInterfaceReferenceNode typedInterfaceReferenceNode =
-                    new TypedInterfaceReferenceNode(userNewArrayFunctionRefNode.getLocation());
-            typedInterfaceReferenceNode.setReference(
-                    scriptScope.getDecoration(userNewArrayFunctionRefNode, ReferenceDecoration.class).getReference());
-            irReferenceNode = typedInterfaceReferenceNode;
-        } else {
-            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode(userNewArrayFunctionRefNode.getLocation());
-            defInterfaceReferenceNode.setDefReferenceEncoding(
-                    scriptScope.getDecoration(userNewArrayFunctionRefNode, EncodingDecoration.class).getEncoding());
-            irReferenceNode = defInterfaceReferenceNode;
-        }
+        ReferenceNode irReferenceNode = this.getReferenceNode(userNewArrayFunctionRefNode, scriptScope);
 
         Class<?> returnType = scriptScope.getDecoration(userNewArrayFunctionRefNode, ReturnType.class).getReturnType();
 
