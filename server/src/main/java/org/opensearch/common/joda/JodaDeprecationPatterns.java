@@ -70,10 +70,7 @@ public class JodaDeprecationPatterns {
 
         for (String subPattern : patterns) {
             boolean isDeprecated = subPattern.startsWith("8") == false && FormatNames.exist(subPattern) == false &&
-                JODA_PATTERNS_DEPRECATIONS.keySet().stream()
-                                          .filter(s -> subPattern.contains(s))
-                                          .findAny()
-                                          .isPresent();
+                JODA_PATTERNS_DEPRECATIONS.keySet().stream().anyMatch(s -> subPattern.contains(s));
             if (isDeprecated) {
                 return true;
             }

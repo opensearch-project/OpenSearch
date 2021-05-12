@@ -1366,22 +1366,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void close(String reason, boolean flushEngine) throws IOException {
-        synchronized (engineMutex) {
-            try {
-                synchronized (mutex) {
-                    changeState(IndexShardState.CLOSED, reason);
-                }
-            } finally {
-                final Engine engine = this.currentEngineReference.getAndSet(null);
+        // Need to sync on mutex first to prevent deadlock in acquireReplicaOperationPermit()
+        synchronized (mutex) {
+            synchronized (engineMutex) {
                 try {
-                    if (engine != null && flushEngine) {
-                        engine.flushAndClose();
-                    }
+                    changeState(IndexShardState.CLOSED, reason);
                 } finally {
-                    // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
-                    indexShardOperationPermits.close();
+                    final Engine engine = this.currentEngineReference.getAndSet(null);
+                    try {
+                        if (engine != null && flushEngine) {
+                            engine.flushAndClose();
+                        }
+                    } finally {
+                        // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                        // Also closing refreshListeners to prevent us from accumulating any more listeners
+                        IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
+                        indexShardOperationPermits.close();
+                    }
                 }
             }
         }
