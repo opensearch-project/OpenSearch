@@ -921,7 +921,7 @@ public class RestClient implements Closeable {
     public static class ContentCompressingEntity extends GzipCompressingEntity {
 
         /**
-         * Creates a {@link ContentCompressingEntity} instances with the provided HTTP entity.
+         * Creates a {@link ContentCompressingEntity} instance with the provided HTTP entity.
          *
          * @param entity the HTTP entity.
          */

@@ -51,7 +51,7 @@ public final class WarningFailureException extends RuntimeException {
      * Creates a {@link WarningFailureException} instance.
      *
      * @param response the response that contains warnings.
-     * @throws IOException if there a problems building the exception message.
+     * @throws IOException if there is a problem building the exception message.
      */
     public WarningFailureException(Response response) throws IOException {
         super(buildMessage(response));
