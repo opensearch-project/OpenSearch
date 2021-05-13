@@ -246,23 +246,21 @@ public final class ShardPath {
                 bestPath = Arrays.stream(paths)
                         // Filter out paths that have enough space
                         .filter((path) -> pathsToSpace.get(path).subtract(estShardSizeInBytes).compareTo(BigInteger.ZERO) > 0)
-                        // Sort by the number of shards for this index
-                        .sorted((p1, p2) -> {
-                                int cmp = Long.compare(pathToShardCount.getOrDefault(p1, 0L),
-                                    pathToShardCount.getOrDefault(p2, 0L));
+                        // Pick the first element by the number of shards for this index
+                        .min((p1, p2) -> {
+                            int cmp = Long.compare(pathToShardCount.getOrDefault(p1, 0L),
+                                pathToShardCount.getOrDefault(p2, 0L));
+                            if (cmp == 0) {
+                                // if the number of shards is equal, tie-break with the number of total shards
+                                cmp = Integer.compare(dataPathToShardCount.getOrDefault(p1.path, 0),
+                                        dataPathToShardCount.getOrDefault(p2.path, 0));
                                 if (cmp == 0) {
-                                    // if the number of shards is equal, tie-break with the number of total shards
-                                    cmp = Integer.compare(dataPathToShardCount.getOrDefault(p1.path, 0),
-                                            dataPathToShardCount.getOrDefault(p2.path, 0));
-                                    if (cmp == 0) {
-                                        // if the number of shards is equal, tie-break with the usable bytes
-                                        cmp = pathsToSpace.get(p2).compareTo(pathsToSpace.get(p1));
-                                    }
+                                    // if the number of shards is equal, tie-break with the usable bytes
+                                    cmp = pathsToSpace.get(p2).compareTo(pathsToSpace.get(p1));
                                 }
-                                return cmp;
-                            })
-                        // Return the first result
-                        .findFirst()
+                            }
+                            return cmp;
+                        })
                         // Or the existing best path if there aren't any that fit the criteria
                         .orElse(bestPath);
             }
