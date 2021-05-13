@@ -168,21 +168,21 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
     }
 
     private void scheduleChannel(Socket channel, NioSelector selector) {
-        try {
-            selector.scheduleForRegistration(channel);
-        } catch (IllegalStateException e) {
-            closeRawChannel(channel.getRawChannel(), e);
-            throw e;
-        }
+        scheduleNioChannel(channel);
     }
 
     private void scheduleServerChannel(ServerSocket channel, NioSelector selector) {
+        scheduleNioChannel(channel);
+    }
+
+    private void scheduleNioChannel(NioChannel channel, NioSelector selector)
+    {
         try {
-            selector.scheduleForRegistration(channel);
+            selector.scheduleForRegistration(channel); 
         } catch (IllegalStateException e) {
             closeRawChannel(channel.getRawChannel(), e);
             throw e;
-        }
+        }       
     }
 
     private void setNonBlocking(AbstractSelectableChannel rawChannel) throws IOException {
