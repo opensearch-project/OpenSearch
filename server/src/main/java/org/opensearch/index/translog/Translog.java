@@ -176,9 +176,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
         bigArrays = config.getBigArrays();
-        ReadWriteLock rwl = new ReentrantReadWriteLock();
-        readLock = new ReleasableLock(rwl.readLock());
-        writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
 
@@ -226,6 +223,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             IOUtils.closeWhileHandlingException(readers);
             throw e;
         }
+
+        ReadWriteLock rwl = new ReentrantReadWriteLock();
+        readLock = new ReleasableLock(rwl.readLock());
+        writeLock = new ReleasableLock(rwl.writeLock());
     }
 
     /** recover all translog files found on disk */
