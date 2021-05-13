@@ -270,12 +270,14 @@ public class GeoWKTParser {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
-        PolygonBuilder builder = new PolygonBuilder(parseLinearRing(stream, ignoreZValue, coerce),
-            AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value());
-        while (nextCloserOrComma(stream).equals(COMMA)) {
-            builder.hole(parseLinearRing(stream, ignoreZValue, coerce));
+
+        try (PolygonBuilder builder = new PolygonBuilder(parseLinearRing(stream, ignoreZValue, coerce), 
+             AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value())) {
+                while (nextCloserOrComma(stream).equals(COMMA)) {
+                    builder.hole(parseLinearRing(stream, ignoreZValue, coerce));
+                }
+                return builder;
         }
-        return builder;
     }
 
     private static MultiPolygonBuilder parseMultiPolygon(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
