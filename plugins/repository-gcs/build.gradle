@@ -68,7 +68,7 @@ dependencies {
   api 'com.google.cloud:google-cloud-core-http:1.93.3'
   api 'com.google.auth:google-auth-library-credentials:0.20.0'
   api 'com.google.auth:google-auth-library-oauth2-http:0.20.0'
-  api 'com.google.oauth-client:google-oauth-client:1.28.0'
+  api 'com.google.oauth-client:google-oauth-client:1.31.0'
   api 'com.google.api-client:google-api-client:1.30.10'
   api 'com.google.http-client:google-http-client-appengine:1.35.0'
   api 'com.google.http-client:google-http-client-jackson2:1.35.0'
@@ -205,7 +205,7 @@ thirdPartyAudit {
     'org.apache.http.protocol.HttpRequestExecutor',
     // commons-logging provided dependencies
     'javax.servlet.ServletContextEvent',
-    'javax.servlet.ServletContextListener'
+    'javax.servlet.ServletContextListener',
   )
 }
 
