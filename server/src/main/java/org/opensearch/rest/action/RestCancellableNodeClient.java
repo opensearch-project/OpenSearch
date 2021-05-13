@@ -130,7 +130,9 @@ public class RestCancellableNodeClient extends FilterClient {
             .setTaskId(taskId)
             .setReason("channel closed");
         // force the origin to execute the cancellation as a system user
-        new OriginSettingClient(client, TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
+        try (OriginSettingClient osClient = new OriginSettingClient(client, TASKS_ORIGIN)) {
+            osClient.admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
+        }
     }
 
     private class CloseListener implements ActionListener<Void> {
