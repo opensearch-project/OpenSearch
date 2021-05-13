@@ -33,6 +33,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.metadata.DataStream.TimestampField;
@@ -289,7 +290,11 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         public DataStreamTemplate(StreamInput in) throws IOException {
-            this.timestampField = in.readOptionalWriteable(TimestampField::new);
+            if (in.getVersion().onOrAfter(Version.V_1_0_0)) {
+                this.timestampField = in.readOptionalWriteable(TimestampField::new);
+            } else {
+                this.timestampField = DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
+            }
         }
 
         public TimestampField getTimestampField() {
@@ -312,7 +317,9 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(timestampField);
+            if (out.getVersion().onOrAfter(Version.V_1_0_0)) {
+                out.writeOptionalWriteable(timestampField);
+            }
         }
 
         @Override
@@ -321,6 +328,10 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
                 .startObject()
                 .field(TIMESTAMP_FIELD_FIELD.getPreferredName(), getTimestampField())
                 .endObject();
+        }
+
+        public static DataStreamTemplate fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         @Override
