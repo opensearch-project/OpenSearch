@@ -49,12 +49,18 @@ public class SniffOnFailureListener extends RestClient.FailureListener {
     private volatile Sniffer sniffer;
     private final AtomicBoolean set;
 
+    /**
+     * Creates a {@code SniffOnFailureListener} instance. The {@link Sniffer} needs to be set
+     * through {@link #setSniffer(Sniffer)} after instantiation.
+     */
     public SniffOnFailureListener() {
         this.set = new AtomicBoolean(false);
     }
 
     /**
-     * Sets the {@link Sniffer} instance used to perform sniffing
+     * Sets the {@link Sniffer} instance used to perform sniffing.
+     *
+     * @param sniffer The {@link Sniffer} instance to be used.
      * @throws IllegalStateException if the sniffer was already set, as it can only be set once
      */
     public void setSniffer(Sniffer sniffer) {
