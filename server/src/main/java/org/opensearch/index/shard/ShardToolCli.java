@@ -45,8 +45,9 @@ public class ShardToolCli extends LoggingAwareMultiCommand {
     }
 
     public static void main(String[] args) throws Exception {
-        exit(new ShardToolCli().main(args, Terminal.DEFAULT));
+        try (ShardToolCli stCli = new ShardToolCli()) {
+            exit(stCli.main(args, Terminal.DEFAULT));
+        }
     }
-
 }
 
