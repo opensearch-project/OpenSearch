@@ -19,7 +19,7 @@ use your contribution.  There's more information about this topic in the [DCO se
 
 ## Ways to Contribute
 
-**Please note:**  OpenSearch is a fork of [Elasticsearch 7.10.2](https://github.com/elastic/elasticsearch), and is currently in a pre-alpha state, so it's still very much a work in progress. If you do find references to Elasticsearch (outside of attributions and copyrights!) please [open an issue](https://github.com/opensearch-project/OpenSearch/issues)
+**Please note:**  OpenSearch is a fork of [Elasticsearch 7.10.2](https://github.com/elastic/elasticsearch), and is currently in an early beta state, so it's still very much a work in progress. If you do find references to Elasticsearch (outside of attributions and copyrights!) please [open an issue](https://github.com/opensearch-project/OpenSearch/issues)
 
 ### Bug Reports
 
