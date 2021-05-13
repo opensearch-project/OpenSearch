@@ -78,20 +78,22 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
             return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.
         }
-        IndexSearcher s = new IndexSearcher(reader);
-        s.setQueryCache(null);
-        Weight weight = s.createWeight(s.rewrite(retainSourceQuerySupplier.get()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-        Scorer scorer = weight.scorer(reader.getContext());
-        if (scorer != null) {
-            BitSet recoverySourceToKeep = BitSet.of(scorer.iterator(), reader.maxDoc());
-            // calculating the cardinality is significantly cheaper than skipping all bulk-merging we might do
-            // if retentions are high we keep most of it
-            if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {
-                return reader; // keep all source
+
+        try (IndexSearcher s = new IndexSearcher(reader)) {
+            s.setQueryCache(null);
+            Weight weight = s.createWeight(s.rewrite(retainSourceQuerySupplier.get()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            Scorer scorer = weight.scorer(reader.getContext());
+            if (scorer != null) {
+                BitSet recoverySourceToKeep = BitSet.of(scorer.iterator(), reader.maxDoc());
+                // calculating the cardinality is significantly cheaper than skipping all bulk-merging we might do
+                // if retentions are high we keep most of it
+                if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {
+                    return reader; // keep all source
+                }
+                return new SourcePruningFilterCodecReader(recoverySourceField, reader, recoverySourceToKeep);
+            } else {
+                return new SourcePruningFilterCodecReader(recoverySourceField, reader, null);
             }
-            return new SourcePruningFilterCodecReader(recoverySourceField, reader, recoverySourceToKeep);
-        } else {
-            return new SourcePruningFilterCodecReader(recoverySourceField, reader, null);
         }
     }
 
