@@ -31,5 +31,5 @@
 apply plugin: 'opensearch.java'
 
 dependencies {
-  api "org.apache.hadoop:hadoop-minicluster:3.3.0"
+  api "org.apache.hadoop:hadoop-minicluster:2.10.1"
 }
