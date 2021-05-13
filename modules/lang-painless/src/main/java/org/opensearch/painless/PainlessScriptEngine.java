@@ -191,86 +191,87 @@ public final class PainlessScriptEngine implements ScriptEngine {
         String className = interfaceBase + "$StatefulFactory";
         String[] classInterfaces = new String[] { interfaceBase };
 
-        ClassWriter writer = new ClassWriter(classFrames);
-        writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
+        try (ClassWriter writer = new ClassWriter(classFrames)) {
+            writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
 
-        Method newFactory = null;
-
-        for (Method method : context.factoryClazz.getMethods()) {
-            if ("newFactory".equals(method.getName())) {
-                newFactory = method;
-
-                break;
+            Method newFactory = null;
+    
+            for (Method method : context.factoryClazz.getMethods()) {
+                if ("newFactory".equals(method.getName())) {
+                    newFactory = method;
+    
+                    break;
+                }
             }
-        }
-
-        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
-            writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL, "$arg" + count,
-                Type.getType(newFactory.getParameterTypes()[count]).getDescriptor(), null, null).visitEnd();
-        }
-
-        org.objectweb.asm.commons.Method base =
-            new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
-        org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method("<init>",
-            MethodType.methodType(void.class, newFactory.getParameterTypes()).toMethodDescriptorString());
-
-        GeneratorAdapter constructor = new GeneratorAdapter(Opcodes.ASM5, init,
-            writer.visitMethod(Opcodes.ACC_PUBLIC, init.getName(), init.getDescriptor(), null, null));
-        constructor.visitCode();
-        constructor.loadThis();
-        constructor.invokeConstructor(OBJECT_TYPE, base);
-
-        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+    
+            for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+                writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL, "$arg" + count,
+                    Type.getType(newFactory.getParameterTypes()[count]).getDescriptor(), null, null).visitEnd();
+            }
+    
+            org.objectweb.asm.commons.Method base =
+                new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
+            org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method("<init>",
+                MethodType.methodType(void.class, newFactory.getParameterTypes()).toMethodDescriptorString());
+    
+            GeneratorAdapter constructor = new GeneratorAdapter(Opcodes.ASM5, init,
+                writer.visitMethod(Opcodes.ACC_PUBLIC, init.getName(), init.getDescriptor(), null, null));
+            constructor.visitCode();
             constructor.loadThis();
-            constructor.loadArg(count);
-            constructor.putField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
-        }
-
-        constructor.returnValue();
-        constructor.endMethod();
-
-        Method newInstance = null;
-
-        for (Method method : context.statefulFactoryClazz.getMethods()) {
-            if ("newInstance".equals(method.getName())) {
-                newInstance = method;
-
-                break;
+            constructor.invokeConstructor(OBJECT_TYPE, base);
+    
+            for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+                constructor.loadThis();
+                constructor.loadArg(count);
+                constructor.putField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
             }
+    
+            constructor.returnValue();
+            constructor.endMethod();
+    
+            Method newInstance = null;
+    
+            for (Method method : context.statefulFactoryClazz.getMethods()) {
+                if ("newInstance".equals(method.getName())) {
+                    newInstance = method;
+    
+                    break;
+                }
+            }
+    
+            org.objectweb.asm.commons.Method instance = new org.objectweb.asm.commons.Method(newInstance.getName(),
+                MethodType.methodType(newInstance.getReturnType(), newInstance.getParameterTypes()).toMethodDescriptorString());
+    
+            List<Class<?>> parameters = new ArrayList<>(Arrays.asList(newFactory.getParameterTypes()));
+            parameters.addAll(Arrays.asList(newInstance.getParameterTypes()));
+    
+            org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method("<init>",
+                MethodType.methodType(void.class, parameters.toArray(new Class<?>[] {})).toMethodDescriptorString());
+    
+            GeneratorAdapter adapter = new GeneratorAdapter(Opcodes.ASM5, instance,
+                writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
+                    instance.getName(), instance.getDescriptor(), null, null));
+            adapter.visitCode();
+            adapter.newInstance(WriterConstants.CLASS_TYPE);
+            adapter.dup();
+    
+            for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+                adapter.loadThis();
+                adapter.getField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+            }
+    
+            adapter.loadArgs();
+            adapter.invokeConstructor(WriterConstants.CLASS_TYPE, constru);
+            adapter.returnValue();
+            adapter.endMethod();
+    
+            writeNeedsMethods(context.statefulFactoryClazz, writer, scriptScope.getUsedVariables());
+            writer.visitEnd();
+    
+            loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
+    
+            return Type.getType("L" + className + ";");
         }
-
-        org.objectweb.asm.commons.Method instance = new org.objectweb.asm.commons.Method(newInstance.getName(),
-            MethodType.methodType(newInstance.getReturnType(), newInstance.getParameterTypes()).toMethodDescriptorString());
-
-        List<Class<?>> parameters = new ArrayList<>(Arrays.asList(newFactory.getParameterTypes()));
-        parameters.addAll(Arrays.asList(newInstance.getParameterTypes()));
-
-        org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method("<init>",
-            MethodType.methodType(void.class, parameters.toArray(new Class<?>[] {})).toMethodDescriptorString());
-
-        GeneratorAdapter adapter = new GeneratorAdapter(Opcodes.ASM5, instance,
-            writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                instance.getName(), instance.getDescriptor(), null, null));
-        adapter.visitCode();
-        adapter.newInstance(WriterConstants.CLASS_TYPE);
-        adapter.dup();
-
-        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
-            adapter.loadThis();
-            adapter.getField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
-        }
-
-        adapter.loadArgs();
-        adapter.invokeConstructor(WriterConstants.CLASS_TYPE, constru);
-        adapter.returnValue();
-        adapter.endMethod();
-
-        writeNeedsMethods(context.statefulFactoryClazz, writer, scriptScope.getUsedVariables());
-        writer.visitEnd();
-
-        loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
-
-        return Type.getType("L" + className + ";");
     }
 
     /**
