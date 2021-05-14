@@ -68,7 +68,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -258,10 +257,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final float avgShardsPerNode;
         private final NodeSorter sorter;
         private final Set<RoutingNode> inEligibleTargetNode;
-        private int shardsProcessed;
-        private final List<Integer> targetNodesProcessed;
-        private int shardsAllocated;
-        private int shardsProcessingMove;
 
         public Balancer(Logger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
             this.logger = logger;
@@ -274,10 +269,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             sorter = newNodeSorter();
             inEligibleTargetNode = new HashSet<>();
-            targetNodesProcessed = new LinkedList<>();
-            this.shardsAllocated = 0;
-            this.shardsProcessed = 0;
-            this.shardsProcessingMove = 0;
         }
 
         /**
@@ -688,7 +679,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
 
                 ShardRouting shardRouting = it.next();
-                shardsProcessed++;
 
                 // Verify if the shard is allowed to move if outgoing recovery on the node hosting the primary shard
                 // is not being throttled.
@@ -698,7 +688,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         logger.debug("Cannot move away shard [{}] Skipping this shard", shardRouting);
                     continue;
                 }
-                shardsProcessingMove++;
+
                 final MoveDecision moveDecision = decideMove(shardRouting);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
@@ -711,7 +701,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
                     }
-                    shardsAllocated++;
+
                     // Verifying if this node can be considered ineligible for further iterations
                     if (targetNode != null) {
                         checkAndAddInEligibleTargetNode(targetNode.getRoutingNode());
@@ -797,7 +787,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
 
-            targetNodesProcessed.add(targetNodeProcessed);
             return MoveDecision.cannotRemain(canRemain, AllocationDecision.fromDecisionType(bestDecision),
                 targetNode != null ? targetNode.node() : null, nodeExplanationMap);
         }

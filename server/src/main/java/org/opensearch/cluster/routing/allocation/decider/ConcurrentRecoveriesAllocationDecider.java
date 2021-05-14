@@ -35,9 +35,10 @@ import org.apache.logging.log4j.Logger;
  */
 public class ConcurrentRecoveriesAllocationDecider extends AllocationDecider {
 
+    private static final Logger logger = LogManager.getLogger(ConcurrentRecoveriesAllocationDecider.class);
+
     public static final String NAME = "cluster_concurrent_recoveries";
 
-    protected final Logger logger;
 
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_RECOVERIES_SETTING =
         Setting.intSetting("cluster.routing.allocation.cluster_concurrent_recoveries", -1, -1,
@@ -46,8 +47,6 @@ public class ConcurrentRecoveriesAllocationDecider extends AllocationDecider {
     private volatile int clusterConcurrentRecoveries;
 
     public ConcurrentRecoveriesAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super();
-        this.logger = LogManager.getLogger(getClass());
         this.clusterConcurrentRecoveries = CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_RECOVERIES_SETTING.get(settings);
         logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRecoveries);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_RECOVERIES_SETTING,
