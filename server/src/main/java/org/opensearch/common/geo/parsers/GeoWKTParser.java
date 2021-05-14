@@ -257,12 +257,14 @@ public class GeoWKTParser {
         if (token.equals(EMPTY)) {
             return new MultiLineStringBuilder();
         }
-        MultiLineStringBuilder builder = new MultiLineStringBuilder();
-        builder.linestring(parseLine(stream, ignoreZValue, coerce));
-        while (nextCloserOrComma(stream).equals(COMMA)) {
+
+        try (MultiLineStringBuilder builder = new MultiLineStringBuilder()) {
             builder.linestring(parseLine(stream, ignoreZValue, coerce));
+            while (nextCloserOrComma(stream).equals(COMMA)) {
+                builder.linestring(parseLine(stream, ignoreZValue, coerce));
+            }
+            return builder;
         }
-        return builder;
     }
 
     private static PolygonBuilder parsePolygon(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
