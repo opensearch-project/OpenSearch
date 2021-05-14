@@ -140,18 +140,21 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         if (algorithm == LINEAR_COUNTING) {
             // we use a sparse structure for linear counting
             final long size = in.readVLong();
-            HyperLogLogPlusPlusSparse counts  = new HyperLogLogPlusPlusSparse(precision, bigArrays, Math.toIntExact(size), 1);
-            for (long i = 0; i < size; ++i) {
-                counts.addEncoded(0, in.readInt());
+
+            try (HyperLogLogPlusPlusSparse counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, Math.toIntExact(size), 1)) {
+                for (long i = 0; i < size; ++i) {
+                    counts.addEncoded(0, in.readInt());
+                }
+                return counts;
             }
-            return counts;
         } else {
-            HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(precision, bigArrays, 1);
-            final int registers = 1 << precision;
-            for (int i = 0; i < registers; ++i) {
-                counts.addRunLen(0, i, in.readByte());
+            try (HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(precision, bigArrays, 1)) {
+                final int registers = 1 << precision;
+                for (int i = 0; i < registers; ++i) {
+                    counts.addRunLen(0, i, in.readByte());
+                }
+                return counts;
             }
-            return counts;
         }
     }
 
