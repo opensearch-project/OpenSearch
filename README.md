@@ -1,6 +1,13 @@
 <img src="https://opensearch.org/assets/brand/SVG/Logo/opensearch_logo_default.svg" height="64px"/>
 
-Hello!
+**OpenSearch** is
+[a community-driven, open source fork](https://aws.amazon.com/blogs/opensource/introducing-opensearch/)
+of [Elasticsearch](https://en.wikipedia.org/wiki/Elasticsearch) and
+[Kibana](https://en.wikipedia.org/wiki/Kibana) ensuing the
+[licence change](https://opensource.org/node/1099) in early 2021. We're looking
+to sustain (and evolve!) a search and analytics suite for the multitude of
+businesses who are dependent on the rights granted by the original, Apache 2.0,
+licence.
 
 OpenSearch is an open source search and analytics engine derived from Elasticsearch 7.10.2. We are excited to build the best distributed search engine on the planet with you!
 
