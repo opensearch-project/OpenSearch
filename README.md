@@ -21,9 +21,10 @@ that would be [really helpful](https://github.com/opensearch-project/OpenSearch/
 There's also a [Developer Guide](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md)
 to help you on your way.
 
-### Watch the forum, because there are a bunch of things we want to talk about
-As we've been working, we've come up with a bunch of questions that we wanted to get community feedback on.  Now that we're done with this first pass of renaming, you'll see us posting those questions to the [forums](https://discuss.opendistrocommunity.dev/).  Please let us know your thoughts!
-
+Additionally, we have a [forum](https://discuss.opendistrocommunity.dev/)
+dedicated to more general questions and discussions concerning the OpenSearch
+project as a whole. It's a space for community feedback and we'd be grateful to
+hear your opinions and suggestions.
 
 ## Guiding Principles
 
@@ -52,5 +53,3 @@ Here are the principles we use to guide our development. From [opensearch.org](h
 OpenSearch is an open source search and analytics engine derived from Elasticsearch 7.10.2, and is currently in an alpha state. While we're still in the process of getting set up, we are excited to build the best distributed search engine on the planet with you.
 
 We officially began work on the new fork on January 21st, 2021.  Since then, we've been removing non-Apache 2.0 compliant code and doing a full rename of the project.
-
-Questions and discussions on this project can be found on the project [forums](https://discuss.opendistrocommunity.dev/).
