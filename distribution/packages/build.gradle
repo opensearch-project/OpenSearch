@@ -294,7 +294,7 @@ apply plugin: 'nebula.ospackage-base'
 
 // this is package indepdendent configuration
 ospackage {
-  maintainer 'OpenSearch Team'
+  maintainer 'OpenSearch Team <opensearch@amazon.com>'
   summary 'Distributed RESTful search engine built for the cloud'
   packageDescription '''
     Reference documentation can be found at
@@ -341,6 +341,7 @@ Closure commonDebConfig(boolean jdk, String architecture) {
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/opensearch')
+      fileMode 0644
     }
   }
 }
@@ -361,7 +362,7 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
   return {
     configure(commonPackageConfig('rpm', jdk, architecture))
 
-    license 'ASL 2.0'
+    license 'ASL-2.0'
 
     packageGroup 'Application/Internet'
     requires '/bin/bash'
@@ -499,7 +500,7 @@ subprojects {
         (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
       }
       doLast {
-        final List<String> noticeLines = Arrays.asList("OpenSearch", "Copyright 2021 OpenSearch Contributors")
+        final List<String> noticeLines = Arrays.asList("OpenSearch (https://opensearch.org/)", "Copyright 2021 OpenSearch Contributors")
         final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/opensearch/NOTICE.txt")
         assertLinesInFile(noticePath, noticeLines)
       }
