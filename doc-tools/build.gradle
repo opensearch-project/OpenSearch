@@ -2,7 +2,7 @@ plugins {
     id 'java'
 }
 
-group 'org.elasticsearch'
+group 'org.opensearch'
 version '7.10.3-SNAPSHOT'
 
 repositories {
