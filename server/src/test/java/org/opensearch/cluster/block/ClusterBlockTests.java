@@ -32,15 +32,12 @@
 
 package org.opensearch.cluster.block;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.cluster.block.ClusterBlock;
-import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -82,7 +79,7 @@ public class ClusterBlockTests extends OpenSearchTestCase {
     public void testBwcSerialization() throws Exception {
         for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
             // Generate a random cluster block in version < 7.0.0
-            final Version version = randomVersionBetween(random(), Version.V_6_0_0, getPreviousVersion(Version.V_6_7_0));
+            final Version version = randomVersionBetween(random(), LegacyESVersion.V_6_0_0, getPreviousVersion(LegacyESVersion.V_6_7_0));
             final ClusterBlock expected = randomClusterBlock(version);
             assertNull(expected.uuid());
 
@@ -101,7 +98,7 @@ public class ClusterBlockTests extends OpenSearchTestCase {
 
             // Serialize to node in version < 7.0.0
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), Version.V_6_0_0, getPreviousVersion(Version.V_6_7_0)));
+            out.setVersion(randomVersionBetween(random(), LegacyESVersion.V_6_0_0, getPreviousVersion(LegacyESVersion.V_6_7_0)));
             expected.writeTo(out);
 
             // Deserialize and check the cluster block
@@ -188,7 +185,7 @@ public class ClusterBlockTests extends OpenSearchTestCase {
     }
 
     private ClusterBlock randomClusterBlock(final Version version) {
-        final String uuid = (version.onOrAfter(Version.V_6_7_0) && randomBoolean()) ? UUIDs.randomBase64UUID() : null;
+        final String uuid = (version.onOrAfter(LegacyESVersion.V_6_7_0) && randomBoolean()) ? UUIDs.randomBase64UUID() : null;
         final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
         return new ClusterBlock(randomInt(), uuid, "cluster block #" + randomInt(), randomBoolean(), randomBoolean(), randomBoolean(),
             randomFrom(RestStatus.values()), copyOf(randomSubsetOf(randomIntBetween(1, levels.size()), levels)));

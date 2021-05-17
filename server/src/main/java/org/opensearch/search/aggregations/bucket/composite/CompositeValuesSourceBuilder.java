@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -76,17 +76,17 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (in.readBoolean()) {
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             this.missingBucket = in.readBoolean();
         } else {
             this.missingBucket = false;
         }
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             // skip missing value for BWC
             in.readGenericValue();
         }
         this.order = SortOrder.readFromStream(in);
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
             this.format = in.readOptionalString();
         } else {
             this.format = null;
@@ -107,15 +107,15 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasValueType) {
             userValueTypeHint.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             out.writeBoolean(missingBucket);
         }
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             // write missing value for BWC
             out.writeGenericValue(null);
         }
         order.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
             out.writeOptionalString(format);
         }
         innerWriteTo(out);

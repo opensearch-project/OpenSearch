@@ -63,7 +63,6 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
@@ -101,16 +100,6 @@ import static org.opensearch.indices.cluster.IndicesClusterStateService.Allocate
  */
 public class MetadataIndexTemplateService {
 
-    public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
-    public static final String DEFAULT_TIMESTAMP_MAPPING = "{\n" +
-        "   \"_doc\": {\n" +
-        "     \"properties\": {\n" +
-        "       \"@timestamp\": {\n" +
-        "         \"type\": \"date\"\n" +
-        "       }\n" +
-        "     }\n" +
-        "   }\n" +
-        " }";
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
@@ -959,15 +948,16 @@ public class MetadataIndexTemplateService {
             .map(Template::mappings)
             .ifPresent(mappings::add);
         if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
-            // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
+            // add a default mapping for the timestamp field, at the lowest precedence, to make bootstrapping data streams more
             // straightforward as all backing indices are required to have a timestamp field
-            mappings.add(0, new CompressedXContent(DEFAULT_TIMESTAMP_MAPPING));
+            String timestampFieldName = template.getDataStreamTemplate().getTimestampField().getName();
+            mappings.add(0, new CompressedXContent(getTimestampFieldMapping(timestampFieldName)));
         }
 
-        // Only include _timestamp mapping snippet if creating backing index.
+        // Only include timestamp mapping snippet if creating backing index.
         if (indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
             // Only if template has data stream definition this should be added and
-            // adding this template last, since _timestamp field should have highest precedence:
+            // adding this template last, since timestamp field should have highest precedence:
             Optional.ofNullable(template.getDataStreamTemplate())
                 .map(ComposableIndexTemplate.DataStreamTemplate::getDataStreamMappingSnippet)
                 .map(mapping -> {
@@ -981,6 +971,22 @@ public class MetadataIndexTemplateService {
                 .ifPresent(mappings::add);
         }
         return Collections.unmodifiableList(mappings);
+    }
+
+    /**
+     * Returns the default mapping snippet for the timestamp field by configuring it as a 'date' type.
+     * This is added at the lowest precedence to allow users to override this mapping.
+     */
+    private static String getTimestampFieldMapping(String timestampFieldName) {
+        return "{\n" +
+            "   \"_doc\": {\n" +
+            "     \"properties\": {\n" +
+            "       \"" + timestampFieldName + "\": {\n" +
+            "         \"type\": \"date\"\n" +
+            "       }\n" +
+            "     }\n" +
+            "   }\n" +
+            " }";
     }
 
     /**
@@ -1129,16 +1135,6 @@ public class MetadataIndexTemplateService {
                 String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
                 // Parse mappings to ensure they are valid after being composed
 
-                if (template.getDataStreamTemplate() != null) {
-                    // If there is no _data_stream meta field mapper and a data stream should be created then
-                    // fail as if the  data_stream field can't be parsed:
-                    if (tempIndexService.mapperService().isMetadataField("_data_stream_timestamp") == false) {
-                        // Fail like a parsing expection, since we will be moving data_stream template out of server module and
-                        // then we would fail with the same error message, like we do here.
-                        throw new XContentParseException("[index_template] unknown field [data_stream]");
-                    }
-                }
-
                 List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName);
                 try {
                     MapperService mapperService = tempIndexService.mapperService();
@@ -1147,8 +1143,7 @@ public class MetadataIndexTemplateService {
                     }
 
                     if (template.getDataStreamTemplate() != null) {
-                        String tsFieldName = template.getDataStreamTemplate().getTimestampField();
-                        validateTimestampFieldMapping(tsFieldName, mapperService);
+                        validateTimestampFieldMapping(mapperService);
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);

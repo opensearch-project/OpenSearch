@@ -35,6 +35,7 @@ package org.opensearch.plugins;
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.common.collect.Tuple;
@@ -45,7 +46,6 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
-import org.opensearch.plugins.PluginTestUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -629,7 +629,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     }
 
     public void testIncompatibleOpenSearchVersion() throws Exception {
-        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.V_6_0_0,
+        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", LegacyESVersion.V_6_0_0,
             "1.8", "FakePlugin", Collections.emptyList(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for OpenSearch version 6.0.0"));

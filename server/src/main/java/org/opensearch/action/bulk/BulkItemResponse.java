@@ -33,8 +33,8 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest.OpType;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteResponse;
@@ -256,7 +256,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
             seqNo = in.readZLong();
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                 term = in.readVLong();
             } else {
                 term = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -271,7 +271,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             out.writeOptionalString(id);
             out.writeException(cause);
             out.writeZLong(seqNo);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                 out.writeVLong(term);
             }
             out.writeBoolean(aborted);

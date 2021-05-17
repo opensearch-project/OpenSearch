@@ -137,7 +137,9 @@ public class Packages {
     }
 
     private static Result runPackageManager(Distribution distribution, Shell sh, PackageManagerCommand command) {
-        final String distributionArg = distribution.path.toString();
+        final String distributionArg = command == PackageManagerCommand.QUERY || command == PackageManagerCommand.REMOVE
+            ? "opensearch"
+            : distribution.path.toString();
 
         if (Platforms.isRPM()) {
             String rpmOptions = RPM_OPTIONS.get(command);
@@ -173,10 +175,10 @@ public class Packages {
     }
 
     public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) {
-        verifyOssInstallation(installation, distribution, sh);
+        verifyInstallation(installation, distribution, sh);
     }
 
-    private static void verifyOssInstallation(Installation opensearch, Distribution distribution, Shell sh) {
+    private static void verifyInstallation(Installation opensearch, Distribution distribution, Shell sh) {
 
         sh.run("id opensearch");
         sh.run("getent group opensearch");
@@ -209,15 +211,14 @@ public class Packages {
         Stream.of("opensearch", "opensearch-plugin", "opensearch-keystore", "opensearch-shard", "opensearch-shard")
             .forEach(executable -> assertThat(opensearch.bin(executable), file(File, "root", "root", p755)));
 
-        Stream.of("NOTICE.txt", "README.asciidoc")
-            .forEach(doc -> assertThat(opensearch.home.resolve(doc), file(File, "root", "root", p644)));
+        Stream.of("NOTICE.txt", "README.md").forEach(doc -> assertThat(opensearch.home.resolve(doc), file(File, "root", "root", p644)));
 
         assertThat(opensearch.envFile, file(File, "root", "opensearch", p660));
 
         if (distribution.packaging == Distribution.Packaging.RPM) {
             assertThat(opensearch.home.resolve("LICENSE.txt"), file(File, "root", "root", p644));
         } else {
-            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/").stdout.trim());
+            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/opensearch").stdout.trim());
             assertThat(copyrightDir, file(Directory, "root", "root", p755));
             assertThat(copyrightDir.resolve("copyright"), file(File, "root", "root", p644));
         }

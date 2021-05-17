@@ -33,7 +33,7 @@ package org.opensearch.upgrades;
 
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.client.Node;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
@@ -74,7 +74,7 @@ public class JodaCompatibilityIT extends AbstractRollingTestCase {
     @BeforeClass
     public static void init(){
         assumeTrue("upgrading from 7.0-7.6 will fail parsing joda formats",
-            UPGRADE_FROM_VERSION.before(Version.V_7_0_0));
+            UPGRADE_FROM_VERSION.before(LegacyESVersion.V_7_0_0));
     }
 
     public void testJodaBackedDocValueAndDateFields() throws Exception {

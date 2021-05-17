@@ -873,6 +873,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
      * Simulates concurrent restarts of data and master nodes as well as relocating a primary shard, while starting and subsequently
      * deleting a snapshot.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/579")
     public void testSnapshotPrimaryRelocations() {
         final int masterNodeCount = randomFrom(1, 3, 5);
         setupTestCluster(masterNodeCount, randomIntBetween(2, 10));

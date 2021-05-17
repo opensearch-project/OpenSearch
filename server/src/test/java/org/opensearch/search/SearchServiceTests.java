@@ -269,6 +269,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(activeRefs, indexShard.store().refCount());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/578")
     public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();

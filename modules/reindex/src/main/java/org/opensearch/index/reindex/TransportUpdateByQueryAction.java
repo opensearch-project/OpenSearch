@@ -33,7 +33,7 @@
 package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
@@ -102,11 +102,11 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                                  ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
             super(task,
                 // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
-                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) == false,
+                clusterState.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_6_7_0) == false,
                 // all nodes support sequence number powered optimistic concurrency control and we can use it
-                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
+                clusterState.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_6_7_0),
                 logger, client, threadPool, request, listener, scriptService, null);
-            useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
+            useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_6_7_0);
         }
 
         @Override

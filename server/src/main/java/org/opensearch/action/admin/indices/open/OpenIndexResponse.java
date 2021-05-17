@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.open;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -54,7 +54,7 @@ public class OpenIndexResponse extends ShardsAcknowledgedResponse {
     }
 
     public OpenIndexResponse(StreamInput in) throws IOException {
-        super(in, in.getVersion().onOrAfter(Version.V_6_1_0), true);
+        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0), true);
     }
 
     public OpenIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
@@ -64,7 +64,7 @@ public class OpenIndexResponse extends ShardsAcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             writeShardsAcknowledged(out);
         }
     }

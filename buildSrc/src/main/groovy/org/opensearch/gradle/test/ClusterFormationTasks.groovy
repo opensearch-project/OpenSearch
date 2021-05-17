@@ -100,7 +100,7 @@ class ClusterFormationTasks {
         Configuration currentDistro = project.configurations.create("${prefix}_opensearchDistro")
         Configuration bwcDistro = project.configurations.create("${prefix}_opensearchBwcDistro")
         Configuration bwcPlugins = project.configurations.create("${prefix}_opensearchBwcPlugins")
-        if (System.getProperty('tests.distribution', 'oss') == 'integ-test-zip') {
+        if (System.getProperty('tests.distribution', 'archive') == 'integ-test-zip') {
             throw new Exception("tests.distribution=integ-test-zip is not supported")
         }
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.getOpenSearch())
@@ -203,20 +203,18 @@ class ClusterFormationTasks {
             }
             return
         }
-        distro = 'oss'
 
         Version version = Version.fromString(opensearchVersion)
         String os = getOs()
-        String classifier = "-${os}-x86_64"
+        String classifier = "-${os}-x64"
         String packaging = os.equals('windows') ? 'zip' : 'tar.gz'
-        String artifactName = 'opensearch-oss'
+        String artifactName = 'opensearch'
         Object dependency
         String snapshotProject = "${os}-${os.equals('windows') ? 'zip' : 'tar'}"
         if (version.before("7.0.0")) {
             snapshotProject = "zip"
             packaging = "zip"
         }
-        snapshotProject = "oss-" + snapshotProject
 
         BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
 

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
@@ -217,7 +218,7 @@ public class DynamicTemplate implements ToXContentObject {
             try {
                 xcontentFieldType = XContentFieldType.fromString(matchMappingType);
             } catch (IllegalArgumentException e) {
-                if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1)) {
+                if (indexVersionCreated.onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
                     throw e;
                 } else {
                     deprecationLogger.deprecate("invalid_mapping_type",
@@ -232,7 +233,7 @@ public class DynamicTemplate implements ToXContentObject {
 
         final MatchType matchType = MatchType.fromString(matchPattern);
 
-        if (indexVersionCreated.onOrAfter(Version.V_6_3_0)) {
+        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_6_3_0)) {
             // Validate that the pattern
             for (String regex : new String[] { pathMatch, match, pathUnmatch, unmatch }) {
                 if (regex == null) {

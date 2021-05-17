@@ -31,8 +31,8 @@
 
 package org.opensearch.action.admin.indices.close;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.common.Nullable;
@@ -57,8 +57,8 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     private final List<IndexResult> indices;
 
     CloseIndexResponse(StreamInput in) throws IOException {
-        super(in, in.getVersion().onOrAfter(Version.V_7_2_0), true);
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0), true);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
             indices = unmodifiableList(in.readList(IndexResult::new));
         } else {
             indices = unmodifiableList(emptyList());
@@ -77,10 +77,10 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             writeShardsAcknowledged(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
             out.writeList(indices);
         }
     }

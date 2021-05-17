@@ -32,7 +32,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -120,7 +120,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         this.headers = unmodifiableMap(headers);
         socketTimeout = in.readTimeValue();
         connectTimeout = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             pathPrefix = in.readOptionalString();
         } else {
             pathPrefix = null;
@@ -142,7 +142,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         }
         out.writeTimeValue(socketTimeout);
         out.writeTimeValue(connectTimeout);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             out.writeOptionalString(pathPrefix);
         }
     }

@@ -1,0 +1,25 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.DockerBase
+
+apply plugin: 'base'
+
+tasks.register("buildDockerBuildContext", Tar) {
+  archiveExtension = 'tar.gz'
+  compression = Compression.GZIP
+  archiveClassifier = "docker-build-context"
+  archiveBaseName = "opensearch"
+  // Non-local builds don't need to specify an architecture.
+  with dockerBuildContext(null, DockerBase.CENTOS, false)
+}
+
+tasks.named("assemble").configure { dependsOn "buildDockerBuildContext" }

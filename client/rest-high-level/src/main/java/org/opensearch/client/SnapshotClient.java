@@ -61,8 +61,7 @@ import static java.util.Collections.emptySet;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Snapshot API.
- * <p>
- * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
+ *
  */
 public final class SnapshotClient {
     private final RestHighLevelClient restHighLevelClient;
@@ -74,8 +73,7 @@ public final class SnapshotClient {
     /**
      * Gets a list of snapshot repositories. If the list of repositories is empty or it contains a single element "_all", all
      * registered repositories are returned.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param getRepositoriesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -90,8 +88,7 @@ public final class SnapshotClient {
     /**
      * Asynchronously gets a list of snapshot repositories. If the list of repositories is empty or it contains a single element "_all", all
      * registered repositories are returned.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param getRepositoriesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -106,8 +103,7 @@ public final class SnapshotClient {
 
     /**
      * Creates a snapshot repository.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param putRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -120,8 +116,7 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously creates a snapshot repository.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param putRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -136,8 +131,7 @@ public final class SnapshotClient {
 
     /**
      * Deletes a snapshot repository.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param deleteRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -151,8 +145,7 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously deletes a snapshot repository.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param deleteRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -167,8 +160,7 @@ public final class SnapshotClient {
 
     /**
      * Verifies a snapshot repository.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param verifyRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -182,8 +174,7 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously verifies a snapshot repository.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param verifyRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -198,8 +189,7 @@ public final class SnapshotClient {
 
     /**
      * Cleans up a snapshot repository.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param cleanupRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -213,8 +203,7 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously cleans up a snapshot repository.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param cleanupRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -228,9 +217,6 @@ public final class SnapshotClient {
 
     /**
      * Creates a snapshot.
-     * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
      */
     public CreateSnapshotResponse create(CreateSnapshotRequest createSnapshotRequest, RequestOptions options)
         throws IOException {
@@ -241,8 +227,7 @@ public final class SnapshotClient {
     /**
      * Asynchronously creates a snapshot.
      * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable createAsync(CreateSnapshotRequest createSnapshotRequest, RequestOptions options,
@@ -254,9 +239,6 @@ public final class SnapshotClient {
 
     /**
      * Clones a snapshot.
-     * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
      */
     public AcknowledgedResponse clone(CloneSnapshotRequest cloneSnapshotRequest, RequestOptions options)
             throws IOException {
@@ -267,8 +249,7 @@ public final class SnapshotClient {
     /**
      * Asynchronously clones a snapshot.
      * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable cloneAsync(CloneSnapshotRequest cloneSnapshotRequest, RequestOptions options,
@@ -280,8 +261,6 @@ public final class SnapshotClient {
 
     /**
      * Get snapshots.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
      *
      * @param getSnapshotsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -295,8 +274,7 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously get snapshots.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      *  @param getSnapshotsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -311,8 +289,7 @@ public final class SnapshotClient {
 
     /**
      * Gets the status of requested snapshots.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param snapshotsStatusRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -326,8 +303,7 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously gets the status of requested snapshots.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
+     *
      * @param snapshotsStatusRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -342,8 +318,6 @@ public final class SnapshotClient {
 
     /**
      * Restores a snapshot.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
      *
      * @param restoreSnapshotRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -357,8 +331,6 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously restores a snapshot.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
      *
      * @param restoreSnapshotRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -374,8 +346,6 @@ public final class SnapshotClient {
 
     /**
      * Deletes a snapshot.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
      *
      * @param deleteSnapshotRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -390,8 +360,6 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously deletes a snapshot.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
-     * API on elastic.co</a>
      *
      * @param deleteSnapshotRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

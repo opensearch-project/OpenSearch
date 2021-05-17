@@ -323,7 +323,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Provides an {@link IndicesClient} which can be used to access the Indices API.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
      */
     public final IndicesClient indices() {
         return indicesClient;
@@ -331,8 +330,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Provides a {@link ClusterClient} which can be used to access the Cluster API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
      */
     public final ClusterClient cluster() {
         return clusterClient;
@@ -340,8 +337,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Provides a {@link IngestClient} which can be used to access the Ingest API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
      */
     public final IngestClient ingest() {
         return ingestClient;
@@ -349,8 +344,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Provides a {@link SnapshotClient} which can be used to access the Snapshot API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
      */
     public final SnapshotClient snapshot() {
         return snapshotClient;
@@ -358,8 +351,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Provides a {@link TasksClient} which can be used to access the Tasks API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
      */
     public final TasksClient tasks() {
         return tasksClient;
@@ -367,7 +358,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a bulk request using the Bulk API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      * @param bulkRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -378,7 +368,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a bulk request using the Bulk API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      * @param bulkRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -391,7 +380,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a reindex request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
      * @param reindexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -404,7 +392,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Submits a reindex task.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
      * @param reindexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the submission response
@@ -417,7 +404,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a reindex request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
      * @param reindexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -432,8 +418,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a update by query request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
+     *
      * @param updateByQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -446,8 +431,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Submits a update by query task.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
+     *
      * @param updateByQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the submission response
@@ -461,8 +445,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes an update by query request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
+     *
      * @param updateByQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -477,8 +460,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a delete by query request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *     Delete By Query API on elastic.co</a>
+     *
      * @param deleteByQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -491,8 +473,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Submits a delete by query task
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *      Delete By Query API on elastic.co</a>
+     *
      * @param deleteByQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the submission response
@@ -506,8 +487,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a delete by query request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *     Delete By Query API on elastic.co</a>
+     *
      * @param deleteByQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -522,8 +502,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a delete by query rethrottle request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *     Delete By Query API on elastic.co</a>
+     *
      * @param rethrottleRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -535,8 +514,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously execute an delete by query rethrottle request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *     Delete By Query API on elastic.co</a>
+     *
      * @param rethrottleRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -550,8 +528,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a update by query rethrottle request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
+     *
      * @param rethrottleRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -563,8 +540,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously execute an update by query rethrottle request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
+     *
      * @param rethrottleRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -578,8 +554,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a reindex rethrottling request.
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
-     * Reindex rethrottling API on elastic.co</a>
      *
      * @param rethrottleRequest the request
      * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -592,8 +566,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a reindex rethrottling request.
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
-     * Reindex rethrottling API on elastic.co</a>
+     *
      * @param rethrottleRequest the request
      * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener          the listener to be notified upon request completion
@@ -627,7 +600,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Retrieves a document by id using the Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     *
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -638,7 +611,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously retrieves a document by id using the Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     *
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -651,7 +624,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Retrieves multiple documents by id using the Multi Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     *
      * @param multiGetRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -665,7 +638,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Retrieves multiple documents by id using the Multi Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     *
      * @param multiGetRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -677,7 +650,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously retrieves multiple documents by id using the Multi Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     *
      * @param multiGetRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -692,7 +665,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously retrieves multiple documents by id using the Multi Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     *
      * @param multiGetRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -706,7 +679,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Checks for the existence of a document. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     *
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the document exists, <code>false</code> otherwise
@@ -717,7 +690,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously checks for the existence of a document. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     *
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -730,8 +703,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
-     * on elastic.co</a>
+     *
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
@@ -746,8 +718,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
-     * on elastic.co</a>
+     *
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -763,8 +734,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
-     * on elastic.co</a>
+     *
      * @param getSourceRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
@@ -776,8 +746,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
-     * on elastic.co</a>
+     *
      * @param getSourceRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -791,8 +760,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Retrieves the source field only of a document using GetSource API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
-     * on elastic.co</a>
+     *
      * @param getSourceRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -804,8 +772,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously retrieves the source field only of a document using GetSource API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
-     * on elastic.co</a>
+     *
      * @param getSourceRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -819,7 +786,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Index a document using the Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
+     *
      * @param indexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -831,7 +798,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously index a document using the Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
+     *
      * @param indexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -844,7 +811,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a count request using the Count API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html">Count API on elastic.co</a>
+     *
      * @param countRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -856,7 +823,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a count request using the Count API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html">Count API on elastic.co</a>
+     *
      * @param countRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -869,7 +836,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Updates a document using the Update API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     *
      * @param updateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -880,7 +847,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously updates a document using the Update API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     *
      * @param updateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -893,7 +860,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Deletes a document by id using the Delete API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
+     *
      * @param deleteRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -905,7 +872,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously deletes a document by id using the Delete API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
+     *
      * @param deleteRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -918,7 +885,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a search request using the Search API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
+     *
      * @param searchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -934,7 +901,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a search using the Search API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
+     *
      * @param searchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -952,8 +919,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a multi search using the msearch API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
-     * elastic.co</a>
+     *
      * @param multiSearchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -966,8 +932,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a multi search using the msearch API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
-     * elastic.co</a>
+     *
      * @param multiSearchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -979,8 +944,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a multi search using the msearch API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
-     * elastic.co</a>
+     *
      * @param searchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -995,8 +959,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a multi search using the msearch API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
-     * elastic.co</a>
+     *
      * @param searchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1010,9 +973,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a search using the Search Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
-     * Scroll API on elastic.co</a>
+     *
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1025,9 +986,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a search using the Search Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
-     * Scroll API on elastic.co</a>
+     *
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1039,9 +998,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a search using the Search Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
-     * Scroll API on elastic.co</a>
+     *
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1056,9 +1013,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a search using the Search Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
-     * Scroll API on elastic.co</a>
+     *
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1072,9 +1027,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Clears one or more scroll ids using the Clear Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#_clear_scroll_api">
-     * Clear Scroll API on elastic.co</a>
+     *
      * @param clearScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1086,9 +1039,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously clears one or more scroll ids using the Clear Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#_clear_scroll_api">
-     * Clear Scroll API on elastic.co</a>
+     *
      * @param clearScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1102,8 +1053,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a request using the Search Template API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
-     * on elastic.co</a>.
+     *
      * @param searchTemplateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1117,8 +1067,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Asynchronously executes a request using the Search Template API.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
-     * on elastic.co</a>.
      * @return cancellable that may be used to cancel the request
      */
     public final Cancellable searchTemplateAsync(SearchTemplateRequest searchTemplateRequest, RequestOptions options,
@@ -1129,7 +1077,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a request using the Explain API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
+     *
      * @param explainRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1147,7 +1095,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Asynchronously executes a request using the Explain API.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
      * @param explainRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1167,9 +1114,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Calls the Term Vectors API
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-termvectors.html">Term Vectors API on
-     * elastic.co</a>
-     *
      * @param request   the request
      * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
@@ -1181,8 +1125,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Asynchronously calls the Term Vectors API
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-termvectors.html">Term Vectors API on
-     * elastic.co</a>
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1199,9 +1141,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Calls the Multi Term Vectors API
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-termvectors.html">Multi Term Vectors API
-     * on elastic.co</a>
-     *
      * @param request   the request
      * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
@@ -1214,8 +1153,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Asynchronously calls the Multi Term Vectors API
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-termvectors.html">Multi Term Vectors API
-     * on elastic.co</a>
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1230,8 +1167,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a request using the Ranking Evaluation API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
-     * on elastic.co</a>
+     *
      * @param rankEvalRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1245,8 +1181,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Executes a request using the Multi Search Template API.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
-     * on elastic.co</a>.
      */
     public final MultiSearchTemplateResponse msearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest,
                                                              RequestOptions options) throws IOException {
@@ -1257,8 +1191,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Asynchronously executes a request using the Multi Search Template API
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
-     * on elastic.co</a>.
      * @return cancellable that may be used to cancel the request
      */
     public final Cancellable msearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
@@ -1270,8 +1202,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a request using the Ranking Evaluation API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
-     * on elastic.co</a>
+     *
      * @param rankEvalRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1286,8 +1217,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a request using the Field Capabilities API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
-     * on elastic.co</a>.
+     *
      * @param fieldCapabilitiesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1300,8 +1230,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Get stored script by id.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
-     *     How to use scripts on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1313,8 +1242,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously get stored script by id.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
-     *     How to use scripts on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1328,8 +1256,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Delete stored script by id.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
-     *     How to use scripts on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1341,8 +1268,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously delete stored script by id.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
-     *     How to use scripts on elastic.co</a>
+     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1356,8 +1282,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Puts an stored script using the Scripting API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html"> Scripting API
-     * on elastic.co</a>
+     *
      * @param putStoredScriptRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1370,8 +1295,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously puts an stored script using the Scripting API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html"> Scripting API
-     * on elastic.co</a>
+     *
      * @param putStoredScriptRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1385,8 +1309,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a request using the Field Capabilities API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
-     * on elastic.co</a>.
+     *
      * @param fieldCapabilitiesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion

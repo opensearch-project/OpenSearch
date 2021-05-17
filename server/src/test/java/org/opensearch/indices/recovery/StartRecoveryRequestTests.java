@@ -32,6 +32,7 @@
 
 package org.opensearch.indices.recovery;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
@@ -87,7 +88,7 @@ public class StartRecoveryRequestTests extends OpenSearchTestCase {
         assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
         assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        if (targetNodeVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (targetNodeVersion.onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
         } else {
             assertThat(SequenceNumbers.UNASSIGNED_SEQ_NO, equalTo(inRequest.startingSeqNo()));

@@ -98,7 +98,7 @@ import static java.util.Collections.unmodifiableList;
 public class BwcVersions {
 
     private static final Pattern LINE_PATTERN = Pattern.compile(
-        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
+        "\\W+public static final (LegacyES)?Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
     );
 
     private final Version currentVersion;
@@ -128,9 +128,9 @@ public class BwcVersions {
                 .filter(Matcher::matches)
                 .map(
                     match -> new Version(
-                        Integer.parseInt(match.group(1)),
                         Integer.parseInt(match.group(2)),
-                        Integer.parseInt(match.group(3))
+                        Integer.parseInt(match.group(3)),
+                        Integer.parseInt(match.group(4))
                     )
                 )
                 .collect(Collectors.toCollection(TreeSet::new)),
@@ -144,12 +144,18 @@ public class BwcVersions {
             throw new IllegalArgumentException("Could not parse any versions");
         }
 
+        // hack: this is horribly volatile like this entire logic; fix
         currentVersion = allVersions.last();
 
         groupByMajor = allVersions.stream()
             // We only care about the last 2 majors when it comes to BWC.
             // It might take us time to remove the older ones from versionLines, so we allow them to exist.
-            .filter(version -> version.getMajor() > currentVersion.getMajor() - 2)
+            // Adjust the major number since OpenSearch 1.x is released after predecessor version 7.x
+            .filter(
+                version -> (version.getMajor() == 1 ? 7 : version.getMajor()) > (currentVersion.getMajor() == 1
+                    ? 7
+                    : currentVersion.getMajor()) - 2
+            )
             .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
 
         assertCurrentVersionMatchesParsed(currentVersionProperty);
@@ -262,14 +268,17 @@ public class BwcVersions {
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
 
-        // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
-        final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
-        unreleased.add(latestOfPreviousMajor);
-        if (latestOfPreviousMajor.getRevision() == 0) {
-            // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
-            final Version previousMinor = getLatestInMinor(latestOfPreviousMajor.getMajor(), latestOfPreviousMajor.getMinor() - 1);
-            if (previousMinor != null) {
-                unreleased.add(previousMinor);
+        // version 1 is the first release, there is no previous "unreleased version":
+        if (currentVersion.getMajor() != 1) {
+            // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
+            final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
+            unreleased.add(latestOfPreviousMajor);
+            if (latestOfPreviousMajor.getRevision() == 0) {
+                // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
+                final Version previousMinor = getLatestInMinor(latestOfPreviousMajor.getMajor(), latestOfPreviousMajor.getMinor() - 1);
+                if (previousMinor != null) {
+                    unreleased.add(previousMinor);
+                }
             }
         }
 
@@ -306,8 +315,9 @@ public class BwcVersions {
     }
 
     private Map<Integer, List<Version>> getReleasedMajorGroupedByMinor() {
-        List<Version> currentMajorVersions = groupByMajor.get(currentVersion.getMajor());
-        List<Version> previousMajorVersions = groupByMajor.get(currentVersion.getMajor() - 1);
+        int currentMajor = currentVersion.getMajor();
+        List<Version> currentMajorVersions = groupByMajor.get(currentMajor);
+        List<Version> previousMajorVersions = groupByMajor.get(getPreviousMajor(currentMajor));
 
         final Map<Integer, List<Version>> groupByMinor;
         if (currentMajorVersions.size() == 1) {
@@ -353,23 +363,36 @@ public class BwcVersions {
     }
 
     public List<Version> getIndexCompatible() {
-        return unmodifiableList(
-            Stream.concat(groupByMajor.get(currentVersion.getMajor() - 1).stream(), groupByMajor.get(currentVersion.getMajor()).stream())
-                .filter(version -> version.equals(currentVersion) == false)
-                .collect(Collectors.toList())
-        );
-
+        int currentMajor = currentVersion.getMajor();
+        int prevMajor = getPreviousMajor(currentMajor);
+        List<Version> result = Stream.concat(groupByMajor.get(prevMajor).stream(), groupByMajor.get(currentMajor).stream())
+            .filter(version -> version.equals(currentVersion) == false)
+            .collect(Collectors.toList());
+        if (currentMajor == 1) {
+            // add 6.x compatible for OpenSearch 1.0.0
+            return unmodifiableList(Stream.concat(groupByMajor.get(prevMajor - 1).stream(), result.stream()).collect(Collectors.toList()));
+        }
+        return unmodifiableList(result);
     }
 
     public List<Version> getWireCompatible() {
         List<Version> wireCompat = new ArrayList<>();
-
-        List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
-        int minor = prevMajors.get(prevMajors.size() - 1).getMinor();
-        for (int i = prevMajors.size() - 1; i > 0 && prevMajors.get(i).getMinor() == minor; i--) {
-            wireCompat.add(prevMajors.get(i));
+        int currentMajor = currentVersion.getMajor();
+        int lastMajor = currentMajor == 1 ? 6 : currentMajor - 1;
+        List<Version> lastMajorList = groupByMajor.get(lastMajor);
+        int minor = lastMajorList.get(lastMajorList.size() - 1).getMinor();
+        for (int i = lastMajorList.size() - 1; i > 0 && lastMajorList.get(i).getMinor() == minor; --i) {
+            wireCompat.add(lastMajorList.get(i));
         }
-        wireCompat.addAll(groupByMajor.get(currentVersion.getMajor()));
+
+        // if current is OpenSearch 1.0.0 add all of the 7.x line:
+        if (currentMajor == 1) {
+            List<Version> previousMajor = groupByMajor.get(7);
+            for (Version v : previousMajor) {
+                wireCompat.add(v);
+            }
+        }
+        wireCompat.addAll(groupByMajor.get(currentMajor));
         wireCompat.remove(currentVersion);
         wireCompat.sort(Version::compareTo);
 
@@ -386,6 +409,10 @@ public class BwcVersions {
         List<Version> unreleasedWireCompatible = new ArrayList<>(getWireCompatible());
         unreleasedWireCompatible.retainAll(getUnreleased());
         return unmodifiableList(unreleasedWireCompatible);
+    }
+
+    private int getPreviousMajor(int currentMajor) {
+        return currentMajor == 1 ? 7 : currentMajor - 1;
     }
 
 }

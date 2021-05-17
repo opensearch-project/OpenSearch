@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -107,7 +108,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
         final InternalAggregations res = from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
-        if (in.getVersion().before(Version.V_7_8_0) && in.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_8_0) && in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             /*
              * Setting the pipeline tree source to null is here is correct but
              * only because we don't immediately pass the InternalAggregations
@@ -122,18 +123,18 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_7_8_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_8_0)) {
             if (pipelineTreeForBwcSerialization == null) {
                 mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
                 out.writeNamedWriteableList(getInternalAggregations());
-                if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
                     out.writeNamedWriteableList(emptyList());
                 }
             } else {
                 PipelineAggregator.PipelineTree pipelineTree = pipelineTreeForBwcSerialization.get();
                 mergePipelineTreeForBWCSerialization(pipelineTree);
                 out.writeNamedWriteableList(getInternalAggregations());
-                if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
                     out.writeNamedWriteableList(pipelineTree.aggregators());
                 }
             }

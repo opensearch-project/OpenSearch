@@ -33,6 +33,7 @@
 package org.opensearch.painless;
 
 import org.opensearch.painless.action.PainlessExecuteAction.PainlessTestScript;
+import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
 import org.opensearch.painless.spi.Whitelist;
 import org.objectweb.asm.util.Textifier;
@@ -48,13 +49,15 @@ final class Debugger {
         return toString(PainlessTestScript.class, source, new CompilerSettings());
     }
 
+    private static final PainlessLookup LOOKUP = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
+
     /** compiles to bytecode, and returns debugging output */
     static String toString(Class<?> iface, String source, CompilerSettings settings) {
         StringWriter output = new StringWriter();
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS))
+            new Compiler(iface, null, null, LOOKUP)
                     .compile("<debugging>", source, settings, textifier);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);

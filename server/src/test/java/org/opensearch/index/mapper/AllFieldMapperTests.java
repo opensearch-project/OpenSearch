@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
@@ -55,7 +56,7 @@ public class AllFieldMapperTests extends OpenSearchSingleNodeTestCase {
     public void testAllDisabled() throws Exception {
         {
             final Version version = VersionUtils.randomVersionBetween(random(),
-                Version.V_6_0_0, Version.V_7_0_0.minimumCompatibilityVersion());
+                LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion());
             IndexService indexService = createIndex("test_6x",
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, version)

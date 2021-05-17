@@ -43,6 +43,8 @@ public final class Version implements Comparable<Version> {
     private final int minor;
     private final int revision;
     private final int id;
+    // used to identify rebase to OpenSearch 1.0.0
+    public static final int MASK = 0x08000000;
 
     /**
      * Specifies how a version string should be parsed.
@@ -73,7 +75,9 @@ public final class Version implements Comparable<Version> {
         this.revision = revision;
 
         // currently snapshot is not taken into account
-        this.id = major * 10000000 + minor * 100000 + revision * 1000;
+        int id = major * 10000000 + minor * 100000 + revision * 1000;
+        // identify if new OpenSearch version 1
+        this.id = major == 1 ? id ^ MASK : id;
     }
 
     private static int parseSuffixNumber(String substring) {

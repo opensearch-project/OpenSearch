@@ -32,7 +32,7 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -88,8 +88,8 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
         assertThat(section.getSkipSection().isEmpty(), equalTo(false));
-        assertThat(section.getSkipSection().getLowerVersion(), equalTo(Version.V_6_0_0));
-        assertThat(section.getSkipSection().getUpperVersion(), equalTo(Version.V_6_3_0));
+        assertThat(section.getSkipSection().getLowerVersion(), equalTo(LegacyESVersion.V_6_0_0));
+        assertThat(section.getSkipSection().getUpperVersion(), equalTo(LegacyESVersion.V_6_3_0));
         assertThat(section.getSkipSection().getReason(), equalTo("there is a reason"));
         assertThat(section.getDoSections().size(), equalTo(2));
         assertThat(((DoSection)section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));

@@ -33,7 +33,7 @@ package org.opensearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
@@ -100,7 +100,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     public Suggest(StreamInput in) throws IOException {
         // in older versions, Suggestion types were serialized as Streamable
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             final int size = in.readVInt();
             suggestions = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
@@ -168,7 +168,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // in older versions, Suggestion types were serialized as Streamable
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeVInt(suggestions.size());
             for (Suggestion<?> command : suggestions) {
                 out.writeVInt(command.getWriteableType());
@@ -281,7 +281,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             size = in.readVInt();
 
             // this is a hack to work around slightly different serialization order of earlier versions of TermSuggestion
-            if (in.getVersion().before(Version.V_7_0_0) && this instanceof TermSuggestion) {
+            if (in.getVersion().before(LegacyESVersion.V_7_0_0) && this instanceof TermSuggestion) {
                 TermSuggestion t = (TermSuggestion) this;
                 t.setSort(SortBy.readFromStream(in));
             }
@@ -390,7 +390,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             out.writeVInt(size);
 
             // this is a hack to work around slightly different serialization order in older versions of TermSuggestion
-            if (out.getVersion().before(Version.V_7_0_0) && this instanceof TermSuggestion) {
+            if (out.getVersion().before(LegacyESVersion.V_7_0_0) && this instanceof TermSuggestion) {
                 TermSuggestion termSuggestion = (TermSuggestion) this;
                 termSuggestion.getSort().writeTo(out);
             }

@@ -52,7 +52,7 @@ If you've thought of a way that OpenSearch could be better, we want to hear abou
 
 ### Documentation Changes
 
-//TODO
+If you would like to contribute to the documentation, please see [OpenSearch Docs repo](https://github.com/opensearch-project/documentation-website/blob/main/README.md).
 
 ### Contributing Code
 
@@ -103,7 +103,7 @@ Each commit must include a DCO which looks like this
 ```
 Signed-off-by: Jane Smith <jane.smith@email.com>
 ```
-You may type this line on your own when writing your commit messages.  However, if your user.name and user.email are set in your git configs, you can use `-s` or `– – signoff` to add the `Signed-off-by` line to the end of the commit message.
+You may type this line on your own when writing your commit messages.  However, if your user.name and user.email are set in your git configs, you can use `-s` or `--signoff` to add the `Signed-off-by` line to the end of the commit message.
 
 ## Review Process
 
@@ -111,6 +111,6 @@ We deeply appreciate everyone who takes the time to make a contribution.  We wil
 
 During the PR process, expect that there will be some back-and-forth.  Please try to respond to comments in a timely fashion, and if you don't wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionally, if you stop responding we may close the PR as abandoned.  In either case, if you feel this was done in error, please add a comment on the PR.
 
-If we accept the PR, we will merge your change and usually take care of backporting it to appropriate branches ourselves.
+If we accept the PR, a [maintainer](MAINTAINERS.md) will merge your change and usually take care of backporting it to appropriate branches ourselves.
 
 If we reject the PR, we will close the pull request with a comment explaining why. This decision isn't always final: if you feel we have misunderstood your intended change or otherwise think that we should reconsider then please continue the conversation with a comment on the PR and we'll do our best to address any further points you raise.

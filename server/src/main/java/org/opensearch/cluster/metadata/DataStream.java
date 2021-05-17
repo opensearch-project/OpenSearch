@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
@@ -219,12 +220,10 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public static final class TimestampField implements Writeable, ToXContentObject {
 
-        public static final String FIXED_TIMESTAMP_FIELD = "@timestamp";
-
         static ParseField NAME_FIELD = new ParseField("name");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<TimestampField, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<TimestampField, Void> PARSER = new ConstructingObjectParser<>(
             "timestamp_field",
             args -> new TimestampField((String) args[0])
         );
@@ -236,14 +235,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         private final String name;
 
         public TimestampField(String name) {
-            if (FIXED_TIMESTAMP_FIELD.equals(name) == false) {
-                throw new IllegalArgumentException("unexpected timestamp field [" + name + "]");
-            }
             this.name = name;
         }
 
         public TimestampField(StreamInput in) throws IOException {
-            this(in.readString());
+            this.name = in.readString();
         }
 
         @Override
@@ -257,6 +253,10 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             builder.field(NAME_FIELD.getPreferredName(), name);
             builder.endObject();
             return builder;
+        }
+
+        public Map<String, Object> toMap() {
+            return Collections.singletonMap(NAME_FIELD.getPreferredName(), name);
         }
 
         public String getName() {

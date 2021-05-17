@@ -32,9 +32,9 @@
 
 package org.opensearch.action.admin.indices.create;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -109,13 +109,13 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (int i = 0; i < size; i++) {
             final String type = in.readString();
             String source = in.readString();
-            if (in.getVersion().before(Version.V_6_0_0_alpha1)) { // TODO change to 5.3.0 after backport
+            if (in.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) { // TODO change to 5.3.0 after backport
                 // we do not know the content type that comes from earlier versions so we autodetect and convert
                 source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
             }
             mappings.put(type, source);
         }
-        if (in.getVersion().before(Version.V_6_5_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_5_0)) {
             // This used to be the size of custom metadata classes
             int customSize = in.readVInt();
             assert customSize == 0 : "unexpected custom metadata when none is supported";
@@ -127,7 +127,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(new Alias(in));
         }
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             in.readBoolean(); // updateAllTypes
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
@@ -478,7 +478,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        if (out.getVersion().before(Version.V_6_5_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_5_0)) {
             // Size of custom index metadata, which is removed
             out.writeVInt(0);
         }
@@ -486,7 +486,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Alias alias : aliases) {
             alias.writeTo(out);
         }
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(true); // updateAllTypes
         }
         waitForActiveShards.writeTo(out);

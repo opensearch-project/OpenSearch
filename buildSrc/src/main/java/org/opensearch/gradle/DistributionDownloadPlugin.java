@@ -156,7 +156,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             repo.setName(name);
             repo.setUrl(url);
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-            repo.patternLayout(layout -> layout.artifact("/downloads/opensearch/[module]-[revision](-[classifier]).[ext]"));
+            repo.patternLayout(layout -> layout.artifact("/releases/core/opensearch/[revision]/[module]-[revision](-[classifier]).[ext]"));
         });
         project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
             exclusiveContentRepository.filter(config -> config.includeGroup(group));
@@ -168,7 +168,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
             return;
         }
-        addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts-no-kpi.opensearch.org", FAKE_IVY_GROUP);
+        addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts.opensearch.org", FAKE_IVY_GROUP);
         addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots-no-kpi.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP);
     }
 
@@ -187,11 +187,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         Version distroVersion = Version.fromString(distribution.getVersion());
         String extension = distribution.getType().toString();
-        String classifier = ":x86_64";
+        String classifier = ":x64";
         if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
             if (distroVersion.onOrAfter("7.0.0")) {
-                classifier = ":" + distribution.getPlatform() + "-x86_64";
+                classifier = ":" + distribution.getPlatform() + "-x64";
             } else {
                 classifier = "";
             }
@@ -206,6 +206,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
 
         String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
-        return group + ":opensearch-oss" + ":" + distribution.getVersion() + classifier + "@" + extension;
+        return group + ":opensearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 }

@@ -32,7 +32,7 @@
 
 package org.opensearch.ingest;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -78,13 +78,13 @@ public class IngestStats implements Writeable, ToXContentFragment {
             String pipelineId = in.readString();
             Stats pipelineStat = new Stats(in);
             this.pipelineStats.add(new PipelineStat(pipelineId, pipelineStat));
-            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
                 int processorsSize = in.readVInt();
                 List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
                 for (int j = 0; j < processorsSize; j++) {
                     String processorName = in.readString();
                     String processorType = "_NOT_AVAILABLE";
-                    if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+                    if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                         processorType = in.readString();
                     }
                     Stats processorStat = new Stats(in);
@@ -102,7 +102,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
         for (PipelineStat pipelineStat : pipelineStats) {
             out.writeString(pipelineStat.getPipelineId());
             pipelineStat.getStats().writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
                 List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
                 if (processorStatsForPipeline == null) {
                     out.writeVInt(0);
@@ -110,7 +110,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
                     out.writeVInt(processorStatsForPipeline.size());
                     for (ProcessorStat processorStat : processorStatsForPipeline) {
                         out.writeString(processorStat.getName());
-                        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+                        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                             out.writeString(processorStat.getType());
                         }
                         processorStat.getStats().writeTo(out);

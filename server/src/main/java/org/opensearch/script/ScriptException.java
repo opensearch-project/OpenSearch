@@ -32,8 +32,8 @@
 
 package org.opensearch.script;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -102,7 +102,7 @@ public class ScriptException extends OpenSearchException {
         scriptStack = Arrays.asList(in.readStringArray());
         script = in.readString();
         lang = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) && in.readBoolean()) {
             pos = new Position(in);
         } else {
             pos = null;
@@ -115,7 +115,7 @@ public class ScriptException extends OpenSearchException {
         out.writeStringArray(scriptStack.toArray(new String[0]));
         out.writeString(script);
         out.writeString(lang);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             if (pos == null) {
                 out.writeBoolean(false);
             } else {

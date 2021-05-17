@@ -42,6 +42,7 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -321,7 +322,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         if (preserveClusterUponCompletion() == false) {
-            if (nodeVersions.stream().noneMatch(version -> version.before(Version.V_6_2_0))) {
+            if (nodeVersions.stream().noneMatch(version -> version.before(LegacyESVersion.V_6_2_0))) {
                 // wait_for_no_initializing_shards added in 6.2
                 ensureNoInitializingShards();
             }
@@ -497,7 +498,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     private void wipeCluster() throws Exception {
 
         // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-        if (nodeVersions.first().onOrAfter(Version.V_7_4_0)) { // SLM was introduced in version 7.4
+        if (nodeVersions.first().onOrAfter(LegacyESVersion.V_7_4_0)) { // SLM was introduced in version 7.4
             if (preserveSLMPoliciesUponCompletion() == false) {
                 // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
                 deleteAllSLMPolicies();
@@ -554,7 +555,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
+        boolean includeHidden = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_7_0);
         try {
             final Request deleteRequest = new Request("DELETE", "*");
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
@@ -668,7 +669,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected void refreshAllIndices() throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
+        boolean includeHidden = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_7_0);
         Request refreshRequest = new Request("POST", "/_refresh");
         refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
         // Allow system index deprecation warnings
@@ -953,10 +954,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. " +
             "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
             requestOptions.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
             request.setOptions(requestOptions);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
             requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
             request.setOptions(requestOptions);
         }
@@ -967,10 +968,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             "Translog retention settings [index.translog.retention.age] "
                 + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_7_0))) {
             requestOptions.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
             request.setOptions(requestOptions);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_7_0))) {
             requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
             request.setOptions(requestOptions);
         }
@@ -1139,7 +1140,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
     public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
-        final boolean alwaysExists = minimumNodeVersion().onOrAfter(Version.V_7_6_0);
+        final boolean alwaysExists = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0);
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked") Map<String, List<Map<String, ?>>> shards =
@@ -1199,11 +1200,11 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     protected static void performSyncedFlush(String indexName, boolean retryOnConflict) throws Exception {
         final Request request = new Request("POST", indexName + "/_flush/synced");
         final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
             final Builder options = RequestOptions.DEFAULT.toBuilder();
             options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
             request.setOptions(options);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
             final Builder options = RequestOptions.DEFAULT.toBuilder();
             options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
             request.setOptions(options);

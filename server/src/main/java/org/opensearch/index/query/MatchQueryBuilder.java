@@ -34,7 +34,7 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -134,11 +134,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         super(in);
         fieldName = in.readString();
         value = in.readGenericValue();
-        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_0_0_rc1)) {
             MatchQuery.Type.readFromStream(in);  // deprecated type
         }
         operator = Operator.readFromStream(in);
-        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_0_0_rc1)) {
             in.readVInt(); // deprecated slop
         }
         prefixLength = in.readVInt();
@@ -152,7 +152,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
         cutoffFrequency = in.readOptionalFloat();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             autoGenerateSynonymsPhraseQuery = in.readBoolean();
         }
     }
@@ -161,11 +161,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeGenericValue(value);
-        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_0_0_rc1)) {
             MatchQuery.Type.BOOLEAN.writeTo(out); // deprecated type
         }
         operator.writeTo(out);
-        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_0_0_rc1)) {
             out.writeVInt(MatchQuery.DEFAULT_PHRASE_SLOP); // deprecated slop
         }
         out.writeVInt(prefixLength);
@@ -179,7 +179,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
         out.writeOptionalFloat(cutoffFrequency);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             out.writeBoolean(autoGenerateSynonymsPhraseQuery);
         }
     }

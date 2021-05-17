@@ -39,6 +39,9 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermissions
+
 /**
  * A task to create a notice file which includes dependencies' notices.
  */
@@ -149,6 +152,7 @@ class NoticeTask extends DefaultTask {
             }
         }
         outputFile.setText(output.toString(), 'UTF-8')
+        Files.setPosixFilePermissions(outputFile.toPath(), PosixFilePermissions.fromString("rw-r--r--"))
     }
 
     @InputFiles

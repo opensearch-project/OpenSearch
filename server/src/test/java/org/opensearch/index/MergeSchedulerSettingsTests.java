@@ -192,5 +192,14 @@ public class MergeSchedulerSettingsTests extends OpenSearchTestCase {
         exc = expectThrows(IllegalArgumentException.class,
             () -> finalSettings.updateIndexMetadata(createMetadata(-1, 3, 8)));
         assertThat(exc.getMessage(), containsString("maxThreadCount (= 4) should be <= maxMergeCount (= 3)"));
+
+        // assertions above may provoke warnings if node.processors exceeds numCpus
+        // we explicitly test with values of 2 and 8
+        int numCpus = Runtime.getRuntime().availableProcessors();
+        String[] warnings = new String[] {
+            "setting [node.processors] to value [2] which is more than available processors [" + numCpus + "] is deprecated",
+            "setting [node.processors] to value [8] which is more than available processors [" + numCpus + "] is deprecated"
+        };
+        allowedWarnings(warnings);
     }
 }

@@ -33,9 +33,9 @@ package org.opensearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.ResourceAlreadyExistsException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.support.ActiveShardCount;
@@ -137,8 +137,8 @@ public class MetadataCreateDataStreamService {
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
                                          CreateDataStreamClusterStateUpdateRequest request) throws Exception {
-        if (currentState.nodes().getMinNodeVersion().before(Version.V_7_9_0)) {
-            throw new IllegalStateException("data streams require minimum node version of " + Version.V_7_9_0);
+        if (currentState.nodes().getMinNodeVersion().before(LegacyESVersion.V_7_9_0)) {
+            throw new IllegalStateException("data streams require minimum node version of " + LegacyESVersion.V_7_9_0);
         }
 
         if (currentState.metadata().dataStreams().containsKey(request.name)) {
@@ -175,7 +175,7 @@ public class MetadataCreateDataStreamService {
         assert firstBackingIndex != null;
         assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
 
-        String fieldName = template.getDataStreamTemplate().getTimestampField();
+        String fieldName = template.getDataStreamTemplate().getTimestampField().getName();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         DataStream newDataStream = new DataStream(request.name, timestampField,
                 Collections.singletonList(firstBackingIndex.getIndex()));
@@ -197,7 +197,7 @@ public class MetadataCreateDataStreamService {
         return composableIndexTemplate;
     }
 
-    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) throws IOException {
+    public static void validateTimestampFieldMapping(MapperService mapperService) throws IOException {
         MetadataFieldMapper fieldMapper =
             (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_data_stream_timestamp");
         assert fieldMapper != null : "[_data_stream_timestamp] meta field mapper must exist";

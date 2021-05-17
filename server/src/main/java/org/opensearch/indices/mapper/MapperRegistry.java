@@ -32,6 +32,7 @@
 
 package org.opensearch.indices.mapper;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.index.mapper.AllFieldMapper;
 import org.opensearch.index.mapper.Mapper;
@@ -80,7 +81,7 @@ public final class MapperRegistry {
      * returned map uses the name of the field as a key.
      */
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(Version indexCreatedVersion) {
-        return indexCreatedVersion.onOrAfter(Version.V_7_0_0) ? metadataMapperParsers : metadataMapperParsers6x;
+        return indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_0_0) ? metadataMapperParsers : metadataMapperParsers6x;
     }
 
     /**

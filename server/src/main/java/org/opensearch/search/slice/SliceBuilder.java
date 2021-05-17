@@ -35,6 +35,7 @@ package org.opensearch.search.slice;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -118,7 +119,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     public SliceBuilder(StreamInput in) throws IOException {
         String field = in.readString();
-        if ("_uid".equals(field) && in.getVersion().before(Version.V_6_3_0)) {
+        if ("_uid".equals(field) && in.getVersion().before(LegacyESVersion.V_6_3_0)) {
             // This is safe because _id and _uid are handled the same way in #toFilter
             field = IdFieldMapper.NAME;
         }
@@ -129,7 +130,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (IdFieldMapper.NAME.equals(field) && out.getVersion().before(Version.V_6_3_0)) {
+        if (IdFieldMapper.NAME.equals(field) && out.getVersion().before(LegacyESVersion.V_6_3_0)) {
             out.writeString("_uid");
         } else {
             out.writeString(field);
@@ -237,7 +238,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
         int shardId = request.shardId().id();
         int numShards = context.getIndexSettings().getNumberOfShards();
-        if (minNodeVersion.onOrAfter(Version.V_6_4_0) &&
+        if (minNodeVersion.onOrAfter(LegacyESVersion.V_6_4_0) &&
                 (request.preference() != null || request.indexRoutings().length > 0)) {
             GroupShardsIterator<ShardIterator> group = buildShardIterator(clusterService, request);
             assert group.size() <= numShards : "index routing shards: " + group.size() +
@@ -247,7 +248,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
                  * The routing of this request targets a subset of the shards of this index so we need to we retrieve
                  * the original {@link GroupShardsIterator} and compute the request shard id and number of
                  * shards from it.
-                 * This behavior has been added in {@link Version#V_6_4_0} so if there is another node in the cluster
+                 * This behavior has been added in {@link LegacyESVersion#V_6_4_0} so if there is another node in the cluster
                  * with an older version we use the original shard id and number of shards in order to ensure that all
                  * slices use the same numbers.
                  */
@@ -272,7 +273,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         if ("_uid".equals(field)) {
             // on new indices, the _id acts as a _uid
             field = IdFieldMapper.NAME;
-            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
                 throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
             }
             DEPRECATION_LOG.deprecate("slice_on_uid",

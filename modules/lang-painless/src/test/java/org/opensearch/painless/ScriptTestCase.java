@@ -33,6 +33,7 @@
 package org.opensearch.painless;
 
 import junit.framework.AssertionFailedError;
+
 import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.antlr.Walker;
 import org.opensearch.painless.spi.Whitelist;
@@ -40,7 +41,6 @@ import org.opensearch.painless.spi.WhitelistLoader;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptException;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,8 +48,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import static org.hamcrest.Matchers.hasSize;
+import static org.opensearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 
 /**
  * Base test case for scripting unit tests.
@@ -57,24 +57,10 @@ import static org.hamcrest.Matchers.hasSize;
  * Typically just asserts the output of {@code exec()}
  */
 public abstract class ScriptTestCase extends OpenSearchTestCase {
-    protected PainlessScriptEngine scriptEngine;
+    private static final PainlessScriptEngine SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, newDefaultContexts());
 
-    @Before
-    public void setup() {
-        scriptEngine = new PainlessScriptEngine(scriptEngineSettings(), scriptContexts());
-    }
-
-    /**
-     * Settings used to build the script engine. Override to customize settings like {@link RegexTests} does to enable regexes.
-     */
-    protected Settings scriptEngineSettings() {
-        return Settings.EMPTY;
-    }
-
-    /**
-     * Script contexts used to build the script engine. Override to customize which script contexts are available.
-     */
-    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+    /** Creates a new contexts map with PainlessTextScript = org.opensearch.painless.test */
+    protected static Map<ScriptContext<?>, List<Whitelist>> newDefaultContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.painless.test"));
@@ -82,43 +68,20 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
         return contexts;
     }
 
-    /** Compiles and returns the result of {@code script} */
-    public Object exec(String script) {
-        return exec(script, null, true);
-    }
-
-    /** Compiles and returns the result of {@code script} with access to {@code picky} */
-    public Object exec(String script, boolean picky) {
-        return exec(script, null, picky);
-    }
-
-    /** Compiles and returns the result of {@code script} with access to {@code vars} */
-    public Object exec(String script, Map<String, Object> vars, boolean picky) {
-        Map<String,String> compilerSettings = new HashMap<>();
-        compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
-        return exec(script, vars, compilerSettings, picky);
-    }
-
-    /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
-    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, boolean picky) {
-        // test for ambiguity errors before running the actual script if picky is true
-        if (picky) {
-            CompilerSettings pickySettings = new CompilerSettings();
-            pickySettings.setPicky(true);
-            pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(getTestName(), script, pickySettings);
-        }
-        // test actual script execution
-        PainlessTestScript.Factory factory = scriptEngine.compile(null, script, PainlessTestScript.CONTEXT, compileParams);
-        PainlessTestScript testScript = factory.newInstance(vars == null ? Collections.emptyMap() : vars);
-        return testScript.execute();
+    /**
+     * Get the script engine to use.
+     * If you override this method in order to customize the settings, it is recommended
+     * to setup/teardown a class-level fixture and return it directly for performance.
+     */
+    protected PainlessScriptEngine getEngine() {
+        return SCRIPT_ENGINE;
     }
 
     /**
      * Uses the {@link Debugger} to get the bytecode output for a script and compare
      * it against an expected bytecode passed in as a String.
      */
-    public void assertBytecodeExists(String script, String bytecode) {
+    public static final void assertBytecodeExists(String script, String bytecode) {
         final String asm = Debugger.toString(script);
         assertTrue("bytecode not found, got: \n" + asm , asm.contains(bytecode));
     }
@@ -127,18 +90,18 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
      * Uses the {@link Debugger} to get the bytecode output for a script and compare
      * it against an expected bytecode pattern as a regular expression (please try to avoid!)
      */
-    public void assertBytecodeHasPattern(String script, String pattern) {
+    public static final void assertBytecodeHasPattern(String script, String pattern) {
         final String asm = Debugger.toString(script);
         assertTrue("bytecode not found, got: \n" + asm , asm.matches(pattern));
     }
 
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
-    public static <T extends Throwable> T expectScriptThrows(Class<T> expectedType, ThrowingRunnable runnable) {
+    public static final <T extends Throwable> T expectScriptThrows(Class<T> expectedType, ThrowingRunnable runnable) {
         return expectScriptThrows(expectedType, true, runnable);
     }
 
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
-    public static <T extends Throwable> T expectScriptThrows(Class<T> expectedType, boolean shouldHaveScriptStack,
+    public static final <T extends Throwable> T expectScriptThrows(Class<T> expectedType, boolean shouldHaveScriptStack,
             ThrowingRunnable runnable) {
         try {
             runnable.run();
@@ -178,7 +141,7 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
     /**
      * Asserts that the script_stack looks right.
      */
-    public static void assertScriptStack(ScriptException e, String... stack) {
+    public static final void assertScriptStack(ScriptException e, String... stack) {
         // This particular incantation of assertions makes the error messages more useful
         try {
             assertThat(e.getScriptStack(), hasSize(stack.length));
@@ -191,4 +154,35 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
         }
     }
 
+    /** Compiles and returns the result of {@code script} */
+    public final Object exec(String script) {
+        return exec(script, null, true);
+    }
+
+    /** Compiles and returns the result of {@code script} with access to {@code picky} */
+    public final Object exec(String script, boolean picky) {
+        return exec(script, null, picky);
+    }
+
+    /** Compiles and returns the result of {@code script} with access to {@code vars} */
+    public final Object exec(String script, Map<String, Object> vars, boolean picky) {
+        Map<String,String> compilerSettings = new HashMap<>();
+        compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
+        return exec(script, vars, compilerSettings, picky);
+    }
+
+    /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
+    public final Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, boolean picky) {
+        // test for ambiguity errors before running the actual script if picky is true
+        if (picky) {
+            CompilerSettings pickySettings = new CompilerSettings();
+            pickySettings.setPicky(true);
+            pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(Settings.EMPTY));
+            Walker.buildPainlessTree(getTestName(), script, pickySettings);
+        }
+        // test actual script execution
+        PainlessTestScript.Factory factory = getEngine().compile(null, script, PainlessTestScript.CONTEXT, compileParams);
+        PainlessTestScript testScript = factory.newInstance(vars == null ? Collections.emptyMap() : vars);
+        return testScript.execute();
+    }
 }

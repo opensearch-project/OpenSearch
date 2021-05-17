@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.recovery;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -46,7 +46,7 @@ public abstract class RecoveryTransportRequest extends TransportRequest {
 
     RecoveryTransportRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             requestSeqNo = in.readLong();
         } else {
             requestSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -64,7 +64,7 @@ public abstract class RecoveryTransportRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(org.opensearch.Version.V_7_9_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeLong(requestSeqNo);
         }
     }
