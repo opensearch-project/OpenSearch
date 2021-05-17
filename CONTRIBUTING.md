@@ -53,6 +53,7 @@ If you've thought of a way that OpenSearch could be better, we want to hear abou
 ### Documentation Changes
 
 If you would like to contribute to the documentation, please see [OpenSearch Docs repo](https://github.com/opensearch-project/documentation-website/blob/main/README.md).
+To contribute javadocs, please see [this open issue on github](https://github.com/opensearch-project/OpenSearch/issues/221).
 
 ### Contributing Code
 
