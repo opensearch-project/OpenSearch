@@ -175,7 +175,7 @@ public class MetadataCreateDataStreamService {
         assert firstBackingIndex != null;
         assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
 
-        String fieldName = template.getDataStreamTemplate().getTimestampField();
+        String fieldName = template.getDataStreamTemplate().getTimestampField().getName();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         DataStream newDataStream = new DataStream(request.name, timestampField,
                 Collections.singletonList(firstBackingIndex.getIndex()));
@@ -197,7 +197,7 @@ public class MetadataCreateDataStreamService {
         return composableIndexTemplate;
     }
 
-    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) throws IOException {
+    public static void validateTimestampFieldMapping(MapperService mapperService) throws IOException {
         MetadataFieldMapper fieldMapper =
             (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_data_stream_timestamp");
         assert fieldMapper != null : "[_data_stream_timestamp] meta field mapper must exist";

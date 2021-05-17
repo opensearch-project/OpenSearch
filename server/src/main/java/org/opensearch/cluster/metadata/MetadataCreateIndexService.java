@@ -1000,7 +1000,7 @@ public class MetadataCreateIndexService {
             indexService.getIndexSortSupplier().get();
         }
         if (request.dataStreamName() != null) {
-            MetadataCreateDataStreamService.validateTimestampFieldMapping("@timestamp", mapperService);
+            MetadataCreateDataStreamService.validateTimestampFieldMapping(mapperService);
         }
     }
 

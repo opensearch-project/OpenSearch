@@ -45,6 +45,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
+import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.FieldAliasMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
@@ -171,6 +172,7 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(IdFieldMapper.NAME, IdFieldMapper.PARSER);
         builtInMetadataMappers.put(RoutingFieldMapper.NAME, RoutingFieldMapper.PARSER);
         builtInMetadataMappers.put(IndexFieldMapper.NAME, IndexFieldMapper.PARSER);
+        builtInMetadataMappers.put(DataStreamFieldMapper.NAME, DataStreamFieldMapper.PARSER);
         builtInMetadataMappers.put(SourceFieldMapper.NAME, SourceFieldMapper.PARSER);
         builtInMetadataMappers.put(TypeFieldMapper.NAME, TypeFieldMapper.PARSER);
         builtInMetadataMappers.put(VersionFieldMapper.NAME, VersionFieldMapper.PARSER);

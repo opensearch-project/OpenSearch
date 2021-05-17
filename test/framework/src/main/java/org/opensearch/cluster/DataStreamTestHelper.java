@@ -81,19 +81,14 @@ public final class DataStreamTestHelper {
     }
 
     public static String generateMapping(String timestampFieldName) {
-        return "{\n" +
-            "      \"properties\": {\n" +
-            "        \"" + timestampFieldName + "\": {\n" +
-            "          \"type\": \"date\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
+        return generateMapping(timestampFieldName, "date");
     }
 
     public static String generateMapping(String timestampFieldName, String type) {
         return "{\n" +
             "      \"_data_stream_timestamp\": {\n" +
-            "        \"enabled\": true\n" +
+            "        \"enabled\": true,\n" +
+            "        \"timestamp_field\": { \"name\": \"" + timestampFieldName + "\" }" +
             "      }," +
             "      \"properties\": {\n" +
             "        \"" + timestampFieldName + "\": {\n" +
