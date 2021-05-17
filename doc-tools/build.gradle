@@ -3,7 +3,7 @@ plugins {
 }
 
 group 'org.opensearch'
-version '7.10.3-SNAPSHOT'
+version '1.0.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
