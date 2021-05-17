@@ -47,9 +47,3 @@ Here are the principles we use to guide our development. From [opensearch.org](h
 >**7. Respectful, approachable, and friendly**. This will be a community where you will be heard, accepted, and valued, whether you are a new or experienced user or contributor.
 >
 >**8. A place to invent**. You will be able to innovate rapidly. This project will have a stable and predictable foundation that is modular, making it easy to extend.
-
-## History
-
-OpenSearch is an open source search and analytics engine derived from Elasticsearch 7.10.2, and is currently in an alpha state. While we're still in the process of getting set up, we are excited to build the best distributed search engine on the planet with you.
-
-We officially began work on the new fork on January 21st, 2021.  Since then, we've been removing non-Apache 2.0 compliant code and doing a full rename of the project.
