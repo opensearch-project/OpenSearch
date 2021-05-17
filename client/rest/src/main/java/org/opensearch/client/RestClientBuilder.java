@@ -179,7 +179,7 @@ public final class RestClientBuilder {
      * @param pathPrefix the path prefix to be cleaned up.
      * @return the cleaned up path prefix.
      * @throws NullPointerException if {@code pathPrefix} is {@code null}.
-     * @throws IllegalArgumentException if {@pathPrefix} is empty, or ends with more than one '/'.
+     * @throws IllegalArgumentException if {@code pathPrefix} is empty, or ends with more than one '/'.
      */
     public static String cleanPathPrefix(String pathPrefix) {
         Objects.requireNonNull(pathPrefix, "pathPrefix must not be null");

@@ -52,20 +52,22 @@ allprojects {
       docroot = file("${buildDir}/site")
     }
 
-    // TODO: Enable missingJavadoc task
+    // TODO: Add missingJavadoc checks to precommit plugin
     // See https://github.com/opendistro-for-elasticsearch/search/issues/221
-    // Once we get the javadocs ready for the code base
-    // we will disable the default javadoc task and use our own
-    // missingJavadoc task below. The default javadoc task
-    // will just invoke 'missingJavadoc' (to allow people to call
-    // conventional task name).
-    tasks.matching { it.name == "javadoc" }.all {
+    // Currently the missingJavadoc task fails due to missing documentation
+    // across multiple modules. Once javadocs are added, we can
+    // add this task to precommit plugin.
+    tasks.withType(MissingJavadocTask).configureEach {
       enabled = true
-      // enabled = false
-      // dependsOn "missingJavadoc"
+      title = "${project.rootProject.name} ${project.name} API"
+
+      // Set up custom doclet.
+      dependsOn configurations.missingdoclet
+      docletpath = configurations.missingdoclet
     }
 
-    task missingJavadoc(type: MissingJavadocTask) {
+
+    tasks.register('missingJavadoc', MissingJavadocTask) {
       description "This task validates and generates Javadoc API documentation for the main source code."
       group "documentation"
 
@@ -76,16 +78,6 @@ allprojects {
 
       outputDir = project.javadoc.destinationDir
     }
-  }
-}
-
-allprojects {
-  project.tasks.withType(MissingJavadocTask) {
-    title = "${project.rootProject.name} ${project.name} API"
-
-    // Set up custom doclet.
-    dependsOn configurations.missingdoclet
-    docletpath = configurations.missingdoclet
   }
 }
 

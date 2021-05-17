@@ -54,7 +54,7 @@ public interface NodeSelector {
      * <p>
      * Implementers should not rely on the ordering of the nodes.
      *
-     * @param nodes the {@Node}s targeted for the sending requests
+     * @param nodes the {@link Node}s targeted for the sending requests
      */
     void select(Iterable<Node> nodes);
     /*
