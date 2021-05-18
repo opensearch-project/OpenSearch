@@ -1,0 +1,242 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+import javax.annotation.Nullable
+
+/**
+ * Checks for missing javadocs.
+ */
+// Original version of this file is ported from the render-javadoc code in Lucene,
+// original code under the Apache Software Foundation under Apache 2.0 license
+// See - https://github.com/apache/lucene-solr/tree/master/gradle/documentation/render-javadoc
+allprojects {
+  ext {
+    scriptResources = { buildscript ->
+      return file(buildscript.sourceFile.absolutePath.replaceAll('.gradle$', ""))
+    }
+  }
+}
+
+def resources = scriptResources(buildscript)
+
+allprojects {
+  plugins.withType(JavaPlugin) {
+    configurations {
+      missingdoclet
+    }
+
+    dependencies {
+      missingdoclet "org.opensearch:missing-doclet"
+    }
+
+    ext {
+      relativeDocPath = project.path.replaceFirst(/:\w+:/, "").replace(':', '/')
+      docroot = file("${buildDir}/site")
+    }
+
+    // TODO: Add missingJavadoc checks to precommit plugin
+    // See https://github.com/opensearch-project/OpenSearch/issues/221
+    // Currently the missingJavadoc task fails due to missing documentation
+    // across multiple modules. Once javadocs are added, we can
+    // add this task to precommit plugin.
+    tasks.withType(MissingJavadocTask).configureEach {
+      enabled = true
+      title = "${project.rootProject.name} ${project.name} API"
+
+      // Set up custom doclet.
+      dependsOn configurations.missingdoclet
+      docletpath = configurations.missingdoclet
+    }
+
+
+    tasks.register('missingJavadoc', MissingJavadocTask) {
+      description "This task validates and generates Javadoc API documentation for the main source code."
+      group "documentation"
+
+      taskResources = resources
+      dependsOn sourceSets.main.compileClasspath
+      classpath = sourceSets.main.compileClasspath
+      srcDirSet = sourceSets.main.java
+
+      outputDir = project.javadoc.destinationDir
+    }
+  }
+}
+
+class MissingJavadocTask extends DefaultTask {
+  @InputFiles
+  @SkipWhenEmpty
+  SourceDirectorySet srcDirSet;
+
+  @OutputDirectory
+  File outputDir
+
+  @CompileClasspath
+  FileCollection classpath
+
+  @CompileClasspath
+  FileCollection docletpath
+
+  @Input
+  String title
+
+  @Input
+  boolean linksource = false
+
+  @Input
+  boolean relativeProjectLinks = false
+
+  @Input
+  String javadocMissingLevel = "parameter"
+
+  // anything in these packages is checked with level=method. This allows iteratively fixing one package at a time.
+  @Input
+  List<String> javadocMissingMethod = []
+
+  // default is not to ignore any elements, should only be used to workaround split packages
+  @Input
+  List<String> javadocMissingIgnore = []
+
+  @Nullable
+  @Optional
+  @Input
+  def executable
+
+  @Input
+  def taskResources
+
+  /** Utility method to recursively collect all tasks with same name like this one that we depend on */
+  private Set findRenderTasksInDependencies() {
+    Set found = []
+    def collectDeps
+    collectDeps = { task -> task.taskDependencies.getDependencies(task).findAll{ it.name == this.name && it.enabled && !found.contains(it) }.each{
+      found << it
+      collectDeps(it)
+    }}
+    collectDeps(this)
+    return found
+  }
+
+  @TaskAction
+  void render() {
+    def srcDirs = srcDirSet.srcDirs.findAll { dir -> dir.exists() }
+    def optionsFile = project.file("${getTemporaryDir()}/javadoc-options.txt")
+
+    // create the directory, so relative link calculation knows that it's a directory:
+    outputDir.mkdirs();
+
+    def opts = []
+    opts << [ '-overview', project.file("${srcDirs[0]}/overview.html") ]
+    opts << [ '-sourcepath', srcDirs.join(File.pathSeparator) ]
+    if (project.getGroup().toString().startsWith('org.opensearch')) {
+      opts << [ '-subpackages', 'org.opensearch']
+    } else {
+      opts << [ '-subpackages', project.getGroup().toString()]
+    }
+    opts << [ '-d', outputDir ]
+    opts << '-protected'
+    opts << [ '-encoding', 'UTF-8' ]
+    opts << [ '-charset', 'UTF-8' ]
+    opts << [ '-docencoding', 'UTF-8' ]
+    opts << '-noindex'
+    opts << '-author'
+    opts << '-version'
+    if (linksource) {
+      opts << '-linksource'
+    }
+    opts << '-use'
+    opts << [ '-locale', 'en_US' ]
+    opts << [ '-windowtitle', title ]
+    opts << [ '-doctitle', title ]
+    if (!classpath.isEmpty()) {
+      opts << [ '-classpath', classpath.asPath ]
+    }
+    opts << [ '-doclet', "org.opensearch.missingdoclet.MissingDoclet" ]
+    opts << [ '-docletpath', docletpath.asPath ]
+    opts << [ '--missing-level', javadocMissingLevel ]
+    if (javadocMissingIgnore) {
+      opts << [ '--missing-ignore', String.join(',', javadocMissingIgnore) ]
+    }
+    if (javadocMissingMethod) {
+      opts << [ '--missing-method', String.join(',', javadocMissingMethod) ]
+    }
+    opts << [ '-quiet' ]
+    opts << [ '--release', 11 ]
+    opts << '-Xdoclint:all,-missing'
+
+    // Temporary file that holds all javadoc options for the current task.
+    optionsFile.withWriter("UTF-8", { writer ->
+      // escapes an option with single quotes or whitespace to be passed in the options.txt file for
+      def escapeJavadocOption = { String s -> (s =~ /[ '"]/) ? ("'" + s.replaceAll(/[\\'"]/, /\\$0/) + "'") : s }
+
+      opts.each { entry ->
+        if (entry instanceof List) {
+          writer.write(entry.collect { escapeJavadocOption(it as String) }.join(" "))
+        } else {
+          writer.write(escapeJavadocOption(entry as String))
+        }
+        writer.write('\n')
+      }
+    })
+
+    def javadocCmd = {
+      if (executable == null) {
+        JavaInstallationRegistry registry = project.extensions.getByType(JavaInstallationRegistry)
+        JavaInstallation currentJvm = registry.installationForCurrentVirtualMachine.get()
+        return currentJvm.jdk.get().javadocExecutable.asFile
+      } else {
+        return project.file(executable)
+      }
+    }()
+
+    def outputFile = project.file("${getTemporaryDir()}/javadoc-output.txt")
+    def result
+
+    outputFile.withOutputStream { output ->
+      result = project.exec {
+        executable javadocCmd
+
+        // we want to capture both stdout and stderr to the same
+        // stream but gradle attempts to close these separately
+        // (it has two independent pumping threads) and it can happen
+        // that one still tries to write something when the other closed
+        // the underlying output stream.
+        def wrapped = new java.io.FilterOutputStream(output) {
+          public void close() {
+            // no-op. we close this stream manually.
+          }
+        }
+        standardOutput = wrapped
+        errorOutput = wrapped
+
+        args += [ "@${optionsFile}" ]
+
+        // -J flags can't be passed via options file... (an error "javadoc: error - invalid flag: -J-Xmx512m" occurs.)
+        args += [ "-J-Xmx512m" ]
+        // force locale to be "en_US" (fix for: https://bugs.openjdk.java.net/browse/JDK-8222793)
+        args += [ "-J-Duser.language=en", "-J-Duser.country=US" ]
+
+        ignoreExitValue true
+      }
+    }
+
+    if (result.getExitValue() != 0) {
+      // Pipe the output to console. Intentionally skips any encoding conversion
+      // and pumps raw bytes.
+      System.out.write(outputFile.bytes)
+
+      def cause
+      try {
+        result.rethrowFailure()
+      } catch (ex) {
+        cause = ex
+      }
+      throw new GradleException("Javadoc generation failed for ${project.path},\n  Options file at: ${optionsFile}\n  Command output at: ${outputFile}", cause)
+    }
+  }
+}

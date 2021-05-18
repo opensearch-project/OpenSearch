@@ -32,6 +32,7 @@ apply plugin: 'opensearch.test.fixtures'
 
 description = 'Fixture for S3 Storage service'
 test.enabled = false
+group = 'fixture.s3'
 
 dependencies {
   api project(':server')

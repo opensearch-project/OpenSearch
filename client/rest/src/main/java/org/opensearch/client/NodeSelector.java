@@ -53,6 +53,8 @@ public interface NodeSelector {
      * {@link RestClient} will call this method with a list of "dead" nodes.
      * <p>
      * Implementers should not rely on the ordering of the nodes.
+     *
+     * @param nodes the {@link Node}s targeted for the sending requests
      */
     void select(Iterable<Node> nodes);
     /*

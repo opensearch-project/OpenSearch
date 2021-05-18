@@ -37,6 +37,7 @@ dependencies {
   api project(':server')
 }
 
+group = 'fixture.gcs'
 preProcessFixture {
   dependsOn jar, configurations.runtimeClasspath
   doLast {
