@@ -37,7 +37,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.reindex.spi.RemoteReindexExtension;
 import org.opensearch.plugins.ExtensiblePlugin;
-import org.opensearch.plugins.ExtensiblePlugin.ExtensionLoader;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
@@ -62,7 +61,6 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -115,7 +113,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     @Override
     public List<Setting<?>> getSettings() {
         final List<Setting<?>> settings = new ArrayList<>();
-        settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
+        settings.add(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
     }

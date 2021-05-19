@@ -34,7 +34,7 @@ package org.opensearch.painless;
 
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.symbol.FunctionTable;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -47,7 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 
 public class DefBootstrapTests extends OpenSearchTestCase {
-    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromAllowlists(Allowlist.BASE_ALLOWLISTS);
 
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {

@@ -43,7 +43,7 @@ import org.opensearch.painless.phase.DocFieldsPhase;
 import org.opensearch.painless.phase.PainlessSemanticAnalysisPhase;
 import org.opensearch.painless.phase.PainlessSemanticHeaderPhase;
 import org.opensearch.painless.phase.PainlessUserTreeToIRTreePhase;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.opensearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.util.Printer;
@@ -100,7 +100,7 @@ final class Compiler {
 
         /**
          * Will check to see if the {@link Class} has already been loaded when
-         * the {@link PainlessLookup} was initially created.  Allows for {@link Whitelist}ed
+         * the {@link PainlessLookup} was initially created.  Allows for {@link Allowlist}ed
          * classes to be loaded from other modules/plugins without a direct relationship
          * to the module's/plugin's {@link ClassLoader}.
          */
@@ -168,7 +168,7 @@ final class Compiler {
     private final Class<?> scriptClass;
 
     /**
-     * The whitelist the script will use.
+     * The allowlist the script will use.
      */
     private final PainlessLookup painlessLookup;
 
@@ -182,7 +182,7 @@ final class Compiler {
      * @param scriptClass The class/interface the script will implement.
      * @param factoryClass An optional class/interface to create the {@code scriptClass} instance.
      * @param statefulFactoryClass An optional class/interface to create the {@code factoryClass} instance.
-     * @param painlessLookup The whitelist the script will use.
+     * @param painlessLookup The allowlist the script will use.
      */
     Compiler(Class<?> scriptClass, Class<?> factoryClass, Class<?> statefulFactoryClass, PainlessLookup painlessLookup) {
         this.scriptClass = scriptClass;

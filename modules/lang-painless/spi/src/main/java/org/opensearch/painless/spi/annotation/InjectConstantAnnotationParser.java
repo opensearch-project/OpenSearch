@@ -35,7 +35,7 @@ package org.opensearch.painless.spi.annotation;
 import java.util.ArrayList;
 import java.util.Map;
 
-public class InjectConstantAnnotationParser implements WhitelistAnnotationParser {
+public class InjectConstantAnnotationParser implements AllowlistAnnotationParser {
 
     public static final InjectConstantAnnotationParser INSTANCE = new InjectConstantAnnotationParser();
 

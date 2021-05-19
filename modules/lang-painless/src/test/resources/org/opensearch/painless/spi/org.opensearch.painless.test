@@ -1,4 +1,4 @@
-# whitelist for tests
+# allowlist for tests
 
 # TODO: remove this when the transition from Joda to Java datetimes is completed
 class org.opensearch.script.JodaCompatibleZonedDateTime {

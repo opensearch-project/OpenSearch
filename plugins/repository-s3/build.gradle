@@ -64,7 +64,7 @@ dependencies {
   api "joda-time:joda-time:${versions.joda}"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell
+  // and allowlist this hack in JarHell
   api 'javax.xml.bind:jaxb-api:2.2.2'
 
   testImplementation project(':test:fixtures:s3-fixture')
@@ -190,7 +190,7 @@ internalClusterTest {
 }
 
 yamlRestTest {
-    systemProperty 'tests.rest.blacklist', (
+    systemProperty 'tests.rest.blocklist', (
       useFixture ?
         ['repository_s3/50_repository_ecs_credentials/*']
         :
@@ -246,7 +246,7 @@ if (useFixture) {
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
 
     // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
-    systemProperty 'tests.rest.blacklist', [
+    systemProperty 'tests.rest.blocklist', [
       'repository_s3/30_repository_temporary_credentials/*',
       'repository_s3/40_repository_ec2_credentials/*',
       'repository_s3/50_repository_ecs_credentials/*'
@@ -272,7 +272,7 @@ if (useFixture) {
     SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
-    systemProperty 'tests.rest.blacklist', [
+    systemProperty 'tests.rest.blocklist', [
       'repository_s3/10_basic/*',
       'repository_s3/20_repository_permanent_credentials/*',
       'repository_s3/30_repository_temporary_credentials/*',

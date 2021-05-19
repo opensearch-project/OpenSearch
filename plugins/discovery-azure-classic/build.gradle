@@ -67,7 +67,7 @@ dependencies {
   api 'org.codehaus.jackson:jackson-xc:1.9.2'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell
+  // and allowlist this hack in JarHell
   api 'javax.xml.bind:jaxb-api:2.2.2'
 }
 

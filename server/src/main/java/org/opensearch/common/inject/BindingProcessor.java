@@ -275,7 +275,7 @@ class BindingProcessor extends AbstractProcessor {
         }
 
         // prevent the parent from creating a JIT binding for this key
-        injector.state.parent().blacklist(key);
+        injector.state.parent().blocklist(key);
         injector.state.putBinding(key, binding);
     }
 
@@ -294,7 +294,7 @@ class BindingProcessor extends AbstractProcessor {
         return false;
     }
 
-    // It's unfortunate that we have to maintain a blacklist of specific
+    // It's unfortunate that we have to maintain a blocklist of specific
     // classes, but we can't easily block the whole package because of
     // all our unit tests.
     private static final Set<Class<?>> FORBIDDEN_TYPES = unmodifiableSet(newHashSet(
