@@ -24,7 +24,7 @@ versions << [
 dependencies {
   api "com.google.apis:google-api-services-compute:v1-rev160-${versions.google}"
   api "com.google.api-client:google-api-client:${versions.google}"
-  api "com.google.oauth-client:google-oauth-client:${versions.google}"
+  api "com.google.oauth-client:google-oauth-client:1.31.0"
   api "com.google.http-client:google-http-client:${versions.google}"
   api "com.google.http-client:google-http-client-jackson2:${versions.google}"
   api 'com.google.code.findbugs:jsr305:1.3.9'
@@ -63,5 +63,8 @@ thirdPartyAudit.ignoreMissingClasses(
   'javax.servlet.ServletContextListener',
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
-  'org.apache.log.Logger'
+  'org.apache.log.Logger',
+  'com.google.common.collect.Multiset',
+  'com.google.common.collect.SortedMultiset',
+  'com.google.common.collect.TreeMultiset',
 )

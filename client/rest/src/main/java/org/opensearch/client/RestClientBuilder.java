@@ -53,9 +53,24 @@ import java.util.Objects;
  * {@link org.apache.http.nio.client.HttpAsyncClient} in case additional customization is needed.
  */
 public final class RestClientBuilder {
+    /**
+     * The default connection timout in milliseconds.
+     */
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
+
+    /**
+     * The default socket timeout in milliseconds.
+     */
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
+
+    /**
+     * The default maximum of connections per route.
+     */
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
+
+    /**
+     * The default maximum total connections.
+     */
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
@@ -92,6 +107,7 @@ public final class RestClientBuilder {
      * <p>
      * Request-time headers will always overwrite any default headers.
      *
+     * @param defaultHeaders array of default header
      * @throws NullPointerException if {@code defaultHeaders} or any header is {@code null}.
      */
     public RestClientBuilder setDefaultHeaders(Header[] defaultHeaders) {
@@ -106,6 +122,7 @@ public final class RestClientBuilder {
     /**
      * Sets the {@link RestClient.FailureListener} to be notified for each request failure
      *
+     * @param failureListener the {@link RestClient.FailureListener} for each failure
      * @throws NullPointerException if {@code failureListener} is {@code null}.
      */
     public RestClientBuilder setFailureListener(RestClient.FailureListener failureListener) {
@@ -117,6 +134,7 @@ public final class RestClientBuilder {
     /**
      * Sets the {@link HttpClientConfigCallback} to be used to customize http client configuration
      *
+     * @param httpClientConfigCallback the {@link HttpClientConfigCallback} to be used
      * @throws NullPointerException if {@code httpClientConfigCallback} is {@code null}.
      */
     public RestClientBuilder setHttpClientConfigCallback(HttpClientConfigCallback httpClientConfigCallback) {
@@ -128,6 +146,7 @@ public final class RestClientBuilder {
     /**
      * Sets the {@link RequestConfigCallback} to be used to customize http client configuration
      *
+     * @param requestConfigCallback the {@link RequestConfigCallback} to be used
      * @throws NullPointerException if {@code requestConfigCallback} is {@code null}.
      */
     public RestClientBuilder setRequestConfigCallback(RequestConfigCallback requestConfigCallback) {
@@ -145,6 +164,7 @@ public final class RestClientBuilder {
      * OpenSearch is behind a proxy that provides a base path or a proxy that requires all paths to start with '/';
      * it is not intended for other purposes and it should not be supplied in other scenarios.
      *
+     * @param pathPrefix the path prefix for every request.
      * @throws NullPointerException if {@code pathPrefix} is {@code null}.
      * @throws IllegalArgumentException if {@code pathPrefix} is empty, or ends with more than one '/'.
      */
@@ -153,6 +173,14 @@ public final class RestClientBuilder {
         return this;
     }
 
+    /**
+     * Cleans up the given path prefix to ensure that looks like "/base/path".
+     *
+     * @param pathPrefix the path prefix to be cleaned up.
+     * @return the cleaned up path prefix.
+     * @throws NullPointerException if {@code pathPrefix} is {@code null}.
+     * @throws IllegalArgumentException if {@code pathPrefix} is empty, or ends with more than one '/'.
+     */
     public static String cleanPathPrefix(String pathPrefix) {
         Objects.requireNonNull(pathPrefix, "pathPrefix must not be null");
 
@@ -178,6 +206,8 @@ public final class RestClientBuilder {
 
     /**
      * Sets the {@link NodeSelector} to be used for all requests.
+     *
+     * @param nodeSelector the {@link NodeSelector} to be used
      * @throws NullPointerException if the provided nodeSelector is null
      */
     public RestClientBuilder setNodeSelector(NodeSelector nodeSelector) {
@@ -189,6 +219,8 @@ public final class RestClientBuilder {
     /**
      * Whether the REST client should return any response containing at least
      * one warning header as a failure.
+     *
+     * @param strictDeprecationMode flag for enabling strict deprecation mode
      */
     public RestClientBuilder setStrictDeprecationMode(boolean strictDeprecationMode) {
         this.strictDeprecationMode = strictDeprecationMode;
@@ -198,6 +230,8 @@ public final class RestClientBuilder {
     /**
      * Whether the REST client should compress requests using gzip content encoding and add the "Accept-Encoding: gzip"
      * header to receive compressed responses.
+     *
+     * @param compressionEnabled flag for enabling compression
      */
     public RestClientBuilder setCompressionEnabled(boolean compressionEnabled) {
         this.compressionEnabled = compressionEnabled;
@@ -254,6 +288,8 @@ public final class RestClientBuilder {
          * Allows to customize the {@link RequestConfig} that will be used with each request.
          * It is common to customize the different timeout values through this method without losing any other useful default
          * value that the {@link RestClientBuilder} internally sets.
+         *
+         * @param requestConfigBuilder the {@link RestClientBuilder} for customizing the request configuration.
          */
         RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder);
     }
@@ -269,6 +305,8 @@ public final class RestClientBuilder {
          * Commonly used to customize the default {@link org.apache.http.client.CredentialsProvider} for authentication
          * or the {@link SchemeIOSessionStrategy} for communication through ssl without losing any other useful default
          * value that the {@link RestClientBuilder} internally sets, like connection pooling.
+         *
+         * @param httpClientBuilder the {@link HttpClientBuilder} for customizing the client instance.
          */
         HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder);
     }

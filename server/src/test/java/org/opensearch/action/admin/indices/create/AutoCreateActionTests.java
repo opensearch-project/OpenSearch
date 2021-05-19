@@ -63,12 +63,12 @@ public class AutoCreateActionTests extends OpenSearchTestCase {
         CreateIndexRequest request = new CreateIndexRequest("logs-foobar");
         DataStreamTemplate result  = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
         assertThat(result, notNullValue());
-        assertThat(result.getTimestampField(), equalTo("@timestamp"));
+        assertThat(result.getTimestampField().getName(), equalTo("@timestamp"));
 
         request = new CreateIndexRequest("logs-barbaz");
         result  = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
         assertThat(result, notNullValue());
-        assertThat(result.getTimestampField(), equalTo("@timestamp"));
+        assertThat(result.getTimestampField().getName(), equalTo("@timestamp"));
 
         // An index that matches with a template without a data steam definition
         request = new CreateIndexRequest("legacy-logs-foobaz");

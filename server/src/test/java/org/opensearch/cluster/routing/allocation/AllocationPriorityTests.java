@@ -42,6 +42,9 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.settings.Settings;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 public class AllocationPriorityTests extends OpenSearchAllocationTestCase {
@@ -95,18 +98,15 @@ public class AllocationPriorityTests extends OpenSearchAllocationTestCase {
         assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
 
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
-        assertEquals(2, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
-        assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
-        assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
+        assertEquals(4, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
+        List<String> indices = clusterState.getRoutingNodes().shardsWithState(INITIALIZING).stream().
+            map(x->x.getIndexName()).collect(Collectors.toList());
+        assertTrue(indices.contains(lowPriorityName));
+        assertTrue(indices.contains(highPriorityName));
 
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertEquals(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).toString(),2,
             clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
-        assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
-        assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
-
-        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
-        assertEquals(2, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
         assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
         assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
 

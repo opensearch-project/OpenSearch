@@ -213,6 +213,7 @@ public class AllocationServiceTests extends OpenSearchTestCase {
         final RoutingTable routingTable1 = reroutedState1.routingTable();
         // the test harness only permits one recovery per node, so we must have allocated all the high-priority primaries and one of the
         // medium-priority ones
+
         assertThat(routingTable1.shardsWithState(ShardRoutingState.INITIALIZING), empty());
         assertThat(routingTable1.shardsWithState(ShardRoutingState.RELOCATING), empty());
         assertTrue(routingTable1.shardsWithState(ShardRoutingState.STARTED).stream().allMatch(ShardRouting::primary));
@@ -223,22 +224,28 @@ public class AllocationServiceTests extends OpenSearchTestCase {
 
         final ClusterState reroutedState2 = rerouteAndStartShards(allocationService, reroutedState1);
         final RoutingTable routingTable2 = reroutedState2.routingTable();
-        // this reroute starts the one remaining medium-priority primary and both of the low-priority ones, but no replicas
+
+        // this reroute starts the one remaining medium-priority primary and both of the low-priority ones,
+        // and also 1 medium priority replica
         assertThat(routingTable2.shardsWithState(ShardRoutingState.INITIALIZING), empty());
         assertThat(routingTable2.shardsWithState(ShardRoutingState.RELOCATING), empty());
-        assertTrue(routingTable2.shardsWithState(ShardRoutingState.STARTED).stream().allMatch(ShardRouting::primary));
         assertTrue(routingTable2.index("highPriority").allPrimaryShardsActive());
         assertTrue(routingTable2.index("mediumPriority").allPrimaryShardsActive());
+        assertThat(routingTable2.index("mediumPriority").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(3));
+        assertThat(routingTable2.index("mediumPriority").shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
         assertTrue(routingTable2.index("lowPriority").allPrimaryShardsActive());
         assertThat(routingTable2.index("invalid").shardsWithState(ShardRoutingState.STARTED), empty());
 
         final ClusterState reroutedState3 = rerouteAndStartShards(allocationService, reroutedState2);
         final RoutingTable routingTable3 = reroutedState3.routingTable();
-        // this reroute starts the two medium-priority replicas since their allocator permits this
+
+        // this reroute starts the one remaining medium-priority replica
         assertThat(routingTable3.shardsWithState(ShardRoutingState.INITIALIZING), empty());
         assertThat(routingTable3.shardsWithState(ShardRoutingState.RELOCATING), empty());
         assertTrue(routingTable3.index("highPriority").allPrimaryShardsActive());
+        assertTrue(routingTable3.index("mediumPriority").allPrimaryShardsActive());
         assertThat(routingTable3.index("mediumPriority").shardsWithState(ShardRoutingState.UNASSIGNED), empty());
+        assertThat(routingTable3.index("mediumPriority").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
         assertTrue(routingTable3.index("lowPriority").allPrimaryShardsActive());
         assertThat(routingTable3.index("invalid").shardsWithState(ShardRoutingState.STARTED), empty());
     }

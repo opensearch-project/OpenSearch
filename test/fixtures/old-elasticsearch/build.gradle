@@ -37,6 +37,8 @@ a "ports" file with the port on which Elasticsearch is running.
 apply plugin: 'opensearch.java'
 test.enabled = false
 
+group = 'oldes'
+
 dependencies {
   // Just for the constants....
   api "org.apache.lucene:lucene-core:${versions.lucene}"

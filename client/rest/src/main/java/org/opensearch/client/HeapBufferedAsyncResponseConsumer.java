@@ -61,7 +61,10 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
     private volatile SimpleInputBuffer buf;
 
     /**
-     * Creates a new instance of this consumer with the provided buffer limit
+     * Creates a new instance of this consumer with the provided buffer limit.
+     *
+     * @param bufferLimit the buffer limit. Must be greater than 0.
+     * @throws IllegalArgumentException if {@code bufferLimit} is less than or equal to 0.
      */
     public HeapBufferedAsyncResponseConsumer(int bufferLimit) {
         if (bufferLimit <= 0) {

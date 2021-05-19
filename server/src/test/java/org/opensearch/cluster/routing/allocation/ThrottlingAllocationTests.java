@@ -222,7 +222,8 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(0));
         assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(5));
         assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(4));
-        assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node1"), 5);
+        assertEquals(clusterState.getRoutingNodes().getInitialPrimariesIncomingRecoveries("node1"), 5);
+        assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node1"), 0);
 
         logger.info("start initializing, all primaries should be started");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);

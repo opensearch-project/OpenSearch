@@ -34,22 +34,13 @@ package org.opensearch.indices.template;
 
 import org.opensearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.Template;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.collect.List;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class ComposableTemplateIT extends OpenSearchIntegTestCase {
 
@@ -104,24 +95,5 @@ public class ComposableTemplateIT extends OpenSearchIntegTestCase {
             4L, 5L, Collections.singletonMap("egg", "bread"));
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit2)).get();
-    }
-
-    public void testUsageOfDataStreamFails() throws IOException {
-        // Exception that would happen if a unknown field is provided in a composable template:
-        // The thrown exception will be used to compare against the exception that is thrown when providing
-        // a composable template with a data stream definition.
-        String content = "{\"index_patterns\":[\"logs-*-*\"],\"my_field\":\"bla\"}";
-        XContentParser parser =
-            XContentHelper.createParser(xContentRegistry(), null, new BytesArray(content), XContentType.JSON);
-        Exception expectedException = expectThrows(Exception.class, () -> ComposableIndexTemplate.parse(parser));
-
-        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of("logs-*-*"), null, null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate());
-        Exception e = expectThrows(IllegalArgumentException.class, () -> client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)).actionGet());
-        Exception actualException = (Exception) e.getCause();
-        assertThat(actualException.getMessage(),
-            equalTo(expectedException.getMessage().replace("[1:32] ", "").replace("my_field", "data_stream")));
-        assertThat(actualException.getMessage(), equalTo("[index_template] unknown field [data_stream]"));
     }
 }

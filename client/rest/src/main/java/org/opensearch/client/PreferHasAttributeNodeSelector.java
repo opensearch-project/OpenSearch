@@ -47,6 +47,12 @@ public final class PreferHasAttributeNodeSelector implements NodeSelector {
     private final String key;
     private final String value;
 
+    /**
+     * Creates a {@link PreferHasAttributeNodeSelector} instance with the given key value pair.
+     *
+     * @param key attribute key
+     * @param value attribute value
+     */
     public PreferHasAttributeNodeSelector(String key, String value) {
         this.key = key;
         this.value = value;
