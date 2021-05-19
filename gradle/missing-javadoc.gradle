@@ -53,6 +53,10 @@ allprojects {
       docletpath = configurations.missingdoclet
     }
 
+    tasks.withType(Javadoc).configureEach {
+      dependsOn missingJavadoc
+    }
+
 
     tasks.register('missingJavadoc', MissingJavadocTask) {
       description "This task validates and generates Javadoc API documentation for the main source code."
@@ -65,6 +69,110 @@ allprojects {
 
       outputDir = project.javadoc.destinationDir
     }
+  }
+}
+
+// Below modules are temporarily excluded for missingJavadoc checks.
+// Currently all these modules fail the check due to missing javadocs.
+// See https://github.com/opensearch-project/OpenSearch/issues/221
+// When you add javadocs for a module, please ensure the missingJavadoc check
+// succeeds after removing that module from below list.
+// You can then remove that module from this exclusion list,
+// which will enforce javadoc validation on it for every incoming PR. For example,
+// the client:rest module has javadoc checks enforced as it is not part of below list.
+// Also different modules might need javadoc validations at different levels,
+// for instance, for some test modules, we may only want to have javadoc at "package"
+// level while for others (like server module) we may want to have it at "parameter" level.
+// Currently everything is configured at parameter level (strictest).
+configure([
+  project(":benchmarks"),
+  project(":build-tools"),
+  project(":build-tools:reaper"),
+  project(":client:benchmark"),
+  project(":client:client-benchmark-noop-api-plugin"),
+  project(":client:rest-high-level"),
+  project(":client:sniffer"),
+  project(":client:test"),
+  project(":client:transport"),
+  project(":distribution:tools:java-version-checker"),
+  project(":distribution:tools:keystore-cli"),
+  project(":distribution:tools:launchers"),
+  project(":distribution:tools:plugin-cli"),
+  project(":doc-tools"),
+  project(":example-plugins:custom-settings"),
+  project(":example-plugins:custom-significance-heuristic"),
+  project(":example-plugins:custom-suggester"),
+  project(":example-plugins:painless-whitelist"),
+  project(":example-plugins:rescore"),
+  project(":example-plugins:rest-handler"),
+  project(":example-plugins:script-expert-scoring"),
+  project(":libs:opensearch-cli"),
+  project(":libs:opensearch-core"),
+  project(":libs:opensearch-dissect"),
+  project(":libs:opensearch-geo"),
+  project(":libs:opensearch-grok"),
+  project(":libs:opensearch-nio"),
+  project(":libs:opensearch-plugin-classloader"),
+  project(":libs:opensearch-secure-sm"),
+  project(":libs:opensearch-ssl-config"),
+  project(":libs:opensearch-x-content"),
+  project(":modules:aggs-matrix-stats"),
+  project(":modules:analysis-common"),
+  project(":modules:geo"),
+  project(":modules:ingest-common"),
+  project(":modules:ingest-geoip"),
+  project(":modules:ingest-user-agent"),
+  project(":modules:lang-expression"),
+  project(":modules:lang-mustache"),
+  project(":modules:lang-painless"),
+  project(":modules:lang-painless:spi"),
+  project(":modules:mapper-extras"),
+  project(":modules:opensearch-dashboards"),
+  project(":modules:parent-join"),
+  project(":modules:percolator"),
+  project(":modules:rank-eval"),
+  project(":modules:reindex"),
+  project(":modules:repository-url"),
+  project(":modules:systemd"),
+  project(":modules:transport-netty4"),
+  project(":plugins:analysis-icu"),
+  project(":plugins:analysis-kuromoji"),
+  project(":plugins:analysis-nori"),
+  project(":plugins:analysis-phonetic"),
+  project(":plugins:analysis-smartcn"),
+  project(":plugins:analysis-stempel"),
+  project(":plugins:analysis-ukrainian"),
+  project(":plugins:discovery-azure-classic"),
+  project(":plugins:discovery-ec2"),
+  project(":plugins:discovery-ec2:qa:amazon-ec2"),
+  project(":plugins:discovery-gce"),
+  project(":plugins:discovery-gce:qa:gce"),
+  project(":plugins:ingest-attachment"),
+  project(":plugins:mapper-annotated-text"),
+  project(":plugins:mapper-murmur3"),
+  project(":plugins:mapper-size"),
+  project(":plugins:repository-azure"),
+  project(":plugins:repository-gcs"),
+  project(":plugins:repository-hdfs"),
+  project(":plugins:repository-s3"),
+  project(":plugins:store-smb"),
+  project(":plugins:transport-nio"),
+  project(":qa:die-with-dignity"),
+  project(":qa:os"),
+  project(":qa:wildfly"),
+  project(":rest-api-spec"),
+  project(":server"),
+  project(":test:external-modules:test-delayed-aggs"),
+  project(":test:fixtures:azure-fixture"),
+  project(":test:fixtures:gcs-fixture"),
+  project(":test:fixtures:hdfs-fixture"),
+  project(":test:fixtures:old-elasticsearch"),
+  project(":test:fixtures:s3-fixture"),
+  project(":test:framework"),
+  project(":test:logger-usage")
+]) {
+  project.tasks.withType(MissingJavadocTask) {
+    isExcluded = true
   }
 }
 
@@ -93,6 +201,9 @@ class MissingJavadocTask extends DefaultTask {
 
   @Input
   String javadocMissingLevel = "parameter"
+
+  @Input
+  boolean isExcluded = false
 
   // anything in these packages is checked with level=method. This allows iteratively fixing one package at a time.
   @Input
@@ -124,6 +235,10 @@ class MissingJavadocTask extends DefaultTask {
 
   @TaskAction
   void render() {
+    if(isExcluded) {
+      return
+    }
+
     def srcDirs = srcDirSet.srcDirs.findAll { dir -> dir.exists() }
     def optionsFile = project.file("${getTemporaryDir()}/javadoc-options.txt")
 
