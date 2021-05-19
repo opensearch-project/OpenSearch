@@ -11,7 +11,7 @@
 | Rabi Panda | [adnapibar](adnapibar) | Amazon |
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon |
 | Tianli Feng | [tlfeng](https://github.com/tlfeng) | Amazon |
-| Gopala Krishna Ambareesh | [itiyamas](https://github.com/itiyamas) |Amazon |
+| Gopala Krishna Ambareesh | [https://github.com/krishna-ggk](krishna-ggk) |Amazon |
 | Vengadanathan Srinivasan | [vengadanathan-s](https://github.com/vengadanathan-s) | Amazon |
 | Shweta Thareja |[shwetathareja](https://github.com/shwetathareja) | Amazon |
 | Itiyama Sadana | [itiyamas](https://github.com/itiyamas) | Amazon | 
