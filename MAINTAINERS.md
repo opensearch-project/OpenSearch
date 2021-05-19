@@ -15,3 +15,4 @@
 | Vengadanathan Srinivasan | [vengadanathan-s](https://github.com/vengadanathan-s) | Amazon |
 | Shweta Thareja |[shwetathareja](https://github.com/shwetathareja) | Amazon |
 | Itiyama Sadana | [itiyamas](https://github.com/itiyamas) | Amazon | 
+| Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock) | Amazon |
