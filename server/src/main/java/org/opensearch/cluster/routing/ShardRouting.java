@@ -683,4 +683,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     public RecoverySource recoverySource() {
         return recoverySource;
     }
+
+    public boolean unassignedReasonIndexCreated() {
+        if (unassignedInfo != null) {
+            return unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CREATED;
+        }
+        return false;
+    }
 }

@@ -97,6 +97,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<String, ObjectIntHashMap<String>> nodesPerAttributeNames = new HashMap<>();
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
+    private final Map<String, Recoveries> initialRecoveriesPerNode = new HashMap<>();
     private final Map<String, Recoveries> primaryRecoveriesPerNode = new HashMap<>();
 
     public RoutingNodes(ClusterState clusterState) {
@@ -191,27 +192,37 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             return;
         }
 
-        Recoveries.getOrAdd(recoveriesPerNode, routing.currentNodeId()).addIncoming(howMany);
+        Recoveries.getOrAdd(getReplicaRecoveriesMap(routing), routing.currentNodeId()).addIncoming(howMany);
 
         if (routing.recoverySource().getType() == RecoverySource.Type.PEER) {
             // add/remove corresponding outgoing recovery on node with primary shard
             if (primary == null) {
                 throw new IllegalStateException("shard is peer recovering but primary is unassigned");
             }
-            Recoveries.getOrAdd(recoveriesPerNode, primary.currentNodeId()).addOutgoing(howMany);
+
+            Recoveries.getOrAdd(getReplicaRecoveriesMap(routing), primary.currentNodeId()).addOutgoing(howMany);
 
             if (increment == false && routing.primary() && routing.relocatingNodeId() != null) {
                 // primary is done relocating, move non-primary recoveries from old primary to new primary
-                int numRecoveringReplicas = 0;
                 for (ShardRouting assigned : assignedShards(routing.shardId())) {
                     if (assigned.primary() == false && assigned.initializing() &&
                         assigned.recoverySource().getType() == RecoverySource.Type.PEER) {
-                        numRecoveringReplicas++;
+                        Map<String, Recoveries> recoveriesToUpdate = getReplicaRecoveriesMap(assigned);
+                        Recoveries.getOrAdd(recoveriesToUpdate, routing.relocatingNodeId()).addOutgoing(-1);
+                        Recoveries.getOrAdd(recoveriesToUpdate, routing.currentNodeId()).addOutgoing(1);
                     }
                 }
-                recoveriesPerNode.get(routing.relocatingNodeId()).addOutgoing(-numRecoveringReplicas);
-                recoveriesPerNode.get(routing.currentNodeId()).addOutgoing(numRecoveringReplicas);
+
             }
+        }
+    }
+
+    private Map<String, Recoveries> getReplicaRecoveriesMap(ShardRouting routing) {
+
+        if(routing.unassignedReasonIndexCreated() && !routing.primary()) {
+            return initialRecoveriesPerNode;
+        } else {
+            return recoveriesPerNode;
         }
     }
 
@@ -225,6 +236,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public int getOutgoingRecoveries(String nodeId) {
         return recoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getOutgoing();
+    }
+
+    public int getInitialIncomingRecoveries(String nodeId) {
+        return initialRecoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getIncoming();
+    }
+
+    public int getInitialOutgoingRecoveries(String nodeId) {
+        return initialRecoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getOutgoing();
     }
 
     @Nullable
@@ -1106,10 +1125,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
         }
 
-        assertRecoveriesPerNode(routingNodes, routingNodes.recoveriesPerNode, true,
-            x -> !isNonRelocatingPrimary(x));
         assertRecoveriesPerNode(routingNodes, routingNodes.primaryRecoveriesPerNode, false,
             x -> isNonRelocatingPrimary(x));
+        assertRecoveriesPerNode(routingNodes, Recoveries.unionRecoveries(routingNodes.recoveriesPerNode,
+            routingNodes.initialRecoveriesPerNode), true, x -> !isNonRelocatingPrimary(x));
 
         assert unassignedPrimaryCount == routingNodes.unassignedShards.getNumPrimaries() :
                 "Unassigned primaries is [" + unassignedPrimaryCount + "] but RoutingNodes returned unassigned primaries [" +
@@ -1236,6 +1255,25 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 map.put(key, recoveries);
             }
             return recoveries;
+        }
+
+        // used only for tests
+        public static Map<String, Recoveries> unionRecoveries(Map<String, Recoveries> recoveriesMap1,
+                                                              Map<String, Recoveries> recoveriesMap2) {
+            Map<String, Recoveries> recoveriesMap = new HashMap<>();
+            addRecoveries(recoveriesMap, recoveriesMap1);
+            addRecoveries(recoveriesMap, recoveriesMap2);
+            return recoveriesMap;
+        }
+
+        public static void addRecoveries(Map<String, Recoveries> existingRecoveries,
+                                         Map<String, Recoveries> newRecoveries) {
+            for (String node : newRecoveries.keySet()) {
+                Recoveries r2 = newRecoveries.get(node);
+                Recoveries r1 = Recoveries.getOrAdd(existingRecoveries, node);
+                r1.addIncoming(r2.incoming);
+                r1.addOutgoing(r2.outgoing);
+            }
         }
      }
 }
