@@ -90,6 +90,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+        indicesStatsRequest.timeout(request.param("timeout"));
         boolean forbidClosedIndices = request.paramAsBoolean("forbid_closed_indices", true);
         IndicesOptions defaultIndicesOption = forbidClosedIndices ? indicesStatsRequest.indicesOptions()
             : IndicesOptions.strictExpandOpen();

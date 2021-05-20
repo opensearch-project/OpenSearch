@@ -43,6 +43,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.ConcurrentRecoveriesAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -219,6 +220,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             RebalanceOnlyWhenActiveAllocationDecider.class,
             ClusterRebalanceAllocationDecider.class,
             ConcurrentRebalanceAllocationDecider.class,
+            ConcurrentRecoveriesAllocationDecider.class,
             EnableAllocationDecider.class,
             NodeVersionAllocationDecider.class,
             SnapshotInProgressAllocationDecider.class,

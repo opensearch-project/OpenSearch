@@ -116,6 +116,7 @@ public class RestNodesAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+                nodesInfoRequest.timeout(request.param("timeout"));
                 nodesInfoRequest.clear().addMetrics(
                         NodesInfoRequest.Metric.JVM.metricName(),
                         NodesInfoRequest.Metric.OS.metricName(),
@@ -125,6 +126,7 @@ public class RestNodesAction extends AbstractCatAction {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
+                        nodesStatsRequest.timeout(request.param("timeout"));
                         nodesStatsRequest.clear().indices(true).addMetrics(
                             NodesStatsRequest.Metric.JVM.metricName(),
                             NodesStatsRequest.Metric.OS.metricName(),
