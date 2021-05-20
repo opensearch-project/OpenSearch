@@ -38,6 +38,7 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -66,10 +67,29 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         return indices;
     }
 
+    private final TimeValue DEFAULT_TIMEOUT_SECONDS = TimeValue.timeValueSeconds(30);
+    private TimeValue timeout;
+
     @SuppressWarnings("unchecked")
     @Override
     public final Request indices(String... indices) {
         this.indices = indices;
+        return (Request) this;
+    }
+
+    public TimeValue timeout() {
+        return this.timeout;
+    }
+
+    @SuppressWarnings("unchecked")
+    public final Request timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return (Request) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public final Request timeout(String timeout) {
+        this.timeout = TimeValue.parseTimeValue(timeout, DEFAULT_TIMEOUT_SECONDS, getClass().getSimpleName() + ".timeout");
         return (Request) this;
     }
 

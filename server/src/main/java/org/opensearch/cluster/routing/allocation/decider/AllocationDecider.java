@@ -128,4 +128,32 @@ public abstract class AllocationDecider {
             return decision;
         }
     }
+
+    /**
+     * Returns a {@link Decision} whether the given shard can be moved away from the current node
+     * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.
+     */
+    public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return Decision.ALWAYS;
+    }
+
+    /**
+     * Returns a {@link Decision} whether any shard in the cluster can be moved away from the current node
+     * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.
+     */
+    public Decision canMoveAnyShard(RoutingAllocation allocation) {
+        return Decision.ALWAYS;
+    }
+
+    /**
+     * Returns a {@link Decision} whether any shard on the given
+     * {@link RoutingNode}} can be allocated The default is {@link Decision#ALWAYS}.
+     * All implementations that override this behaviour must take a
+     * {@link Decision}} whether or not to skip iterating over the remaining
+     * deciders for this node.
+     */
+    public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+        return Decision.ALWAYS;
+    }
+
 }

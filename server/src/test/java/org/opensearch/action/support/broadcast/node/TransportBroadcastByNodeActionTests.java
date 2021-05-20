@@ -71,6 +71,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ReceiveTimeoutTransportException;
 import org.opensearch.transport.TestTransportChannel;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
@@ -480,6 +481,62 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         }
         if (simulateFailedMasterNode) {
             totalShards += map.get(failedMasterNode.getId()).size();
+        }
+
+        Response response = listener.get();
+        assertEquals("total shards", totalShards, response.getTotalShards());
+        assertEquals("successful shards", totalSuccessfulShards, response.getSuccessfulShards());
+        assertEquals("failed shards", totalFailedShards, response.getFailedShards());
+        assertEquals("accumulated exceptions", totalFailedShards, response.getShardFailures().length);
+    }
+
+    public void testResultWithTimeouts() throws ExecutionException, InterruptedException {
+        Request request = new Request(new String[]{TEST_INDEX});
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        action.new AsyncAction(null, request, listener).start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
+
+        ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[]{TEST_INDEX});
+        Map<String, List<ShardRouting>> map = new HashMap<>();
+        for (ShardRouting shard : shardIt) {
+            if (!map.containsKey(shard.currentNodeId())) {
+                map.put(shard.currentNodeId(), new ArrayList<>());
+            }
+            map.get(shard.currentNodeId()).add(shard);
+        }
+
+        int totalShards = 0;
+        int totalSuccessfulShards = 0;
+        int totalFailedShards = 0;
+        String failedNodeId = "node_" + randomIntBetween(0, capturedRequests.size());
+        for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
+            List<BroadcastShardOperationFailedException> exceptions = new ArrayList<>();
+            long requestId = entry.getValue().get(0).requestId;
+            if (entry.getKey().equals(failedNodeId)) {
+                // simulate node timeout
+                totalShards += map.get(entry.getKey()).size();
+                totalFailedShards += map.get(entry.getKey()).size();
+                transport.handleError(requestId,
+                    new ReceiveTimeoutTransportException(clusterService.state().getRoutingNodes().node(entry.getKey()).node(),
+                        "indices:admin/test" , "time_out_simulated"));
+            } else {
+                List<ShardRouting> shards = map.get(entry.getKey());
+                List<TransportBroadcastByNodeAction.EmptyResult> shardResults = new ArrayList<>();
+                for (ShardRouting shard : shards) {
+                    totalShards++;
+                    if (rarely()) {
+                        // simulate operation failure
+                        totalFailedShards++;
+                        exceptions.add(new BroadcastShardOperationFailedException(shard.shardId(), "operation indices:admin/test failed"));
+                    } else {
+                        shardResults.add(TransportBroadcastByNodeAction.EmptyResult.INSTANCE);
+                    }
+                }
+                totalSuccessfulShards += shardResults.size();
+                TransportBroadcastByNodeAction.NodeResponse nodeResponse = action.new NodeResponse(entry.getKey(), shards.size(),
+                        shardResults, exceptions);
+                transport.handleResponse(requestId, nodeResponse);
+            }
         }
 
         Response response = listener.get();
