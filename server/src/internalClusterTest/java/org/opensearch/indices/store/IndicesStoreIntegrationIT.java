@@ -169,6 +169,97 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     /**
+     * Verify files are removed even if there is another relocation is in progress.
+     * Scenario in IT:
+     * Two relocation is in progress, once first relocation is completes it removes files from source node
+     * and dont wait for second relocation to complete.
+     */
+    public void testIndexCleanupWhenMultipleRelocation() throws Exception {
+        internalCluster().startNode(nonDataNode());
+        final String node_1 = internalCluster().startNode(nonMasterNode());
+        final String node_2 = internalCluster().startNode(nonMasterNode());
+        logger.info("--> creating index [test] with one shard and on replica");
+        assertAcked(prepareCreate("test").setSettings(
+            Settings.builder().put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        ensureGreen("test");
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        Index index = state.metadata().index("test").getIndex();
+
+        logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
+        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(true));
+
+        logger.info("--> starting node server3");
+        final String node_3 = internalCluster().startNode(nonMasterNode());
+        logger.info("--> starting node server4");
+        final String node_4 = internalCluster().startNode(nonMasterNode());
+
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
+            .setWaitForNodes("5")
+            .setWaitForNoRelocatingShards(true)
+            .get();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+
+        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_3, index, 0)), equalTo(false));
+        assertThat(Files.exists(indexDirectory(node_3, index)), equalTo(false));
+        assertThat(Files.exists(shardDirectory(node_4, index, 0)), equalTo(false));
+        assertThat(Files.exists(indexDirectory(node_4, index)), equalTo(false));
+
+        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node_4);
+
+        transportService.addMessageListener(new TransportMessageListener() {
+            @Override
+            public void onRequestReceived(long requestId, String action) {
+                if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                    try{
+                        logger.info("received: {}, making relocation stuck", action);
+                        // Dealying relocation.
+                        sleep(500);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+        });
+
+        logger.info("--> move shard from " + node_2 + " to " + node_4 + ", with slow relocation");
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_2, node_4)).get();
+
+        logger.info("--> move shard from " + node_1 + " to " +  node_3);
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
+
+        // so relocation of (node_1 -> node_3) can complete
+        sleep(50);
+        // Asserting that files from first relocation are removed once it is completed.
+        assertShardDeleted(node_1, index, 0);
+        assertIndexDeleted(node_1, index);
+        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(true));
+
+        // Wait until second relocation is not completed.
+        clusterHealth = client().admin().cluster().prepareHealth()
+            .setWaitForNoRelocatingShards(true)
+            .get();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+
+        assertShardDeleted(node_2, index, 0);
+        assertIndexDeleted(node_2, index);
+        assertThat(Files.exists(shardDirectory(node_3, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_3, index)), equalTo(true));
+        assertThat(Files.exists(shardDirectory(node_4, index, 0)), equalTo(true));
+        assertThat(Files.exists(indexDirectory(node_4, index)), equalTo(true));
+    }
+
+    /**
      * relocate a shard and block cluster state processing on the relocation target node to activate the shard
      */
     public static BlockClusterStateProcessing relocateAndBlockCompletion(Logger logger, String index, int shard, String nodeFrom,

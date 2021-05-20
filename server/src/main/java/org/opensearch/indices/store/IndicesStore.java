@@ -203,13 +203,11 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         }
 
         for (ShardRouting shardRouting : indexShardRoutingTable) {
-            // be conservative here, check on started, not even active
-            if (shardRouting.started() == false) {
-                return false;
-            }
-
-            // check if shard is active on the current node
-            if (localNodeId.equals(shardRouting.currentNodeId())) {
+            // It will check if shards are active or not (i.e. relocating + started).
+            // No need to be conservative here for only started shard, while deleting files we check if all copies are STARTED or not.
+            // For relocating shards this above would pass on source node as it will have active copy.
+            // It will also check if shard is active than it is not on current node.
+            if (shardRouting.active() == false || localNodeId.equals(shardRouting.currentNodeId())) {
                 return false;
             }
         }
@@ -222,7 +220,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         String indexUUID = indexShardRoutingTable.shardId().getIndex().getUUID();
         ClusterName clusterName = state.getClusterName();
         for (ShardRouting shardRouting : indexShardRoutingTable) {
-            assert shardRouting.started() : "expected started shard but was " + shardRouting;
+            assert shardRouting.active() : "expected started shard but was " + shardRouting;
             DiscoveryNode currentNode = state.nodes().get(shardRouting.currentNodeId());
             requests.add(new Tuple<>(currentNode,
                 new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), deleteShardTimeout)));

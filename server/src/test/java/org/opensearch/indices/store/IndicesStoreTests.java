@@ -100,6 +100,34 @@ public class IndicesStoreTests extends OpenSearchTestCase {
         assertFalse(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));
     }
 
+    public void testShardCanBeDeletedWithRelocating() throws Exception {
+        int numShards = randomIntBetween(1, 7);
+        int numReplicas = randomInt(2);
+
+        Set<ShardRoutingState> happyCaseState = new HashSet<>();
+        happyCaseState.add(ShardRoutingState.STARTED);
+        happyCaseState.add(ShardRoutingState.RELOCATING);
+
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
+
+        for (int i = 0; i < numShards; i++) {
+            int relocatingShard = randomInt(numReplicas);
+            for (int j = 0; j <= numReplicas; j++) {
+                ShardRoutingState state;
+                if (j == relocatingShard) {
+                    state = ShardRoutingState.RELOCATING;
+                } else {
+                    state = randomFrom(happyCaseState);
+                }
+                String currentNodeId = state == ShardRoutingState.UNASSIGNED ? null : randomAlphaOfLength(10);
+                String relocatingNodeId = state == ShardRoutingState.RELOCATING ? randomAlphaOfLength(10) : null;
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, currentNodeId, relocatingNodeId, j == 0, state));
+            }
+        }
+
+        assertTrue(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));
+    }
+
     public void testShardCanBeDeletedShardExistsLocally() throws Exception {
         int numShards = randomIntBetween(1, 7);
         int numReplicas = randomInt(2);
