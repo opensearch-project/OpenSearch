@@ -514,6 +514,26 @@ public class SettingTests extends OpenSearchTestCase {
         }
     }
 
+    public void testGroupSettingFallback() {
+        Setting<Settings> fallbackSetting = Setting.groupSetting("old.bar.", Property.Dynamic, Property.NodeScope);
+        assertFalse(fallbackSetting.exists(Settings.EMPTY));
+        
+        Setting<Settings> groupSetting = Setting.groupSetting("new.bar.", fallbackSetting, Property.Dynamic, Property.NodeScope);
+        assertFalse(groupSetting.exists(Settings.EMPTY));
+        
+        Settings values = Settings.builder()
+            .put("old.bar.1.value", "value 1")
+            .put("old.bar.2.value", "value 2")
+            .build();
+
+        assertTrue(groupSetting.exists(values));
+
+        Map<String, Settings> asMap = groupSetting.get(values).getAsGroups();
+        assertEquals(2, asMap.size());
+        assertEquals("value 1", asMap.get("1").get("value"));
+        assertEquals("value 2", asMap.get("2").get("value"));
+    }
+
     public void testFilteredGroups() {
         AtomicReference<Settings> ref = new AtomicReference<>(null);
         Setting<Settings> setting = Setting.groupSetting("foo.bar.", Property.Filtered, Property.Dynamic);
