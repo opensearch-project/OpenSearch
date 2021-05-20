@@ -158,7 +158,7 @@ public class Setting<T> implements ToXContentObject {
     private final Key key;
     protected final Function<Settings, String> defaultValue;
     @Nullable
-    private final Setting<T> fallbackSetting;
+    protected final Setting<T> fallbackSetting;
     private final Function<String, T> parser;
     private final Validator<T> validator;
     private final EnumSet<Property> properties;
@@ -1009,20 +1009,17 @@ public class Setting<T> implements ToXContentObject {
     private static class GroupSetting extends Setting<Settings> {
         private final String key;
         private final Consumer<Settings> validator;
-        private Setting<Settings> fallbackSetting;
 
         private GroupSetting(String key, Consumer<Settings> validator, Property... properties) {
             super(new GroupKey(key), (s) -> "", (s) -> null, properties);
             this.key = key;
             this.validator = validator;
-            this.fallbackSetting = null;
         }
 
         private GroupSetting(String key, Setting<Settings> fallback, Consumer<Settings> validator, Property... properties) {
             super(new GroupKey(key), fallback, (s) -> null, properties);
             this.key = key;
             this.validator = validator;
-            this.fallbackSetting = fallback;
         }
 
         @Override
