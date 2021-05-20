@@ -33,8 +33,10 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.metadata.DataStream.TimestampField;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
@@ -42,10 +44,10 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -55,7 +57,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonMap;
-import static org.opensearch.cluster.metadata.DataStream.TimestampField.FIXED_TIMESTAMP_FIELD;
+import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.common.collect.Map.of;
 
 
 /**
@@ -264,51 +267,84 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
-        private static final ObjectParser<DataStreamTemplate, Void> PARSER = new ObjectParser<>(
+        private static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
+
+        private static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
-            DataStreamTemplate::new
+            true,
+            args -> new DataStreamTemplate((TimestampField) args[0])
         );
 
+        static {
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), TimestampField.PARSER, TIMESTAMP_FIELD_FIELD);
+        }
+
+        private final TimestampField timestampField;
+
         public DataStreamTemplate() {
+            this(DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD);
         }
 
-        public String getTimestampField() {
-            return FIXED_TIMESTAMP_FIELD;
+        public DataStreamTemplate(TimestampField timestampField) {
+            this.timestampField = timestampField;
         }
 
-        DataStreamTemplate(StreamInput in) {
-            this();
+        public DataStreamTemplate(StreamInput in) throws IOException {
+            if (in.getVersion().onOrAfter(Version.V_1_0_0)) {
+                this.timestampField = in.readOptionalWriteable(TimestampField::new);
+            } else {
+                this.timestampField = DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
+            }
+        }
+
+        public TimestampField getTimestampField() {
+            return timestampField == null ? DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD : timestampField;
         }
 
         /**
          * @return a mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
          */
         public Map<String, Object> getDataStreamMappingSnippet() {
-            // _data_stream_timestamp meta fields default to @timestamp:
-            return singletonMap(MapperService.SINGLE_MAPPING_NAME, singletonMap("_data_stream_timestamp",
-                singletonMap("enabled", true)));
+            return singletonMap(
+                MapperService.SINGLE_MAPPING_NAME, singletonMap(
+                    "_data_stream_timestamp", unmodifiableMap(of(
+                        "enabled", true,
+                        "timestamp_field", getTimestampField().toMap()
+                    ))
+                )
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(Version.V_1_0_0)) {
+                out.writeOptionalWriteable(timestampField);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.endObject();
-            return builder;
+            return builder
+                .startObject()
+                .field(TIMESTAMP_FIELD_FIELD.getPreferredName(), getTimestampField())
+                .endObject();
+        }
+
+        public static DataStreamTemplate fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            return o != null && getClass() == o.getClass();
+            if (o == null || getClass() != o.getClass()) return false;
+            DataStreamTemplate that = (DataStreamTemplate) o;
+            return Objects.equals(timestampField, that.timestampField);
         }
 
         @Override
         public int hashCode() {
-            return DataStreamTemplate.class.hashCode();
+            return Objects.hash(timestampField);
         }
     }
 }
