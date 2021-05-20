@@ -103,6 +103,18 @@ public class AllocationDecidersTests extends OpenSearchTestCase {
             public Decision canRebalance(RoutingAllocation allocation) {
                 return Decision.YES;
             }
+
+            public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
+                return Decision.YES;
+            }
+
+            public Decision canMoveAnyShard(RoutingAllocation allocation) {
+                return Decision.YES;
+            }
+
+            public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+                return Decision.YES;
+            }
         }));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
@@ -125,6 +137,9 @@ public class AllocationDecidersTests extends OpenSearchTestCase {
         verify(deciders.canRemain(shardRouting, routingNode, allocation), matcher);
         verify(deciders.canForceAllocatePrimary(shardRouting, routingNode, allocation), matcher);
         verify(deciders.shouldAutoExpandToNode(idx, null, allocation), matcher);
+        verify(deciders.canMoveAway(shardRouting, allocation), matcher);
+        verify(deciders.canMoveAnyShard(allocation), matcher);
+        verify(deciders.canAllocateAnyShardToNode(routingNode, allocation), matcher);
     }
 
     private void verify(Decision decision, Matcher<Collection<? extends Decision>> matcher) {
