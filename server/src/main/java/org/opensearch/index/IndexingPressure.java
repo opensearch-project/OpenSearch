@@ -34,6 +34,7 @@ package org.opensearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -51,23 +52,24 @@ public class IndexingPressure {
 
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
-    private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong currentCoordinatingBytes = new AtomicLong(0);
-    private final AtomicLong currentPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong currentReplicaBytes = new AtomicLong(0);
+    protected final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong currentCoordinatingBytes = new AtomicLong(0);
+    protected final AtomicLong currentPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong currentReplicaBytes = new AtomicLong(0);
 
-    private final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
-    private final AtomicLong totalPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong totalReplicaBytes = new AtomicLong(0);
+    protected final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
+    protected final AtomicLong totalPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong totalReplicaBytes = new AtomicLong(0);
 
-    private final AtomicLong coordinatingRejections = new AtomicLong(0);
-    private final AtomicLong primaryRejections = new AtomicLong(0);
-    private final AtomicLong replicaRejections = new AtomicLong(0);
+    protected final AtomicLong coordinatingRejections = new AtomicLong(0);
+    protected final AtomicLong primaryRejections = new AtomicLong(0);
+    protected final AtomicLong replicaRejections = new AtomicLong(0);
 
-    private final long primaryAndCoordinatingLimits;
-    private final long replicaLimits;
+    protected final long primaryAndCoordinatingLimits;
+    protected final long replicaLimits;
 
+    @Inject
     public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
