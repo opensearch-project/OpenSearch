@@ -33,6 +33,7 @@ package org.opensearch.cluster.coordination;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.ClusterState;
@@ -51,11 +52,12 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Objects;
 
 public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
 
     static final String CLUSTER_STATE_TERM_VERSION_MSG_FORMAT =
-            "Current node cluster state (term, version) pair is (%s, %s)";
+        "Current node cluster state (term, version) pair is (%s, %s)";
     static final String CONFIRMATION_MSG =
         DELIMITER +
             "\n" +
@@ -71,14 +73,19 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
     static final String NOT_MASTER_NODE_MSG = "unsafe-bootstrap tool can only be run on master eligible node";
 
     static final String EMPTY_LAST_COMMITTED_VOTING_CONFIG_MSG =
-            "last committed voting voting configuration is empty, cluster has never been bootstrapped?";
+        "last committed voting voting configuration is empty, cluster has never been bootstrapped?";
 
     static final String MASTER_NODE_BOOTSTRAPPED_MSG = "Master node was successfully bootstrapped";
     static final Setting<String> UNSAFE_BOOTSTRAP =
-            ClusterService.USER_DEFINED_METADATA.getConcreteSetting("cluster.metadata.unsafe-bootstrap");
+        ClusterService.USER_DEFINED_METADATA.getConcreteSetting("cluster.metadata.unsafe-bootstrap");
+
+    private OptionSpec<Boolean> applyClusterReadOnlyBlockOption;
 
     UnsafeBootstrapMasterCommand() {
         super("Forces the successful election of the current node after the permanent loss of the half or more master-eligible nodes");
+        applyClusterReadOnlyBlockOption = parser.accepts("apply-cluster-read-only-block",
+            "Optional cluster.blocks.read_only setting")
+            .withOptionalArg().ofType(Boolean.class);
     }
 
     @Override
@@ -123,6 +130,15 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
             .put(metadata.persistentSettings())
             .put(UNSAFE_BOOTSTRAP.getKey(), true)
             .build();
+
+        Boolean applyClusterReadOnlyBlock = applyClusterReadOnlyBlockOption.value(options);
+        if(Objects.nonNull(applyClusterReadOnlyBlock)) {
+            persistentSettings = Settings.builder()
+                .put(persistentSettings)
+                .put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), applyClusterReadOnlyBlock)
+                .build();
+        }
+
         Metadata.Builder newMetadata = Metadata.builder(metadata)
             .clusterUUID(Metadata.UNKNOWN_CLUSTER_UUID)
             .generateClusterUuidIfNeeded()
