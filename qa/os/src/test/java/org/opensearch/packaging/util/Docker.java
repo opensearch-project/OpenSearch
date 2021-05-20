@@ -90,7 +90,7 @@ public class Docker {
      * @param distribution details about the docker image to potentially load.
      */
     public static void ensureImageIsLoaded(Distribution distribution) {
-        Shell.Result result = sh.run("docker image ls --format '{{.Repository}}' " + getImageName(distribution));
+        Shell.Result result = sh.run("docker image ls --format '{{.Repository}}' " + getImageName());
 
         final long count = Arrays.stream(result.stdout.split("\n")).map(String::trim).filter(s -> s.isEmpty() == false).count();
 
@@ -224,7 +224,7 @@ public class Docker {
         }
 
         // Image name
-        args.add(getImageName(distribution));
+        args.add(getImageName());
 
         final String command = String.join(" ", args);
         logger.info("Running command: " + command);
@@ -581,7 +581,7 @@ public class Docker {
     public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {
         // The format below extracts the .Config.Labels value, and prints it as json. Without the json
         // modifier, a stringified Go map is printed instead, which isn't helpful.
-        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + getImageName(distribution)).stdout;
+        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + getImageName()).stdout;
 
         ObjectMapper mapper = new ObjectMapper();
 
@@ -598,7 +598,7 @@ public class Docker {
         return sh.run("docker logs " + containerId);
     }
 
-    public static String getImageName(Distribution distribution) {
-        return ":test";
+    public static String getImageName() {
+        return "opensearch:test";
     }
 }

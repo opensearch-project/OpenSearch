@@ -137,7 +137,9 @@ public class Packages {
     }
 
     private static Result runPackageManager(Distribution distribution, Shell sh, PackageManagerCommand command) {
-        final String distributionArg = distribution.path.toString();
+        final String distributionArg = command == PackageManagerCommand.QUERY || command == PackageManagerCommand.REMOVE
+            ? "opensearch"
+            : distribution.path.toString();
 
         if (Platforms.isRPM()) {
             String rpmOptions = RPM_OPTIONS.get(command);
@@ -216,7 +218,7 @@ public class Packages {
         if (distribution.packaging == Distribution.Packaging.RPM) {
             assertThat(opensearch.home.resolve("LICENSE.txt"), file(File, "root", "root", p644));
         } else {
-            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/").stdout.trim());
+            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/opensearch").stdout.trim());
             assertThat(copyrightDir, file(Directory, "root", "root", p755));
             assertThat(copyrightDir.resolve("copyright"), file(File, "root", "root", p644));
         }
