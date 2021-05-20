@@ -35,7 +35,7 @@ package org.opensearch.painless;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.script.ScriptContext;
 
 import java.util.Collections;
@@ -56,28 +56,28 @@ public class BaseClassTests extends ScriptTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(Gets.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(NoArgs.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(OneArg.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ArrayArg.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(PrimitiveArrayArg.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(DefArrayArg.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ManyArgs.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(VarArgs.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(DefaultMethods.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ReturnsVoid.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ReturnsPrimitiveBoolean.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ReturnsPrimitiveInt.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ReturnsPrimitiveFloat.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ReturnsPrimitiveDouble.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(NoArgsConstant.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(WrongArgsConstant.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(WrongLengthOfArgConstant.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(UnknownArgType.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(UnknownReturnType.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(UnknownArgTypeInArray.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(TwoExecuteMethods.CONTEXT, Whitelist.BASE_WHITELISTS);
+        Map<ScriptContext<?>, List<Allowlist>> contexts = new HashMap<>();
+        contexts.put(Gets.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(NoArgs.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(OneArg.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(ArrayArg.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(PrimitiveArrayArg.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(DefArrayArg.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(ManyArgs.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(VarArgs.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(DefaultMethods.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(ReturnsVoid.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(ReturnsPrimitiveBoolean.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(ReturnsPrimitiveInt.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(ReturnsPrimitiveFloat.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(ReturnsPrimitiveDouble.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(NoArgsConstant.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(WrongArgsConstant.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(WrongLengthOfArgConstant.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(UnknownArgType.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(UnknownReturnType.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(UnknownArgTypeInArray.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(TwoExecuteMethods.CONTEXT, Allowlist.BASE_ALLOWLISTS);
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
 
@@ -660,7 +660,7 @@ public class BaseClassTests extends ScriptTestCase {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             getEngine().compile("testUnknownArgType0", "1", UnknownArgType.CONTEXT, emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgType.class.getName() + ". Painless interfaces can only accept arguments "
-                + "that are of whitelisted types.", e.getMessage());
+                + "that are of allowlisted types.", e.getMessage());
     }
 
     public abstract static class UnknownReturnType {
@@ -676,8 +676,8 @@ public class BaseClassTests extends ScriptTestCase {
     public void testUnknownReturnType() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             getEngine().compile("testUnknownReturnType0", "1", UnknownReturnType.CONTEXT, emptyMap()));
-        assertEquals("Painless can only implement execute methods returning a whitelisted type but [" + UnknownReturnType.class.getName()
-                + "#execute] returns [" + UnknownReturnType.class.getName() + "] which isn't whitelisted.", e.getMessage());
+        assertEquals("Painless can only implement execute methods returning a allowlisted type but [" + UnknownReturnType.class.getName()
+                + "#execute] returns [" + UnknownReturnType.class.getName() + "] which isn't allowlisted.", e.getMessage());
     }
 
     public abstract static class UnknownArgTypeInArray {
@@ -694,7 +694,7 @@ public class BaseClassTests extends ScriptTestCase {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             getEngine().compile("testUnknownAryTypeInArray0", "1", UnknownArgTypeInArray.CONTEXT, emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgTypeInArray.class.getName() + ". Painless interfaces can only accept "
-                + "arguments that are of whitelisted types.", e.getMessage());
+                + "arguments that are of allowlisted types.", e.getMessage());
     }
 
     public abstract static class TwoExecuteMethods {

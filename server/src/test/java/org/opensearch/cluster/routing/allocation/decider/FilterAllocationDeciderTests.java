@@ -91,7 +91,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
         assertNull(routingTable.index("idx").shard(0).shards().get(0).currentNodeId());
 
-        // after failing the shard we are unassigned since the node is blacklisted and we can't initialize on the other node
+        // after failing the shard we are unassigned since the node is blocklisted and we can't initialize on the other node
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
             null, null, 0);
         allocation.debugDecision(true);

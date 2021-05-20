@@ -226,7 +226,7 @@ final class SystemCallFilter {
     static class Arch {
         /** AUDIT_ARCH_XXX constant from linux/audit.h */
         final int audit;
-        /** syscall limit (necessary for blacklisting on amd64, to ban 32-bit syscalls) */
+        /** syscall limit (necessary for blocklisting on amd64, to ban 32-bit syscalls) */
         final int limit;
         /** __NR_fork */
         final int fork;

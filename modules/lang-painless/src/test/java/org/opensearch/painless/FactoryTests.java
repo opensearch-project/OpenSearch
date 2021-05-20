@@ -35,7 +35,7 @@ package org.opensearch.painless;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.ScriptFactory;
@@ -54,16 +54,16 @@ public class FactoryTests extends ScriptTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
-        contexts.put(StatefulFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(FactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(DeterministicFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(EmptyTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(TemplateScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(VoidReturnTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(FactoryTestConverterScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(FactoryTestConverterScriptBadDef.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(DocFieldsTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        Map<ScriptContext<?>, List<Allowlist>> contexts = newDefaultContexts();
+        contexts.put(StatefulFactoryTestScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(FactoryTestScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(DeterministicFactoryTestScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(EmptyTestScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(TemplateScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(VoidReturnTestScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(FactoryTestConverterScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(FactoryTestConverterScriptBadDef.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(DocFieldsTestScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
 

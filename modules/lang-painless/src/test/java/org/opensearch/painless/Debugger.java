@@ -35,7 +35,7 @@ package org.opensearch.painless;
 import org.opensearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.objectweb.asm.util.Textifier;
 
 import java.io.PrintWriter;
@@ -49,7 +49,7 @@ final class Debugger {
         return toString(PainlessTestScript.class, source, new CompilerSettings());
     }
 
-    private static final PainlessLookup LOOKUP = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
+    private static final PainlessLookup LOOKUP = PainlessLookupBuilder.buildFromAllowlists(Allowlist.BASE_ALLOWLISTS);
 
     /** compiles to bytecode, and returns debugging output */
     static String toString(Class<?> iface, String source, CompilerSettings settings) {

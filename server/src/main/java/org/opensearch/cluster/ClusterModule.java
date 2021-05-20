@@ -162,10 +162,10 @@ public class ClusterModule extends AbstractModule {
         return entries;
     }
 
-    static final Set<String> PRE_6_3_METADATA_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
+    static final Set<String> PRE_6_3_METADATA_CUSTOMS_ALLOW_LIST = Collections.unmodifiableSet(Sets.newHashSet(
         IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetadata.TYPE, ScriptMetadata.TYPE));
 
-    static final Set<String> PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
+    static final Set<String> PRE_6_3_CLUSTER_CUSTOMS_ALLOW_LIST = Collections.unmodifiableSet(Sets.newHashSet(
         RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE));
 
     /**
@@ -178,13 +178,13 @@ public class ClusterModule extends AbstractModule {
     public static ClusterState filterCustomsForPre63Clients(ClusterState clusterState) {
         final ClusterState.Builder builder = ClusterState.builder(clusterState);
         clusterState.customs().keysIt().forEachRemaining(name -> {
-            if (PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST.contains(name) == false) {
+            if (PRE_6_3_CLUSTER_CUSTOMS_ALLOW_LIST.contains(name) == false) {
                 builder.removeCustom(name);
             }
         });
         final Metadata.Builder metaBuilder = Metadata.builder(clusterState.metadata());
         clusterState.metadata().customs().keysIt().forEachRemaining(name -> {
-            if (PRE_6_3_METADATA_CUSTOMS_WHITE_LIST.contains(name) == false) {
+            if (PRE_6_3_METADATA_CUSTOMS_ALLOW_LIST.contains(name) == false) {
                 metaBuilder.removeCustom(name);
             }
         });

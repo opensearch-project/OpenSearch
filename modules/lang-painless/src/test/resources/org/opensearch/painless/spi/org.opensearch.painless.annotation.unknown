@@ -1,4 +1,4 @@
-# whitelist for annotation tests with unknown annotation
+# allowlist for annotation tests with unknown annotation
 
 class org.opensearch.painless.AnnotationTestObject @no_import {
   void unknownAnnotationMethod() @unknownAnnotation

@@ -32,7 +32,7 @@
 
 package org.opensearch.painless;
 
-import org.opensearch.painless.spi.annotation.WhitelistAnnotationParser;
+import org.opensearch.painless.spi.annotation.AllowlistAnnotationParser;
 
 import java.util.Map;
 
@@ -65,7 +65,7 @@ public class AnnotationTestObject {
         }
     }
 
-    public static class TestAnnotationParser implements WhitelistAnnotationParser {
+    public static class TestAnnotationParser implements AllowlistAnnotationParser {
 
         public static final TestAnnotationParser INSTANCE = new TestAnnotationParser();
 

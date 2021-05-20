@@ -35,9 +35,9 @@ package org.opensearch.painless;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.painless.spi.Whitelist;
-import org.opensearch.painless.spi.WhitelistInstanceBinding;
-import org.opensearch.painless.spi.WhitelistLoader;
+import org.opensearch.painless.spi.Allowlist;
+import org.opensearch.painless.spi.AllowlistInstanceBinding;
+import org.opensearch.painless.spi.AllowlistLoader;
 import org.opensearch.script.ScriptContext;
 
 import java.util.ArrayList;
@@ -50,23 +50,23 @@ public class BindingsTests extends ScriptTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
-        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.painless.test"));
+        Map<ScriptContext<?>, List<Allowlist>> contexts = newDefaultContexts();
+        List<Allowlist> allowlists = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        allowlists.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.painless.test"));
 
         InstanceBindingTestClass instanceBindingTestClass = new InstanceBindingTestClass(1);
-        WhitelistInstanceBinding getter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
+        AllowlistInstanceBinding getter = new AllowlistInstanceBinding("test", instanceBindingTestClass,
                 "setInstanceBindingValue", "void", Collections.singletonList("int"), Collections.emptyList());
-        WhitelistInstanceBinding setter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
+        AllowlistInstanceBinding setter = new AllowlistInstanceBinding("test", instanceBindingTestClass,
                 "getInstanceBindingValue", "int", Collections.emptyList(), Collections.emptyList());
-        List<WhitelistInstanceBinding> instanceBindingsList = new ArrayList<>();
+        List<AllowlistInstanceBinding> instanceBindingsList = new ArrayList<>();
         instanceBindingsList.add(getter);
         instanceBindingsList.add(setter);
-        Whitelist instanceBindingsWhitelist = new Whitelist(instanceBindingTestClass.getClass().getClassLoader(),
+        Allowlist instanceBindingsAllowlist = new Allowlist(instanceBindingTestClass.getClass().getClassLoader(),
                 Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), instanceBindingsList);
-        whitelists.add(instanceBindingsWhitelist);
+        allowlists.add(instanceBindingsAllowlist);
 
-        contexts.put(BindingsTestScript.CONTEXT, whitelists);
+        contexts.put(BindingsTestScript.CONTEXT, allowlists);
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
 

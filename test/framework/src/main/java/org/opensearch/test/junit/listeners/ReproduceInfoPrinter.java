@@ -190,7 +190,7 @@ public class ReproduceInfoPrinter extends RunListener {
 
         public ReproduceErrorMessageBuilder appendClientYamlSuiteProperties() {
             return appendProperties(OpenSearchClientYamlSuiteTestCase.REST_TESTS_SUITE,
-                OpenSearchClientYamlSuiteTestCase.REST_TESTS_BLACKLIST);
+                OpenSearchClientYamlSuiteTestCase.REST_TESTS_BLOCKLIST);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

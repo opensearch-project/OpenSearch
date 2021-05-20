@@ -34,7 +34,7 @@ package org.opensearch.painless.spi.annotation;
 
 import java.util.Map;
 
-public class NoImportAnnotationParser implements WhitelistAnnotationParser {
+public class NoImportAnnotationParser implements AllowlistAnnotationParser {
 
     public static final NoImportAnnotationParser INSTANCE = new NoImportAnnotationParser();
 

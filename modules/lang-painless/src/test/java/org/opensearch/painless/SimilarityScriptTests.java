@@ -53,7 +53,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.similarity.ScriptedSimilarity;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.SimilarityScript;
 import org.opensearch.script.SimilarityWeightScript;
@@ -69,9 +69,9 @@ public class SimilarityScriptTests extends ScriptTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(SimilarityScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(SimilarityWeightScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        Map<ScriptContext<?>, List<Allowlist>> contexts = new HashMap<>();
+        contexts.put(SimilarityScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(SimilarityWeightScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
 

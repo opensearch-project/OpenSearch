@@ -88,15 +88,15 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
      */
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
     /**
-     * Property that allows to blacklist some of the REST tests based on a comma separated list of globs
-     * e.g. "-Dtests.rest.blacklist=get/10_basic/*"
+     * Property that allows to blocklist some of the REST tests based on a comma separated list of globs
+     * e.g. "-Dtests.rest.blocklist=get/10_basic/*"
      */
-    public static final String REST_TESTS_BLACKLIST = "tests.rest.blacklist";
+    public static final String REST_TESTS_BLOCKLIST = "tests.rest.blocklist";
     /**
-     * We use tests.rest.blacklist in build files to blacklist tests; this property enables a user to add additional blacklisted tests on
-     * top of the tests blacklisted in the build.
+     * We use tests.rest.blocklist in build files to blocklist tests; this property enables a user to add additional blocklisted tests on
+     * top of the tests blocklisted in the build.
      */
-    public static final String REST_TESTS_BLACKLIST_ADDITIONS = "tests.rest.blacklist_additions";
+    public static final String REST_TESTS_BLOCKLIST_ADDITIONS = "tests.rest.blocklist_additions";
     /**
      * Property that allows to control whether spec validation is enabled or not (default true).
      */
@@ -116,7 +116,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
      */
     private static final String PATHS_SEPARATOR = "(?<!\\\\),";
 
-    private static List<BlacklistedPathPatternMatcher> blacklistPathMatchers;
+    private static List<BlocklistedPathPatternMatcher> blocklistPathMatchers;
     private static ClientYamlTestExecutionContext restTestExecutionContext;
     private static ClientYamlTestExecutionContext adminExecutionContext;
     private static ClientYamlTestClient clientYamlTestClient;
@@ -138,7 +138,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     public void initAndResetContext() throws Exception {
         if (restTestExecutionContext == null) {
             assert adminExecutionContext == null;
-            assert blacklistPathMatchers == null;
+            assert blocklistPathMatchers == null;
             final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
             validateSpec(restSpec);
             final List<HttpHost> hosts = getClusterHosts();
@@ -149,21 +149,21 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
-            final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
-            blacklistPathMatchers = new ArrayList<>();
-            for (final String entry : blacklist) {
-                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            final String[] blocklist = resolvePathsProperty(REST_TESTS_BLOCKLIST, null);
+            blocklistPathMatchers = new ArrayList<>();
+            for (final String entry : blocklist) {
+                blocklistPathMatchers.add(new BlocklistedPathPatternMatcher(entry));
             }
-            final String[] blacklistAdditions = resolvePathsProperty(REST_TESTS_BLACKLIST_ADDITIONS, null);
-            for (final String entry : blacklistAdditions) {
-                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            final String[] blocklistAdditions = resolvePathsProperty(REST_TESTS_BLOCKLIST_ADDITIONS, null);
+            for (final String entry : blocklistAdditions) {
+                blocklistPathMatchers.add(new BlocklistedPathPatternMatcher(entry));
             }
         }
         assert restTestExecutionContext != null;
         assert adminExecutionContext != null;
-        assert blacklistPathMatchers != null;
+        assert blocklistPathMatchers != null;
 
-        // admin context must be available for @After always, regardless of whether the test was blacklisted
+        // admin context must be available for @After always, regardless of whether the test was blocklisted
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
@@ -183,7 +183,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         try {
             IOUtils.close(clientYamlTestClient);
         } finally {
-            blacklistPathMatchers = null;
+            blocklistPathMatchers = null;
             restTestExecutionContext = null;
             adminExecutionContext = null;
             clientYamlTestClient = null;
@@ -352,10 +352,10 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     }
 
     public void test() throws IOException {
-        //skip test if it matches one of the blacklist globs
-        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
+        //skip test if it matches one of the blocklist globs
+        for (BlocklistedPathPatternMatcher blocklistedPathMatcher : blocklistPathMatchers) {
             String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blocklisted", blocklistedPathMatcher
                 .isSuffixMatch(testPath));
         }
 

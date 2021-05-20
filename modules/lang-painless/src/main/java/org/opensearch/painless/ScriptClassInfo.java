@@ -96,7 +96,7 @@ public class ScriptClassInfo {
                 getReturns.add(
                     definitionTypeForClass(painlessLookup, m.getReturnType(), componentType -> "[" + m.getName() + "] has unknown return " +
                         "type [" + componentType.getName() + "]. Painless can only support getters with return types that are " +
-                        "whitelisted."));
+                        "allowlisted."));
 
                 getMethods.add(new org.objectweb.asm.commons.Method(m.getName(),
                     MethodType.methodType(m.getReturnType()).toMethodDescriptorString()));
@@ -135,8 +135,8 @@ public class ScriptClassInfo {
         MethodType methodType = MethodType.methodType(executeMethod.getReturnType(), executeMethod.getParameterTypes());
         this.executeMethod = new org.objectweb.asm.commons.Method(executeMethod.getName(), methodType.toMethodDescriptorString());
         executeMethodReturnType = definitionTypeForClass(painlessLookup, executeMethod.getReturnType(),
-                componentType -> "Painless can only implement execute methods returning a whitelisted type but [" + baseClass.getName()
-                        + "#execute] returns [" + componentType.getName() + "] which isn't whitelisted.");
+                componentType -> "Painless can only implement execute methods returning an allowlisted type but [" + baseClass.getName()
+                        + "#execute] returns [" + componentType.getName() + "] which isn't allowlisted.");
 
         // Look up the argument
         List<MethodArgument> arguments = new ArrayList<>();
@@ -229,7 +229,7 @@ public class ScriptClassInfo {
 
     private MethodArgument methodArgument(PainlessLookup painlessLookup, Class<?> clazz, String argName) {
         Class<?> defClass = definitionTypeForClass(painlessLookup, clazz, componentType -> "[" + argName + "] is of unknown type ["
-                + componentType.getName() + ". Painless interfaces can only accept arguments that are of whitelisted types.");
+                + componentType.getName() + ". Painless interfaces can only accept arguments that are of allowlisted types.");
         return new MethodArgument(defClass, argName);
     }
 
