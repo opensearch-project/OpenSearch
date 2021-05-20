@@ -795,7 +795,7 @@ public class MetadataCreateIndexService {
         if (indexVersionCreated.before(LegacyESVersion.V_7_0_0)) {
             numberOfShards = 5;
         } else {
-            numberOfShards = 1;
+            numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY);
         }
         return numberOfShards;
     }

@@ -152,15 +152,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          * if a cluster should allow to create more than 1024 shards per index. NOTE: this does not limit the number of shards
          * per cluster. this also prevents creating stuff like a new index with millions of shards by accident which essentially
          * kills the entire cluster with OOM on the spot.*/
-        final int maxNumShards = Integer.parseInt(System.getProperty("opensearch.index.max_number_of_shards", "1024"));
+        final int maxNumShards = Integer.parseInt(System.getProperty(MAX_NUMBER_OF_SHARDS, "1024"));
         if (maxNumShards < 1) {
-            throw new IllegalArgumentException("opensearch.index.max_number_of_shards must be > 0");
+            throw new IllegalArgumentException(MAX_NUMBER_OF_SHARDS + " must be > 0");
         }
-        return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, 1, 1, maxNumShards, Property.IndexScope, Property.Final);
+        /* This property should be provided if the default number of shards for any new index has to be changed to a value
+         * other than 1. This value is applicable only if the index.number_of_shards setting is not provided as part of the
+         * index creation request. */
+        final int defaultNumShards = Integer.parseInt(System.getProperty(DEFAULT_NUMBER_OF_SHARDS, "1"));
+        if (defaultNumShards < 1 || defaultNumShards > maxNumShards) {
+            throw new IllegalArgumentException(DEFAULT_NUMBER_OF_SHARDS + " value [" + defaultNumShards + "] must between " +
+                "1 and " + MAX_NUMBER_OF_SHARDS + " [" + maxNumShards + "]");
+        }
+        return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, defaultNumShards, 1, maxNumShards, Property.IndexScope, Property.Final);
     }
 
     public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
+    static final String DEFAULT_NUMBER_OF_SHARDS = "opensearch.index.default_number_of_shards";
+    static final String MAX_NUMBER_OF_SHARDS = "opensearch.index.max_number_of_shards";
     public static final Setting<Integer> INDEX_NUMBER_OF_SHARDS_SETTING = buildNumberOfShardsSetting();
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
     public static final Setting<Integer> INDEX_NUMBER_OF_REPLICAS_SETTING =
