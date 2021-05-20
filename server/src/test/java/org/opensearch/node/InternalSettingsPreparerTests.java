@@ -114,6 +114,17 @@ public class InternalSettingsPreparerTests extends OpenSearchTestCase {
         }
     }
 
+    public void testESConfigFileNotAllowed() throws IOException {
+        InputStream yaml = getClass().getResourceAsStream("/config/opensearch.yml");
+        Path config = homeDir.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(yaml, config.resolve("elasticsearch.yml"));
+        SettingsException e = expectThrows(SettingsException.class,
+            () -> InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(),
+                emptyMap(), null, DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED));
+        assertEquals("elasticsearch.yml was deprecated with opensearch and must be renamed to opensearch.yml", e.getMessage());
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/358")
     public void testYamlNotAllowed() throws IOException {
         InputStream yaml = getClass().getResourceAsStream("/config/opensearch.yml");

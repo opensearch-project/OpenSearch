@@ -81,6 +81,11 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         Environment environment = new Environment(output.build(), configPath);
 
+        if (Files.exists(environment.configFile().resolve("elasticsearch.yml"))) {
+            throw new SettingsException(
+                "elasticsearch.yml was deprecated with opensearch and must be renamed to opensearch.yml");
+        }
+
         if (Files.exists(environment.configFile().resolve("opensearch.yaml"))) {
             throw new SettingsException("opensearch.yaml was deprecated in 5.5.0 and must be renamed to opensearch.yml");
         }
