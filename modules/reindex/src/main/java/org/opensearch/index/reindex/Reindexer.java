@@ -32,8 +32,10 @@
 
 package org.opensearch.index.reindex;
 
+import java.util.Optional;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
@@ -63,6 +65,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.reindex.remote.RemoteScrollableHitSource;
+import org.opensearch.index.reindex.spi.RemoteReindexExtension;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -91,14 +94,21 @@ public class Reindexer {
     private final ThreadPool threadPool;
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
+    private final Optional<RemoteReindexExtension> remoteExtension;
 
     Reindexer(ClusterService clusterService, Client client, ThreadPool threadPool, ScriptService scriptService,
               ReindexSslConfig reindexSslConfig) {
+        this(clusterService, client, threadPool, scriptService, reindexSslConfig, Optional.empty());
+    }
+
+    Reindexer(ClusterService clusterService, Client client, ThreadPool threadPool, ScriptService scriptService,
+              ReindexSslConfig reindexSslConfig, Optional<RemoteReindexExtension> remoteExtension) {
         this.clusterService = clusterService;
         this.client = client;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
+        this.remoteExtension = remoteExtension;
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -106,25 +116,54 @@ public class Reindexer {
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
+        ActionListener<BulkByScrollResponse> remoteReindexActionListener = getRemoteReindexWrapperListener(listener, request);
         BulkByScrollParallelizationHelper.executeSlicedAction(task, request, ReindexAction.INSTANCE, listener, client,
             clusterService.localNode(),
             () -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(task, logger, assigningClient, threadPool,
-                    scriptService, reindexSslConfig, request, listener);
+                    scriptService, reindexSslConfig, request, remoteReindexActionListener, getInterceptor(request));
                 searchAction.start();
             });
 
     }
 
+    private Optional<HttpRequestInterceptor> getInterceptor(ReindexRequest request) {
+        if (request.getRemoteInfo() == null) {
+            return Optional.empty();
+        } else {
+            return remoteExtension.map(x -> x.getInterceptorProvider()).flatMap(provider ->
+                provider.getRestInterceptor(request, threadPool.getThreadContext()));
+        }
+    }
+
+    private ActionListener<BulkByScrollResponse> getRemoteReindexWrapperListener(
+        ActionListener<BulkByScrollResponse> listener, ReindexRequest reindexRequest) {
+        if (reindexRequest.getRemoteInfo() == null) {
+            return listener;
+        }
+        if (remoteExtension.isPresent()) {
+            return remoteExtension.get().getRemoteReindexActionListener(listener, reindexRequest);
+        }
+        logger.info("No extension found for remote reindex listener");
+        return listener;
+    }
+
+    static RestClient buildRestClient(RemoteInfo remoteInfo, ReindexSslConfig sslConfig, long taskId, List<Thread> threadCollector) {
+        return buildRestClient(remoteInfo, sslConfig, taskId, threadCollector, Optional.empty());
+    }
+
     /**
      * Build the {@link RestClient} used for reindexing from remote clusters.
+     *
      * @param remoteInfo connection information for the remote cluster
      * @param sslConfig configuration for potential outgoing HTTPS connections
      * @param taskId the id of the current task. This is added to the thread name for easier tracking
      * @param threadCollector a list in which we collect all the threads created by the client
+     * @param restInterceptor an optional HttpRequestInterceptor
      */
-    static RestClient buildRestClient(RemoteInfo remoteInfo, ReindexSslConfig sslConfig, long taskId, List<Thread> threadCollector) {
+    static RestClient buildRestClient(RemoteInfo remoteInfo, ReindexSslConfig sslConfig, long taskId, List<Thread> threadCollector,
+                                      Optional<HttpRequestInterceptor> restInterceptor) {
         Header[] clientHeaders = new Header[remoteInfo.getHeaders().size()];
         int i = 0;
         for (Map.Entry<String, String> header : remoteInfo.getHeaders().entrySet()) {
@@ -146,6 +185,8 @@ public class Reindexer {
                         CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
                         credentialsProvider.setCredentials(AuthScope.ANY, creds);
                         c.setDefaultCredentialsProvider(credentialsProvider);
+                    } else {
+                        restInterceptor.ifPresent(interceptor -> c.addInterceptorLast(interceptor));
                     }
                     // Stick the task id in the thread name so we can track down tasks from stack traces
                     AtomicInteger threads = new AtomicInteger();
@@ -185,6 +226,12 @@ public class Reindexer {
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                  ThreadPool threadPool, ScriptService scriptService, ReindexSslConfig sslConfig, ReindexRequest request,
                                  ActionListener<BulkByScrollResponse> listener) {
+            this(task, logger, client, threadPool, scriptService, sslConfig, request, listener, Optional.empty());
+        }
+
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                                 ThreadPool threadPool, ScriptService scriptService, ReindexSslConfig sslConfig, ReindexRequest request,
+                                 ActionListener<BulkByScrollResponse> listener, Optional<HttpRequestInterceptor> interceptor) {
             super(task,
                 /*
                  * We only need the source version if we're going to use it when write and we only do that when the destination request uses
@@ -192,6 +239,7 @@ public class Reindexer {
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
                 false, logger, client, threadPool, request, listener, scriptService, sslConfig);
+            this.interceptor = interceptor;
         }
 
         @Override
@@ -200,7 +248,8 @@ public class Reindexer {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 assert sslConfig != null : "Reindex ssl config must be set";
-                RestClient restClient = buildRestClient(remoteInfo, sslConfig, task.getId(), createdThreads);
+                RestClient restClient = buildRestClient(remoteInfo, sslConfig, task.getId(), createdThreads,
+                    this.interceptor);
                 return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
                     this::onScrollResponse, this::finishHim,
                     restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
