@@ -220,7 +220,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         String indexUUID = indexShardRoutingTable.shardId().getIndex().getUUID();
         ClusterName clusterName = state.getClusterName();
         for (ShardRouting shardRouting : indexShardRoutingTable) {
-            assert shardRouting.active() : "expected active started shard but was " + shardRouting;
+            assert shardRouting.active() : "expected active shard but was " + shardRouting;
             DiscoveryNode currentNode = state.nodes().get(shardRouting.currentNodeId());
             requests.add(new Tuple<>(currentNode,
                 new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), deleteShardTimeout)));
