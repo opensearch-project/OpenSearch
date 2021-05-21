@@ -1609,7 +1609,7 @@ public class Setting<T> implements ToXContentObject {
      * memory.
      *
      * @param key the key for the setting
-     * @param fallback a memory size setting to use as fallback
+     * @param fallbackSetting a memory size setting to use as fallback
      * @param properties properties properties for this setting like scope, filtering...
      * @return the setting object
      */
