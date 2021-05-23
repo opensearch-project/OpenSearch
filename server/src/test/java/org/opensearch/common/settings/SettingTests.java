@@ -181,7 +181,8 @@ public class SettingTests extends OpenSearchTestCase {
 
     public void testMemorySizeWithFallbackValue() {
         Setting<ByteSizeValue> fallbackSetting = Setting.memorySizeSetting("a.byte.size", "20%", Property.Dynamic, Property.NodeScope);
-        Setting<ByteSizeValue> memorySizeSetting = Setting.memorySizeSetting("b.byte.size", fallbackSetting, Property.Dynamic, Property.NodeScope);
+        Setting<ByteSizeValue> memorySizeSetting = Setting.memorySizeSetting(
+            "b.byte.size", fallbackSetting, Property.Dynamic, Property.NodeScope);
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
         ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = memorySizeSetting.newUpdater(value::set, logger);
 
