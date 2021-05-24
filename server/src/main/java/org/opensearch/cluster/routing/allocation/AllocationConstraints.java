@@ -45,6 +45,9 @@ public class AllocationConstraints {
      * Constraint weight should be added to the weight calculated via weight
      * function, to reduce priority of allocating on nodes with breached
      * constraints.
+     *
+     * This weight function is used only in case of unassigned shards to avoid overloading a newly added node.
+     * Weight calculation in other scenarios like shard movement and re-balancing remain unaffected by this function.
      */
     public long weight(BalancedShardsAllocator.Balancer balancer, BalancedShardsAllocator.ModelNode node,
             String index) {
