@@ -216,6 +216,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * </li>
      * </ul>
      * <code>weight(node, index) = weight<sub>index</sub>(node, index) + weight<sub>node</sub>(node, index)</code>
+     *
+     * package-private for testing
      */
     static class WeightFunction {
 
@@ -240,7 +242,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         public float weightWithAllocationConstraints(Balancer balancer, ModelNode node, String index) {
             float balancerWeight = weight(balancer, node, index);
             return balancerWeight + constraints.weight(balancer, node, index);
-        }         
+        }
 
         float weight(Balancer balancer, ModelNode node, String index) {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();

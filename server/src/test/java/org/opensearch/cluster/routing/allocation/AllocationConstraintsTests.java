@@ -22,18 +22,22 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
     public void testSettings() {
         Settings.Builder settings = Settings.builder();
         ClusterSettings service = new ClusterSettings(Settings.builder().build(),
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings.build(), service);
 
-        // Changing other balancer settings should not affect constraint settings
         settings = Settings.builder();
-        settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.2);
-        settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.3);
-        settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 2.0);
+        float indexBalanceFactor = randomFloat();
+        float shardBalance = randomFloat();
+        float threshold = randomFloat();
+        settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), indexBalanceFactor);
+        settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), shardBalance);
+        settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), threshold);
+
         service.applySettings(settings.build());
-        assertEquals(0.2, allocator.getIndexBalance(), 0.01);
-        assertEquals(0.3, allocator.getShardBalance(), 0.01);
-        assertEquals(2.0, allocator.getThreshold(), 0.01);
+
+        assertEquals(indexBalanceFactor, allocator.getIndexBalance(), 0.01);
+        assertEquals(shardBalance, allocator.getShardBalance(), 0.01);
+        assertEquals(threshold, allocator.getThreshold(), 0.01);
 
     }
 
@@ -44,26 +48,17 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
     public void testIndexShardsPerNodeConstraint() {
         BalancedShardsAllocator.Balancer balancer = mock(BalancedShardsAllocator.Balancer.class);
         BalancedShardsAllocator.ModelNode node = mock(BalancedShardsAllocator.ModelNode.class);
-        when(balancer.avgShardsPerNode(anyString())).thenReturn(3.33f);
+        AllocationConstraints constraints = new AllocationConstraints();
+
+        int shardCount = randomIntBetween(1, 500);
+        float avgShardsPerNode = 1.0f + (random().nextFloat()) * 999.0f;
+
+        when(balancer.avgShardsPerNode(anyString())).thenReturn(avgShardsPerNode);
+        when(node.numShards(anyString())).thenReturn(shardCount);
         when(node.getNodeId()).thenReturn("test-node");
 
-        /*
-         * Constraint breached
-         */
-
-        when(node.numShards(anyString())).thenReturn(4);
-
-        AllocationConstraints constraints = new AllocationConstraints();
-        assertEquals(constraints.CONSTRAINT_WEIGHT, constraints.weight(balancer, node, "index"));
-
-        /*
-         * Constraint not breached
-         */
-
-        when(node.numShards(anyString())).thenReturn(3);
-
-        constraints = new AllocationConstraints();
-        assertEquals(0, constraints.weight(balancer, node, "index"));
+        long expectedWeight = (shardCount >= avgShardsPerNode) ? constraints.CONSTRAINT_WEIGHT : 0;
+        assertEquals(expectedWeight, constraints.weight(balancer, node, "index"));
 
     }
 
