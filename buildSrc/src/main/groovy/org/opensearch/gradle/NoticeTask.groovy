@@ -152,7 +152,9 @@ class NoticeTask extends DefaultTask {
             }
         }
         outputFile.setText(output.toString(), 'UTF-8')
-        Files.setPosixFilePermissions(outputFile.toPath(), PosixFilePermissions.fromString("rw-r--r--"))
+        if (OS.current() != OS.WINDOWS) {
+            Files.setPosixFilePermissions(outputFile.toPath(), PosixFilePermissions.fromString("rw-r--r--"))
+        }
     }
 
     @InputFiles
