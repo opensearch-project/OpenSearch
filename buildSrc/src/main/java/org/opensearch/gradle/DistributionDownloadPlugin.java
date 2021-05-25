@@ -55,7 +55,7 @@ import java.util.Comparator;
  * A plugin to manage getting and extracting distributions of OpenSearch.
  * <p>
  * The plugin provides hooks to register custom distribution resolutions.
- * This plugin resolves distributions from the Elastic downloads service if
+ * This plugin resolves distributions from the OpenSearch downloads service if
  * no registered resolution strategy can resolve to a distribution.
  */
 public class DistributionDownloadPlugin implements Plugin<Project> {
@@ -67,6 +67,12 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private static final String DOWNLOAD_REPO_NAME = "opensearch-downloads";
     private static final String SNAPSHOT_REPO_NAME = "opensearch-snapshots";
     public static final String DISTRO_EXTRACTED_CONFIG_PREFIX = "opensearch_distro_extracted_";
+
+    // for downloading Elasticsearch OSS distributions to run BWC
+    private static final String FAKE_IVY_GROUP_ES = "elasticsearch-distribution";
+    private static final String DOWNLOAD_REPO_NAME_ES = "elasticsearch-downloads";
+    private static final String SNAPSHOT_REPO_NAME_ES = "elasticsearch-snapshots";
+    private static final String FAKE_SNAPSHOT_IVY_GROUP_ES = "elasticsearch-distribution-snapshot";
 
     private NamedDomainObjectContainer<OpenSearchDistribution> distributionsContainer;
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
@@ -164,12 +170,27 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         });
     }
 
+    private static void addIvyRepo2(Project project, String name, String url, String group) {
+        IvyArtifactRepository ivyRepo = project.getRepositories().ivy(repo -> {
+            repo.setName(name);
+            repo.setUrl(url);
+            repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+            repo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/elasticsearch-oss-[revision](-[classifier]).[ext]"));
+        });
+        project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
+            exclusiveContentRepository.filter(config -> config.includeGroup(group));
+            exclusiveContentRepository.forRepositories(ivyRepo);
+        });
+    }
+
     private static void setupDownloadServiceRepo(Project project) {
         if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
             return;
         }
         addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts.opensearch.org", FAKE_IVY_GROUP);
         addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots-no-kpi.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP);
+        addIvyRepo2(project, DOWNLOAD_REPO_NAME_ES, "https://artifacts-no-kpi.elastic.co", FAKE_IVY_GROUP_ES);
+        addIvyRepo2(project, SNAPSHOT_REPO_NAME_ES, "https://snapshots-no-kpi.elastic.co", FAKE_SNAPSHOT_IVY_GROUP_ES);
     }
 
     /**
@@ -181,17 +202,24 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
      * coordinates that resolve to the Elastic download service through an ivy repository.
      */
     private String dependencyNotation(OpenSearchDistribution distribution) {
+        Version distroVersion = Version.fromString(distribution.getVersion());
         if (distribution.getType() == Type.INTEG_TEST_ZIP) {
-            return "org.opensearch.distribution.integ-test-zip:opensearch:" + distribution.getVersion() + "@zip";
+            if (distroVersion.onOrAfter("1.0.0")) {
+                return "org.opensearch.distribution.integ-test-zip:opensearch:" + distribution.getVersion() + "@zip";
+            } else {
+                return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
+            }
         }
 
-        Version distroVersion = Version.fromString(distribution.getVersion());
         String extension = distribution.getType().toString();
-        String classifier = ":x64";
+        String classifier = distroVersion.onOrAfter("1.0.0") ? ":x64" : ":x86_64";
         if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
-            if (distroVersion.onOrAfter("7.0.0")) {
+
+            if (distroVersion.onOrAfter("1.0.0")) {
                 classifier = ":" + distribution.getPlatform() + "-x64";
+            } else if (distroVersion.onOrAfter("7.0.0")) {
+                classifier = ":" + distribution.getPlatform() + "-x86_64";
             } else {
                 classifier = "";
             }
@@ -205,7 +233,13 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             classifier = "";
         }
 
-        String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
-        return group + ":opensearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
+        String group;
+        if (distroVersion.onOrAfter("1.0.0")) {
+            group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
+            return group + ":opensearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
+        } else {
+            group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP_ES : FAKE_IVY_GROUP_ES;
+            return group + ":elasticsearch-oss" + ":" + distribution.getVersion() + classifier + "@" + extension;
+        }
     }
 }
