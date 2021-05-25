@@ -157,7 +157,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         assertLookupRemoteVersion(LegacyESVersion.fromId(5000099), "main/5_0_0_alpha_3.json");
         // V_5_0_0 since we no longer consider qualifier in Version
         assertLookupRemoteVersion(LegacyESVersion.fromId(5000099), "main/with_unknown_fields.json");
-        assertLookupRemoteVersion(Version.fromId(1000099 ^ Version.MASK), "main/OpenSearch_1_0_0.json");
+        assertLookupRemoteVersion(Version.fromId(1000099), "main/OpenSearch_1_0_0.json");
     }
 
     private void assertLookupRemoteVersion(Version expected, String s) throws Exception {

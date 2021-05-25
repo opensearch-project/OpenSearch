@@ -367,7 +367,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 }
             }
         }
-        Version.writeVersion(version, out);
+
+        Version.writeVersion(out.getVersion().onOrBefore(LegacyESVersion.V_7_10_2) ? Version.BC_ES_VERSION : version, out);
     }
 
     /**
