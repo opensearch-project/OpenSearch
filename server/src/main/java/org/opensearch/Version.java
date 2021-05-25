@@ -73,6 +73,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_1_0_0 = new Version(1000099, org.apache.lucene.util.Version.LUCENE_8_8_2);
     public static final Version CURRENT = V_1_0_0;
 
+    // OpenSearch has forked from 7.10.2, so keeping it as the last BC ES version
+    public static final Version BC_ES_VERSION = LegacyESVersion.V_7_10_2;
+
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
     }
@@ -92,8 +95,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         // least correct for patch versions of known minors since we never
         // update the Lucene dependency for patch versions.
         List<Version> versions = DeclaredVersionsHolder.DECLARED_VERSIONS;
-        Version tmp = id < MASK ? new LegacyESVersion(id, org.apache.lucene.util.Version.LATEST) :
-            new Version(id ^ MASK, org.apache.lucene.util.Version.LATEST);
+        Version tmp = new Version(id, org.apache.lucene.util.Version.LATEST);
         int index = Collections.binarySearch(versions, tmp);
         if (index < 0) {
             index = -2 - index;
@@ -110,7 +112,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         } else {
             luceneVersion = versions.get(index).luceneVersion;
         }
-        return id < MASK ? new LegacyESVersion(id, luceneVersion) : new Version(id ^ MASK, luceneVersion);
+        if(tmp.major == 5) {
+            return new LegacyESVersion(id, luceneVersion);
+        }
+        return new Version(id, luceneVersion);
     }
 
     /**
@@ -141,20 +146,26 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public static int computeID(int major, int minor, int revision, int build) {
-        return computeLegacyID(major, minor, revision, build) ^ MASK;
+        return computeLegacyID(major, minor, revision, build);
+    }
+
+    protected boolean isLegacyVersion() {
+        return false;
     }
 
     /**
      * Returns the minimum version between the 2.
      */
     public static Version min(Version version1, Version version2) {
-        return version1.id < version2.id ? version1 : version2;
+        return compare(version1, version2) == -1 ? version1 : version2;
     }
 
     /**
      * Returns the maximum version between the 2
      */
-    public static Version max(Version version1, Version version2) { return version1.id > version2.id ? version1 : version2; }
+    public static Version max(Version version1, Version version2) {
+        return compare(version1, version2) == 1 ? version1 : version2;
+    }
 
     /**
      * Returns the version given its string representation, current version if the argument is null or empty
@@ -188,13 +199,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
             int build = 99;
-            return fromId((major + minor + revision + build) ^ MASK);
+            return fromId(major + minor + revision + build);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse version " + version, e);
         }
     }
 
-    public static final int MASK = 0x08000000;
     public final int id;
     public final byte major;
     public final byte minor;
@@ -203,14 +213,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final org.apache.lucene.util.Version luceneVersion;
 
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
-        // flip the 28th bit of the ID; identify as an opensearch vs legacy system:
-        // we start from version 1 for opensearch, so ignore the 0 (empty) version
-        if(id != 0) {
-            this.id = id ^ MASK;
-            id &= 0xF7FFFFFF;
-        } else {
-            this.id = id;
-        }
+        this.id = id;
         this.major = (byte) ((id / 1000000) % 100);
         this.minor = (byte) ((id / 10000) % 100);
         this.revision = (byte) ((id / 100) % 100);
@@ -219,19 +222,19 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public boolean after(Version version) {
-        return version.id < id;
+        return compareTo(version) > 0;
     }
 
     public boolean onOrAfter(Version version) {
-        return version.id <= id;
+        return compareTo(version) >= 0;
     }
 
     public boolean before(Version version) {
-        return version.id > id;
+        return compareTo(version) < 0;
     }
 
     public boolean onOrBefore(Version version) {
-        return version.id >= id;
+        return compareTo(version) <= 0;
     }
 
     // LegacyESVersion major 7 is equivalent to Version major 1
@@ -243,12 +246,22 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     @Override
     public int compareTo(Version other) {
-        return Integer.compare(this.id, other.id);
+        return compare(this, other);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
+    }
+
+    private static int compare(Version v1, Version v2) {
+        if(v1.isLegacyVersion() && !v2.isLegacyVersion()) {
+            return -1;
+        }
+        if(!v1.isLegacyVersion() && v2.isLegacyVersion()) {
+            return 1;
+        }
+        return Integer.compare(v1.id, v2.id);
     }
 
     /*
@@ -287,7 +300,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     protected Version computeMinCompatVersion() {
         if (major == 1) {
-            return Version.fromId(6080099);
+            return LegacyESVersion.V_6_7_99;
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return Version.fromId(5060099);
@@ -307,14 +320,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             return bwcVersion == null ? this : bwcVersion;
         }
 
-        return Version.min(this, fromId(maskId((int) major * 1000000 + 0 * 10000 + 99)));
-    }
-
-    /**
-     * this is used to ensure the version id for new versions of OpenSearch are always less than the predecessor versions
-     */
-    protected int maskId(final int id) {
-        return MASK ^ id;
+        return Version.min(this, fromId((int) major * 1000000 + 0 * 10000 + 99));
     }
 
     /**
@@ -346,6 +352,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     /**
      * Returns <code>true</code> iff both version are compatible. Otherwise <code>false</code>
+     * TODO: Add a check that LegacyESVersion cannot be greater than 7.10.2
      */
     public boolean isCompatible(Version version) {
         boolean compatible = onOrAfter(version.minimumCompatibilityVersion())
@@ -460,6 +467,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             switch (field.getName()) {
                 case "CURRENT":
                 case "V_EMPTY":
+                case "BC_ES_VERSION":
                     continue;
             }
             assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();

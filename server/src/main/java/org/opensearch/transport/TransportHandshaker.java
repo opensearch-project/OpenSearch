@@ -31,6 +31,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -105,7 +106,12 @@ final class TransportHandshaker {
             throw new IllegalStateException("Handshake request not fully read for requestId [" + requestId + "], action ["
                 + TransportHandshaker.HANDSHAKE_ACTION_NAME + "], available [" + stream.available() + "]; resetting");
         }
-        channel.sendResponse(new HandshakeResponse(this.version));
+
+        Version version = Version.CURRENT;
+        if(stream.getVersion().equals(LegacyESVersion.V_6_8_0) || stream.getVersion().equals(Version.fromId(5060099))) {
+            version = Version.BC_ES_VERSION;
+        }
+        channel.sendResponse(new HandshakeResponse(version));
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {
