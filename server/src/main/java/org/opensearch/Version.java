@@ -85,10 +85,18 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (known != null) {
             return known;
         }
-        return fromIdSlow(id);
+        return fromIdSlow(id, false);
     }
 
-    private static Version fromIdSlow(int id) {
+    public static Version fromLegacyId(int id) {
+        final Version known = LegacyESVersion.idToVersion.get(id);
+        if (known != null) {
+            return known;
+        }
+        return fromIdSlow(id, true);
+    }
+
+    private static Version fromIdSlow(int id, boolean isLegacyVersion) {
         // We need at least the major of the Lucene version to be correct.
         // Our best guess is to use the same Lucene version as the previous
         // version in the list, assuming that it didn't change. This is at
@@ -112,7 +120,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         } else {
             luceneVersion = versions.get(index).luceneVersion;
         }
-        if(tmp.major == 5) {
+        if(isLegacyVersion || tmp.major >=5) {
             return new LegacyESVersion(id, luceneVersion);
         }
         return new Version(id, luceneVersion);
@@ -255,11 +263,13 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     private static int compare(Version v1, Version v2) {
-        if(v1.isLegacyVersion() && !v2.isLegacyVersion()) {
-            return -1;
-        }
-        if(!v1.isLegacyVersion() && v2.isLegacyVersion()) {
-            return 1;
+        if(!v1.equals(V_EMPTY) && !v2.equals(V_EMPTY)) {
+            if(v1.isLegacyVersion() && !v2.isLegacyVersion()) {
+                return -1;
+            }
+            if(!v1.isLegacyVersion() && v2.isLegacyVersion()) {
+                return 1;
+            }
         }
         return Integer.compare(v1.id, v2.id);
     }
@@ -299,7 +309,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     protected Version computeMinCompatVersion() {
-        if (major == 1) {
+        if (major == 1 && !this.isLegacyVersion()) {
             return LegacyESVersion.V_6_7_99;
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
