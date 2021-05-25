@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.unit.TimeValue;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
@@ -64,6 +65,14 @@ public class IndicesStatsRequestBuilder
      */
     public IndicesStatsRequestBuilder clear() {
         request.clear();
+        return this;
+    }
+
+    /**
+     * Sets timeout of request.
+     */
+    public final IndicesStatsRequestBuilder setTimeout(TimeValue timeout) {
+        request.timeout(timeout);
         return this;
     }
 

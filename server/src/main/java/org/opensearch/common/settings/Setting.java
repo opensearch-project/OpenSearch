@@ -158,7 +158,7 @@ public class Setting<T> implements ToXContentObject {
     private final Key key;
     protected final Function<Settings, String> defaultValue;
     @Nullable
-    private final Setting<T> fallbackSetting;
+    protected final Setting<T> fallbackSetting;
     private final Function<String, T> parser;
     private final Validator<T> validator;
     private final EnumSet<Property> properties;
@@ -1016,6 +1016,12 @@ public class Setting<T> implements ToXContentObject {
             this.validator = validator;
         }
 
+        private GroupSetting(String key, Setting<Settings> fallback, Consumer<Settings> validator, Property... properties) {
+            super(new GroupKey(key), fallback, (s) -> null, properties);
+            this.key = key;
+            this.validator = validator;
+        }
+
         @Override
         public boolean isGroupSetting() {
             return true;
@@ -1038,6 +1044,9 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public Settings get(Settings settings) {
             Settings byPrefix = settings.getByPrefix(getKey());
+            if (byPrefix.size() == 0 && this.fallbackSetting != null) {
+                byPrefix = fallbackSetting.get(settings);
+            }
             validator.accept(byPrefix);
             return byPrefix;
         }
@@ -1049,7 +1058,11 @@ public class Setting<T> implements ToXContentObject {
                     return true;
                 }
             }
-            return false;
+            if (this.fallbackSetting != null) {
+                return fallbackSetting.exists(settings);
+            } else {
+                return false;
+            }
         }
 
         @Override
@@ -1748,12 +1761,53 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
+    /**
+     * Creates a group of settings prefixed by a key. 
+     *
+     * @param key the group key for the setting
+     * @param properties properties properties for this setting like scope, filtering...
+     * @return the group setting object
+     */
     public static Setting<Settings> groupSetting(String key, Property... properties) {
         return groupSetting(key, (s) -> {}, properties);
     }
 
+    /**
+     * Creates a group of settings prefixed by a key. 
+     *
+     * @param key the group key for the setting
+     * @param validator a {@link Validator} for validating this setting
+     * @param properties properties properties for this setting like scope, filtering...
+     * @return the group setting object
+     */
     public static Setting<Settings> groupSetting(String key, Consumer<Settings> validator, Property... properties) {
         return new GroupSetting(key, validator, properties);
+    }
+
+    /**
+     * Creates a group of settings prefixed by a key. 
+     *
+     * @param key the group key for the setting
+     * @param fallback a {@link GroupSetting} to use as fallback when no group key values exist 
+     * @param properties properties properties for this setting like scope, filtering...
+     * @return the group setting object
+     */
+    public static Setting<Settings> groupSetting(String key, final Setting<Settings> fallback, Property... properties) {
+        return groupSetting(key, fallback, (s) -> {}, properties);
+   }
+
+    /**
+     * Creates a group of settings prefixed by a key. 
+     *
+     * @param key the group key for the setting
+     * @param fallback a {@link GroupSetting} to use as fallback when no group key values exist 
+     * @param validator a {@link Validator} for validating this setting
+     * @param properties properties properties for this setting like scope, filtering...
+     * @return the group setting object
+     */
+    public static Setting<Settings> groupSetting(String key, final Setting<Settings> fallback, 
+        Consumer<Settings> validator, Property... properties) {        
+        return new GroupSetting(key, fallback, validator, properties);
     }
 
     public static Setting<TimeValue> timeSetting(
