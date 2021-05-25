@@ -159,13 +159,9 @@ public class OpenSearchNode implements TestClusterConfiguration {
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
     private final Path confPathRepo;
-    private final Path configFile;
     private final Path confPathLogs;
     private final Path transportPortFile;
     private final Path httpPortsFile;
-    private final Path opensearchStdoutFile;
-    private final Path opensearchStderrFile;
-    private final Path opensearchStdinFile;
     private final Path tmpDir;
 
     private int currentDistro = 0;
@@ -179,6 +175,9 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private Path confPathData;
     private String keystorePassword = "";
     private boolean preserveDataDir = false;
+    private final Config opensearchConfig;
+    private final Config legacyESConfig;
+    private Config currentConfig;
 
     OpenSearchNode(
         String path,
@@ -199,19 +198,109 @@ public class OpenSearchNode implements TestClusterConfiguration {
         this.bwcJdk = bwcJdk;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
-        configFile = workingDir.resolve("config/opensearch.yml");
         confPathData = workingDir.resolve("data");
         confPathLogs = workingDir.resolve("logs");
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
-        opensearchStdoutFile = confPathLogs.resolve("opensearch.stdout.log");
-        opensearchStderrFile = confPathLogs.resolve("opensearch.stderr.log");
-        opensearchStdinFile = workingDir.resolve("opensearch.stdin");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
-
         setTestDistribution(TestDistribution.INTEG_TEST);
         setVersion(VersionProperties.getOpenSearch());
+        opensearchConfig = Config.getOpenSearchConfig(workingDir);
+        legacyESConfig = Config.getLegacyESConfig(workingDir);
+        currentConfig = opensearchConfig;
+    }
+
+    /*
+     * An object to contain the configuration needed to install
+     * either an OpenSearch or an elasticsearch distribution on
+     * this test node.
+     *
+     * This is added to be able to run BWC testing against a
+     * cluster running elasticsearch.
+     *
+     * legacyESConfig will be removed in a future release.
+     */
+    private static class Config {
+        final String distroName;
+        final String command;
+        final String keystoreTool;
+        final String pluginTool;
+        final String envTempDir;
+        final String envJavaOpts;
+        final String envPathConf;
+        final Path configFile;
+        final Path stdoutFile;
+        final Path stderrFile;
+        final Path stdinFile;
+
+        Config(
+            String distroName,
+            String command,
+            String keystoreTool,
+            String pluginTool,
+            String envTempDir,
+            String envJavaOpts,
+            String envPathConf,
+            Path configFile,
+            Path stdoutFile,
+            Path stderrFile,
+            Path stdinFile
+        ) {
+            this.distroName = distroName;
+            this.command = command;
+            this.keystoreTool = keystoreTool;
+            this.pluginTool = pluginTool;
+            this.envTempDir = envTempDir;
+            this.envJavaOpts = envJavaOpts;
+            this.envPathConf = envPathConf;
+            this.configFile = configFile;
+            this.stdoutFile = stdoutFile;
+            this.stderrFile = stderrFile;
+            this.stdinFile = stdinFile;
+        }
+
+        static Config getOpenSearchConfig(Path workingDir) {
+            Path confPathLogs = workingDir.resolve("logs");
+            return new Config(
+                "OpenSearch",
+                "opensearch",
+                "opensearch-keystore",
+                "opensearch-plugin",
+                "OPENSEARCH_TMPDIR",
+                "OPENSEARCH_JAVA_OPTS",
+                "OPENSEARCH_PATH_CONF",
+                workingDir.resolve("config/opensearch.yml"),
+                confPathLogs.resolve("opensearch.stdout.log"),
+                confPathLogs.resolve("opensearch.stderr.log"),
+                workingDir.resolve("opensearch.stdin")
+            );
+        }
+
+        static Config getLegacyESConfig(Path workingDir) {
+            Path confPathLogs = workingDir.resolve("logs");
+            return new Config(
+                "Elasticsearch",
+                "elasticsearch",
+                "elasticsearch-keystore",
+                "elasticsearch-plugin",
+                "ES_TMPDIR",
+                "ES_JAVA_OPTS",
+                "ES_PATH_CONF",
+                workingDir.resolve("config/elasticsearch.yml"),
+                confPathLogs.resolve("es.stdout.log"),
+                confPathLogs.resolve("es.stderr.log"),
+                workingDir.resolve("es.stdin")
+            );
+        }
+    }
+
+    private void applyConfig() {
+        if (getVersion().onOrAfter("1.0.0")) {
+            currentConfig = opensearchConfig;
+        } else {
+            currentConfig = legacyESConfig;
+        }
     }
 
     @Input
@@ -231,6 +320,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         checkFrozen();
         distributions.clear();
         doSetVersion(version);
+        applyConfig();
     }
 
     @Override
@@ -240,6 +330,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         for (String version : versions) {
             doSetVersion(version);
         }
+        applyConfig();
     }
 
     private void doSetVersion(String version) {
@@ -424,7 +515,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     @Internal
     public Path getConfigDir() {
-        return configFile.getParent();
+        return currentConfig.configFile.getParent();
     }
 
     @Override
@@ -451,7 +542,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
      * @return stream of log lines
      */
     public Stream<String> logLines() throws IOException {
-        return Files.lines(opensearchStdoutFile, StandardCharsets.UTF_8);
+        return Files.lines(currentConfig.stdoutFile, StandardCharsets.UTF_8);
     }
 
     @Override
@@ -500,20 +591,20 @@ public class OpenSearchNode implements TestClusterConfiguration {
             if (getVersion().onOrAfter("7.6.0")) {
                 logToProcessStdout("installing " + pluginsToInstall.size() + " plugins in a single transaction");
                 final String[] arguments = Stream.concat(Stream.of("install", "--batch"), pluginsToInstall.stream()).toArray(String[]::new);
-                runOpenSearchBinScript("opensearch-plugin", arguments);
+                runOpenSearchBinScript(currentConfig.pluginTool, arguments);
                 logToProcessStdout("installed plugins");
             } else {
                 logToProcessStdout("installing " + pluginsToInstall.size() + " plugins sequentially");
-                pluginsToInstall.forEach(plugin -> runOpenSearchBinScript("opensearch-plugin", "install", "--batch", plugin));
+                pluginsToInstall.forEach(plugin -> runOpenSearchBinScript(currentConfig.pluginTool, "install", "--batch", plugin));
                 logToProcessStdout("installed plugins");
             }
         }
 
-        logToProcessStdout("Creating opensearch keystore with password set to [" + keystorePassword + "]");
+        logToProcessStdout("Creating " + currentConfig.command + " keystore with password set to [" + keystorePassword + "]");
         if (keystorePassword.length() > 0) {
-            runOpenSearchBinScriptWithInput(keystorePassword + "\n" + keystorePassword, "opensearch-keystore", "create", "-p");
+            runOpenSearchBinScriptWithInput(keystorePassword + "\n" + keystorePassword, currentConfig.keystoreTool, "create", "-p");
         } else {
-            runOpenSearchBinScript("opensearch-keystore", "-v", "create");
+            runOpenSearchBinScript(currentConfig.keystoreTool, "-v", "create");
         }
 
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
@@ -541,7 +632,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
             }
         }
 
-        logToProcessStdout("Starting OpenSearch process");
+        logToProcessStdout("Starting " + currentConfig.distroName + " process");
         startOpenSearchProcess();
     }
 
@@ -553,11 +644,11 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     private void logToProcessStdout(String message) {
         try {
-            if (Files.exists(opensearchStdoutFile.getParent()) == false) {
-                Files.createDirectories(opensearchStdoutFile.getParent());
+            if (Files.exists(currentConfig.stdoutFile.getParent()) == false) {
+                Files.createDirectories(currentConfig.stdoutFile.getParent());
             }
             Files.write(
-                opensearchStdoutFile,
+                currentConfig.stdoutFile,
                 ("[" + Instant.now().toString() + "] [BUILD] " + message + "\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
@@ -580,6 +671,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         }
         logToProcessStdout("Switch version from " + getVersion() + " to " + distributions.get(currentDistro + 1).getVersion());
         currentDistro += 1;
+        applyConfig();
         setting("node.attr.upgraded", "true");
     }
 
@@ -595,7 +687,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
             if (Files.exists(from.toPath()) == false) {
                 throw new TestClustersException("Can't create extra config file from " + from + " for " + this + " as it does not exist");
             }
-            Path dst = configFile.getParent().resolve(destination);
+            Path dst = currentConfig.configFile.getParent().resolve(destination);
             try {
                 Files.createDirectories(dst.getParent());
                 Files.copy(from.toPath(), dst, StandardCopyOption.REPLACE_EXISTING);
@@ -686,7 +778,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         }
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
             LoggedExec.exec(project, spec -> {
-                spec.setEnvironment(getESEnvironment());
+                spec.setEnvironment(getOpenSearchEnvironment());
                 spec.workingDir(getDistroDir());
                 spec.executable(OS.conditionalString().onUnix(() -> "./bin/" + tool).onWindows(() -> "cmd").supply());
                 spec.args(OS.<List<CharSequence>>conditional().onWindows(() -> {
@@ -708,17 +800,17 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     private void runKeystoreCommandWithPassword(String keystorePassword, String input, CharSequence... args) {
         final String actualInput = keystorePassword.length() > 0 ? keystorePassword + "\n" + input : input;
-        runOpenSearchBinScriptWithInput(actualInput, "opensearch-keystore", args);
+        runOpenSearchBinScriptWithInput(actualInput, currentConfig.keystoreTool, args);
     }
 
     private void runOpenSearchBinScript(String tool, CharSequence... args) {
         runOpenSearchBinScriptWithInput("", tool, args);
     }
 
-    private Map<String, String> getESEnvironment() {
+    private Map<String, String> getOpenSearchEnvironment() {
         Map<String, String> defaultEnv = new HashMap<>();
         getRequiredJavaHome().ifPresent(javaHome -> defaultEnv.put("JAVA_HOME", javaHome));
-        defaultEnv.put("OPENSEARCH_PATH_CONF", configFile.getParent().toString());
+        defaultEnv.put(currentConfig.envPathConf, currentConfig.configFile.getParent().toString());
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {
             systemPropertiesString = " "
@@ -728,7 +820,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
                     // OPENSEARCH_PATH_CONF is also set as an environment variable and for a reference to ${OPENSEARCH_PATH_CONF}
                     // to work OPENSEARCH_JAVA_OPTS, we need to make sure that OPENSEARCH_PATH_CONF before OPENSEARCH_JAVA_OPTS. Instead,
                     // we replace the reference with the actual value in other environment variables
-                    .map(p -> p.replace("${OPENSEARCH_PATH_CONF}", configFile.getParent().toString()))
+                    .map(p -> p.replace("${" + currentConfig.envPathConf + "}", currentConfig.configFile.getParent().toString()))
                     .collect(Collectors.joining(" "));
         }
         String jvmArgsString = "";
@@ -743,12 +835,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
         }
         String heapSize = System.getProperty("tests.heap.size", "512m");
         defaultEnv.put(
-            "OPENSEARCH_JAVA_OPTS",
+            currentConfig.envJavaOpts,
             "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa " + systemPropertiesString + " " + jvmArgsString + " " +
             // Support passing in additional JVM arguments
                 System.getProperty("tests.jvm.argline", "")
         );
-        defaultEnv.put("OPENSEARCH_TMPDIR", tmpDir.toString());
+        defaultEnv.put(currentConfig.envTempDir, tmpDir.toString());
         // Windows requires this as it defaults to `c:\windows` despite OPENSEARCH_TMPDIR
         defaultEnv.put("TMP", tmpDir.toString());
 
@@ -786,24 +878,24 @@ public class OpenSearchNode implements TestClusterConfiguration {
         final ProcessBuilder processBuilder = new ProcessBuilder();
         Path effectiveDistroDir = getDistroDir();
         List<String> command = OS.<List<String>>conditional()
-            .onUnix(() -> Arrays.asList(effectiveDistroDir.resolve("./bin/opensearch").toString()))
-            .onWindows(() -> Arrays.asList("cmd", "/c", effectiveDistroDir.resolve("bin\\opensearch.bat").toString()))
+            .onUnix(() -> Arrays.asList(effectiveDistroDir.resolve("./bin/" + currentConfig.command).toString()))
+            .onWindows(() -> Arrays.asList("cmd", "/c", effectiveDistroDir.resolve("bin\\" + currentConfig.command + ".bat").toString()))
             .supply();
         processBuilder.command(command);
         processBuilder.directory(workingDir.toFile());
         Map<String, String> environment = processBuilder.environment();
         // Don't inherit anything from the environment for as that would lack reproducibility
         environment.clear();
-        environment.putAll(getESEnvironment());
+        environment.putAll(getOpenSearchEnvironment());
 
         // don't buffer all in memory, make sure we don't block on the default pipes
-        processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(opensearchStderrFile.toFile()));
-        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(opensearchStdoutFile.toFile()));
+        processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(currentConfig.stderrFile.toFile()));
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(currentConfig.stdoutFile.toFile()));
 
         if (keystorePassword != null && keystorePassword.length() > 0) {
             try {
-                Files.write(opensearchStdinFile, (keystorePassword + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
-                processBuilder.redirectInput(opensearchStdinFile.toFile());
+                Files.write(currentConfig.stdinFile, (keystorePassword + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
+                processBuilder.redirectInput(currentConfig.stdinFile.toFile());
             } catch (IOException e) {
                 throw new TestClustersException("Failed to set the keystore password for " + this, e);
             }
@@ -812,7 +904,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         try {
             opensearchProcess = processBuilder.start();
         } catch (IOException e) {
-            throw new TestClustersException("Failed to start ES process for " + this, e);
+            throw new TestClustersException("Failed to start " + currentConfig.command + " process for " + this, e);
         }
         reaper.registerPid(toString(), opensearchProcess.pid());
     }
@@ -884,8 +976,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
         stopHandle(opensearchProcess.toHandle(), true);
         reaper.unregister(toString());
         if (tailLogs) {
-            logFileContents("Standard output of node", opensearchStdoutFile);
-            logFileContents("Standard error of node", opensearchStderrFile);
+            logFileContents("Standard output of node", currentConfig.stdoutFile);
+            logFileContents("Standard error of node", currentConfig.stderrFile);
         }
         opensearchProcess = null;
         // Clean up the ports file in case this is started again.
@@ -919,7 +1011,10 @@ public class OpenSearchNode implements TestClusterConfiguration {
         // and in that case the ML processes will be grandchildren of the wrapper.
         List<ProcessHandle> children = processHandle.children().collect(Collectors.toList());
         try {
-            logProcessInfo("Terminating opensearch process" + (forcibly ? " forcibly " : "gracefully") + ":", processHandle.info());
+            logProcessInfo(
+                "Terminating " + currentConfig.command + " process" + (forcibly ? " forcibly " : "gracefully") + ":",
+                processHandle.info()
+            );
 
             if (forcibly) {
                 processHandle.destroyForcibly();
@@ -939,7 +1034,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
             waitForProcessToExit(processHandle);
             if (processHandle.isAlive()) {
-                throw new TestClustersException("Was not able to terminate opensearch process for " + this);
+                throw new TestClustersException("Was not able to terminate " + currentConfig.command + " process for " + this);
             }
         } finally {
             children.forEach(each -> stopHandle(each, forcibly));
@@ -1026,7 +1121,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         try {
             processHandle.onExit().get(OPENSEARCH_DESTROY_TIMEOUT, OPENSEARCH_DESTROY_TIMEOUT_UNIT);
         } catch (InterruptedException e) {
-            LOGGER.info("Interrupted while waiting for ES process", e);
+            LOGGER.info("Interrupted while waiting for {} process", currentConfig.command, e);
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
             LOGGER.info("Failure while waiting for process to exist", e);
@@ -1037,8 +1132,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     private void createWorkingDir() throws IOException {
         // Start configuration from scratch in case of a restart
-        fileSystemOperations.delete(d -> d.delete(configFile.getParent()));
-        Files.createDirectories(configFile.getParent());
+        fileSystemOperations.delete(d -> d.delete(currentConfig.configFile.getParent()));
+        Files.createDirectories(currentConfig.configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);
         Files.createDirectories(confPathLogs);
@@ -1164,8 +1259,13 @@ public class OpenSearchNode implements TestClusterConfiguration {
         baseConfig.put("discovery.initial_state_timeout", "0s");
 
         // TODO: Remove these once https://github.com/elastic/elasticsearch/issues/46091 is fixed
-        baseConfig.put("logger.org.opensearch.action.support.master", "DEBUG");
-        baseConfig.put("logger.org.opensearch.cluster.coordination", "DEBUG");
+        if (getVersion().onOrAfter("1.0.0")) {
+            baseConfig.put("logger.org.opensearch.action.support.master", "DEBUG");
+            baseConfig.put("logger.org.opensearch.cluster.coordination", "DEBUG");
+        } else {
+            baseConfig.put("logger.org.elasticsearch.action.support.master", "DEBUG");
+            baseConfig.put("logger.org.elasticsearch.cluster.coordination", "DEBUG");
+        }
 
         HashSet<String> overriden = new HashSet<>(baseConfig.keySet());
         overriden.retainAll(settings.keySet());
@@ -1178,10 +1278,10 @@ public class OpenSearchNode implements TestClusterConfiguration {
         // Make sure no duplicate config keys
         settings.keySet().stream().filter(OVERRIDABLE_SETTINGS::contains).forEach(baseConfig::remove);
 
-        final Path configFileRoot = configFile.getParent();
+        final Path configFileRoot = currentConfig.configFile.getParent();
         try {
             Files.write(
-                configFile,
+                currentConfig.configFile,
                 Stream.concat(settings.entrySet().stream(), baseConfig.entrySet().stream())
                     .map(entry -> entry.getKey() + ": " + entry.getValue())
                     .collect(Collectors.joining("\n"))
@@ -1196,17 +1296,17 @@ public class OpenSearchNode implements TestClusterConfiguration {
             }
             logToProcessStdout("Copying additional config files from distro " + configFiles);
             for (Path file : configFiles) {
-                Path dest = configFile.getParent().resolve(file.getFileName());
+                Path dest = currentConfig.configFile.getParent().resolve(file.getFileName());
                 if (Files.exists(dest) == false) {
                     Files.copy(file, dest);
                 }
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("Could not write config file: " + configFile, e);
+            throw new UncheckedIOException("Could not write config file: " + currentConfig.configFile, e);
         }
 
         tweakJvmOptions(configFileRoot);
-        LOGGER.info("Written config file:{} for {}", configFile, this);
+        LOGGER.info("Written config file:{} for {}", currentConfig.configFile, this);
     }
 
     private void tweakJvmOptions(Path configFileRoot) {
@@ -1428,12 +1528,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     @Internal
     Path getOpensearchStdoutFile() {
-        return opensearchStdoutFile;
+        return currentConfig.stdoutFile;
     }
 
     @Internal
     Path getOpensearchStderrFile() {
-        return opensearchStderrFile;
+        return currentConfig.stderrFile;
     }
 
     private static class FileEntry implements Named {
