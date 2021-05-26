@@ -102,7 +102,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
-        Version.writeVersion(version, out);
+        if (out.getVersion().before(Version.V_1_0_0)) {
+            Version.writeVersion(LegacyESVersion.V_7_10_2, out);
+        } else {
+            Version.writeVersion(version, out);
+        }
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
