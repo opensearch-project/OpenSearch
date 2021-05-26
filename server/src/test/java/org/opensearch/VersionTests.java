@@ -51,7 +51,7 @@ import java.util.Set;
 
 import static org.opensearch.LegacyESVersion.V_6_3_0;
 import static org.opensearch.LegacyESVersion.V_7_0_0;
-import static org.opensearch.LegacyESVersion.V_7_0_0;
+import static org.opensearch.Version.MASK;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -254,7 +254,9 @@ public class VersionTests extends OpenSearchTestCase {
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
             if (random().nextBoolean()) {
-                version = new Version(version.id, version.luceneVersion);
+                version = version.id < MASK ?
+                    new LegacyESVersion(version.id, version.luceneVersion) :
+                    new Version(version.id ^ MASK, version.luceneVersion);
             }
             Version parsedVersion = Version.fromString(version.toString());
             assertEquals(version, parsedVersion);

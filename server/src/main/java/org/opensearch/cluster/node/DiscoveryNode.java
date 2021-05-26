@@ -368,8 +368,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
 
-        Version.writeVersion(out.getVersion().onOrBefore(LegacyESVersion.V_7_10_2) ? Version.BC_ES_VERSION : version, out);
-    }
+        if (out.getVersion().before(Version.V_1_0_0)) {
+            Version.writeVersion(LegacyESVersion.V_7_10_2, out);
+        } else {
+            Version.writeVersion(version, out);
+        }    }
 
     /**
      * The address that the node can be communicated with.

@@ -532,22 +532,18 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             super(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = new ClusterName(in);
-            Version tmpVersion = Version.readVersion(in);
-            if(in.getVersion().onOrBefore(LegacyESVersion.V_7_10_2)) {
-                tmpVersion = Version.BC_ES_VERSION;
-            }
-            version = tmpVersion;
+            version = Version.readVersion(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
-            Version tmpVersion = version;
-            if(out.getVersion().onOrBefore(LegacyESVersion.V_7_10_2)) {
-                tmpVersion = Version.BC_ES_VERSION;
+            if (out.getVersion().before(Version.V_1_0_0)) {
+                Version.writeVersion(LegacyESVersion.V_7_10_2, out);
+            } else {
+                Version.writeVersion(version, out);
             }
-            Version.writeVersion(tmpVersion, out);
         }
 
         public DiscoveryNode getDiscoveryNode() {

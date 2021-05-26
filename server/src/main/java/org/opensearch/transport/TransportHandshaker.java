@@ -106,12 +106,11 @@ final class TransportHandshaker {
             throw new IllegalStateException("Handshake request not fully read for requestId [" + requestId + "], action ["
                 + TransportHandshaker.HANDSHAKE_ACTION_NAME + "], available [" + stream.available() + "]; resetting");
         }
-
-        Version version = Version.CURRENT;
-        if(stream.getVersion().equals(LegacyESVersion.V_6_8_0) || stream.getVersion().equals(Version.fromId(5060099))) {
-            version = Version.BC_ES_VERSION;
+        if (stream.getVersion().before(Version.V_1_0_0)) {
+            channel.sendResponse(new HandshakeResponse(LegacyESVersion.V_7_10_2));
+        } else {
+            channel.sendResponse(new HandshakeResponse(this.version));
         }
-        channel.sendResponse(new HandshakeResponse(version));
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {

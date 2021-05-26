@@ -92,7 +92,6 @@ public class LegacyESVersion extends Version {
     public static final LegacyESVersion V_6_7_0 = new LegacyESVersion(6070099, org.apache.lucene.util.Version.LUCENE_7_7_0);
     public static final LegacyESVersion V_6_7_1 = new LegacyESVersion(6070199, org.apache.lucene.util.Version.LUCENE_7_7_0);
     public static final LegacyESVersion V_6_7_2 = new LegacyESVersion(6070299, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final LegacyESVersion V_6_7_99 = new LegacyESVersion(6079999, org.apache.lucene.util.Version.LUCENE_7_7_0);
     public static final LegacyESVersion V_6_8_0 = new LegacyESVersion(6080099, org.apache.lucene.util.Version.LUCENE_7_7_0);
     public static final LegacyESVersion V_6_8_1 = new LegacyESVersion(6080199, org.apache.lucene.util.Version.LUCENE_7_7_0);
     public static final LegacyESVersion V_6_8_2 = new LegacyESVersion(6080299, org.apache.lucene.util.Version.LUCENE_7_7_0);
@@ -152,7 +151,7 @@ public class LegacyESVersion extends Version {
         for (final Field declaredField : LegacyESVersion.class.getFields()) {
             if (declaredField.getType().equals(Version.class) || declaredField.getType().equals(LegacyESVersion.class)) {
                 final String fieldName = declaredField.getName();
-                if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY") || fieldName.equals("BC_ES_VERSION")) {
+                if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY")) {
                     continue;
                 }
                 assert fieldName.matches("V_\\d+_\\d+_\\d+(_alpha[1,2]|_beta[1,2]|_rc[1,2])?")
@@ -169,7 +168,11 @@ public class LegacyESVersion extends Version {
                             final int minor = Integer.valueOf(fields[2]) * 10000;
                             final int revision = Integer.valueOf(fields[3]) * 100;
                             final int expectedId;
-                            expectedId = (major + minor + revision + 99);
+                            if (fields[1].equals("1")) {
+                                expectedId = 0x08000000 ^ (major + minor + revision + 99);
+                            } else {
+                                expectedId = (major + minor + revision + 99);
+                            }
                             assert version.id == expectedId :
                                 "expected version [" + fieldName + "] to have id [" + expectedId + "] but was [" + version.id + "]";
                         }
@@ -195,7 +198,10 @@ public class LegacyESVersion extends Version {
     }
 
     protected LegacyESVersion(int id, org.apache.lucene.util.Version luceneVersion) {
-        super(id, luceneVersion);
+        // flip the 28th bit of the version id
+        // this will be flipped back in the parent class to correctly identify as a legacy version;
+        // giving backwards compatibility with legacy systems
+        super(id ^ 0x08000000, luceneVersion);
     }
 
     @Override
@@ -277,8 +283,10 @@ public class LegacyESVersion extends Version {
         }
     }
 
-    @Override
-    protected boolean isLegacyVersion() {
-        return true;
+    /**
+     * this is used to ensure the version id for new versions of OpenSearch are always less than the predecessor versions
+     */
+    protected int maskId(final int id) {
+        return id;
     }
 }
