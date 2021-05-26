@@ -1,6 +1,0 @@
-#!/bin/bash
-
-OPENSEARCH_MAIN_CLASS=org.opensearch.upgrade.UpgradeCli \
-  OPENSEARCH_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/upgrade-cli \
-  "`dirname "$0"`"/opensearch-cli \
-  "$@"
