@@ -133,7 +133,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public static void writeVersion(Version version, StreamOutput out) throws IOException {
-        out.writeVInt(version.id);
+        if (out.getVersion().before(Version.V_1_0_0)) {
+            out.writeVInt(LegacyESVersion.V_7_10_2.id);
+        } else {
+            out.writeVInt(version.id);
+        }
     }
 
     public static int computeLegacyID(int major, int minor, int revision, int build) {
@@ -177,7 +181,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         String[] parts = version.split("[.-]");
         // todo: add back optional build number
         if (parts.length != 3) {
-            throw new IllegalArgumentException("the version needs to contain major, minor, and revision" + version);
+            throw new IllegalArgumentException("the version needs to contain major, minor, and revision: " + version);
         }
 
         try {

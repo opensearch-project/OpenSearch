@@ -156,7 +156,7 @@ public class Response {
      * @return {@code true} if the input string matches the specification
      */
     private static boolean matchWarningHeaderPatternByPrefix(final String s) {
-        return s.startsWith("299 OpenSearch-");
+        return s.startsWith("299 OpenSearch-") || s.startsWith("299 Elasticsearch-");
     }
 
     /**
