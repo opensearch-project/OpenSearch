@@ -44,6 +44,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 
+import java.util.Locale;
 import java.util.function.BiFunction;
 
 import static org.opensearch.cluster.routing.allocation.decider.Decision.THROTTLE;
@@ -178,9 +179,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
 
         return allocateReplicas(shardRouting, allocation, currentInRecoveries, replicasInitialRecoveries,
             (x,y) -> getInitialPrimaryNodeOutgoingRecoveries(x,y), replicasInitialRecoveries,
-            String.format("[%s=%d]", CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+            String.format(Locale.ROOT, "[%s=%d]", CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                 replicasInitialRecoveries),
-            String.format("[%s=%d]", CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+            String.format(Locale.ROOT, "[%s=%d]", CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                 replicasInitialRecoveries));
     }
 
@@ -190,10 +191,10 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
 
         return allocateReplicas(shardRouting, allocation, currentInRecoveries, concurrentIncomingRecoveries,
             (x,y) -> getPrimaryNodeOutgoingRecoveries(x,y), concurrentOutgoingRecoveries,
-            String.format("[%s=%d] (can also be set via [%s])",
+            String.format(Locale.ROOT, "[%s=%d] (can also be set via [%s])",
                 CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
             concurrentIncomingRecoveries, CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey()),
-            String.format("[%s=%d] (can also be set via [%s])",
+            String.format(Locale.ROOT, "[%s=%d] (can also be set via [%s])",
                 CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                 concurrentOutgoingRecoveries, CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey()));
     }
