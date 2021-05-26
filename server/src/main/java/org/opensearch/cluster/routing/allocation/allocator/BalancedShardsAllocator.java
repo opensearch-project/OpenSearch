@@ -45,6 +45,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.opensearch.cluster.routing.allocation.AllocationConstraints;
 import org.opensearch.cluster.routing.allocation.AllocationDecision;
 import org.opensearch.cluster.routing.allocation.MoveDecision;
 import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
@@ -192,7 +193,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         return weightFunction.shardBalance;
     }
 
-
     /**
      * This class is the primary weight function used to create balanced over nodes and shards in the cluster.
      * Currently this function has 3 properties:
@@ -216,13 +216,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * </li>
      * </ul>
      * <code>weight(node, index) = weight<sub>index</sub>(node, index) + weight<sub>node</sub>(node, index)</code>
+     *
+     * package-private for testing
      */
-    private static class WeightFunction {
+    static class WeightFunction {
 
         private final float indexBalance;
         private final float shardBalance;
         private final float theta0;
         private final float theta1;
+        private AllocationConstraints constraints;
 
         WeightFunction(float indexBalance, float shardBalance) {
             float sum = indexBalance + shardBalance;
@@ -233,6 +236,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             theta1 = indexBalance / sum;
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
+            this.constraints = new AllocationConstraints();
+        }
+
+        public float weightWithAllocationConstraints(Balancer balancer, ModelNode node, String index) {
+            float balancerWeight = weight(balancer, node, index);
+            return balancerWeight + constraints.weight(balancer, node, index);
         }
 
         float weight(Balancer balancer, ModelNode node, String index) {
@@ -411,7 +420,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     boolean deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
-                    boolean betterWeightWithShardAdded = nodeWeight + 1.0f < currentWeight;
+                    // hence we add 2.0f to the weight delta
+                    float proposedDelta = 2.0f + nodeWeight - currentWeight;
+                    boolean betterWeightWithShardAdded = proposedDelta < currentDelta;
+
                     rebalanceConditionsMet = deltaAboveThreshold && betterWeightWithShardAdded;
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the
@@ -964,7 +976,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
 
                 // weight of this index currently on the node
-                float currentWeight = weight.weight(this, node, shard.getIndexName());
+                float currentWeight = weight.weightWithAllocationConstraints(this, node, shard.getIndexName());
                 // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
                 if (currentWeight > minWeight && explain == false) {
                     continue;
@@ -1002,7 +1014,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             updateMinNode = currentDecision.type() == Type.YES;
                         }
                     } else {
-                        updateMinNode = true;
+                        updateMinNode = currentWeight < minWeight;
                     }
                     if (updateMinNode) {
                         minNode = node;
@@ -1086,7 +1098,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     }
 
-    static class ModelNode implements Iterable<ModelIndex> {
+    public static class ModelNode implements Iterable<ModelIndex> {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
         private final RoutingNode routingNode;
