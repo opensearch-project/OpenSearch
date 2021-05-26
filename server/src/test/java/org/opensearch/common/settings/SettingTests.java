@@ -179,6 +179,23 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
+    public void testMemorySizeWithFallbackValue() {
+        Setting<ByteSizeValue> fallbackSetting = Setting.memorySizeSetting("a.byte.size", "20%", Property.Dynamic, Property.NodeScope);
+        Setting<ByteSizeValue> memorySizeSetting = Setting.memorySizeSetting(
+            "b.byte.size", fallbackSetting, Property.Dynamic, Property.NodeScope);
+        AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
+        ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = memorySizeSetting.newUpdater(value::set, logger);
+
+        ByteSizeValue memorySizeValue = memorySizeSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2, 1.0);
+
+        assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "30%").build(), Settings.EMPTY));
+        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3)), value.get());
+
+        assertTrue(settingUpdater.apply(Settings.builder().put("b.byte.size", "40%").build(), Settings.EMPTY));
+        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4)), value.get());
+    }
+
     public void testSimpleUpdate() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);
         AtomicReference<Boolean> atomicBoolean = new AtomicReference<>(null);
@@ -517,10 +534,10 @@ public class SettingTests extends OpenSearchTestCase {
     public void testGroupSettingFallback() {
         Setting<Settings> fallbackSetting = Setting.groupSetting("old.bar.", Property.Dynamic, Property.NodeScope);
         assertFalse(fallbackSetting.exists(Settings.EMPTY));
-        
+
         Setting<Settings> groupSetting = Setting.groupSetting("new.bar.", fallbackSetting, Property.Dynamic, Property.NodeScope);
         assertFalse(groupSetting.exists(Settings.EMPTY));
-        
+
         Settings values = Settings.builder()
             .put("old.bar.1.value", "value 1")
             .put("old.bar.2.value", "value 2")
@@ -984,7 +1001,7 @@ public class SettingTests extends OpenSearchTestCase {
 
         assertEquals(5, longSetting.get(Settings.builder().put("foo.bar", 5).build()).longValue());
         assertEquals(1, longSetting.get(Settings.EMPTY).longValue());
-    }    
+    }
 
     // Float
 
@@ -1054,7 +1071,7 @@ public class SettingTests extends OpenSearchTestCase {
 
         assertEquals(5.6, doubleSetting.get(Settings.builder().put("foo.bar", 5.6).build()).doubleValue(), 0.01);
         assertEquals(1.2, doubleSetting.get(Settings.EMPTY).doubleValue(), 0.01);
-    }    
+    }
 
     /**
      * Only one single scope can be added to any setting
