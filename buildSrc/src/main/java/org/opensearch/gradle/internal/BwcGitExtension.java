@@ -43,6 +43,16 @@ public class BwcGitExtension {
     private Provider<String> bwcBranch;
     private Provider<File> checkoutDir;
 
+    public String getBwcRepo() {
+        // TODO: return 'opensearch-project' after 1.0
+        return "elasticsearch";
+    }
+
+    public String getBwcProject() {
+        // TODO: return 'OpenSearch' after 1.0
+        return "elastic";
+    }
+
     public Provider<Version> getBwcVersion() {
         return bwcVersion;
     }

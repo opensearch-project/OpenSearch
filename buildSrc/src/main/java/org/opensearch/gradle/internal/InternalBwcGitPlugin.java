@@ -74,7 +74,10 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
     public void apply(Project project) {
         this.project = project;
         this.gitExtension = project.getExtensions().create("bwcGitConfig", BwcGitExtension.class);
-        Provider<String> remote = providerFactory.systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("opensearch-project");
+        
+        Provider<String> remote = providerFactory.systemProperty("bwc.remote")
+            .forUseAtConfigurationTime()
+            .orElse(this.gitExtension.getBwcProject()); // e.g. "opensearch-project" or "elastic"
 
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
@@ -100,12 +103,15 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             addRemote.dependsOn(findRemoteTaskProvider);
             addRemote.onlyIf(task -> ((boolean) project.getExtensions().getExtraProperties().get("remoteExists")) == false);
             addRemote.setWorkingDir(gitExtension.getCheckoutDir().get());
-            String remoteRepo = remote.get();
+            String remoteOrg = remote.get();
             // for testing only we can override the base remote url
+            String remoteRepo = providerFactory.systemProperty("bwc.repo")
+                .forUseAtConfigurationTime()
+                .getOrElse(gitExtension.getBwcRepo()); // e.g. "OpenSearch.git" or "elasticsearch.git"
             String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
                 .forUseAtConfigurationTime()
-                .getOrElse("https://github.com/" + remoteRepo + "/OpenSearch.git");
-            addRemote.setCommandLine(asList("git", "remote", "add", remoteRepo, remoteRepoUrl));
+                .getOrElse("https://github.com/" + remoteOrg + "/" + remoteRepo);
+            addRemote.setCommandLine(asList("git", "remote", "add", remoteOrg, remoteRepoUrl));
         });
 
         TaskProvider<LoggedExec> fetchLatestTaskProvider = tasks.register("fetchLatest", LoggedExec.class, fetchLatest -> {
