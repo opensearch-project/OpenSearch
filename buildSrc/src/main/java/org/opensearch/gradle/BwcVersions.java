@@ -152,9 +152,9 @@ public class BwcVersions {
             // It might take us time to remove the older ones from versionLines, so we allow them to exist.
             // Adjust the major number since OpenSearch 1.x is released after predecessor version 7.x
             .filter(
-                version -> (version.getMajor() == 1 ? 7 : version.getMajor()) > (currentVersion.getMajor() == 1
-                    ? 7
-                    : currentVersion.getMajor()) - 2
+                version -> 
+                    (version.getMajor() == 1 ? 7 : version.getMajor()) > 
+                        (currentVersion.getMajor() == 1 ? 7 : currentVersion.getMajor()) - 2
             )
             .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
 
@@ -267,9 +267,11 @@ public class BwcVersions {
 
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
-
-        // version 1 is the first release, there is no previous "unreleased version":
-        if (currentVersion.getMajor() != 1) {
+        
+        if (currentVersion.getMajor() == 1 && currentVersion.getMinor() == 0) {
+            // there are no previous unreleased versions before 1.0.0
+        } else {
+            
             // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
             final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
             unreleased.add(latestOfPreviousMajor);
@@ -280,22 +282,22 @@ public class BwcVersions {
                     unreleased.add(previousMinor);
                 }
             }
-        }
 
-        final Map<Integer, List<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
-        int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
+            final Map<Integer, List<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
+            int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
 
-        // the last bugfix for this minor series is always unreleased
-        unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor));
+            // the last bugfix for this minor series is always unreleased
+            unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor));
 
-        if (groupByMinor.get(greatestMinor).size() == 1) {
-            // we found an unreleased minor
-            unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 1));
-            if (groupByMinor.getOrDefault(greatestMinor - 1, emptyList()).size() == 1) {
-                // we found that the previous minor is staged but not yet released
-                // in this case, the minor before that has a bugfix, should there be such a minor
-                if (greatestMinor >= 2) {
-                    unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
+            if (groupByMinor.get(greatestMinor).size() == 1) {
+                // we found an unreleased minor
+                unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 1));
+                if (groupByMinor.getOrDefault(greatestMinor - 1, emptyList()).size() == 1) {
+                    // we found that the previous minor is staged but not yet released
+                    // in this case, the minor before that has a bugfix, should there be such a minor
+                    if (greatestMinor >= 2) {
+                        unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
+                    }
                 }
             }
         }
@@ -380,6 +382,9 @@ public class BwcVersions {
         int currentMajor = currentVersion.getMajor();
         int lastMajor = currentMajor == 1 ? 6 : currentMajor - 1;
         List<Version> lastMajorList = groupByMajor.get(lastMajor);
+        if (lastMajorList == null) {
+            throw new IllegalStateException("Expected to find a list of versions for version: " + lastMajor);
+        }
         int minor = lastMajorList.get(lastMajorList.size() - 1).getMinor();
         for (int i = lastMajorList.size() - 1; i > 0 && lastMajorList.get(i).getMinor() == minor; --i) {
             wireCompat.add(lastMajorList.get(i));
@@ -395,7 +400,6 @@ public class BwcVersions {
         wireCompat.addAll(groupByMajor.get(currentMajor));
         wireCompat.remove(currentVersion);
         wireCompat.sort(Version::compareTo);
-
         return unmodifiableList(wireCompat);
     }
 
