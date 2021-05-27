@@ -120,8 +120,7 @@ final class TransportHandshaker {
         // 1. if remote node is 7.x, then StreamInput version would be 6.8.0
         // 2. if remote node is 6.8 then it would be 5.6.0
         // 3. if remote node is OpenSearch 1.x then it would be 6.7.99
-        if (stream.getVersion().before(Version.V_1_0_0)) {
-            // for all StreamInput versions less than OpenSearch 1.0.0 spoof as legacy 7.10.2
+        if(stream.getVersion().equals(LegacyESVersion.V_6_8_0) || stream.getVersion().equals(Version.fromId(5060099))) {
             channel.sendResponse(new HandshakeResponse(LegacyESVersion.V_7_10_2));
         } else {
             channel.sendResponse(new HandshakeResponse(this.version));

@@ -133,11 +133,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public static void writeVersion(Version version, StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_1_0_0)) {
-            out.writeVInt(LegacyESVersion.V_7_10_2.id);
-        } else {
-            out.writeVInt(version.id);
-        }
+        out.writeVInt(version.id);
     }
 
     public static int computeLegacyID(int major, int minor, int revision, int build) {
@@ -291,7 +287,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     protected Version computeMinCompatVersion() {
         if (major == 1) {
-            return Version.fromId(6080099);
+            return Version.fromId(6070099);
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return Version.fromId(5060099);

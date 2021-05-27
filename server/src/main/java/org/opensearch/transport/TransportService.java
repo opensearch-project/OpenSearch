@@ -532,7 +532,11 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             super(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = new ClusterName(in);
-            version = Version.readVersion(in);
+            Version tmpVersion = Version.readVersion(in);
+            if (in.getVersion().onOrBefore(LegacyESVersion.V_7_10_2)) {
+                tmpVersion = LegacyESVersion.V_7_10_2;
+            }
+            version = tmpVersion;
         }
 
         @Override
