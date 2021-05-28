@@ -83,12 +83,12 @@ public class ZenFaultDetectionTests extends OpenSearchTestCase {
     protected ThreadPool threadPool;
     private CircuitBreakerService circuitBreakerService;
 
-    protected static final Version version0 = Version.fromId(/*0*/99);
+    protected static final Version version0 = Version.fromId(6080099);
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;
     private Settings settingsA;
 
-    protected static final Version version1 = Version.fromId(199);
+    protected static final Version version1 = Version.fromId(7100099);
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
     private Settings settingsB;
