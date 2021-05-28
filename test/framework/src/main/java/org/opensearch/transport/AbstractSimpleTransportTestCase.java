@@ -38,6 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
@@ -2002,7 +2003,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             service.start();
             service.acceptIncomingRequests();
             TransportAddress address = service.boundAddress().publishAddress();
-            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), Version.fromString("2.0.0"));
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(),
+                LegacyESVersion.fromString("2.0.0"));
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(1,
                 TransportRequestOptions.Type.BULK,
@@ -2047,7 +2049,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
-                assertEquals(connection.getVersion(), Version.CURRENT);
+                // OpenSearch sends a handshake version spoofed as Legacy version 7_10_2
+                // todo change for OpenSearch 2.0.0
+                assertEquals(LegacyESVersion.V_7_10_2, connection.getVersion());
             }
         }
     }

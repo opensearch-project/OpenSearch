@@ -184,7 +184,11 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(version.id);
+        if (out.getVersion().before(Version.V_1_0_0)) {
+            out.writeVInt(LegacyESVersion.V_7_10_2.id);
+        } else {
+            out.writeVInt(version.id);
+        }
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
