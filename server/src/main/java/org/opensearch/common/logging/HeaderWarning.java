@@ -60,7 +60,7 @@ public class HeaderWarning {
      */
     public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
         "299 " + // warn code
-            "OpenSearch-" + // warn agent
+            "(?:Elasticsearch-|OpenSearch-)" + // warn agent (note: Elasticsearch needed for bwc mixedCluster testing)
             "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
             "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
             "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
