@@ -268,9 +268,13 @@ public class BwcVersions {
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
 
-        if (currentVersion.getMajor() == 1 && currentVersion.getMinor() == 0) {
-            // there are no previous unreleased versions before 1.0.0
-        } else {
+        // No unreleased versions for 1.0.0
+        if (currentVersion.equals(Version.fromString("1.0.0"))) {
+            return unmodifiableList(unreleased);
+        }
+
+        // version 1 is the first release, there is no previous "unreleased version":
+        if (currentVersion.getMajor() != 1) {
             // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
             final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
             unreleased.add(latestOfPreviousMajor);
@@ -281,22 +285,22 @@ public class BwcVersions {
                     unreleased.add(previousMinor);
                 }
             }
+        }
 
-            final Map<Integer, List<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
-            int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
+        final Map<Integer, List<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
+        int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
 
-            // the last bugfix for this minor series is always unreleased
-            unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor));
+        // the last bugfix for this minor series is always unreleased
+        unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor));
 
-            if (groupByMinor.get(greatestMinor).size() == 1) {
-                // we found an unreleased minor
-                unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 1));
-                if (groupByMinor.getOrDefault(greatestMinor - 1, emptyList()).size() == 1) {
-                    // we found that the previous minor is staged but not yet released
-                    // in this case, the minor before that has a bugfix, should there be such a minor
-                    if (greatestMinor >= 2) {
-                        unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
-                    }
+        if (groupByMinor.get(greatestMinor).size() == 1) {
+            // we found an unreleased minor
+            unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 1));
+            if (groupByMinor.getOrDefault(greatestMinor - 1, emptyList()).size() == 1) {
+                // we found that the previous minor is staged but not yet released
+                // in this case, the minor before that has a bugfix, should there be such a minor
+                if (greatestMinor >= 2) {
+                    unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
                 }
             }
         }
