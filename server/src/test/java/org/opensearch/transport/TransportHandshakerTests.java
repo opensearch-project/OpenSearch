@@ -81,7 +81,7 @@ public class TransportHandshakerTests extends OpenSearchTestCase {
         long reqId = randomLongBetween(1, 10);
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), versionFuture);
 
-        verify(requestSender).sendRequest(node, channel, reqId, Version.CURRENT.minimumCompatibilityVersion());
+        verify(requestSender).sendRequest(node, channel, reqId, getMinCompatibilityVersionForHandshakeRequest());
 
         assertFalse(versionFuture.isDone());
 
@@ -104,7 +104,7 @@ public class TransportHandshakerTests extends OpenSearchTestCase {
         long reqId = randomLongBetween(1, 10);
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), PlainActionFuture.newFuture());
 
-        verify(requestSender).sendRequest(node, channel, reqId, Version.CURRENT.minimumCompatibilityVersion());
+        verify(requestSender).sendRequest(node, channel, reqId, getMinCompatibilityVersionForHandshakeRequest());
 
         TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(Version.CURRENT);
         BytesStreamOutput currentHandshakeBytes = new BytesStreamOutput();
@@ -140,7 +140,7 @@ public class TransportHandshakerTests extends OpenSearchTestCase {
         long reqId = randomLongBetween(1, 10);
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), versionFuture);
 
-        verify(requestSender).sendRequest(node, channel, reqId, Version.CURRENT.minimumCompatibilityVersion());
+        verify(requestSender).sendRequest(node, channel, reqId, getMinCompatibilityVersionForHandshakeRequest());
 
         assertFalse(versionFuture.isDone());
 
@@ -155,7 +155,7 @@ public class TransportHandshakerTests extends OpenSearchTestCase {
     public void testSendRequestThrowsException() throws IOException {
         PlainActionFuture<Version> versionFuture = PlainActionFuture.newFuture();
         long reqId = randomLongBetween(1, 10);
-        Version compatibilityVersion = Version.CURRENT.minimumCompatibilityVersion();
+        Version compatibilityVersion = getMinCompatibilityVersionForHandshakeRequest();
         doThrow(new IOException("boom")).when(requestSender).sendRequest(node, channel, reqId, compatibilityVersion);
 
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), versionFuture);
@@ -171,11 +171,18 @@ public class TransportHandshakerTests extends OpenSearchTestCase {
         long reqId = randomLongBetween(1, 10);
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(100, TimeUnit.MILLISECONDS), versionFuture);
 
-        verify(requestSender).sendRequest(node, channel, reqId, Version.CURRENT.minimumCompatibilityVersion());
+        verify(requestSender).sendRequest(node, channel, reqId, getMinCompatibilityVersionForHandshakeRequest());
 
         ConnectTransportException cte = expectThrows(ConnectTransportException.class, versionFuture::actionGet);
         assertThat(cte.getMessage(), containsString("handshake_timeout"));
 
         assertNull(handshaker.removeHandlerForHandshake(reqId));
+    }
+
+    private Version getMinCompatibilityVersionForHandshakeRequest() {
+        if(Version.CURRENT.onOrAfter(Version.V_1_0_0) && Version.CURRENT.major == 1) {
+            return Version.fromId(6079999);
+        }
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 }
