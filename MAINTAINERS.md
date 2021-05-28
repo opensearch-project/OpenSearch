@@ -20,8 +20,6 @@ The current maintainers are:
 | Itiyama Sadana | [itiyamas](https://github.com/itiyamas) | Amazon |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock) | Amazon |
 
-This information is also available by looking at the ["OpenSearch-core" team](https://github.com/orgs/opensearch-project/teams/opensearch-core/members)
-
 ## Versioning
 
 OpenSearch uses semantic versioning based on [Apache’s model](https://commons.apache.org/releases/versioning.html).  
