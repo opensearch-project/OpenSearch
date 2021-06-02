@@ -139,7 +139,6 @@ public class LegacyESVersion extends Version {
     public static final LegacyESVersion V_7_10_0 = new LegacyESVersion(7100099, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final LegacyESVersion V_7_10_1 = new LegacyESVersion(7100199, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final LegacyESVersion V_7_10_2 = new LegacyESVersion(7100299, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final LegacyESVersion V_7_10_3 = new LegacyESVersion(7100399, org.apache.lucene.util.Version.LUCENE_8_7_0);
 
     // todo move back to Version.java if retiring legacy version support
     protected static final ImmutableOpenIntMap<Version> idToVersion;
