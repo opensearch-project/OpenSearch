@@ -38,6 +38,7 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -73,7 +74,8 @@ public final class FileSystemUtils {
      */
     public static boolean isHidden(Path path) {
         Path fileName = path.getFileName();
-        if (fileName == null) {
+        
+        if (fileName == null || Files.isDirectory(path)) {
             return false;
         }
         return fileName.toString().startsWith(".");
