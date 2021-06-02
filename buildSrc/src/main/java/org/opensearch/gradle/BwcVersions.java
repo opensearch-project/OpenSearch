@@ -268,6 +268,11 @@ public class BwcVersions {
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
 
+        // No unreleased versions for 1.0.0
+        if (currentVersion.equals(Version.fromString("1.0.0"))) {
+            return unmodifiableList(unreleased);
+        }
+
         // version 1 is the first release, there is no previous "unreleased version":
         if (currentVersion.getMajor() != 1) {
             // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
@@ -380,6 +385,9 @@ public class BwcVersions {
         int currentMajor = currentVersion.getMajor();
         int lastMajor = currentMajor == 1 ? 6 : currentMajor - 1;
         List<Version> lastMajorList = groupByMajor.get(lastMajor);
+        if (lastMajorList == null) {
+            throw new IllegalStateException("Expected to find a list of versions for version: " + lastMajor);
+        }
         int minor = lastMajorList.get(lastMajorList.size() - 1).getMinor();
         for (int i = lastMajorList.size() - 1; i > 0 && lastMajorList.get(i).getMinor() == minor; --i) {
             wireCompat.add(lastMajorList.get(i));
@@ -395,7 +403,6 @@ public class BwcVersions {
         wireCompat.addAll(groupByMajor.get(currentMajor));
         wireCompat.remove(currentVersion);
         wireCompat.sort(Version::compareTo);
-
         return unmodifiableList(wireCompat);
     }
 
