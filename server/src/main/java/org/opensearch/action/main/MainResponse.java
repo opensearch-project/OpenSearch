@@ -37,6 +37,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -55,6 +56,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private ClusterName clusterName;
     private String clusterUuid;
     private Build build;
+
+    // OVERRIDE_RESPONSE_VERSION exists to provide support for clients expecting legacy ES versions
+    // to be returned from the main rest endpoint.  This setting will be removed in future versions of OpenSearch.
+    private static boolean OVERRIDE_MAIN_RESPONSE_VERSION =
+        Booleans.parseBoolean(System.getProperty("opensearch.http.override_main_response_version"), false);
 
     MainResponse() {}
 
@@ -123,7 +129,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
             .field("distribution", build.getDistribution())
-            .field("number", build.getQualifiedVersion())
+            .field("number", OVERRIDE_MAIN_RESPONSE_VERSION ? LegacyESVersion.V_7_10_2 : build.getQualifiedVersion())
             .field("build_type", build.type().displayName())
             .field("build_hash", build.hash())
             .field("build_date", build.date())
