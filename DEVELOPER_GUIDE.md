@@ -89,8 +89,6 @@ BUILD SUCCESSFUL in 14m 50s
 2587 actionable tasks: 2450 executed, 137 up-to-date
 ```
 
-**Note: OpenSearch hasn't made any changes to the test suite yet, beyond fixing tests that broke after removing non-Apache licensed code and non-Apache licensed code checks. Also, while we're in pre-alpha, some tests may be failing until we finish the forking process. We should have an issue for all failing tests, but if you find one first, feel free to open one (and fix it :) ).**
-
 If the full test suite fails you may want to start with a smaller set.
 
 ```
