@@ -123,9 +123,10 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     protected static SocketChannel accept(ServerSocketChannel serverSocketChannel) throws IOException {
         try {
             assert serverSocketChannel.isBlocking() == false;
-            SocketChannel channel = AccessController.doPrivileged((PrivilegedExceptionAction<SocketChannel>) serverSocketChannel::accept);
-            assert serverSocketChannel.isBlocking() == false;
-            return channel;
+            try(SocketChannel channel = AccessController.doPrivileged((PrivilegedExceptionAction<SocketChannel>) serverSocketChannel::accept)){
+                assert serverSocketChannel.isBlocking() == false;
+                return channel;
+            }
         } catch (PrivilegedActionException e) {
             throw (IOException) e.getCause();
         }
