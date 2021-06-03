@@ -15,7 +15,8 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:opensearch-cli")
   testImplementation project(":test:framework")
-  testRuntimeOnly 'com.google.guava:guava:18.0'
+  testImplementation 'com.google.jimfs:jimfs:1.2'
+  testRuntimeOnly 'com.google.guava:guava:30.1.1-jre'
 }
 
 test {

@@ -193,7 +193,11 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Returns a path representing the ES keystore in the given config dir. */
     public static Path keystorePath(Path configDir) {
-        return configDir.resolve(KEYSTORE_FILENAME);
+        return keystorePath(configDir, KEYSTORE_FILENAME);
+    }
+
+    private static Path keystorePath(Path configDir, String keystoreFileName) {
+        return configDir.resolve(keystoreFileName);
     }
 
     /** Constructs a new keystore with the given password. */
@@ -217,24 +221,27 @@ public class KeyStoreWrapper implements SecureSettings {
         Arrays.fill(characters, (char)0);
     }
 
+    public static KeyStoreWrapper load(Path configDir) throws IOException {
+        return load(configDir, KEYSTORE_FILENAME);
+    }
     /**
      * Loads information about the OpenSearch keystore from the provided config directory.
      *
      * {@link #decrypt(char[])} must be called before reading or writing any entries.
      * Returns {@code null} if no keystore exists.
      */
-    public static KeyStoreWrapper load(Path configDir) throws IOException {
-        Path keystoreFile = keystorePath(configDir);
+    public static KeyStoreWrapper load(Path configDir, String keystoreFileName) throws IOException {
+        Path keystoreFile = keystorePath(configDir, keystoreFileName);
         if (Files.exists(keystoreFile) == false) {
             return null;
         }
 
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
-        try (IndexInput indexInput = directory.openInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
+        try (IndexInput indexInput = directory.openInput(keystoreFileName, IOContext.READONCE)) {
             ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
             final int formatVersion;
             try {
-                formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
+                formatVersion = CodecUtil.checkHeader(input, keystoreFileName, MIN_FORMAT_VERSION, FORMAT_VERSION);
             } catch (IndexFormatTooOldException e) {
                 throw new IllegalStateException("The OpenSearch keystore [" + keystoreFile + "] format is too old. " +
                     "You should delete and recreate it in order to upgrade.", e);
