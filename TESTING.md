@@ -206,6 +206,10 @@ Note that this will also run the unit tests and precommit tasks first. If you wa
 
     ./gradlew internalClusterTest
 
+To run a specific set of tests.
+
+    ./gradlew :server:internalClusterTest --tests "org.opensearch.common.settings.FallbackSettingsIT.*"
+
 If you want to just run the precommit checks:
 
     ./gradlew precommit
