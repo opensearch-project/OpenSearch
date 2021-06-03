@@ -1,7 +1,3 @@
-# Developer Guide
-
-So you want to contribute code to OpenSearch? Excellent! We're glad you're here. Here's what you need to do.
-
 - [Developer Guide](#developer-guide)
   - [Getting Started](#getting-started)
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
@@ -36,6 +32,10 @@ So you want to contribute code to OpenSearch? Excellent! We're glad you're here.
   - [Misc](#misc)
     - [git-secrets](#git-secrets)
   - [Submitting Changes](#submitting-changes)
+
+# Developer Guide
+
+So you want to contribute code to OpenSearch? Excellent! We're glad you're here. Here's what you need to do.
 
 ## Getting Started
 
