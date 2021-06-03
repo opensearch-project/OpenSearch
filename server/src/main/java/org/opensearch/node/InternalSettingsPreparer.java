@@ -81,14 +81,6 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         Environment environment = new Environment(output.build(), configPath);
 
-        if (Files.exists(environment.configFile().resolve("opensearch.yaml"))) {
-            throw new SettingsException("opensearch.yaml was deprecated in 5.5.0 and must be renamed to opensearch.yml");
-        }
-
-        if (Files.exists(environment.configFile().resolve("opensearch.json"))) {
-            throw new SettingsException("opensearch.json was deprecated in 5.5.0 and must be converted to opensearch.yml");
-        }
-
         output = Settings.builder(); // start with a fresh output
         Path path = environment.configFile().resolve("opensearch.yml");
         if (Files.exists(path)) {
