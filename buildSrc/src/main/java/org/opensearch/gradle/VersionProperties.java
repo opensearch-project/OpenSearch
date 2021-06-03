@@ -101,7 +101,7 @@ public class VersionProperties {
 
     private static Properties getVersionProperties() {
         Properties props = new Properties();
-        try(InputStream propsStream = VersionProperties.class.getResourceAsStream("/version.properties")) {
+        try (InputStream propsStream = VersionProperties.class.getResourceAsStream("/version.properties")) {
             if (propsStream == null) {
                 throw new IllegalStateException("/version.properties resource missing");
             }

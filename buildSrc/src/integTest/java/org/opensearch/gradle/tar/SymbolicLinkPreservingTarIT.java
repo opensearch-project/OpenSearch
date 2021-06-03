@@ -107,8 +107,10 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
 
     private void assertTar(final String extension, final FileInputStreamWrapper wrapper, boolean preserveFileTimestamps)
         throws IOException {
-        try (FileInputStream fis = new FileInputStream(getOutputFile(extension)); 
-             TarArchiveInputStream tar = new TarArchiveInputStream(wrapper.apply(fis))) {
+        try (
+            FileInputStream fis = new FileInputStream(getOutputFile(extension));
+            TarArchiveInputStream tar = new TarArchiveInputStream(wrapper.apply(fis))
+        ) {
             TarArchiveEntry entry = tar.getNextTarEntry();
             boolean realFolderEntry = false;
             boolean fileEntry = false;
