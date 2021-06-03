@@ -57,9 +57,11 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
             .info("Unpacking " + tarFile.getName() + " using " + SymbolicLinkPreservingUntarTransform.class.getSimpleName() + ".");
         Function<String, Path> pathModifier = pathResolver();
 
-        try(FileInputStream fis = new FileInputStream(tarFile); 
-            GzipCompressorInputStream gzip = new GzipCompressorInputStream(fis); 
-            TarArchiveInputStream tar = new TarArchiveInputStream(gzip)) {
+        try (
+            FileInputStream fis = new FileInputStream(tarFile);
+            GzipCompressorInputStream gzip = new GzipCompressorInputStream(fis);
+            TarArchiveInputStream tar = new TarArchiveInputStream(gzip)
+        ) {
             final Path destinationPath = targetDir.toPath();
             TarArchiveEntry entry = tar.getNextTarEntry();
             while (entry != null) {
