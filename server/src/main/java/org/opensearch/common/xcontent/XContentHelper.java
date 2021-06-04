@@ -68,8 +68,8 @@ public class XContentHelper {
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
-            final XContentType contentType = XContentFactory.xContentType(compressedInput);
             try (InputStream stream = compressedInput) {
+                final XContentType contentType = XContentFactory.xContentType(compressedInput);
                 return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, stream);
             }
         } else {
@@ -128,8 +128,8 @@ public class XContentHelper {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
                 input = compressedStreamInput;
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
                 try (InputStream stream = input) {
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
                     return new Tuple<>(Objects.requireNonNull(contentType),
                             convertToMap(XContentFactory.xContent(contentType), stream, ordered));
                 }
