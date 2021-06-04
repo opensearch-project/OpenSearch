@@ -1,35 +1,36 @@
-Contributing to OpenSearch
-=============================
+- [Contributing to OpenSearch](#contributing-to-opensearch)
+  - [First Things First](#first-things-first)
+  - [Ways to Contribute](#ways-to-contribute)
+    - [Bug Reports](#bug-reports)
+    - [Feature Requests](#feature-requests)
+    - [Documentation Changes](#documentation-changes)
+    - [Contributing Code](#contributing-code)
+  - [Developer Certificate of Origin](#developer-certificate-of-origin)
+  - [Review Process](#review-process)
 
-OpenSearch is a community project that is built and maintained by people just like **you**.  We're glad you're interested in helping out.  There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
+# Contributing to OpenSearch
 
-## Table of Contents:
-- [First Things First](#first-things-first)
-- [Ways to Contribute](#ways-to-contribute)
-- [Developer Certificate of Origin](#developer-certificate-of-origin)
-- [Review Process](#review-process)
-
+OpenSearch is a community project that is built and maintained by people just like **you**. We're glad you're interested in helping out. There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
 
 ## First Things First
 
-1. **When in doubt, open an issue** - For almost any type of contribution, the first step is opening an issue.  Even if you think you already know what the solution is, writing down a description of the problem you're trying to solve will help everyone get context when they review your pull request.  If it's truly a trivial change (e.g. spelling error), you can skip this step -- but as the subject says, when it doubt, [open an issue](https://github.com/opensearch-project/OpenSearch/issues).
+1. **When in doubt, open an issue** - For almost any type of contribution, the first step is opening an issue. Even if you think you already know what the solution is, writing down a description of the problem you're trying to solve will help everyone get context when they review your pull request. If it's truly a trivial change (e.g. spelling error), you can skip this step -- but as the subject says, when it doubt, [open an issue](https://github.com/opensearch-project/OpenSearch/issues).
 
-2. **Only submit your own work**  (or work you have sufficient rights to submit) - Please make sure that any code or documentation you submit is your work or you have the rights to submit. We respect the intellectual property rights of others, and as part of contributing, we'll ask you to sign your contribution with a "Developer Certificate of Origin" (DCO) that states you have the rights to submit this work and you understand we'll
-use your contribution.  There's more information about this topic in the [DCO section](#developer-certificate-of-origin).
+2. **Only submit your own work**  (or work you have sufficient rights to submit) - Please make sure that any code or documentation you submit is your work or you have the rights to submit. We respect the intellectual property rights of others, and as part of contributing, we'll ask you to sign your contribution with a "Developer Certificate of Origin" (DCO) that states you have the rights to submit this work and you understand we'll use your contribution. There's more information about this topic in the [DCO section](#developer-certificate-of-origin).
 
 ## Ways to Contribute
 
-**Please note:**  OpenSearch is a fork of [Elasticsearch 7.10.2](https://github.com/elastic/elasticsearch), and is currently in a pre-alpha state, so it's still very much a work in progress. If you do find references to Elasticsearch (outside of attributions and copyrights!) please [open an issue](https://github.com/opensearch-project/OpenSearch/issues)
+**Please note:** OpenSearch is a fork of [Elasticsearch 7.10.2](https://github.com/elastic/elasticsearch), and is work in progress. If you do find references to Elasticsearch (outside of attributions and copyrights!) please [open an issue](https://github.com/opensearch-project/OpenSearch/issues).
 
 ### Bug Reports
 
-Ugh!  Bugs!
+Ugh! Bugs!
 
-A bug is when software behaves in a way that you didn't expect and the developer didn't intend.  To help us understand what's going on, we first want to make sure you're working from the latest version.  Please make sure you're testing against the [latest version](https://github.com/opensearch-project/OpenSearch).
+A bug is when software behaves in a way that you didn't expect and the developer didn't intend. To help us understand what's going on, we first want to make sure you're working from the latest version. Please make sure you're testing against the [latest version](https://github.com/opensearch-project/OpenSearch).
 
 Once you've confirmed that the bug still exists in the latest version, you'll want to check to make sure it's not something we already know about on the [open issues GitHub page](https://github.com/opensearch-project/OpenSearch/issues).
 
-If you've upgraded to the latest version and you can't find it in our open issues list, then you'll need to tell us how to reproduce it.  To make the behavior as clear as possible, please provided your steps as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
+If you've upgraded to the latest version and you can't find it in our open issues list, then you'll need to tell us how to reproduce it. To make the behavior as clear as possible, please provided your steps as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
 
 ```sh
 # delete the index
@@ -48,22 +49,21 @@ Provide as much information as you can. You may think that the problem lies with
 
 ### Feature Requests
 
-If you've thought of a way that OpenSearch could be better, we want to hear about it.  We track feature requests using GitHub, so please feel free to open an issue which describes the feature you would like to see, why you need it, and how it should work.
+If you've thought of a way that OpenSearch could be better, we want to hear about it. We track feature requests using GitHub, so please feel free to open an issue which describes the feature you would like to see, why you need it, and how it should work.
 
 ### Documentation Changes
 
-If you would like to contribute to the documentation, please see [OpenSearch Docs repo](https://github.com/opensearch-project/documentation-website/blob/main/README.md).
-To contribute javadocs, please see [this open issue on github](https://github.com/opensearch-project/OpenSearch/issues/221).
+If you would like to contribute to the documentation, please see [OpenSearch Docs repo](https://github.com/opensearch-project/documentation-website/blob/main/README.md). To contribute javadocs, please see [this open issue on github](https://github.com/opensearch-project/OpenSearch/issues/221).
 
 ### Contributing Code
 
-As with other types of contributions, the first step is to [**open an issue on GitHub**](https://github.com/opensearch-project/OpenSearch/issues/new/choose).  Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem.  It also lets us all work together to find the right approach before you spend a bunch of time on a PR.  So again, when in doubt, open an issue.
+As with other types of contributions, the first step is to [**open an issue on GitHub**](https://github.com/opensearch-project/OpenSearch/issues/new/choose). Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem. It also lets us all work together to find the right approach before you spend a bunch of time on a PR. So again, when in doubt, open an issue.
 
 Once you've opened an issue, check out our [Developer Guide](./DEVELOPER_GUIDE.md) for instructions on how to get started.
 
 ## Developer Certificate of Origin
 
-OpenSearch is an open source product released under the Apache 2.0 license (see either [the Apache site](https://www.apache.org/licenses/LICENSE-2.0) or the [LICENSE.txt file](./LICENSE.txt)).  The Apache 2.0 license allows you to freely use, modify, distribute, and sell your own products that include Apache 2.0 licensed software.
+OpenSearch is an open source product released under the Apache 2.0 license (see either [the Apache site](https://www.apache.org/licenses/LICENSE-2.0) or the [LICENSE.txt file](./LICENSE.txt)). The Apache 2.0 license allows you to freely use, modify, distribute, and sell your own products that include Apache 2.0 licensed software.
 
 We respect intellectual property rights of others and we want to make sure all incoming contributions are correctly attributed and licensed. A Developer Certificate of Origin (DCO) is a lightweight mechanism to do that.
 
@@ -97,20 +97,20 @@ By making a contribution to this project, I certify that:
     consistent with this project or the open source license(s)
     involved.
  ```
-We require that every contribution to OpenSearch is signed with a Developer Certificate of Origin.  Additionally, please use your real name.  We do not accept anonymous contributors nor those utilizing pseudonyms.
+We require that every contribution to OpenSearch is signed with a Developer Certificate of Origin. Additionally, please use your real name. We do not accept anonymous contributors nor those utilizing pseudonyms.
 
 Each commit must include a DCO which looks like this
 
 ```
 Signed-off-by: Jane Smith <jane.smith@email.com>
 ```
-You may type this line on your own when writing your commit messages.  However, if your user.name and user.email are set in your git configs, you can use `-s` or `--signoff` to add the `Signed-off-by` line to the end of the commit message.
+You may type this line on your own when writing your commit messages. However, if your user.name and user.email are set in your git configs, you can use `-s` or `--signoff` to add the `Signed-off-by` line to the end of the commit message.
 
 ## Review Process
 
-We deeply appreciate everyone who takes the time to make a contribution.  We will review all contributions as quickly as possible.  As a reminder, [opening an issue](https://github.com/opensearch-project/OpenSearch/issues/new/choose) discussing your change before you make it is the best way to smooth the PR process.  This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatible with the architectural direction.
+We deeply appreciate everyone who takes the time to make a contribution. We will review all contributions as quickly as possible. As a reminder, [opening an issue](https://github.com/opensearch-project/OpenSearch/issues/new/choose) discussing your change before you make it is the best way to smooth the PR process. This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatible with the architectural direction.
 
-During the PR process, expect that there will be some back-and-forth.  Please try to respond to comments in a timely fashion, and if you don't wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionally, if you stop responding we may close the PR as abandoned.  In either case, if you feel this was done in error, please add a comment on the PR.
+During the PR process, expect that there will be some back-and-forth. Please try to respond to comments in a timely fashion, and if you don't wish to continue with the PR, let us know. If a PR takes too many iterations for its complexity or size, we may reject it. Additionally, if you stop responding we may close the PR as abandoned. In either case, if you feel this was done in error, please add a comment on the PR.
 
 If we accept the PR, a [maintainer](MAINTAINERS.md) will merge your change and usually take care of backporting it to appropriate branches ourselves.
 

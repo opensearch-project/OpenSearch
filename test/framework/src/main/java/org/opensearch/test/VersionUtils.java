@@ -90,16 +90,19 @@ public class VersionUtils {
             }
         }
 
-        // remove next minor
-        Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
-        if (lastMinor.revision == 0) {
-            if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
-                // a minor is being staged, which is also unreleased
-                moveLastToUnreleased(stableVersions, unreleasedVersions);
-            }
-            // remove the next bugfix
-            if (stableVersions.isEmpty() == false) {
-                moveLastToUnreleased(stableVersions, unreleasedVersions);
+        // remove last minor unless the it's the first OpenSearch version.
+        // all Legacy ES versions are released, so we don't exclude any.
+        if (current.equals(Version.V_1_0_0) == false) {
+            Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
+            if (lastMinor.revision == 0) {
+                if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
+                    // a minor is being staged, which is also unreleased
+                    moveLastToUnreleased(stableVersions, unreleasedVersions);
+                }
+                // remove the next bugfix
+                if (stableVersions.isEmpty() == false) {
+                    moveLastToUnreleased(stableVersions, unreleasedVersions);
+                }
             }
         }
 

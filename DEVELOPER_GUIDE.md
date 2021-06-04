@@ -1,33 +1,41 @@
-# Developer Guide
-
-So you want to contribute code to OpenSearch? Excellent! We're glad you're here. Here's what you need to do.
-
-- [Getting Started](#getting-started)
+- [Developer Guide](#developer-guide)
+  - [Getting Started](#getting-started)
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
+      - [JDK 14](#jdk-14)
+      - [Docker](#docker)
     - [Run Tests](#run-tests)
     - [Run OpenSearch](#run-opensearch)
-- [Use an Editor](#use-an-editor)
+  - [Use an Editor](#use-an-editor)
     - [IntelliJ IDEA](#intellij-idea)
     - [Visual Studio Code](#visual-studio-code)
     - [Eclipse](#eclipse)
-- [Project Layout](#project-layout)
-    - [docs](#docs)
-    - [distribution](#distribution)
-    - [libs](#libs)
-    - [modules](#modules)
-    - [plugins](#plugins)
-    - [qa](#qa)
-    - [server](#server)
-    - [test](#test)
-- [Java Language Formatting Guidelines](#java-language-formatting-guidelines)
+  - [Project Layout](#project-layout)
+    - [`docs`](#docs)
+    - [`distribution`](#distribution)
+    - [`libs`](#libs)
+    - [`modules`](#modules)
+    - [`plugins`](#plugins)
+    - [`qa`](#qa)
+    - [`server`](#server)
+    - [`test`](#test)
+  - [Java Language Formatting Guidelines](#java-language-formatting-guidelines)
     - [Editor / IDE Support](#editor--ide-support)
     - [Formatting Failures](#formatting-failures)
-- [Gradle Build](#gradle-build)
+  - [Gradle Build](#gradle-build)
     - [Configurations](#configurations)
-- [Misc](#misc)
+      - [implementation](#implementation)
+      - [api](#api)
+      - [runtimeOnly](#runtimeonly)
+      - [compileOnly](#compileonly)
+      - [testImplementation](#testimplementation)
+  - [Misc](#misc)
     - [git-secrets](#git-secrets)
-- [Submitting Changes](#submitting-changes)
+  - [Submitting Changes](#submitting-changes)
+
+# Developer Guide
+
+So you want to contribute code to OpenSearch? Excellent! We're glad you're here. Here's what you need to do.
 
 ## Getting Started
 
@@ -62,7 +70,7 @@ To run the full suite of tests you will also need `JAVA8_HOME`, `JAVA9_HOME`, `J
 
 OpenSearch uses a Gradle wrapper for its build. Run `gradlew` on Unix systems, or `gradlew.bat` on Windows in the root of the repository.
 
-Start by running the test suite with `gradlew check`. This should complete without errors and takes ~15 minutes on a c5.18xlarge.
+Start by running the test suite with `gradlew check`. This should complete without errors.
 
 ```
 ./gradlew check
@@ -80,8 +88,6 @@ OpenSearch Build Hamster says Hello!
 BUILD SUCCESSFUL in 14m 50s
 2587 actionable tasks: 2450 executed, 137 up-to-date
 ```
-
-**Note: OpenSearch hasn't made any changes to the test suite yet, beyond fixing tests that broke after removing non-Apache licensed code and non-Apache licensed code checks. Also, while we're in pre-alpha, some tests may be failing until we finish the forking process. We should have an issue for all failing tests, but if you find one first, feel free to open one (and fix it :) ).**
 
 If the full test suite fails you may want to start with a smaller set.
 
