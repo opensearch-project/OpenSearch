@@ -2536,38 +2536,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         BytesStreamOutput os = new BytesStreamOutput();
-        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
+        try (PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name())) {
 
-        if ("checksum".equals(checkIndexOnStartup)) {
-            // physical verification only: verify all checksums for the latest commit
-            IOException corrupt = null;
-            MetadataSnapshot metadata = snapshotStoreMetadata();
-            for (Map.Entry<String, StoreFileMetadata> entry : metadata.asMap().entrySet()) {
-                try {
-                    Store.checkIntegrity(entry.getValue(), store.directory());
-                    out.println("checksum passed: " + entry.getKey());
-                } catch (IOException exc) {
-                    out.println("checksum failed: " + entry.getKey());
-                    exc.printStackTrace(out);
-                    corrupt = exc;
+            if ("checksum".equals(checkIndexOnStartup)) {
+                // physical verification only: verify all checksums for the latest commit
+                IOException corrupt = null;
+                MetadataSnapshot metadata = snapshotStoreMetadata();
+                for (Map.Entry<String, StoreFileMetadata> entry : metadata.asMap().entrySet()) {
+                    try {
+                        Store.checkIntegrity(entry.getValue(), store.directory());
+                        out.println("checksum passed: " + entry.getKey());
+                    } catch (IOException exc) {
+                        out.println("checksum failed: " + entry.getKey());
+                        exc.printStackTrace(out);
+                        corrupt = exc;
+                    }
                 }
-            }
-            out.flush();
-            if (corrupt != null) {
-                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
-                throw corrupt;
-            }
-        } else {
-            // full checkindex
-            final CheckIndex.Status status = store.checkIndex(out);
-            out.flush();
-            if (!status.clean) {
-                if (state == IndexShardState.CLOSED) {
-                    // ignore if closed....
-                    return;
+                out.flush();
+                if (corrupt != null) {
+                    logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
+                    throw corrupt;
                 }
-                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
-                throw new IOException("index check failure");
+            } else {
+                // full checkindex
+                final CheckIndex.Status status = store.checkIndex(out);
+                out.flush();
+                if (!status.clean) {
+                    if (state == IndexShardState.CLOSED) {
+                        // ignore if closed....
+                        return;
+                    }
+                    logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
+                    throw new IOException("index check failure");
+                }
             }
         }
 
