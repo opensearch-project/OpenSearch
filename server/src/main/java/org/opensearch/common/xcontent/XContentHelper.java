@@ -65,12 +65,12 @@ public class XContentHelper {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
-            try (InputStream compressedBufferedInput = new BufferedInputStream(compressedInput)) {
-                if (compressedInput.markSupported() == false) {
-                    compressedInput = compressedBufferedInput;
-                }
-                final XContentType contentType = XContentFactory.xContentType(compressedInput);
-                return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+            if (compressedInput.markSupported() == false) {
+                compressedInput = new BufferedInputStream(compressedInput);
+            }
+            final XContentType contentType = XContentFactory.xContentType(compressedInput);
+            try (InputStream stream = compressedInput) {
+                return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, stream);
             }
         } else {
             return XContentFactory.xContent(xContentType(bytes)).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
@@ -86,11 +86,11 @@ public class XContentHelper {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
-            try (InputStream compressedBufferedInput = new BufferedInputStream(compressedInput)) {
-                if (compressedInput.markSupported() == false) {
-                    compressedInput = compressedBufferedInput;
-                }
-                return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+            if (compressedInput.markSupported() == false) {
+                compressedInput = new BufferedInputStream(compressedInput);
+            }
+            try (InputStream stream = compressedInput) {
+                return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, stream);
             }
         } else {
             if (bytes instanceof BytesArray) {
@@ -124,12 +124,14 @@ public class XContentHelper {
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
                 InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
-                try (InputStream compressedBufferedInput = new BufferedInputStream(compressedStreamInput)) {
-                    if (compressedStreamInput.markSupported() == false) {
-                        compressedStreamInput = compressedBufferedInput;
-                    }
-                    input = compressedStreamInput;
-                    contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
+                if (compressedStreamInput.markSupported() == false) {
+                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+                }
+                input = compressedStreamInput;
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
+                try (InputStream stream = input) {
+                    return new Tuple<>(Objects.requireNonNull(contentType),
+                            convertToMap(XContentFactory.xContent(contentType), stream, ordered));
                 }
             } else if (bytes instanceof BytesArray) {
                 final BytesArray arr = (BytesArray) bytes;
@@ -142,10 +144,10 @@ public class XContentHelper {
             } else {
                 input = bytes.streamInput();
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
-            }
-            try (InputStream stream = input) {
-                return new Tuple<>(Objects.requireNonNull(contentType),
-                    convertToMap(XContentFactory.xContent(contentType), stream, ordered));
+                try (InputStream stream = input) {
+                    return new Tuple<>(Objects.requireNonNull(contentType),
+                            convertToMap(XContentFactory.xContent(contentType), stream, ordered));
+                }
             }
         } catch (IOException e) {
             throw new OpenSearchParseException("Failed to parse content to map", e);
