@@ -209,8 +209,8 @@ public class LicenseAnalyzer {
         }
 
         public boolean matches(File licenseFile) {
-            try {
-                String content = String.join("\n", IOUtils.readLines(new FileInputStream(licenseFile), "UTF-8")).replaceAll("\\*", " ");
+            try (FileInputStream fis = new FileInputStream(licenseFile)) {
+                String content = String.join("\n", IOUtils.readLines(fis, "UTF-8")).replaceAll("\\*", " ");
                 return pattern.matcher(content).find();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
