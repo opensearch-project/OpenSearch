@@ -41,7 +41,15 @@ import java.util.concurrent.TimeUnit;
  * Sniffer builder. Helps creating a new {@link Sniffer}.
  */
 public final class SnifferBuilder {
+
+    /**
+     * The default sniff interval (in milliseconds).
+     */
     public static final long DEFAULT_SNIFF_INTERVAL = TimeUnit.MINUTES.toMillis(5);
+
+    /**
+     * The default delay of a sniff execution after a failure (in milliseconds).
+     */
     public static final long DEFAULT_SNIFF_AFTER_FAILURE_DELAY = TimeUnit.MINUTES.toMillis(1);
 
     private final RestClient restClient;
@@ -60,6 +68,8 @@ public final class SnifferBuilder {
     /**
      * Sets the interval between consecutive ordinary sniff executions in milliseconds. Will be honoured when
      * sniffOnFailure is disabled or when there are no failures between consecutive sniff executions.
+     *
+     * @param sniffIntervalMillis the interval between sniff executions in milliseconds.
      * @throws IllegalArgumentException if sniffIntervalMillis is not greater than 0
      */
     public SnifferBuilder setSniffIntervalMillis(int sniffIntervalMillis) {
@@ -71,7 +81,9 @@ public final class SnifferBuilder {
     }
 
     /**
-     * Sets the delay of a sniff execution scheduled after a failure (in milliseconds)
+     * Sets the delay of a sniff execution scheduled after a failure (in milliseconds).
+     *
+     * @param sniffAfterFailureDelayMillis the sniff delay in milliseconds.
      */
     public SnifferBuilder setSniffAfterFailureDelayMillis(int sniffAfterFailureDelayMillis) {
         if (sniffAfterFailureDelayMillis <= 0) {
@@ -85,6 +97,8 @@ public final class SnifferBuilder {
      * Sets the {@link NodesSniffer} to be used to read hosts. A default instance of {@link OpenSearchNodesSniffer}
      * is created when not provided. This method can be used to change the configuration of the {@link OpenSearchNodesSniffer},
      * or to provide a different implementation (e.g. in case hosts need to taken from a different source).
+     *
+     * @param nodesSniffer the {@link NodesSniffer} instance to be used.
      */
     public SnifferBuilder setNodesSniffer(NodesSniffer nodesSniffer) {
         Objects.requireNonNull(nodesSniffer, "nodesSniffer cannot be null");
