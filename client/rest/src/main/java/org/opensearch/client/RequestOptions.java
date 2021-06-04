@@ -196,6 +196,10 @@ public final class RequestOptions {
 
         /**
          * Add the provided header to the request.
+         *
+         * @param name  the header name
+         * @param value the header value
+         * @throws NullPointerException if {@code name} or {@code value} is null.
          */
         public Builder addHeader(String name, String value) {
             Objects.requireNonNull(name, "header name cannot be null");
@@ -209,6 +213,9 @@ public final class RequestOptions {
          * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the
          * response body gets streamed from a non-blocking HTTP connection on the
          * client side.
+         *
+         * @param httpAsyncResponseConsumerFactory factory for creating {@link HttpAsyncResponseConsumer}.
+         * @throws NullPointerException if {@code httpAsyncResponseConsumerFactory} is null.
          */
         public void setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
             this.httpAsyncResponseConsumerFactory =
@@ -231,6 +238,8 @@ public final class RequestOptions {
          * {@linkplain WarningsHandler} to permit only certain warnings or to
          * fail the request if the warnings returned don't
          * <strong>exactly</strong> match some set.
+         *
+         * @param warningsHandler the {@link WarningsHandler} to be used
          */
         public void setWarningsHandler(WarningsHandler warningsHandler) {
             this.warningsHandler = warningsHandler;

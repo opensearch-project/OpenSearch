@@ -373,7 +373,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         Version version = VersionUtils.randomVersion(random());
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
-        if (version.onOrAfter(Version.V_7_7_0)) {
+        if (version.onOrAfter(LegacyESVersion.V_7_7_0)) {
             assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
         } else {
             assertThat(ex.contextId().getSessionId(), equalTo(""));
@@ -382,7 +382,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            Version.V_7_0_0);
+            LegacyESVersion.V_7_0_0);
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
         assertEquals(0, ex.getBytesWanted());
@@ -390,7 +390,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     public void testTooManyBucketsException() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_2_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_2_0, Version.CURRENT);
         MultiBucketConsumerService.TooManyBucketsException ex =
             serialize(new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100), version);
         assertEquals("Too many buckets", ex.getMessage());
@@ -907,7 +907,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     public void testShardLockObtainFailedException() throws IOException {
         ShardId shardId = new ShardId("foo", "_na_", 1);
         ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
         ShardLockObtainFailedException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
         assertEquals(orig.getShardId(), ex.getShardId());
@@ -915,7 +915,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testSnapshotInProgressException() throws IOException {
         SnapshotInProgressException orig = new SnapshotInProgressException("boom");
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_7_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_7_0, Version.CURRENT);
         SnapshotInProgressException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
     }

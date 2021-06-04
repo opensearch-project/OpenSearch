@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoBoundingBoxTests;
@@ -56,13 +57,13 @@ public class GeoTileGridValuesSourceBuilderTests extends OpenSearchTestCase {
     }
 
     public void testBWCBounds() throws IOException {
-        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_5_0);
+        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_5_0);
         GeoTileGridValuesSourceBuilder builder = new GeoTileGridValuesSourceBuilder("name");
         if (randomBoolean()) {
             builder.geoBoundingBox(GeoBoundingBoxTests.randomBBox());
         }
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_7_6_0);
+            output.setVersion(LegacyESVersion.V_7_6_0);
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
                 new NamedWriteableRegistry(Collections.emptyList()))) {

@@ -44,6 +44,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -70,7 +71,7 @@ public final class SimilarityService extends AbstractIndexComponent {
     static {
         Map<String, Function<Version, Supplier<Similarity>>> defaults = new HashMap<>();
         defaults.put(CLASSIC_SIMILARITY, version -> {
-            if (version.onOrAfter(Version.V_7_0_0)) {
+            if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
                 return () -> {
                     throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                             + "similarity or build a custom [scripted] similarity instead.");
@@ -98,7 +99,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> builtIn = new HashMap<>();
         builtIn.put(CLASSIC_SIMILARITY,
                 (settings, version, script) -> {
-                    if (version.onOrAfter(Version.V_7_0_0)) {
+                    if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
                         throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                                 + "similarity or build a custom [scripted] similarity instead.");
                     } else {
@@ -282,9 +283,9 @@ public final class SimilarityService extends AbstractIndexComponent {
     }
 
     private static void fail(Version indexCreatedVersion, String message) {
-        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+        if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
             throw new IllegalArgumentException(message);
-        } else if (indexCreatedVersion.onOrAfter(Version.V_6_5_0)) {
+        } else if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_6_5_0)) {
             deprecationLogger.deprecate("similarity_failure", message);
         }
     }

@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.reroute;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
@@ -54,8 +54,8 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
     private final RoutingExplanations explanations;
 
     ClusterRerouteResponse(StreamInput in) throws IOException {
-        super(in, in.getVersion().onOrAfter(Version.V_6_4_0));
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0));
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             state = ClusterState.readFrom(in, null);
             explanations = RoutingExplanations.readFrom(in);
         } else {
@@ -84,12 +84,12 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             super.writeTo(out);
             state.writeTo(out);
             RoutingExplanations.writeTo(explanations, out);
         } else {
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
                 state.writeTo(out);
             } else {
                 ClusterModule.filterCustomsForPre63Clients(state).writeTo(out);

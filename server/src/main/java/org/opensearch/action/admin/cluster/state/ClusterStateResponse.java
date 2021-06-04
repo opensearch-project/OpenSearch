@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
@@ -57,15 +57,15 @@ public class ClusterStateResponse extends ActionResponse {
     public ClusterStateResponse(StreamInput in) throws IOException {
         super(in);
         clusterName = new ClusterName(in);
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
             clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
         } else {
             clusterState = ClusterState.readFrom(in, null);
         }
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             new ByteSizeValue(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
             waitForTimedOut = in.readBoolean();
         }
     }
@@ -102,19 +102,19 @@ public class ClusterStateResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
             out.writeOptionalWriteable(clusterState);
         } else {
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
                 clusterState.writeTo(out);
             } else {
                 ClusterModule.filterCustomsForPre63Clients(clusterState).writeTo(out);
             }
         }
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             ByteSizeValue.ZERO.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
             out.writeBoolean(waitForTimedOut);
         }
     }

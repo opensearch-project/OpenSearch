@@ -57,7 +57,7 @@ class OpenSearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                testImplementation 'junit:junit:4.12'
+                testImplementation 'junit:junit:4.13.1'
             }
 
             tasks.named('test').configure {

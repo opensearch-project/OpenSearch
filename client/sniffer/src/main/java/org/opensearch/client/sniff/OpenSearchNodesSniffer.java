@@ -69,6 +69,9 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
 
     private static final Log logger = LogFactory.getLog(OpenSearchNodesSniffer.class);
 
+    /**
+     * The default sniff request timeout (in milliseconds).
+     */
     public static final long DEFAULT_SNIFF_REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(1);
 
     private final RestClient restClient;
@@ -310,8 +313,19 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
         }
     }
 
+    /**
+     * The supported host schemes.
+     */
     public enum Scheme {
-        HTTP("http"), HTTPS("https");
+        /**
+         * The HTTP host scheme.
+         */
+        HTTP("http"),
+
+        /**
+         * The HTTPS host scheme.
+         */
+        HTTPS("https");
 
         private final String name;
 

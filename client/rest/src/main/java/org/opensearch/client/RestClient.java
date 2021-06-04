@@ -195,6 +195,8 @@ public class RestClient implements Closeable {
      * <p>
      * Prefer this to {@link #builder(HttpHost...)} if you have metadata up front about the nodes.
      * If you don't either one is fine.
+     *
+     * @param nodes The nodes that the client will send requests to.
      */
     public static RestClientBuilder builder(Node... nodes) {
         return new RestClientBuilder(nodes == null ? null : Arrays.asList(nodes));
@@ -207,6 +209,8 @@ public class RestClient implements Closeable {
      * You can use this if you do not have metadata up front about the nodes. If you do, prefer
      * {@link #builder(Node...)}.
      * @see Node#Node(HttpHost)
+     *
+     * @param hosts The hosts that the client will send requests to.
      */
     public static RestClientBuilder builder(HttpHost... hosts) {
         if (hosts == null || hosts.length == 0) {
@@ -218,6 +222,8 @@ public class RestClient implements Closeable {
 
     /**
      * Replaces the nodes with which the client communicates.
+     *
+     * @param nodes the new nodes to communicate with.
      */
     public synchronized void setNodes(Collection<Node> nodes) {
         if (nodes == null || nodes.isEmpty()) {
@@ -672,7 +678,14 @@ public class RestClient implements Closeable {
      */
     public static class FailureListener {
         /**
-         * Notifies that the node provided as argument has just failed
+         * Create a {@link FailureListener} instance.
+         */
+        public FailureListener() {}
+
+        /**
+         * Notifies that the node provided as argument has just failed.
+         *
+         * @param node The node which has failed.
          */
         public void onFailure(Node node) {}
     }
@@ -907,6 +920,11 @@ public class RestClient implements Closeable {
      */
     public static class ContentCompressingEntity extends GzipCompressingEntity {
 
+        /**
+         * Creates a {@link ContentCompressingEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         */
         public ContentCompressingEntity(HttpEntity entity) {
             super(entity);
         }

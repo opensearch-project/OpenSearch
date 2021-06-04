@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.Build;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -96,7 +97,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
         }
     }
@@ -183,7 +184,11 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(version.id);
+        if (out.getVersion().before(Version.V_1_0_0)) {
+            out.writeVInt(LegacyESVersion.V_7_10_2.id);
+        } else {
+            out.writeVInt(version.id);
+        }
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
@@ -205,7 +210,7 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(HttpInfo.class));
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeOptionalWriteable(getInfo(AggregationInfo.class));
         }
     }

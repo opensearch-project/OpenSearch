@@ -41,6 +41,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
@@ -217,7 +218,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
             if (deprecatedParameters.tree != null) {
                 ft.setTree(deprecatedParameters.tree);
-            } else if (context.indexCreatedVersion().before(Version.V_6_6_0)) {
+            } else if (context.indexCreatedVersion().before(LegacyESVersion.V_6_6_0)) {
                 ft.setTree(DeprecatedParameters.PrefixTrees.GEOHASH);
             }
             if (deprecatedParameters.treeLevels != null) {
@@ -481,7 +482,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         super.doXContentBody(builder, includeDefaults, params);
 
         if (includeDefaults
-            || (fieldType().tree().equals(indexCreatedVersion.onOrAfter(Version.V_6_6_0) ?
+            || (fieldType().tree().equals(indexCreatedVersion.onOrAfter(LegacyESVersion.V_6_6_0) ?
                     DeprecatedParameters.Defaults.TREE : DeprecatedParameters.PrefixTrees.GEOHASH)) == false) {
             builder.field(DeprecatedParameters.Names.TREE.getPreferredName(), fieldType().tree());
         }
@@ -510,7 +511,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 DistanceUnit.METERS.toString(50));
         }
 
-        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+        if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
             builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
         }
 

@@ -39,8 +39,18 @@ import java.util.List;
  * request.
  */
 public interface WarningsHandler {
+
+    /**
+     * Determines whether the given list of warnings should fail the request.
+     *
+     * @param warnings a list of warnings.
+     * @return boolean indicating if the request should fail.
+     */
     boolean warningsShouldFailRequest(List<String> warnings);
 
+    /**
+     * The permissive warnings handler. Warnings will not fail the request.
+     */
     WarningsHandler PERMISSIVE = new WarningsHandler() {
         @Override
         public boolean warningsShouldFailRequest(List<String> warnings) {
@@ -52,6 +62,10 @@ public interface WarningsHandler {
             return "permissive";
         }
     };
+
+    /**
+     * The strict warnings handler. Warnings will fail the request.
+     */
     WarningsHandler STRICT = new WarningsHandler() {
         @Override
         public boolean warningsShouldFailRequest(List<String> warnings) {

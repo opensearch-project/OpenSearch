@@ -32,7 +32,7 @@
 
 package org.opensearch.upgrades;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {
 
     public void testRemoteClusterSettingsUpgraded() throws IOException {
-        assumeTrue("skip_unavailable did not exist until 6.1.0", getOldClusterVersion().onOrAfter(Version.V_6_1_0));
-        assumeTrue("settings automatically upgraded since 6.5.0", getOldClusterVersion().before(Version.V_6_5_0));
+        assumeTrue("skip_unavailable did not exist until 6.1.0", getOldClusterVersion().onOrAfter(LegacyESVersion.V_6_1_0));
+        assumeTrue("settings automatically upgraded since 6.5.0", getOldClusterVersion().before(LegacyESVersion.V_6_5_0));
         if (isRunningAgainstOldCluster()) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
             try (XContentBuilder builder = jsonBuilder()) {

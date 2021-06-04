@@ -33,7 +33,7 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
@@ -284,7 +285,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
             this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
         } else {
             this.failedNodeIds = Collections.emptySet();
@@ -292,9 +293,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_6_0_0_beta2) && reason == Reason.MANUAL_ALLOCATION) {
+        if (out.getVersion().before(LegacyESVersion.V_6_0_0_beta2) && reason == Reason.MANUAL_ALLOCATION) {
             out.writeByte((byte) Reason.ALLOCATION_FAILED.ordinal());
-        } else if (out.getVersion().before(Version.V_7_0_0) && reason == Reason.INDEX_CLOSED) {
+        } else if (out.getVersion().before(LegacyESVersion.V_7_0_0) && reason == Reason.INDEX_CLOSED) {
             out.writeByte((byte) Reason.REINITIALIZED.ordinal());
         } else {
             out.writeByte((byte) reason.ordinal());
@@ -306,7 +307,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
             out.writeCollection(failedNodeIds, StreamOutput::writeString);
         }
     }
@@ -413,13 +414,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Returns the number of shards that are unassigned and currently being delayed.
      */
     public static int getNumberOfDelayedUnassigned(ClusterState state) {
-        int count = 0;
-        for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
-            if (shard.unassignedInfo().isDelayed()) {
-                count++;
-            }
-        }
-        return count;
+        Predicate<ShardRouting> predicate = s -> s.state() == ShardRoutingState.UNASSIGNED && s.unassignedInfo().isDelayed();
+        return state.routingTable().shardsMatchingPredicateCount(predicate);
     }
 
     /**

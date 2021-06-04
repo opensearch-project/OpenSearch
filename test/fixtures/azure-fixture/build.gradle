@@ -33,6 +33,7 @@ apply plugin: 'opensearch.test.fixtures'
 description = 'Fixture for Azure external service'
 test.enabled = false
 
+group = 'fixture.azure'
 dependencies {
   api project(':server')
 }

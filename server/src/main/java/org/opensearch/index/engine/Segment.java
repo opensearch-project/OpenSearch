@@ -40,7 +40,7 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -88,12 +88,12 @@ public class Segment implements Writeable {
             // verbose mode
             ramTree = readRamTree(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             segmentSort = readSegmentSort(in);
         } else {
             segmentSort = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0) && in.readBoolean()) {
             attributes = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
             attributes = null;
@@ -207,10 +207,10 @@ public class Segment implements Writeable {
         if (verbose) {
             writeRamTree(out, ramTree);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             writeSegmentSort(out, segmentSort);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             boolean hasAttributes = attributes != null;
             out.writeBoolean(hasAttributes);
             if (hasAttributes) {

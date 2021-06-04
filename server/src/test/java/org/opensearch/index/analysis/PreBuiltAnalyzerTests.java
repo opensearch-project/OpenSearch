@@ -32,6 +32,7 @@
 package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -74,21 +75,21 @@ public class PreBuiltAnalyzerTests extends OpenSearchSingleNodeTestCase {
 
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
         assertThat(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT),
-                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.V_6_0_0)));
+                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(LegacyESVersion.V_6_0_0)));
     }
 
     public void testThatInstancesAreCachedAndReused() {
         assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT),
                 PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
         // same es version should be cached
-        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_2_1),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_2_1));
-        assertNotSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_0_0),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_0_1));
+        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_2_1),
+                PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_2_1));
+        assertNotSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_0_0),
+                PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_0_1));
 
         // Same Lucene version should be cached:
-        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_6_2_1),
-            PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_6_2_2));
+        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.V_6_2_1),
+            PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.V_6_2_2));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {

@@ -37,6 +37,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
@@ -155,7 +156,7 @@ public class GatewayMetaState implements Closeable {
                 long currentTerm = onDiskState.currentTerm;
 
                 if (onDiskState.empty()) {
-                    assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 :
+                    assert Version.CURRENT.major <= LegacyESVersion.V_7_0_0.major + 1 :
                         "legacy metadata loader is not needed anymore from v9 onwards";
                     final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
                     if (legacyState.v1().isEmpty() == false) {

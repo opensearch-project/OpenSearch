@@ -40,7 +40,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -80,7 +80,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             return;
         }
-        if (context.getIndexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
+        if (context.getIndexSettings().getIndexVersionCreated().before(LegacyESVersion.V_6_1_0)) {
             if (fields.size() == 1) {
                 assertThat(query, instanceOf(ConstantScoreQuery.class));
                 ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;

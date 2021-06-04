@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.pipeline;
 
 import com.carrotsearch.hppc.DoubleArrayList;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -67,7 +67,7 @@ public class PercentilesBucketPipelineAggregationBuilder
         super(in, NAME);
         percents = in.readDoubleArray();
 
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             keyed = in.readBoolean();
         }
     }
@@ -76,7 +76,7 @@ public class PercentilesBucketPipelineAggregationBuilder
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(percents);
 
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(keyed);
         }
     }

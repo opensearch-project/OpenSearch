@@ -31,7 +31,7 @@
 
 package org.opensearch.index.query.functionscore;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -68,7 +68,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         if (in.readBoolean()) {
             seed = in.readInt();
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_beta1)) {
             field = in.readOptionalString();
         }
     }
@@ -81,7 +81,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_beta1)) {
             out.writeOptionalString(field);
         }
     }

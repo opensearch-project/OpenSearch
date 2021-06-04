@@ -32,7 +32,7 @@
 
 package org.opensearch.index.stats;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -74,7 +74,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         primaryRejections = in.readVLong();
         replicaRejections = in.readVLong();
 
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             memoryLimit = in.readVLong();
         } else {
             memoryLimit = -1L;
@@ -115,7 +115,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         out.writeVLong(primaryRejections);
         out.writeVLong(replicaRejections);
 
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeVLong(memoryLimit);
         }
     }

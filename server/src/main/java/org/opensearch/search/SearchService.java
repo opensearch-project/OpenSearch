@@ -37,8 +37,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.OriginalIndices;
@@ -1276,7 +1276,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         public CanMatchResponse(StreamInput in) throws IOException {
             super(in);
             this.canMatch = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                 estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::new);
             } else {
                 estimatedMinAndMax = null;
@@ -1291,7 +1291,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(canMatch);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                 out.writeOptionalWriteable(estimatedMinAndMax);
             }
         }

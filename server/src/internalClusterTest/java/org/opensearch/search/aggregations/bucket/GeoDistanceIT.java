@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -77,7 +78,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         return false;
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+    private Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
 
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);

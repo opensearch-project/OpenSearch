@@ -32,8 +32,10 @@
 
 package org.opensearch.indices;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.index.mapper.AllFieldMapper;
+import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
@@ -89,17 +91,18 @@ public class IndicesModuleTests extends OpenSearchTestCase {
     });
 
     private static String[] EXPECTED_METADATA_FIELDS = new String[]{IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
-            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
+        RoutingFieldMapper.NAME, IndexFieldMapper.NAME, DataStreamFieldMapper.NAME, SourceFieldMapper.NAME,
+        TypeFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
 
     private static String[] EXPECTED_METADATA_FIELDS_6x = new String[]{AllFieldMapper.NAME, IgnoredFieldMapper.NAME,
-        IdFieldMapper.NAME, RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
-        VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
+        IdFieldMapper.NAME, RoutingFieldMapper.NAME, IndexFieldMapper.NAME, DataStreamFieldMapper.NAME, SourceFieldMapper.NAME,
+        TypeFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_0_0.minimumCompatibilityVersion());
+            Version version = VersionUtils.randomVersionBetween(
+                random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion());
             assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
@@ -111,7 +114,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
             }
         }
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
+            Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT);
             assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
@@ -128,13 +131,14 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         IndicesModule noPluginsModule = new IndicesModule(Collections.emptyList());
         IndicesModule module = new IndicesModule(fakePlugins);
         MapperRegistry registry = module.getMapperRegistry();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_0_0.minimumCompatibilityVersion());
+        Version version = VersionUtils.randomVersionBetween(
+            random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion());
         assertThat(registry.getMapperParsers().size(), greaterThan(noPluginsModule.getMapperRegistry().getMapperParsers().size()));
         assertThat(registry.getMetadataMapperParsers(version).size(),
                 greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers(version).size()));
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers(version);
         Iterator<String> iterator = metadataMapperParsers.keySet().iterator();
-        if (version.before(Version.V_7_0_0)) {
+        if (version.before(LegacyESVersion.V_7_0_0)) {
             assertEquals(AllFieldMapper.NAME, iterator.next());
         }
         assertEquals(IgnoredFieldMapper.NAME, iterator.next());

@@ -35,6 +35,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
@@ -81,7 +82,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     @Override
     protected Settings createTestIndexSettings() {
         // force the new shape impl
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_6_0, Version.CURRENT);
         return Settings.builder()
                 .put(super.createTestIndexSettings())
                 .put(IndexMetadata.SETTING_VERSION_CREATED, version)

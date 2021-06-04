@@ -50,6 +50,7 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.bulk.BackoffPolicy;
@@ -93,7 +94,6 @@ import java.util.stream.Stream;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -149,14 +149,15 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     }
 
     public void testLookupRemoteVersion() throws Exception {
-        assertLookupRemoteVersion(Version.fromString("0.20.5"), "main/0_20_5.json");
-        assertLookupRemoteVersion(Version.fromString("0.90.13"), "main/0_90_13.json");
-        assertLookupRemoteVersion(Version.fromString("1.7.5"), "main/1_7_5.json");
-        assertLookupRemoteVersion(Version.fromId(2030399), "main/2_3_3.json");
+        assertLookupRemoteVersion(LegacyESVersion.fromString("0.20.5"), "main/0_20_5.json");
+        assertLookupRemoteVersion(LegacyESVersion.fromString("0.90.13"), "main/0_90_13.json");
+        assertLookupRemoteVersion(LegacyESVersion.fromString("1.7.5"), "main/1_7_5.json");
+        assertLookupRemoteVersion(LegacyESVersion.fromId(2030399), "main/2_3_3.json");
         // assert for V_5_0_0 (no qualifier) since we no longer consider qualifier in Version since 7
-        assertLookupRemoteVersion(Version.fromId(5000099), "main/5_0_0_alpha_3.json");
+        assertLookupRemoteVersion(LegacyESVersion.fromId(5000099), "main/5_0_0_alpha_3.json");
         // V_5_0_0 since we no longer consider qualifier in Version
-        assertLookupRemoteVersion(Version.fromId(5000099), "main/with_unknown_fields.json");
+        assertLookupRemoteVersion(LegacyESVersion.fromId(5000099), "main/with_unknown_fields.json");
+        assertLookupRemoteVersion(Version.fromId(1000099 ^ Version.MASK), "main/OpenSearch_1_0_0.json");
     }
 
     private void assertLookupRemoteVersion(Version expected, String s) throws Exception {
@@ -470,7 +471,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     public void testNoContentTypeIsError() {
         RuntimeException e = expectListenerFailure(RuntimeException.class, (RejectAwareActionListener<Version> listener) ->
                 sourceWithMockedRemoteCall(false, null, "main/0_20_5.json").lookupRemoteVersion(listener));
-        assertThat(e.getMessage(), containsString("Response didn't include Content-Type: body={"));
+        assertEquals(e.getMessage(), "Response didn't include supported Content-Type, remote is likely not an OpenSearch instance");
     }
 
     public void testInvalidJsonThinksRemoteIsNotES() throws IOException {

@@ -32,6 +32,8 @@
 
 package org.opensearch.index.reindex;
 
+import java.util.Optional;
+import org.apache.http.HttpRequestInterceptor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
@@ -112,6 +114,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     protected final ThreadPool threadPool;
     protected final ScriptService scriptService;
     protected final ReindexSslConfig sslConfig;
+    protected Optional<HttpRequestInterceptor> interceptor;
 
     /**
      * The request for this action. Named mainRequest because we create lots of <code>request</code> variables all representing child
@@ -152,6 +155,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
         this.listener = listener;
+        this.interceptor = Optional.empty();
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         scrollSource = buildScrollableResultSource(backoffPolicy);

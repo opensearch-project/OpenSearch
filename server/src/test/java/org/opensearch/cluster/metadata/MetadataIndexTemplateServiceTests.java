@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.apache.lucene.search.Query;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -52,29 +51,17 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
-import org.opensearch.index.mapper.FieldMapper;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.MetadataFieldMapper;
-import org.opensearch.index.mapper.ParametrizedFieldMapper;
-import org.opensearch.index.mapper.TextSearchInfo;
-import org.opensearch.index.mapper.ValueFetcher;
-import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.plugins.MapperPlugin;
-import org.opensearch.plugins.Plugin;
-import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -88,10 +75,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
-import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
-import static org.opensearch.common.settings.Settings.builder;
-import static org.opensearch.index.mapper.ParametrizedFieldMapper.Parameter;
-import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -102,13 +85,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.opensearch.common.settings.Settings.builder;
+import static org.opensearch.index.mapper.DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
+import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 
 public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(DummyPlugin.class);
-    }
 
     public void testIndexTemplateInvalidNumberOfShards() {
         PutRequest request = new PutRequest("test", "test_shards");
@@ -886,7 +867,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
 
             Map<String, Object> firstParsedMapping = org.opensearch.common.collect.Map.of("_doc",
                 org.opensearch.common.collect.Map.of("properties",
-                    org.opensearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
+                    org.opensearch.common.collect.Map.of(TIMESTAMP_FIELD.getName(),
                         org.opensearch.common.collect.Map.of("type", "date"))));
             assertThat(parsedMappings.get(0), equalTo(firstParsedMapping));
 
@@ -1024,13 +1005,13 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
 
             Map<String, Object> firstMapping = org.opensearch.common.collect.Map.of("_doc",
                 org.opensearch.common.collect.Map.of("properties",
-                    org.opensearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
+                    org.opensearch.common.collect.Map.of(TIMESTAMP_FIELD.getName(),
                         org.opensearch.common.collect.Map.of("type", "date"))));
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
             Map<String, Object> secondMapping = org.opensearch.common.collect.Map.of("_doc",
                 org.opensearch.common.collect.Map.of("properties",
-                    org.opensearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
+                    org.opensearch.common.collect.Map.of(TIMESTAMP_FIELD.getName(),
                         org.opensearch.common.collect.Map.of("type", "date_nanos"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }
@@ -1068,13 +1049,13 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 .collect(Collectors.toList());
             Map<String, Object> firstMapping = org.opensearch.common.collect.Map.of("_doc",
                 org.opensearch.common.collect.Map.of("properties",
-                    org.opensearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
+                    org.opensearch.common.collect.Map.of(TIMESTAMP_FIELD.getName(),
                         org.opensearch.common.collect.Map.of("type", "date"))));
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
             Map<String, Object> secondMapping = org.opensearch.common.collect.Map.of("_doc",
                 org.opensearch.common.collect.Map.of("properties",
-                    org.opensearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
+                    org.opensearch.common.collect.Map.of(TIMESTAMP_FIELD.getName(),
                         org.opensearch.common.collect.Map.of("type", "date_nanos"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }
@@ -1556,82 +1537,6 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
 
                 assertThat(actualMappings, equalTo(expectedMappings));
             }
-        }
-    }
-
-    // Composable index template with data_stream definition need _timestamp meta field mapper,
-    // this is a dummy impl, so that tests don't fail with the fact that the _timestamp field can't be found.
-    // (tests using this dummy impl doesn't test the _timestamp validation, but need it to tests other functionality)
-    public static class DummyPlugin extends Plugin implements MapperPlugin {
-
-        @Override
-        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Collections.singletonMap("_data_stream_timestamp", new MetadataFieldMapper.ConfigurableTypeParser(
-                c -> new MetadataTimestampFieldMapper(false),
-                c -> new MetadataTimestampFieldBuilder())
-            );
-        }
-    }
-
-    private static MetadataTimestampFieldMapper toType(FieldMapper in) {
-        return (MetadataTimestampFieldMapper) in;
-    }
-
-    public static class MetadataTimestampFieldBuilder extends MetadataFieldMapper.Builder {
-
-        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled, false);
-
-        protected MetadataTimestampFieldBuilder() {
-            super("_data_stream_timestamp");
-        }
-
-        @Override
-        protected List<ParametrizedFieldMapper.Parameter<?>> getParameters() {
-            return Collections.singletonList(enabled);
-        }
-
-        @Override
-        public MetadataFieldMapper build(Mapper.BuilderContext context) {
-            return new MetadataTimestampFieldMapper(enabled.getValue());
-        }
-    }
-
-    public static class MetadataTimestampFieldMapper extends MetadataFieldMapper {
-        final boolean enabled;
-
-        public MetadataTimestampFieldMapper(boolean enabled) {
-            super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
-                @Override
-                public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public String typeName() {
-                    return "_data_stream_timestamp";
-                }
-
-                @Override
-                public Query termQuery(Object value, QueryShardContext context) {
-                    return null;
-                }
-
-                @Override
-                public Query existsQuery(QueryShardContext context) {
-                    return null;
-                }
-            });
-            this.enabled = enabled;
-        }
-
-        @Override
-        public ParametrizedFieldMapper.Builder getMergeBuilder() {
-            return new MetadataTimestampFieldBuilder().init(this);
-        }
-
-        @Override
-        protected String contentType() {
-            return "_data_stream_timestamp";
         }
     }
 }

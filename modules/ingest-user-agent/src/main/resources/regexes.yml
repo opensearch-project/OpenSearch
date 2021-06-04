@@ -92,7 +92,7 @@ user_agent_parsers:
   # Pingdom
   - regex: '(Pingdom\.com_bot_version_)(\d+)\.(\d+)'
     family_replacement: 'PingdomBot'
-  # 'Mozilla/5.0 (Unknown; Linux x86_64) AppleWebKit/534.34 (KHTML, like Gecko) PingdomTMS/0.8.5 Safari/534.34'
+  # 'Mozilla/5.0 (Unknown; Linux x64) AppleWebKit/534.34 (KHTML, like Gecko) PingdomTMS/0.8.5 Safari/534.34'
   - regex: '(PingdomTMS)/(\d+)\.(\d+)\.(\d+)'
     family_replacement: 'PingdomBot'
 
@@ -1093,8 +1093,8 @@ os_parsers:
   # Note, this needs to come before the windows parsers as the app doesn't
   # properly identify as Chrome OS
   #
-  # ex: Mozilla/5.0 (X11; Windows aarch64 10718.88.2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.118 Safari/537.36 CitrixChromeApp
-  - regex: '(x86_64|aarch64)\ (\d+)\.(\d+)\.(\d+).*Chrome.*(?:CitrixChromeApp)$'
+  # ex: Mozilla/5.0 (X11; Windows arm64 10718.88.2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.118 Safari/537.36 CitrixChromeApp
+  - regex: '(x64|arm64)\ (\d+)\.(\d+)\.(\d+).*Chrome.*(?:CitrixChromeApp)$'
     os_replacement: 'Chrome OS'
 
   ##########
@@ -1209,27 +1209,27 @@ os_parsers:
     os_v2_replacement: '$2'
     os_v3_replacement: '$3'
   # Leopard
-  - regex: ' (Dar)(win)/(9).(\d+).*\((?:i386|x86_64|Power Macintosh)\)'
+  - regex: ' (Dar)(win)/(9).(\d+).*\((?:i386|x64|Power Macintosh)\)'
     os_replacement: 'Mac OS X'
     os_v1_replacement: '10'
     os_v2_replacement: '5'
   # Snow Leopard
-  - regex: ' (Dar)(win)/(10).(\d+).*\((?:i386|x86_64)\)'
+  - regex: ' (Dar)(win)/(10).(\d+).*\((?:i386|x64)\)'
     os_replacement: 'Mac OS X'
     os_v1_replacement: '10'
     os_v2_replacement: '6'
   # Lion
-  - regex: ' (Dar)(win)/(11).(\d+).*\((?:i386|x86_64)\)'
+  - regex: ' (Dar)(win)/(11).(\d+).*\((?:i386|x64)\)'
     os_replacement: 'Mac OS X'
     os_v1_replacement: '10'
     os_v2_replacement: '7'
   # Mountain Lion
-  - regex: ' (Dar)(win)/(12).(\d+).*\((?:i386|x86_64)\)'
+  - regex: ' (Dar)(win)/(12).(\d+).*\((?:i386|x64)\)'
     os_replacement: 'Mac OS X'
     os_v1_replacement: '10'
     os_v2_replacement: '8'
   # Mavericks
-  - regex: ' (Dar)(win)/(13).(\d+).*\((?:i386|x86_64)\)'
+  - regex: ' (Dar)(win)/(13).(\d+).*\((?:i386|x64)\)'
     os_replacement: 'Mac OS X'
     os_v1_replacement: '10'
     os_v2_replacement: '9'
@@ -1339,15 +1339,15 @@ os_parsers:
   # CFNetwork macOS Apps (must be before CFNetwork iOS Apps
   # @ref: https://en.wikipedia.org/wiki/Darwin_(operating_system)#Release_history
   ##########
-  - regex: 'CFNetwork/.* Darwin/17\.\d+.*\(x86_64\)'
+  - regex: 'CFNetwork/.* Darwin/17\.\d+.*\(x64\)'
     os_replacement: 'Mac OS X'
     os_v1_replacement: '10'
     os_v2_replacement: '13'
-  - regex: 'CFNetwork/.* Darwin/16\.\d+.*\(x86_64\)'
+  - regex: 'CFNetwork/.* Darwin/16\.\d+.*\(x64\)'
     os_replacement: 'Mac OS X'
     os_v1_replacement: '10'
     os_v2_replacement: '12'
-  - regex: 'CFNetwork/8.* Darwin/15\.\d+.*\(x86_64\)'
+  - regex: 'CFNetwork/8.* Darwin/15\.\d+.*\(x64\)'
     os_replacement: 'Mac OS X'
     os_v1_replacement: '10'
     os_v2_replacement: '11'
@@ -1625,7 +1625,7 @@ os_parsers:
   # Wget/x.x.x (linux-gnu)
   - regex: '\(linux-gnu\)'
     os_replacement: 'Linux'
-  - regex: '\(x86_64-redhat-linux-gnu\)'
+  - regex: '\(x64-redhat-linux-gnu\)'
     os_replacement: 'Red Hat'
   - regex: '\((freebsd)(\d+)\.(\d+)\)'
     os_replacement: 'FreeBSD'
@@ -5099,7 +5099,7 @@ device_parsers:
     model_replacement: '$1$2,$3'
   # @note: newer desktop applications don't show device info
   # This is here so as to not have them recorded as iOS-Device
-  - regex: 'CFNetwork/.* Darwin/\d+\.\d+\.\d+ \(x86_64\)'
+  - regex: 'CFNetwork/.* Darwin/\d+\.\d+\.\d+ \(x64\)'
     device_replacement: 'Mac'
     brand_replacement: 'Apple'
     model_replacement: 'Mac'

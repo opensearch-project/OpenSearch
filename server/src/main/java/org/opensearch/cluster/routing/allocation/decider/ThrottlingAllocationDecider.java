@@ -39,7 +39,6 @@ import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
-import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -58,7 +57,8 @@ import static org.opensearch.cluster.routing.allocation.decider.Decision.YES;
  * node. The default is {@code 4}</li>
  * <li>{@code cluster.routing.allocation.node_concurrent_recoveries} -
  * restricts the number of total concurrent shards initializing on a single node. The
- * default is {@code 2}</li>
+ * default is {@code 2}. Please note that this limit excludes the initial primaries
+ * recovery operations per node.</li>
  * </ul>
  * <p>
  * If one of the above thresholds is exceeded per node this allocation decider
@@ -135,14 +135,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             // primary is unassigned, means we are going to do recovery from store, snapshot or local shards
             // count *just the primaries* currently doing recovery on the node and check against primariesInitialRecoveries
 
-            int primariesInRecovery = 0;
-            for (ShardRouting shard : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
-                // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
-                // we only count initial recoveries here, so we need to make sure that relocating node is null
-                if (shard.primary() && shard.relocatingNodeId() == null) {
-                    primariesInRecovery++;
-                }
-            }
+            int primariesInRecovery = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node.nodeId());
+
             if (primariesInRecovery >= primariesInitialRecoveries) {
                 // TODO: Should index creation not be throttled for primary shards?
                 return allocation.decision(THROTTLE, NAME,
@@ -223,5 +217,45 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         }
         assert initializingShard.initializing();
         return initializingShard;
+    }
+
+    @Override
+    public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
+        int outgoingRecoveries = 0;
+        if (!shardRouting.primary()) {
+            ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
+            outgoingRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
+        } else {
+            outgoingRecoveries = allocation.routingNodes().getOutgoingRecoveries(shardRouting.currentNodeId());
+        }
+        if (outgoingRecoveries >= concurrentOutgoingRecoveries) {
+            return allocation.decision(
+                THROTTLE, NAME,
+                "too many outgoing shards are currently recovering [%d], limit: [%d] cluster setting [%s=%d]",
+                outgoingRecoveries, concurrentOutgoingRecoveries,
+                CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                concurrentOutgoingRecoveries
+            );
+        } else {
+            return allocation.decision(YES, NAME, "below shard recovery limit of outgoing: [%d < %d]", outgoingRecoveries,
+                concurrentOutgoingRecoveries);
+        }
+    }
+
+    @Override
+    public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+        int incomingRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
+        if (incomingRecoveries >= concurrentIncomingRecoveries) {
+            return allocation.decision(
+                THROTTLE, NAME,
+                "too many incoming shards are currently recovering [%d], limit: [%d] cluster setting [%s=%d]",
+                incomingRecoveries, concurrentIncomingRecoveries,
+                CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                concurrentIncomingRecoveries
+            );
+        } else {
+            return allocation.decision(YES, NAME, "below shard recovery limit of incoming: [%d < %d]", incomingRecoveries,
+                concurrentIncomingRecoveries);
+        }
     }
 }

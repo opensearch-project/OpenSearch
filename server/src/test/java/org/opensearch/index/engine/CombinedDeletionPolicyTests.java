@@ -116,7 +116,7 @@ public class CombinedDeletionPolicyTests extends OpenSearchTestCase {
         int safeIndex = 0;
         List<IndexCommit> commitList = new ArrayList<>();
         List<IndexCommit> snapshottingCommits = new ArrayList<>();
-        final int iters = between(10, 100);
+        final int iters = between(5, 10);
         for (int i = 0; i < iters; i++) {
             int newCommits = between(1, 10);
             for (int n = 0; n < newCommits; n++) {

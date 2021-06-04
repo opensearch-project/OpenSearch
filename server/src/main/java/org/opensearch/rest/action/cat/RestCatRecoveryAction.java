@@ -84,6 +84,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final RecoveryRequest recoveryRequest = new RecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        recoveryRequest.timeout(request.param("timeout"));
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));

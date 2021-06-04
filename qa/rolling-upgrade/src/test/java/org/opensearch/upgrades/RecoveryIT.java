@@ -32,6 +32,7 @@
 package org.opensearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.Request;
@@ -351,7 +352,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 if (randomBoolean()) {
                     indexDocs(index, i, 1); // update
                 } else if (randomBoolean()) {
-                    if (getNodeId(v -> v.onOrAfter(Version.V_7_0_0)) == null) {
+                    if (getNodeId(v -> v.onOrAfter(LegacyESVersion.V_7_0_0)) == null) {
                         client().performRequest(new Request("DELETE", index + "/test/" + i));
                     } else {
                         client().performRequest(new Request("DELETE", index + "/_doc/" + i));
@@ -455,7 +456,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(Version.V_7_2_0)) {
+        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -488,7 +489,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (minimumNodeVersion.onOrAfter(Version.V_7_2_0)) {
+        if (minimumNodeVersion.onOrAfter(LegacyESVersion.V_7_2_0)) {
             // index is created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -523,12 +524,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(Version.V_7_2_0)) {
+        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
-            if (minimumNodeVersion().onOrAfter(Version.V_7_2_0)) {
+            if (minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
                 switch (CLUSTER_TYPE) {
                     case OLD: break;
                     case MIXED:
@@ -777,7 +778,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         final int numberOfReplicas = Integer.parseInt(
             getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString());
-        if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
+        if (minimumNodeVersion.onOrAfter(LegacyESVersion.V_7_6_0)) {
             assertEquals(nodes.size() - 2, numberOfReplicas);
             ensureGreen(indexName);
         } else {

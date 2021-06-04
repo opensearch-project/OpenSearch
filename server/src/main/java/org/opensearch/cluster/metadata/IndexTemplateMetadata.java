@@ -33,8 +33,8 @@ package org.opensearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Nullable;
@@ -206,7 +206,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     public static IndexTemplateMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             builder.patterns(in.readStringList());
         } else {
             builder.patterns(Collections.singletonList(in.readString()));
@@ -221,7 +221,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             AliasMetadata aliasMd = new AliasMetadata(in);
             builder.putAlias(aliasMd);
         }
-        if (in.getVersion().before(Version.V_6_5_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_6_5_0)) {
             // Previously we allowed custom metadata
             int customSize = in.readVInt();
             assert customSize == 0 : "expected no custom metadata";
@@ -241,7 +241,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeInt(order);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             out.writeStringCollection(patterns);
         } else {
             out.writeString(patterns.get(0));
@@ -256,7 +256,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         for (ObjectCursor<AliasMetadata> cursor : aliases.values()) {
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().before(Version.V_6_5_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_5_0)) {
             out.writeVInt(0);
         }
         out.writeOptionalVInt(version);

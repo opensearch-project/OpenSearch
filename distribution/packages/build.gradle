@@ -67,9 +67,9 @@ plugins {
 }
 
 void addProcessFilesTask(String type, boolean jdk) {
-  String packagingFiles = "build/packaging/oss-${jdk ? '' : 'no-jdk-'}${type}"
+  String packagingFiles = "build/packaging/${jdk ? '' : 'no-jdk-'}${type}"
 
-  String taskName = "processOss'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
+  String taskName = "process'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
   tasks.register(taskName, Copy) {
     into packagingFiles
 
@@ -110,33 +110,38 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     onlyIf {
       OS.current().equals(OS.WINDOWS) == false
     }
-    dependsOn "processOss'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
-    packageName "opensearch-oss"
+    dependsOn "process'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
+    packageName "opensearch"
     if (type == 'deb') {
       if (architecture == 'x64') {
         arch('amd64')
       } else {
-        assert architecture == 'aarch64' : architecture
+        assert architecture == 'arm64' : architecture
         arch('arm64')
       }
     } else {
       assert type == 'rpm' : type
       if (architecture == 'x64') {
-        arch('X86_64')
+        arch('x86_64')
       } else {
-        assert architecture == 'aarch64' : architecture
+        assert architecture == 'arm64' : architecture
         arch('aarch64')
       }
     }
     // Follow opensearch's file naming convention
-    String jdkString = jdk ? "" : "no-jdk-"
-    String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}oss-${jdk ? '' : 'no-jdk-'}${type}"
+    String jdkString = jdk ? "" : "-no-jdk"
+    String prefix = "${architecture == 'arm64' ? 'arm64-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
     destinationDirectory = file("${prefix}/build/distributions")
 
     // SystemPackagingTask overrides default archive task convention mappings, but doesn't provide a setter so we have to override the convention mapping itself
-    conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDirectory.get()}/${packageName}-${project.version}-${jdkString}${archString}.${type}")) }
+    // Deb convention uses a '_' for final separator before architecture, rpm uses a '.'
+    if (type == 'deb') {
+      conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDirectory.get()}/${packageName}_${project.version}${jdkString}_${archString}.${type}")) }
+    } else {
+      conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDirectory.get()}/${packageName}-${project.version}${jdkString}.${archString}.${type}")) }
+    }
 
-    String packagingFiles = "build/packaging/oss-${jdk ? '' : 'no-jdk-'}${type}"
+    String packagingFiles = "build/packaging/${jdk ? '' : 'no-jdk-'}${type}"
 
     String scripts = "${packagingFiles}/scripts"
     preInstall file("${scripts}/preinst")
@@ -161,7 +166,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         with libFiles()
       }
       into('modules') {
-        with modulesFiles('linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))
+        with modulesFiles('linux-' + ((architecture == 'x64') ? 'x64' : architecture))
       }
       if (jdk) {
         into('jdk') {
@@ -289,7 +294,7 @@ apply plugin: 'nebula.ospackage-base'
 
 // this is package indepdendent configuration
 ospackage {
-  maintainer 'OpenSearch Team'
+  maintainer 'OpenSearch Team <opensearch@amazon.com>'
   summary 'Distributed RESTful search engine built for the cloud'
   packageDescription '''
     Reference documentation can be found at
@@ -336,20 +341,20 @@ Closure commonDebConfig(boolean jdk, String architecture) {
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/opensearch')
-      rename('opensearch', 'opensearch-oss')
+      fileMode 0644
     }
   }
 }
 
-tasks.register('buildAarch64OssDeb', Deb) {
-  configure(commonDebConfig(true, 'aarch64'))
+tasks.register('buildArm64Deb', Deb) {
+  configure(commonDebConfig(true, 'arm64'))
 }
 
-tasks.register('buildOssDeb', Deb) {
+tasks.register('buildDeb', Deb) {
   configure(commonDebConfig(true, 'x64'))
 }
 
-tasks.register('buildOssNoJdkDeb', Deb) {
+tasks.register('buildNoJdkDeb', Deb) {
   configure(commonDebConfig(true, 'x64'))
 }
 
@@ -357,7 +362,7 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
   return {
     configure(commonPackageConfig('rpm', jdk, architecture))
 
-    license 'ASL 2.0'
+    license 'ASL-2.0'
 
     packageGroup 'Application/Internet'
     requires '/bin/bash'
@@ -378,15 +383,15 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
   }
 }
 
-tasks.register('buildAarch64OssRpm', Rpm) {
-  configure(commonRpmConfig(true, 'aarch64'))
+tasks.register('buildArm64Rpm', Rpm) {
+  configure(commonRpmConfig(true, 'arm64'))
 }
 
-tasks.register('buildOssRpm', Rpm) {
+tasks.register('buildRpm', Rpm) {
   configure(commonRpmConfig(true, 'x64'))
 }
 
-tasks.register('buildOssNoJdkRpm', Rpm) {
+tasks.register('buildNoJdkRpm', Rpm) {
   configure(commonRpmConfig(true, 'x64'))
 }
 
@@ -464,7 +469,7 @@ subprojects {
           Path copyrightPath
           String expectedLicense
           String licenseFilename
-          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/opensearch-oss/copyright")
+          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/opensearch/copyright")
           expectedLicense = "ASL-2.0"
           licenseFilename = "APACHE-LICENSE-2.0.txt"
           final List<String> header = Arrays.asList("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
@@ -495,7 +500,7 @@ subprojects {
         (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
       }
       doLast {
-        final List<String> noticeLines = Arrays.asList("OpenSearch", "Copyright 2021 OpenSearch Contributors")
+        final List<String> noticeLines = Arrays.asList("OpenSearch (https://opensearch.org/)", "Copyright 2021 OpenSearch Contributors")
         final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/opensearch/NOTICE.txt")
         assertLinesInFile(noticePath, noticeLines)
       }

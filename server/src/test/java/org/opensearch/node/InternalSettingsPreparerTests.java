@@ -114,28 +114,6 @@ public class InternalSettingsPreparerTests extends OpenSearchTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/358")
-    public void testYamlNotAllowed() throws IOException {
-        InputStream yaml = getClass().getResourceAsStream("/config/opensearch.yml");
-        Path config = homeDir.resolve("config");
-        Files.createDirectory(config);
-        Files.copy(yaml, config.resolve("opensearch.yaml"));
-        SettingsException e = expectThrows(SettingsException.class, () -> InternalSettingsPreparer.prepareEnvironment(
-                Settings.builder().put(baseEnvSettings).build(), emptyMap(), null, DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED));
-        assertEquals("opensearch.yaml was deprecated in 5.5.0 and must be renamed to opensearch.yml", e.getMessage());
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/358")
-    public void testJsonNotAllowed() throws IOException {
-        InputStream yaml = getClass().getResourceAsStream("/config/opensearch.json");
-        Path config = homeDir.resolve("config");
-        Files.createDirectory(config);
-        Files.copy(yaml, config.resolve("opensearch.json"));
-        SettingsException e = expectThrows(SettingsException.class, () -> InternalSettingsPreparer.prepareEnvironment(
-                Settings.builder().put(baseEnvSettings).build(), emptyMap(), null, DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED));
-        assertEquals("opensearch.json was deprecated in 5.5.0 and must be converted to opensearch.yml", e.getMessage());
-    }
-
     public void testSecureSettings() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("foo", "secret");

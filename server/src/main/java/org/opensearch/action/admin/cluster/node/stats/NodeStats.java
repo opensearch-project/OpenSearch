@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -129,20 +129,20 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         scriptStats = in.readOptionalWriteable(ScriptStats::new);
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
         ingestStats = in.readOptionalWriteable(IngestStats::new);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         } else {
             adaptiveSelectionStats = null;
         }
         scriptCacheStats = null;
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            if (in.getVersion().before(Version.V_7_9_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            if (in.getVersion().before(LegacyESVersion.V_7_9_0)) {
                 scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
             } else if (scriptStats != null) {
                 scriptCacheStats = scriptStats.toScriptCacheStats();
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
         } else {
             indexingPressureStats = null;
@@ -301,12 +301,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(scriptStats);
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             out.writeOptionalWriteable(adaptiveSelectionStats);
-        } if (out.getVersion().onOrAfter(Version.V_7_8_0) && out.getVersion().before(Version.V_7_9_0)) {
+        } if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0) && out.getVersion().before(LegacyESVersion.V_7_9_0)) {
             out.writeOptionalWriteable(scriptCacheStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeOptionalWriteable(indexingPressureStats);
         }
     }

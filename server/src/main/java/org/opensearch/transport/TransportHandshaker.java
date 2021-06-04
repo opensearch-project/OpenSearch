@@ -31,6 +31,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -79,7 +80,18 @@ final class TransportHandshaker {
             // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
             // we also have no payload on the request but the response will contain the actual version of the node we talk
             // to as the payload.
-            final Version minCompatVersion = version.minimumCompatibilityVersion();
+            Version minCompatVersion = version.minimumCompatibilityVersion();
+            if(version.onOrAfter(Version.V_1_0_0)) {
+                // the minCompatibleVersion for OpenSearch 1.x is sent as 6.7.99 instead of 6.8.0
+                // as this helps in (indirectly) identifying the remote node version during handle HandshakeRequest itself
+                // and then send appropriate version (7.10.2/ OpenSearch 1.x version) in response.
+                // The advantage of doing this is early identification of remote node version as otherwise
+                // if OpenSearch node also sends 6.8.0, there is no way to differentiate ES 7.x version from
+                // OpenSearch version and OpenSearch node will end up sending BC version to both ES & OpenSearch remote node.
+                // Sending only BC version to ElasticSearch node provide easy deprecation path for this BC version logic
+                // in OpenSearch 2.0.0.
+                minCompatVersion = Version.fromId(6079999);
+            }
             handshakeRequestSender.sendRequest(node, channel, requestId, minCompatVersion);
 
             threadPool.schedule(
@@ -105,7 +117,16 @@ final class TransportHandshaker {
             throw new IllegalStateException("Handshake request not fully read for requestId [" + requestId + "], action ["
                 + TransportHandshaker.HANDSHAKE_ACTION_NAME + "], available [" + stream.available() + "]; resetting");
         }
-        channel.sendResponse(new HandshakeResponse(this.version));
+        // 1. if remote node is 7.x, then StreamInput version would be 6.8.0
+        // 2. if remote node is 6.8 then it would be 5.6.0
+        // 3. if remote node is OpenSearch 1.x then it would be 6.7.99
+        if(this.version.onOrAfter(Version.V_1_0_0) &&
+            (stream.getVersion().equals(LegacyESVersion.V_6_8_0)
+                || stream.getVersion().equals(Version.fromId(5060099)))) {
+            channel.sendResponse(new HandshakeResponse(LegacyESVersion.V_7_10_2));
+        } else {
+            channel.sendResponse(new HandshakeResponse(this.version));
+        }
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {

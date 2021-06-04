@@ -10,7 +10,7 @@
 # vim: ft=ruby ts=2 sw=2 sts=2 et:
 
 # This Vagrantfile exists to test packaging. Read more about its use in the
-# vagrant section in TESTING.asciidoc.
+# vagrant section in TESTING.md.
 
 # Licensed to Elasticsearch under one or more contributor
 # license agreements. See the NOTICE file distributed with
@@ -387,7 +387,7 @@ def linux_common(config,
 
   # This prevents leftovers from previous tests using the
   # same VM from messing up the current test
-  config.vm.provision 'clean es installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
+  config.vm.provision 'clean opensearch installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
     rm -rf /tmp/opensearch*
   SHELL
 

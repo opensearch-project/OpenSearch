@@ -32,6 +32,7 @@
 
 package org.opensearch.index.reindex;
 
+import java.util.Optional;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
@@ -43,6 +44,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.reindex.spi.RemoteReindexExtension;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -56,6 +58,7 @@ import static java.util.Collections.emptyList;
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
             Setting.listSetting("reindex.remote.whitelist", emptyList(), Function.identity(), Property.NodeScope);
+    public static Optional<RemoteReindexExtension> remoteExtension = Optional.empty();
 
     private final ReindexValidator reindexValidator;
     private final Reindexer reindexer;
@@ -66,7 +69,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, ReindexSslConfig sslConfig) {
         super(ReindexAction.NAME, transportService, actionFilters, ReindexRequest::new);
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
-        this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig);
+        this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig, remoteExtension);
     }
 
     @Override

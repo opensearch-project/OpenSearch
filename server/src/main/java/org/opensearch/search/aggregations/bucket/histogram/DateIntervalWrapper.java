@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.DateTimeUnit;
@@ -124,7 +124,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     public DateIntervalWrapper() {}
 
     public DateIntervalWrapper(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_7_2_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_2_0)) {
             long interval = in.readLong();
             DateHistogramInterval histoInterval = in.readOptionalWriteable(DateHistogramInterval::new);
 
@@ -386,7 +386,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_7_2_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_2_0)) {
             if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
                 out.writeLong(TimeValue.parseTimeValue(dateHistogramInterval.toString(),
                     DateHistogramAggregationBuilder.NAME + ".innerWriteTo").getMillis());

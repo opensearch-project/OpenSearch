@@ -94,6 +94,12 @@ public final class Request {
         }
     }
 
+    /**
+     * Add query parameters using the provided map of key value pairs.
+     *
+     * @param paramSource a map of key value pairs where the key is the url parameter.
+     * @throws IllegalArgumentException if a parameter with that name has already been set.
+     */
     public void addParameters(Map<String, String> paramSource){
         paramSource.forEach(this::addParameter);
     }
@@ -110,6 +116,8 @@ public final class Request {
     /**
      * Set the body of the request. If not set or set to {@code null} then no
      * body is sent with the request.
+     *
+     * @param entity the {@link HttpEntity} to be set as the body of the request.
      */
     public void setEntity(HttpEntity entity) {
         this.entity = entity;
@@ -121,6 +129,8 @@ public final class Request {
      * {@code Content-Type} will be sent as {@code application/json}.
      * If you need a different content type then use
      * {@link #setEntity(HttpEntity)}.
+     *
+     * @param entity JSON string to be set as the entity body of the request.
      */
     public void setJsonEntity(String entity) {
         setEntity(entity == null ? null : new NStringEntity(entity, ContentType.APPLICATION_JSON));
@@ -137,6 +147,9 @@ public final class Request {
     /**
      * Set the portion of an HTTP request to OpenSearch that can be
      * manipulated without changing OpenSearch's behavior.
+     *
+     * @param options the options to be set.
+     * @throws NullPointerException if {@code options} is null.
      */
     public void setOptions(RequestOptions options) {
         Objects.requireNonNull(options, "options cannot be null");
@@ -146,6 +159,9 @@ public final class Request {
     /**
      * Set the portion of an HTTP request to OpenSearch that can be
      * manipulated without changing OpenSearch's behavior.
+     *
+     * @param options the options to be set.
+     * @throws NullPointerException if {@code options} is null.
      */
     public void setOptions(RequestOptions.Builder options) {
         Objects.requireNonNull(options, "options cannot be null");
