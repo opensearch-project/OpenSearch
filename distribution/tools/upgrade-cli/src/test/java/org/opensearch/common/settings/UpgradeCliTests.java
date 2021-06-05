@@ -19,6 +19,7 @@ import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.upgrade.UpgradeCli;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,7 +36,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 
-public class ImportConfigCommandTests extends CommandTestCase {
+public class UpgradeCliTests extends CommandTestCase {
     private final List<FileSystem> fileSystems = new ArrayList<>();
     private Environment env;
 
@@ -48,6 +49,7 @@ public class ImportConfigCommandTests extends CommandTestCase {
         PathUtilsForTesting.installMock(fs);
         Path home = fs.getPath("/", "test-home");
         Files.createDirectories(home.resolve("config"));
+        Files.createFile(home.resolve("config/opensearch.yml"));
         env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
     }
 
@@ -58,7 +60,7 @@ public class ImportConfigCommandTests extends CommandTestCase {
 
     @Override
     protected Command newCommand() {
-        return new ImportConfigCommand() {
+        return new UpgradeCli() {
             @Override
             protected Environment createEnv(Map<String, String> settings) {
                 return env;
@@ -70,8 +72,11 @@ public class ImportConfigCommandTests extends CommandTestCase {
     public void testImportKeystoreSettings() throws Exception {
         String passwd = "keystorepassword";
         String esConfig = getClass().getResource("/config").getPath();
+        // for testing we provide the input to the es config directory
+        terminal.addTextInput(esConfig);
+        // as the keystore is password protected, we set it.
         terminal.addSecretInput(passwd);
-        execute(esConfig);
+        execute();
 
         // assert settings are imported.
         KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());

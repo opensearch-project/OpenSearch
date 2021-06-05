@@ -1,0 +1,3 @@
+cluster.name: my-cluster
+node.name: node-x
+path.data: "path_to_data_directory"
