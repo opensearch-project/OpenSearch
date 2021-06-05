@@ -91,7 +91,6 @@ configure([
   project(":client:benchmark"),
   project(":client:client-benchmark-noop-api-plugin"),
   project(":client:rest-high-level"),
-  project(":client:sniffer"),
   project(":client:test"),
   project(":client:transport"),
   project(":distribution:tools:java-version-checker"),
