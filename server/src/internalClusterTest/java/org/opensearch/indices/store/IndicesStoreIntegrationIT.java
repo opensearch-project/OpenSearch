@@ -169,10 +169,10 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Verify files are removed even if there is another relocation is in progress.
+     * Verify files are removed even when another relocation is in progress
      * Scenario in IT:
-     * Two relocation is in progress, once first relocation is completes it removes files from source node
-     * and dont wait for second relocation to complete.
+     * Two relocation are in progress.
+     * Removes files from source node once first relocation completes without waiting for second relocation to finish.
      */
     public void testIndexCleanupWhenMultipleRelocation() throws Exception {
         internalCluster().startNode(nonDataNode());
@@ -220,9 +220,9 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
             @Override
             public void onRequestReceived(long requestId, String action) {
                 if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                    try{
+                    try {
                         logger.info("received: {}, making relocation stuck", action);
-                        // Dealying relocation.
+                        // Delaying relocation.
                         sleep(500);
                     } catch (Exception e) {
                         throw new AssertionError(e);
@@ -237,8 +237,13 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
         logger.info("--> move shard from " + node_1 + " to " +  node_3);
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
 
-        // so relocation of (node_1 -> node_3) can complete
-        sleep(50);
+        clusterHealth = client().admin().cluster().prepareHealth().get();
+
+        // wait until relocation of (node_1 -> node_3) can complete
+        while(clusterHealth.getRelocatingShards() != 1) {
+            clusterHealth = client().admin().cluster().prepareHealth().get();
+        }
+
         // Asserting that files from first relocation are removed once it is completed.
         assertShardDeleted(node_1, index, 0);
         assertIndexDeleted(node_1, index);

@@ -50,13 +50,14 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class IndicesStoreTests extends OpenSearchTestCase {
-    private static final ShardRoutingState[] NOT_STARTED_STATES;
+    private static final ShardRoutingState[] NOT_ACTIVE_STATES;
 
     static {
         Set<ShardRoutingState> set = new HashSet<>();
         set.addAll(Arrays.asList(ShardRoutingState.values()));
         set.remove(ShardRoutingState.STARTED);
-        NOT_STARTED_STATES = set.toArray(new ShardRoutingState[set.size()]);
+        set.remove(ShardRoutingState.RELOCATING);
+        NOT_ACTIVE_STATES = set.toArray(new ShardRoutingState[set.size()]);
     }
 
     private DiscoveryNode localNode;
@@ -82,7 +83,7 @@ public class IndicesStoreTests extends OpenSearchTestCase {
             for (int j = 0; j <= numReplicas; j++) {
                 ShardRoutingState state;
                 if (j == unStartedShard) {
-                    state = randomFrom(NOT_STARTED_STATES);
+                    state = randomFrom(NOT_ACTIVE_STATES);
                 } else {
                     state = randomFrom(ShardRoutingState.values());
                 }
