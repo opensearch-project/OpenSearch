@@ -1,14 +1,30 @@
-# OpenSearch
+<img src="https://opensearch.org/assets/brand/SVG/Logo/opensearch_logo_default.svg" height="64px"/>
 
-Hello!
+**OpenSearch** is
+[a community-driven, open source fork](https://aws.amazon.com/blogs/opensource/introducing-opensearch/)
+of [Elasticsearch](https://en.wikipedia.org/wiki/Elasticsearch) and
+[Kibana](https://en.wikipedia.org/wiki/Kibana) ensuing the
+[licence change](https://opensource.org/node/1099) in early 2021. We're looking
+to sustain (and evolve!) a search and analytics suite for the multitude of
+businesses who are dependent on the rights granted by the original, Apache 2.0,
+licence.
 
-OpenSearch is an open source search and analytics engine derived from Elasticsearch 7.10.2. We are excited to build the best distributed search engine on the planet with you!
+To install and run this project, please see the [Downloads Page](https://opensearch.org/downloads.html).
 
-We officially began work on the new fork on January 21st, 2021. Since then, we've removed non-Apache 2.0 compliant code and did a full rename of the project. Feel free to take a look around at what we've been up to, and then head over to look at the [open issues](https://github.com/opensearch-project/OpenSearch/issues). Or you could jump right in and [start opening issues](https://github.com/opensearch-project/OpenSearch/issues/new/choose) or [contributing](CONTRIBUTING.md).
+## How you can help
 
-## Getting Started
+We love issues. The best thing you can do for us is to [start opening issues](https://github.com/opensearch-project/OpenSearch/issues/new/choose).
+Just jump right in and don't hesitate to [contribute](https://github.com/opensearch-project/OpenSearch/blob/main/CONTRIBUTING.md)
+if anything strikes your fancy. In case you don't know where to start, we've
+marked a few [open issues](https://github.com/opensearch-project/OpenSearch/issues)
+that would be [really helpful](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+There's also a [Developer Guide](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md)
+to help you on your way.
 
-If you would like to install and run this project, please see the [Downloads Page](https://opensearch.org/downloads.html). If you would like to build, install and run this project please see the [Developer Guide](DEVELOPER_GUIDE.md).
+Additionally, we have a [forum](https://discuss.opendistrocommunity.dev/)
+dedicated to more general questions and discussions concerning the OpenSearch
+project as a whole. It's a space for community feedback and we'd be grateful to
+hear your opinions and suggestions.
 
 ## Guiding Principles
 
@@ -31,18 +47,3 @@ Here are the principles we use to guide our development. From [opensearch.org](h
 >**7. Respectful, approachable, and friendly**. This will be a community where you will be heard, accepted, and valued, whether you are a new or experienced user or contributor.
 >
 >**8. A place to invent**. You will be able to innovate rapidly. This project will have a stable and predictable foundation that is modular, making it easy to extend.
-
-## How you can help
-
-### Look for the tag "help wanted"
-
-If you're excited to jump in, we've marked a few issues that would be [really helpful](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
-
-### Watch the forum, because there are a bunch of things we want to talk about
-
-As we've been working, we've come up with a bunch of questions that we wanted to get community feedback on. Now that we're done with this first pass of renaming, you'll see us posting those questions to the [forums](https://discuss.opendistrocommunity.dev/). Please let us know your thoughts!
-
-### Questions?  Feedback?
-
-Found a bug or need to leave feedback? Make sure you open an [issue](https://github.com/opensearch-project/OpenSearch/issues/new/choose).
-Questions and discussions on this project can be found on the project [forums](https://discuss.opendistrocommunity.dev/).
