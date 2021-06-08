@@ -234,7 +234,7 @@ public class Jdk implements Buildable, Iterable<File> {
         /*
          * Jdk uses aarch64 from ARM. Translating from arm64 to aarch64 which Jdk understands.
          */
-        return architecture == "arm64" ? "aarch64" : architecture;
+        return "arm64".equals(architecture) ? "aarch64" : architecture;
     }
 
 }
