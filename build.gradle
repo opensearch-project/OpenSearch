@@ -106,6 +106,14 @@ subprojects {
           name = 'test'
           url = "${rootProject.buildDir}/local-test-repo"
         }
+        maven {
+          name = 'Snapshots'
+          url = 'https://aws.oss.sonatype.org/content/repositories/snapshots'
+          credentials {
+            username "$System.env.SONATYPE_USERNAME"
+            password "$System.env.SONATYPE_PASSWORD"
+          }
+        }
       }
     }
   }
