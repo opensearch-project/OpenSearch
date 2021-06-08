@@ -78,7 +78,7 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
             }
         } finally {
             if (acceptedChannel != null)
-            acceptedChannel.close();
+                acceptedChannel.close();
         }
     }
 
