@@ -265,19 +265,14 @@ public class MockNioTransport extends TcpTransport {
                 @Override
                 public void acceptChannels(Supplier<NioSelector> selectorSupplier) throws IOException {
                     int acceptCount = 0;
-                    SocketChannel acceptedChannel = null;
-                    try {
-                        while ((acceptedChannel = accept(rawChannel)) != null) {
-                            NioSocketChannel nioChannel = MockTcpChannelFactory.this.acceptNioChannel(acceptedChannel, selectorSupplier);
-                            acceptChannel(nioChannel);
-                            ++acceptCount;
-                            if (acceptCount % 100 == 0) {
-                                logger.warn("Accepted [{}] connections in a single select loop iteration on [{}]", acceptCount, channel);
-                            }
+                    SocketChannel acceptedChannel;
+                    while ((acceptedChannel = accept(rawChannel)) != null) {
+                        NioSocketChannel nioChannel = MockTcpChannelFactory.this.acceptNioChannel(acceptedChannel, selectorSupplier);
+                        acceptChannel(nioChannel);
+                        ++acceptCount;
+                        if (acceptCount % 100 == 0) {
+                            logger.warn("Accepted [{}] connections in a single select loop iteration on [{}]", acceptCount, channel);
                         }
-                    } finally {
-                        if (acceptedChannel != null)
-                            acceptedChannel.close();
                     }
                 }
             };
