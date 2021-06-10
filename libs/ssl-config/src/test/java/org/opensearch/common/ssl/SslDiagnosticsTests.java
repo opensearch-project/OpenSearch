@@ -75,11 +75,11 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "foo.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [a9be1fad4ff9ed350c3babb35caec5a89c2d8346a5b31da7b3fc734244c777ac];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1];" +
             " the certificate is signed by" +
-            " (subject [CN=Test CA 1] fingerprint [947f06921e7bd1854532be528ad5f4506545ebd1b089d766c7cba74f52c3c624] {trusted issuer})" +
+            " (subject [CN=Test CA 1] fingerprint [2b7b0416391bdf86502505c23149022d2213dadc] {trusted issuer})" +
             " which is self-issued; the [CN=Test CA 1] certificate is trusted in this ssl context ([foo.http.ssl])"));
     }
 
