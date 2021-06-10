@@ -113,7 +113,7 @@ public class XContentHelper {
      * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
      */
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
-            throws OpenSearchParseException {
+        throws OpenSearchParseException {
         try {
             final XContentType contentType;
             InputStream input;
@@ -138,7 +138,7 @@ public class XContentHelper {
             try (InputStream stream = input) {
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(stream);
                 return new Tuple<>(Objects.requireNonNull(contentType),
-                        convertToMap(XContentFactory.xContent(contentType), stream, ordered));
+                    convertToMap(XContentFactory.xContent(contentType), stream, ordered));
             }
         } catch (IOException e) {
             throw new OpenSearchParseException("Failed to parse content to map", e);
@@ -217,7 +217,7 @@ public class XContentHelper {
     }
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
-            throws IOException {
+        throws IOException {
         Objects.requireNonNull(xContentType);
         if (xContentType == XContentType.JSON && !reformatJson) {
             return bytes.utf8ToString();
@@ -227,7 +227,7 @@ public class XContentHelper {
         if (bytes instanceof BytesArray) {
             final BytesArray array = (BytesArray) bytes;
             try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, array.array(), array.offset(), array.length())) {
+                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, array.array(), array.offset(), array.length())) {
                 return toJsonString(prettyPrint, parser);
             }
         } else {
@@ -459,7 +459,7 @@ public class XContentHelper {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new XContentParseException(parser.getTokenLocation(),
-                        "Expected [START_OBJECT] but got [" + parser.currentToken() + "]");
+                    "Expected [START_OBJECT] but got [" + parser.currentToken() + "]");
             }
         }
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
