@@ -45,9 +45,9 @@ public final class SslUtil {
     }
 
     public static String calculateFingerprint(X509Certificate certificate) throws CertificateEncodingException {
-        final MessageDigest sha1 = messageDigest("SHA-1");
-        sha1.update(certificate.getEncoded());
-        return toHexString(sha1.digest());
+        final MessageDigest sha256 = messageDigest("SHA-256");
+        sha256.update(certificate.getEncoded());
+        return toHexString(sha256.digest());
     }
 
     static MessageDigest messageDigest(String digestAlgorithm) {
