@@ -174,10 +174,15 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String blobName, long position, long length) throws IOException {
         final SeekableByteChannel channel = Files.newByteChannel(path.resolve(blobName));
-        if (position > 0L) {
-            channel.position(position);
+        try {
+            if (position > 0L) {
+                channel.position(position);
+            }
+            assert channel.position() == position;
+        } catch (Exception | AssertionError e) {
+            channel.close();
+            throw e;
         }
-        assert channel.position() == position;
         return Streams.limitStream(Channels.newInputStream(channel), length);
     }
 
