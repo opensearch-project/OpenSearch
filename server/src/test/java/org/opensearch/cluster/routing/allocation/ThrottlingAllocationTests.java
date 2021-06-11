@@ -85,7 +85,6 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
     private final Logger logger = LogManager.getLogger(ThrottlingAllocationTests.class);
 
     public void testPrimaryRecoveryThrottling() {
-
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         TestSnapshotsInfoService snapshotsInfoService = new TestSnapshotsInfoService();
         AllocationService strategy = createAllocationService(Settings.builder()
@@ -359,7 +358,6 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
     }
 
     public void testNewIndexReplicaAllocationIncomingAndOutgoingLimitBreached() {
-
         int primaries = randomIntBetween(5, 30);
         int replicas = randomIntBetween(1, 2);
         int replicasConcurrentRecoveries = randomIntBetween(1, 2);
@@ -370,12 +368,10 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
     }
 
     public void testNewIndexReplicaAllocationOutgoingLimitBreachedIncomingNotBreached() {
-
         verifyNewIndexReplicaAllocation(5, 1,2, 3, 1, true);
     }
 
     public void testNewIndexReplicaAllocationLimitNotBreached() {
-
         int primaries = randomIntBetween(5, 30);
         int newIndexReplicas = 1;
         int replicasConcurrentRecoveries = primaries * newIndexReplicas + randomIntBetween(1, 10);
@@ -442,7 +438,6 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
     }
 
     public void testRecoveryCounts() {
-
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         Settings settings = Settings.builder()
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 1)

@@ -174,19 +174,17 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     }
 
     private Decision allocateInitialReplicas(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-
         int currentInRecoveries = allocation.routingNodes().getInitialIncomingRecoveries(node.nodeId());
 
         return allocateReplicas(shardRouting, allocation, currentInRecoveries, replicasInitialRecoveries,
             (x,y) -> getInitialPrimaryNodeOutgoingRecoveries(x,y), replicasInitialRecoveries,
-            String.format(Locale.ROOT, "[%s=%d]", CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+            String.format(Locale.ROOT, "[%s=%d]", CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
                 replicasInitialRecoveries),
-            String.format(Locale.ROOT, "[%s=%d]", CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+            String.format(Locale.ROOT, "[%s=%d]", CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
                 replicasInitialRecoveries));
     }
 
     private Decision allocateNonIntialReplicas(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-
         int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
 
         return allocateReplicas(shardRouting, allocation, currentInRecoveries, concurrentIncomingRecoveries,
@@ -213,7 +211,6 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                                       int inRecoveriesLimit, BiFunction<ShardRouting, RoutingAllocation,
                                       Integer> primaryNodeOutRecoveriesFunc, int outRecoveriesLimit,
                                       String incomingRecoveriesSettingMsg, String outGoingRecoveriesSettingMsg) {
-
         // Allocating a shard to this node will increase the incoming recoveries
         if (currentInRecoveries >= inRecoveriesLimit) {
             return allocation.decision(THROTTLE, NAME,

@@ -192,7 +192,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             return;
         }
 
-        Recoveries.getOrAdd(getReplicaRecoveriesMap(routing), routing.currentNodeId()).addIncoming(howMany);
+        Recoveries.getOrAdd(getReplicaRecoveries(routing), routing.currentNodeId()).addIncoming(howMany);
 
         if (routing.recoverySource().getType() == RecoverySource.Type.PEER) {
             // add/remove corresponding outgoing recovery on node with primary shard
@@ -200,14 +200,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 throw new IllegalStateException("shard is peer recovering but primary is unassigned");
             }
 
-            Recoveries.getOrAdd(getReplicaRecoveriesMap(routing), primary.currentNodeId()).addOutgoing(howMany);
+            Recoveries.getOrAdd(getReplicaRecoveries(routing), primary.currentNodeId()).addOutgoing(howMany);
 
             if (increment == false && routing.primary() && routing.relocatingNodeId() != null) {
                 // primary is done relocating, move non-primary recoveries from old primary to new primary
                 for (ShardRouting assigned : assignedShards(routing.shardId())) {
                     if (assigned.primary() == false && assigned.initializing() &&
                         assigned.recoverySource().getType() == RecoverySource.Type.PEER) {
-                        Map<String, Recoveries> recoveriesToUpdate = getReplicaRecoveriesMap(assigned);
+                        Map<String, Recoveries> recoveriesToUpdate = getReplicaRecoveries(assigned);
                         Recoveries.getOrAdd(recoveriesToUpdate, routing.relocatingNodeId()).addOutgoing(-1);
                         Recoveries.getOrAdd(recoveriesToUpdate, routing.currentNodeId()).addOutgoing(1);
                     }
@@ -217,8 +217,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
     }
 
-    private Map<String, Recoveries> getReplicaRecoveriesMap(ShardRouting routing) {
-
+    private Map<String, Recoveries> getReplicaRecoveries(ShardRouting routing) {
         if(routing.unassignedReasonIndexCreated() && !routing.primary()) {
             return initialRecoveriesPerNode;
         } else {
@@ -1258,12 +1257,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
 
         // used only for tests
-        public static Map<String, Recoveries> unionRecoveries(Map<String, Recoveries> recoveriesMap1,
-                                                              Map<String, Recoveries> recoveriesMap2) {
-            Map<String, Recoveries> recoveriesMap = new HashMap<>();
-            addRecoveries(recoveriesMap, recoveriesMap1);
-            addRecoveries(recoveriesMap, recoveriesMap2);
-            return recoveriesMap;
+        public static Map<String, Recoveries> unionRecoveries(Map<String, Recoveries> recoveries1,
+                                                              Map<String, Recoveries> recoveries2) {
+            Map<String, Recoveries> recoveries = new HashMap<>();
+            addRecoveries(recoveries, recoveries1);
+            addRecoveries(recoveries, recoveries2);
+            return recoveries;
         }
 
         public static void addRecoveries(Map<String, Recoveries> existingRecoveries,
