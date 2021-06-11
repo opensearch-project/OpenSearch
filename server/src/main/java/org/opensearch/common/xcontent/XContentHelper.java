@@ -96,7 +96,7 @@ public class XContentHelper {
                 return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
             } catch (Exception e) {
                 compressedInput.close();
-                throw new IOException(e);
+                throw e;
             }
         } else {
             if (bytes instanceof BytesArray) {
