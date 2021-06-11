@@ -700,7 +700,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
         try {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
-        } catch (ClassNotFoundException e) {
+        } catch (ClassNotFoundException | NoClassDefFoundError e) {
             throw new OpenSearchException("Could not find plugin class [" + className + "]", e);
         }
     }
