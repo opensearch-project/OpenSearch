@@ -68,8 +68,13 @@ public class XContentHelper {
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
-            final XContentType contentType = XContentFactory.xContentType(compressedInput);
-            return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+            try {
+                final XContentType contentType = XContentFactory.xContentType(compressedInput);
+                return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+            } catch (Exception e) {
+                compressedInput.close();
+                throw new IOException(e);
+            }
         } else {
             return XContentFactory.xContent(xContentType(bytes)).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
@@ -87,7 +92,12 @@ public class XContentHelper {
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
-            return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+            try {
+                return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+            } catch (Exception e) {
+                compressedInput.close();
+                throw new IOException(e);
+            }
         } else {
             if (bytes instanceof BytesArray) {
                 final BytesArray array = (BytesArray) bytes;
