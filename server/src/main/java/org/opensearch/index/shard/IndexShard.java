@@ -2535,11 +2535,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (!Lucene.indexExists(store.directory())) {
             return;
         }
+
         try (
             BytesStreamOutput os = new BytesStreamOutput();
             PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name())
         ) {
-
             if ("checksum".equals(checkIndexOnStartup)) {
                 // physical verification only: verify all checksums for the latest commit
                 IOException corrupt = null;
