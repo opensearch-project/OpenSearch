@@ -2535,8 +2535,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (!Lucene.indexExists(store.directory())) {
             return;
         }
-        BytesStreamOutput os = new BytesStreamOutput();
-        try (PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name())) {
+        try (
+            BytesStreamOutput os = new BytesStreamOutput();
+            PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name())
+        ) {
 
             if ("checksum".equals(checkIndexOnStartup)) {
                 // physical verification only: verify all checksums for the latest commit
@@ -2570,10 +2572,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     throw new IOException("index check failure");
                 }
             }
-        }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
+            if (logger.isDebugEnabled()) {
+                logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
+            }
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
