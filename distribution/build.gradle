@@ -242,9 +242,15 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 if (VersionProperties.isOpenSearchSnapshot()) {
   Properties sysProps = System.getProperties();
   // setting this property to false will exclude the sandbox modules from the distribution
-  final String enableSandbox = sysProps.getProperty("enable.sandbox", "true");
+  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "true");
   if(sysProps != null && enableSandbox == "true") {
-    project.rootProject.subprojects.findAll { it.parent.path == ':sandbox' }.each { Project module ->
+    tasks.withType(NoticeTask).configureEach {
+      project(':sandbox:libs').subprojects.each { Project lib ->
+        licensesDir lib.file('licenses')
+        source lib.file('src/main/java')
+      }
+    }
+    project.rootProject.subprojects.findAll { it.parent.path == ':sandbox:modules' }.each { Project module ->
       File licenses = new File(module.projectDir, 'licenses')
       if (licenses.exists()) {
         buildNotice.configure {
@@ -290,7 +296,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true

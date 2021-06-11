@@ -6,14 +6,27 @@
  * compatible open source license.
  */
 
-configure(subprojects.findAll { it.parent.path == project.path }) {
-  group = 'org.opensearch.plugin'
-  apply plugin: 'opensearch.testclusters'
-  apply plugin: 'opensearch.opensearchplugin'
+/*
+ * This module provides a space called inside OpenSearch for the community to easily experiment new ideas and innovate.
+ * Ideally, this is where an experimental features will reside before it can be promoted to the corresponding directory
+ * in the project root. The sandbox gradle module contains three subdirectories, that mirror the root libs, modules and
+ * plugins directories, each with similar intention.
+ *
+ * All artifacts from the sandbox/libs and sandbox/modules will be included in the snapshot distributions only. During
+ * assembling distributions, we will check if the following two conditions are met to include these,
 
-  opensearchplugin {
-    name project.name
-    licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-    noticeFile rootProject.file('NOTICE.txt')
-  }
+ * 1. The distribution is a snapshot i.e. the build system property build.snapshot is set to true. We use this because,
+ * it will prevent accidental bundling of these modules in a release distribution.
+ *
+ * 2. The sandbox.enabled system property is set to true. This new extra flag is added because we can exclude the
+ * modules from the snapshots if needed. For instance, we may want to run performance tests on snapshots without the
+ * sandbox modules.
+ *
+ * To build the distributions without the sandbox modules,
+ *   ./gradlew assemble -Denable.sandbox=false
+ * Similarly we can run OpenSearch from source without the sandbox modules
+ *   ./gradlew run -Denable.sandbox=false
+ */
+subprojects {
+  group = 'org.opensearch.sandbox'
 }
