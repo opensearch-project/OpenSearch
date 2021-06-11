@@ -73,7 +73,7 @@ public class XContentHelper {
                 return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
             } catch (Exception e) {
                 compressedInput.close();
-                throw new IOException(e);
+                throw e;
             }
         } else {
             return XContentFactory.xContent(xContentType(bytes)).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
