@@ -42,6 +42,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.util.SPIClassIterator;
 import org.opensearch.Build;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.bootstrap.JarHell;
@@ -701,7 +702,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         try {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
         } catch (Throwable t) {
-            throw new RuntimeException("Unable to load plugin class [" + className + "]", t);
+            throw new OpenSearchException("Unable to load plugin class [" + className + "]", t);
         }
     }
 
