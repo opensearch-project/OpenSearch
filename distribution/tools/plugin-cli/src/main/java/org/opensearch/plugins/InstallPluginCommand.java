@@ -773,20 +773,20 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     // checking for existing version of the plugin
-    private void verifyPluginName(Path pluginPath, String pluginName) throws UserException, IOException {
+    private void verifyPluginName(Path pluginPath, String pluginName, String pluginFolderName) throws UserException, IOException {
         // don't let user install plugin conflicting with module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(pluginName)) {
             throw new UserException(ExitCodes.USAGE, "plugin '" + pluginName + "' cannot be installed as a plugin, it is a system module");
         }
 
-        final Path destination = pluginPath.resolve(pluginName);
+        final Path destination = pluginPath.resolve(pluginFolderName);
         if (Files.exists(destination)) {
             final String message = String.format(
                 Locale.ROOT,
                 "plugin directory [%s] already exists; if you need to update the plugin, " + "uninstall it first using command 'remove %s'",
                 destination,
-                pluginName
+                pluginFolderName
             );
             throw new UserException(PLUGIN_EXISTS, message);
         }
@@ -801,7 +801,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         PluginsService.verifyCompatibility(info);
 
         // checking for existing version of the plugin
-        verifyPluginName(env.pluginsFile(), info.getName());
+        verifyPluginName(env.pluginsFile(), info.getName(), info.getTargetFolderName());
 
         PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
 
@@ -864,14 +864,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
         PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
 
-        final Path destination = env.pluginsFile().resolve(info.getName());
+        String targetFolderName = info.getTargetFolderName();
+        final Path destination = env.pluginsFile().resolve(targetFolderName);
         deleteOnFailure.add(destination);
 
         installPluginSupportFiles(
             info,
             tmpRoot,
-            env.binFile().resolve(info.getName()),
-            env.configFile().resolve(info.getName()),
+            env.binFile().resolve(targetFolderName),
+            env.configFile().resolve(targetFolderName),
             deleteOnFailure
         );
         movePlugin(tmpRoot, destination);

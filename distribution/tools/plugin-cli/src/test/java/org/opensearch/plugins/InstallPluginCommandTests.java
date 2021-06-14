@@ -256,11 +256,11 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     }
 
     /** creates a plugin .zip and returns the url for testing */
-    static String createPluginUrl(String name, Path structure, String... additionalProps) throws IOException {
-        return createPlugin(name, structure, additionalProps).toUri().toURL().toString();
+    static String createPluginUrl(String name, String folderName, Path structure, String... additionalProps) throws IOException {
+        return createPlugin(name, folderName, structure, additionalProps).toUri().toURL().toString();
     }
 
-    static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
+    static void writePlugin(String name, String folderName, Path structure, String... additionalProps) throws IOException {
         String[] properties = Stream.concat(
             Stream.of(
                 "description",
@@ -274,7 +274,9 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "java.version",
                 System.getProperty("java.specification.version"),
                 "classname",
-                "FakePlugin"
+                "FakePlugin",
+                "folderName",
+                folderName
             ),
             Arrays.stream(additionalProps)
         ).toArray(String[]::new);
@@ -294,8 +296,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Files.write(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    static Path createPlugin(String name, Path structure, String... additionalProps) throws IOException {
-        writePlugin(name, structure, additionalProps);
+    static Path createPlugin(String name, String folderName, Path structure, String... additionalProps) throws IOException {
+        writePlugin(name, folderName, structure, additionalProps);
         return writeZip(structure, null);
     }
 
@@ -426,7 +428,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testSomethingWorks() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
     }
@@ -434,8 +436,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testMultipleWorks() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String fake1PluginZip = createPluginUrl("fake1", pluginDir);
-        String fake2PluginZip = createPluginUrl("fake2", pluginDir);
+        String fake1PluginZip = createPluginUrl("fake1", null, pluginDir);
+        String fake2PluginZip = createPluginUrl("fake2", null, pluginDir);
         installPlugins(Arrays.asList(fake1PluginZip, fake2PluginZip), env.v1());
         assertPlugin("fake1", pluginDir, env.v2());
         assertPlugin("fake2", pluginDir, env.v2());
@@ -444,7 +446,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testDuplicateInstall() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         final UserException e = expectThrows(UserException.class, () -> installPlugins(Arrays.asList(pluginZip, pluginZip), env.v1()));
         assertThat(e, hasToString(containsString("duplicate plugin id [" + pluginZip + "]")));
     }
@@ -452,7 +454,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testTransaction() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         final FileNotFoundException e = expectThrows(
             FileNotFoundException.class,
             () -> installPlugins(Arrays.asList(pluginZip, pluginZip + "does-not-exist"), env.v1())
@@ -467,7 +469,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testInstallFailsIfPreviouslyRemovedPluginFailed() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         final Path removing = env.v2().pluginsFile().resolve(".removing-failed");
         Files.createDirectory(removing);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip, env.v1()));
@@ -482,7 +484,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testSpaceInUrl() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         Path pluginZipWithSpaces = createTempFile("foo bar", ".zip");
         try (InputStream in = FileSystemUtils.openFileURLStream(new URL(pluginZip))) {
             Files.copy(in, pluginZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
@@ -522,7 +524,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path pluginDir = createPluginDir(temp);
         try (PosixPermissionsResetter pluginsAttrs = new PosixPermissionsResetter(env.v2().pluginsFile())) {
             pluginsAttrs.setPermissions(new HashSet<>());
-            String pluginZip = createPluginUrl("fake", pluginDir);
+            String pluginZip = createPluginUrl("fake", null, pluginDir);
             IOException e = expectThrows(IOException.class, () -> installPlugin(pluginZip, env.v1()));
             assertTrue(e.getMessage(), e.getMessage().contains(env.v2().pluginsFile().toString()));
         }
@@ -532,7 +534,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testBuiltinModule() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("lang-painless", pluginDir);
+        String pluginZip = createPluginUrl("lang-painless", null, pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("is a system module"));
         assertInstallCleaned(env.v2());
@@ -544,7 +546,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Tuple<Path, Environment> environment = createEnv(fs, temp);
         Path pluginDirectory = createPluginDir(temp);
         writeJar(pluginDirectory.resolve("other.jar"), "FakePlugin");
-        String pluginZip = createPluginUrl("fake", pluginDirectory); // adds plugin.jar with FakePlugin
+        String pluginZip = createPluginUrl("fake", null, pluginDirectory); // adds plugin.jar with FakePlugin
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> installPlugin(pluginZip, environment.v1(), defaultCommand)
@@ -557,10 +559,10 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         // these both share the same FakePlugin class
         Path pluginDir1 = createPluginDir(temp);
-        String pluginZip1 = createPluginUrl("fake1", pluginDir1);
+        String pluginZip1 = createPluginUrl("fake1", null, pluginDir1);
         installPlugin(pluginZip1, env.v1());
         Path pluginDir2 = createPluginDir(temp);
-        String pluginZip2 = createPluginUrl("fake2", pluginDir2);
+        String pluginZip2 = createPluginUrl("fake2", null, pluginDir2);
         installPlugin(pluginZip2, env.v1());
         assertPlugin("fake1", pluginDir1, env.v2());
         assertPlugin("fake2", pluginDir2, env.v2());
@@ -569,7 +571,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testExistingPlugin() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         installPlugin(pluginZip, env.v1());
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("already exists"));
@@ -582,7 +584,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path binDir = pluginDir.resolve("bin");
         Files.createDirectory(binDir);
         Files.createFile(binDir.resolve("somescript"));
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
     }
@@ -592,7 +594,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path pluginDir = createPluginDir(temp);
         Path binDir = pluginDir.resolve("bin");
         Files.createFile(binDir);
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
         assertInstallCleaned(env.v2());
@@ -604,7 +606,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path dirInBinDir = pluginDir.resolve("bin").resolve("foo");
         Files.createDirectories(dirInBinDir);
         Files.createFile(dirInBinDir.resolve("somescript"));
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("Directories not allowed in bin dir for plugin"));
         assertInstallCleaned(env.v2());
@@ -616,7 +618,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path binDir = pluginDir.resolve("bin");
         Files.createDirectory(binDir);
         Files.createFile(binDir.resolve("somescript"));
-        String pluginZip = createPluginUrl("opensearch", pluginDir);
+        String pluginZip = createPluginUrl("opensearch", null, pluginDir);
         FileAlreadyExistsException e = expectThrows(FileAlreadyExistsException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains(env.v2().binFile().resolve("opensearch").toString()));
         assertInstallCleaned(env.v2());
@@ -629,7 +631,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path binDir = pluginDir.resolve("bin");
         Files.createDirectory(binDir);
         Files.createFile(binDir.resolve("somescript"));
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         try (PosixPermissionsResetter binAttrs = new PosixPermissionsResetter(env.v2().binFile())) {
             Set<PosixFilePermission> perms = binAttrs.getCopyPermissions();
             // make sure at least one execute perm is missing, so we know we forced it during installation
@@ -656,7 +658,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Files.createDirectory(resourcesDir);
         Files.createFile(resourcesDir.resolve("resource"));
 
-        final String pluginZip = createPluginUrl("fake", pluginDir);
+        final String pluginZip = createPluginUrl("fake", null, pluginDir);
 
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
@@ -707,7 +709,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path configDir = pluginDir.resolve("config");
         Files.createDirectory(configDir);
         Files.createFile(configDir.resolve("custom.yml"));
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
     }
@@ -722,7 +724,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Files.createDirectory(configDir);
         Files.write(configDir.resolve("custom.yml"), "new config".getBytes(StandardCharsets.UTF_8));
         Files.createFile(configDir.resolve("other.yml"));
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
         List<String> configLines = Files.readAllLines(envConfigDir.resolve("custom.yml"), StandardCharsets.UTF_8);
@@ -737,7 +739,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Files.createDirectories(pluginDir);
         Path configDir = pluginDir.resolve("config");
         Files.createFile(configDir);
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
         assertInstallCleaned(env.v2());
@@ -749,7 +751,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path dirInConfigDir = pluginDir.resolve("config").resolve("foo");
         Files.createDirectories(dirInConfigDir);
         Files.createFile(dirInConfigDir.resolve("myconfig.yml"));
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("Directories not allowed in config dir for plugin"));
         assertInstallCleaned(env.v2());
@@ -856,7 +858,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testPluginAlreadyInstalled() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
         installPlugin(pluginZip, env.v1());
         final UserException e = expectThrows(
             UserException.class,
@@ -873,6 +875,14 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         );
     }
 
+    public void testPluginInstallationWithCustomFolderName() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", "custom-folder", pluginDir);
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("custom-folder", pluginDir, env.v2());
+    }
+
     private void installPlugin(MockTerminal terminal, boolean isBatch) throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
@@ -880,7 +890,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         if (isBatch) {
             writePluginSecurityPolicy(pluginDir, "setFactory");
         }
-        String pluginZip = createPlugin("fake", pluginDir).toUri().toURL().toString();
+        String pluginZip = createPlugin("fake", null, pluginDir).toUri().toURL().toString();
         skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), isBatch, env.v2());
     }
 
@@ -897,7 +907,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     ) throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        Path pluginZip = createPlugin(name, pluginDir);
+        Path pluginZip = createPlugin(name, null, pluginDir);
         InstallPluginCommand command = new InstallPluginCommand() {
             @Override
             Path downloadZip(Terminal terminal, String urlString, Path tmpDir, boolean isBatch) throws IOException {
@@ -1482,7 +1492,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         writePluginSecurityPolicy(pluginDir, "setAccessible", "setFactory");
-        String pluginZip = createPluginUrl("fake", pluginDir);
+        String pluginZip = createPluginUrl("fake", null, pluginDir);
 
         assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions");
         assertPlugin("fake", pluginDir, env.v2());
@@ -1491,7 +1501,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testPluginWithNativeController() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "has.native.controller", "true");
+        String pluginZip = createPluginUrl("fake", null, pluginDir, "has.native.controller", "true");
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip, env.v1()));
         assertThat(e, hasToString(containsString("plugins can not have native controllers")));
@@ -1502,7 +1512,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path pluginDir = createPluginDir(temp);
         writeJar(pluginDir.resolve("dep1.jar"), "Dep1");
         writeJar(pluginDir.resolve("dep2.jar"), "Dep2");
-        String pluginZip = createPluginUrl("fake-with-deps", pluginDir);
+        String pluginZip = createPluginUrl("fake-with-deps", null, pluginDir);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake-with-deps", pluginDir, env.v2());
     }

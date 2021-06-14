@@ -69,6 +69,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final Version opensearchVersion;
     private final String javaVersion;
     private final String classname;
+    private final String folderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
 
@@ -81,17 +82,19 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param opensearchVersion     the version of OpenSearch the plugin was built for
      * @param javaVersion           the version of Java the plugin was built with
      * @param classname             the entry point to the plugin
+     * @param folderName            the custom folder name for the plugin
      * @param extendedPlugins       other plugins this plugin extends through SPI
      * @param hasNativeController   whether or not the plugin has a native controller
      */
     public PluginInfo(String name, String description, String version, Version opensearchVersion, String javaVersion,
-                      String classname, List<String> extendedPlugins, boolean hasNativeController) {
+                      String classname, String folderName, List<String> extendedPlugins, boolean hasNativeController) {
         this.name = name;
         this.description = description;
         this.version = version;
         this.opensearchVersion = opensearchVersion;
         this.javaVersion = javaVersion;
         this.classname = classname;
+        this.folderName = folderName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
     }
@@ -116,6 +119,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             javaVersion = "1.8";
         }
         this.classname = in.readString();
+        this.folderName = in.readString();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
             extendedPlugins = in.readStringList();
         } else {
@@ -207,6 +211,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     "property [classname] is missing for plugin [" + name + "]");
         }
 
+        final String folderName = propsMap.remove("folderName");
+
         final String extendedString = propsMap.remove("extended.plugins");
         final List<String> extendedPlugins;
         if (extendedString == null) {
@@ -248,7 +254,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         return new PluginInfo(name, description, version, esVersion, javaVersionString,
-                              classname, extendedPlugins, hasNativeController);
+                              classname, folderName, extendedPlugins, hasNativeController);
     }
 
     /**
@@ -276,6 +282,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public String getClassname() {
         return classname;
+    }
+
+    /**
+     * The custom folder name for the plugin.
+     *
+     * @return the custom folder name for the plugin
+     */
+    public String getFolderName() {
+        return folderName;
     }
 
     /**
@@ -321,6 +336,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public boolean hasNativeController() {
         return hasNativeController;
+    }
+
+    /**
+     * The target folder name for the plugin.
+     *
+     * @return the custom folder name for the plugin if the folder name is specified, else return the id with kebab-case.
+     */
+    public String getTargetFolderName() {
+        return (this.folderName == null || this.folderName.isEmpty()) ? this.name : this.folderName;
     }
 
     @Override

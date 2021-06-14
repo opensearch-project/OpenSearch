@@ -51,6 +51,8 @@ public class PluginPropertiesExtension {
 
     private String classname;
 
+    private String folderName = "";
+
     /** Other plugins this plugin extends through SPI */
     private List<String> extendedPlugins = new ArrayList<>();
 
@@ -74,6 +76,14 @@ public class PluginPropertiesExtension {
 
     public PluginPropertiesExtension(Project project) {
         this.project = project;
+    }
+
+    public String getFolderName() {
+        return folderName;
+    }
+
+    public void setFolderName(String folderName) {
+        this.folderName = folderName;
     }
 
     public String getName() {
