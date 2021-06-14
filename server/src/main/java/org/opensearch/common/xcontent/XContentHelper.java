@@ -64,15 +64,17 @@ public class XContentHelper {
                                               BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
-            if (compressedInput.markSupported() == false) {
-                compressedInput = new BufferedInputStream(compressedInput);
-            }
+            InputStream compressedInput = null;
             try {
+                compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
+                if (compressedInput.markSupported() == false) {
+                    compressedInput = new BufferedInputStream(compressedInput);
+                }
                 final XContentType contentType = XContentFactory.xContentType(compressedInput);
                 return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
             } catch (Exception e) {
-                compressedInput.close();
+                if(compressedInput != null)
+                    compressedInput.close();
                 throw e;
             }
         } else {
@@ -88,14 +90,16 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
-            if (compressedInput.markSupported() == false) {
-                compressedInput = new BufferedInputStream(compressedInput);
-            }
+            InputStream compressedInput = null;
             try {
+                compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
+                if (compressedInput.markSupported() == false) {
+                    compressedInput = new BufferedInputStream(compressedInput);
+                }
                 return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
             } catch (Exception e) {
-                compressedInput.close();
+                if (compressedInput != null)
+                    compressedInput.close();
                 throw e;
             }
         } else {
