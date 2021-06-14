@@ -175,6 +175,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
 
     private Decision allocateInitialReplicas(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         int currentInRecoveries = allocation.routingNodes().getInitialIncomingRecoveries(node.nodeId());
+        assert shardRouting.unassignedReasonIndexCreated() && !shardRouting.primary();
 
         return allocateReplicas(shardRouting, allocation, currentInRecoveries, replicasInitialRecoveries,
             (x,y) -> getInitialPrimaryNodeOutgoingRecoveries(x,y), replicasInitialRecoveries,

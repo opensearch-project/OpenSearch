@@ -237,10 +237,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return recoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getOutgoing();
     }
 
+    /**
+     * Recoveries started on node as a result of new index creation.
+     */
     public int getInitialIncomingRecoveries(String nodeId) {
         return initialRecoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getIncoming();
     }
 
+    /**
+     * Recoveries started from node as a result of new index creation.
+     */
     public int getInitialOutgoingRecoveries(String nodeId) {
         return initialRecoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getOutgoing();
     }
