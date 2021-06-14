@@ -734,6 +734,30 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             TestPlugin.class.getName() + "] (class loader [" + PluginsServiceTests.class.getClassLoader() + "])")));
     }
 
+    public void testPluginLoadFailure() throws IOException {
+        final Path pathHome = createTempDir();
+        final Path plugins = pathHome.resolve("plugins");
+        final Path fake = plugins.resolve("fake");
+
+        PluginTestUtil.writePluginProperties(
+            fake,
+            "description", "description",
+            "name", "fake",
+            "version", "1.0.0",
+            "opensearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", "DummyClass"); // This class is not present in Path, hence plugin loading will throw ClassNotFoundException
+
+        final Settings settings =
+            Settings.builder()
+                .put("path.home", pathHome)
+                .put("plugin.mandatory", "fake")
+                .build();
+        RuntimeException exception = expectThrows(RuntimeException.class, () -> newPluginsService(settings));
+        assertTrue(exception.getCause() instanceof ClassNotFoundException);
+        assertThat(exception, hasToString(containsString("Unable to load plugin class [DummyClass]")));
+    }
+
     public void testExtensiblePlugin() {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
         PluginsService.loadExtensions(Collections.singletonList(
