@@ -683,7 +683,8 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         return clusterState;
     }
 
-    private ClusterState increaseReplicaCountAndTriggerReroute(AllocationService strategy, ClusterState clusterState, String[] indices, int replicaCount) {
+    private ClusterState increaseReplicaCountAndTriggerReroute(AllocationService strategy, ClusterState clusterState,
+                                                               String[] indices, int replicaCount) {
         Metadata metaData;
         logger.info("increasing the number of replicas to 1, and perform a reroute (to get the replicas allocation going)");
         RoutingTable updatedRoutingTable =
