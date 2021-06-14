@@ -42,7 +42,6 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.util.SPIClassIterator;
 import org.opensearch.Build;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.bootstrap.JarHell;
@@ -662,6 +661,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 return null;
             });
 
+            logger.debug("Loading plugin [" + name + "]");
             Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
             if (loader != pluginClass.getClassLoader()) {
                 throw new IllegalStateException("Plugin [" + name + "] must reference a class loader local Plugin class ["
@@ -700,8 +700,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
         try {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
-        } catch (ClassNotFoundException | NoClassDefFoundError e) {
-            throw new OpenSearchException("Could not find plugin class [" + className + "]", e);
+        } catch (Throwable t) {
+            throw new RuntimeException("Unable to load plugin class [" + className + "]", t);
         }
     }
 
