@@ -662,6 +662,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 return null;
             });
 
+            logger.debug("Loading plugin [" + name + "]...");
             Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
             if (loader != pluginClass.getClassLoader()) {
                 throw new IllegalStateException("Plugin [" + name + "] must reference a class loader local Plugin class ["
@@ -700,8 +701,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
         try {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
-        } catch (ClassNotFoundException e) {
-            throw new OpenSearchException("Could not find plugin class [" + className + "]", e);
+        } catch (Throwable t) {
+            throw new OpenSearchException("Unable to load plugin class [" + className + "]", t);
         }
     }
 
