@@ -90,7 +90,8 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 3)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
+                    randomIntBetween(3,10))
                 .build(), gatewayAllocator, snapshotsInfoService);
 
         logger.info("Building initial routing table");

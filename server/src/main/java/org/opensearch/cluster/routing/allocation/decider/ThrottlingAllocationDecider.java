@@ -166,18 +166,18 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER;
 
             if(shardRouting.unassignedReasonIndexCreated()) {
-                return allocateInitialReplicas(shardRouting, node, allocation);
+                return allocateInitialShardCopies(shardRouting, node, allocation);
             } else {
-                return allocateNonIntialReplicas(shardRouting, node, allocation);
+                return allocateNonInitialShardCopies(shardRouting, node, allocation);
             }
         }
     }
 
-    private Decision allocateInitialReplicas(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    private Decision allocateInitialShardCopies(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         int currentInRecoveries = allocation.routingNodes().getInitialIncomingRecoveries(node.nodeId());
         assert shardRouting.unassignedReasonIndexCreated() && !shardRouting.primary();
 
-        return allocateReplicas(shardRouting, allocation, currentInRecoveries, replicasInitialRecoveries,
+        return allocateShardCopies(shardRouting, allocation, currentInRecoveries, replicasInitialRecoveries,
             (x,y) -> getInitialPrimaryNodeOutgoingRecoveries(x,y), replicasInitialRecoveries,
             String.format(Locale.ROOT, "[%s=%d]", CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
                 replicasInitialRecoveries),
@@ -185,10 +185,12 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 replicasInitialRecoveries));
     }
 
-    private Decision allocateNonIntialReplicas(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    private Decision allocateNonInitialShardCopies(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+
+        assert !shardRouting.unassignedReasonIndexCreated();
         int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
 
-        return allocateReplicas(shardRouting, allocation, currentInRecoveries, concurrentIncomingRecoveries,
+        return allocateShardCopies(shardRouting, allocation, currentInRecoveries, concurrentIncomingRecoveries,
             (x,y) -> getPrimaryNodeOutgoingRecoveries(x,y), concurrentOutgoingRecoveries,
             String.format(Locale.ROOT, "[%s=%d] (can also be set via [%s])",
                 CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
@@ -208,10 +210,10 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         return allocation.routingNodes().getInitialOutgoingRecoveries(primaryShard.currentNodeId());
     }
 
-    private Decision allocateReplicas(ShardRouting shardRouting, RoutingAllocation allocation, int currentInRecoveries,
-                                      int inRecoveriesLimit, BiFunction<ShardRouting, RoutingAllocation,
+    private Decision allocateShardCopies(ShardRouting shardRouting, RoutingAllocation allocation, int currentInRecoveries,
+                                         int inRecoveriesLimit, BiFunction<ShardRouting, RoutingAllocation,
                                       Integer> primaryNodeOutRecoveriesFunc, int outRecoveriesLimit,
-                                      String incomingRecoveriesSettingMsg, String outGoingRecoveriesSettingMsg) {
+                                         String incomingRecoveriesSettingMsg, String outGoingRecoveriesSettingMsg) {
         // Allocating a shard to this node will increase the incoming recoveries
         if (currentInRecoveries >= inRecoveriesLimit) {
             return allocation.decision(THROTTLE, NAME,

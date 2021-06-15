@@ -97,8 +97,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<String, ObjectIntHashMap<String>> nodesPerAttributeNames = new HashMap<>();
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
-    private final Map<String, Recoveries> initialRecoveriesPerNode = new HashMap<>();
-    private final Map<String, Recoveries> primaryRecoveriesPerNode = new HashMap<>();
+    private final Map<String, Recoveries> initialReplicaRecoveries = new HashMap<>();
+    private final Map<String, Recoveries> initialPrimaryRecoveries = new HashMap<>();
 
     public RoutingNodes(ClusterState clusterState) {
         this(clusterState, true);
@@ -188,11 +188,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // Primary shard routing, excluding the relocating primaries.
         if(routing.primary() && (primary == null || primary == routing)) {
             assert routing.relocatingNodeId() == null: "Routing must be a non relocating primary";
-            Recoveries.getOrAdd(primaryRecoveriesPerNode, routing.currentNodeId()).addIncoming(howMany);
+            Recoveries.getOrAdd(initialPrimaryRecoveries, routing.currentNodeId()).addIncoming(howMany);
             return;
         }
 
-        Recoveries.getOrAdd(getReplicaRecoveries(routing), routing.currentNodeId()).addIncoming(howMany);
+        Recoveries.getOrAdd(getRecoveries(routing), routing.currentNodeId()).addIncoming(howMany);
 
         if (routing.recoverySource().getType() == RecoverySource.Type.PEER) {
             // add/remove corresponding outgoing recovery on node with primary shard
@@ -200,14 +200,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 throw new IllegalStateException("shard is peer recovering but primary is unassigned");
             }
 
-            Recoveries.getOrAdd(getReplicaRecoveries(routing), primary.currentNodeId()).addOutgoing(howMany);
+            Recoveries.getOrAdd(getRecoveries(routing), primary.currentNodeId()).addOutgoing(howMany);
 
             if (increment == false && routing.primary() && routing.relocatingNodeId() != null) {
                 // primary is done relocating, move non-primary recoveries from old primary to new primary
                 for (ShardRouting assigned : assignedShards(routing.shardId())) {
                     if (assigned.primary() == false && assigned.initializing() &&
                         assigned.recoverySource().getType() == RecoverySource.Type.PEER) {
-                        Map<String, Recoveries> recoveriesToUpdate = getReplicaRecoveries(assigned);
+                        Map<String, Recoveries> recoveriesToUpdate = getRecoveries(assigned);
                         Recoveries.getOrAdd(recoveriesToUpdate, routing.relocatingNodeId()).addOutgoing(-1);
                         Recoveries.getOrAdd(recoveriesToUpdate, routing.currentNodeId()).addOutgoing(1);
                     }
@@ -217,9 +217,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
     }
 
-    private Map<String, Recoveries> getReplicaRecoveries(ShardRouting routing) {
+    private Map<String, Recoveries> getRecoveries(ShardRouting routing) {
         if(routing.unassignedReasonIndexCreated() && !routing.primary()) {
-            return initialRecoveriesPerNode;
+            return initialReplicaRecoveries;
         } else {
             return recoveriesPerNode;
         }
@@ -230,7 +230,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public int getInitialPrimariesIncomingRecoveries(String nodeId) {
-        return primaryRecoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getIncoming();
+        return initialPrimaryRecoveries.getOrDefault(nodeId, Recoveries.EMPTY).getIncoming();
     }
 
     public int getOutgoingRecoveries(String nodeId) {
@@ -241,14 +241,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * Recoveries started on node as a result of new index creation.
      */
     public int getInitialIncomingRecoveries(String nodeId) {
-        return initialRecoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getIncoming();
+        return initialReplicaRecoveries.getOrDefault(nodeId, Recoveries.EMPTY).getIncoming();
     }
 
     /**
      * Recoveries started from node as a result of new index creation.
      */
     public int getInitialOutgoingRecoveries(String nodeId) {
-        return initialRecoveriesPerNode.getOrDefault(nodeId, Recoveries.EMPTY).getOutgoing();
+        return initialReplicaRecoveries.getOrDefault(nodeId, Recoveries.EMPTY).getOutgoing();
     }
 
     @Nullable
@@ -1130,10 +1130,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
         }
 
-        assertRecoveriesPerNode(routingNodes, routingNodes.primaryRecoveriesPerNode, false,
+        assertRecoveriesPerNode(routingNodes, routingNodes.initialPrimaryRecoveries, false,
             x -> isNonRelocatingPrimary(x));
         assertRecoveriesPerNode(routingNodes, Recoveries.unionRecoveries(routingNodes.recoveriesPerNode,
-            routingNodes.initialRecoveriesPerNode), true, x -> !isNonRelocatingPrimary(x));
+            routingNodes.initialReplicaRecoveries), true, x -> !isNonRelocatingPrimary(x));
 
         assert unassignedPrimaryCount == routingNodes.unassignedShards.getNumPrimaries() :
                 "Unassigned primaries is [" + unassignedPrimaryCount + "] but RoutingNodes returned unassigned primaries [" +
@@ -1263,15 +1263,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
 
         // used only for tests
-        public static Map<String, Recoveries> unionRecoveries(Map<String, Recoveries> recoveries1,
-                                                              Map<String, Recoveries> recoveries2) {
+        static Map<String, Recoveries> unionRecoveries(Map<String, Recoveries> first, Map<String, Recoveries> second) {
             Map<String, Recoveries> recoveries = new HashMap<>();
-            addRecoveries(recoveries, recoveries1);
-            addRecoveries(recoveries, recoveries2);
+            addRecoveries(recoveries, first);
+            addRecoveries(recoveries, second);
             return recoveries;
         }
 
-        public static void addRecoveries(Map<String, Recoveries> existingRecoveries,
+        private static void addRecoveries(Map<String, Recoveries> existingRecoveries,
                                          Map<String, Recoveries> newRecoveries) {
             for (String node : newRecoveries.keySet()) {
                 Recoveries r2 = newRecoveries.get(node);
