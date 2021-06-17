@@ -48,6 +48,7 @@ import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.settings.Settings;
 
 import java.util.HashMap;
@@ -69,6 +70,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
     public void testMoveShardOnceNewNodeWithAttributeAdded1() {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .build());
@@ -131,6 +133,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
     public void testMoveShardOnceNewNodeWithAttributeAdded2() {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .build());
@@ -195,6 +198,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
@@ -281,6 +285,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
@@ -369,6 +374,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
     public void testMoveShardOnceNewNodeWithAttributeAdded5() {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .build());
@@ -443,6 +449,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
     public void testMoveShardOnceNewNodeWithAttributeAdded6() {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .build());
@@ -519,6 +526,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
     public void testFullAwareness1() {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.force.rack_id.values", "1,2")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
@@ -583,6 +591,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
     public void testFullAwareness2() {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.force.rack_id.values", "1,2")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
@@ -649,6 +658,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.awareness.force.rack_id.values", "1,2")
@@ -729,6 +739,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
                 .put("cluster.routing.allocation.awareness.attributes", "zone")
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -788,6 +799,7 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
     public void testUnassignedShardsWithUnbalancedZones() {
         AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "zone")
                 .build());
