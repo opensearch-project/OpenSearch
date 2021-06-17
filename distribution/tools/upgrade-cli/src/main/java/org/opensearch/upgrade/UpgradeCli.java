@@ -19,7 +19,7 @@ import org.opensearch.env.Environment;
 /**
  * This class extends the existing opensearch-cli and provides the entry
  * point for the opensearch-upgrade tool.
- *
+ * <p>
  * This class is agnostic of the actual logic which performs the upgrade
  * on the node.
  */
@@ -43,9 +43,8 @@ public class UpgradeCli extends EnvironmentAwareCommand {
     }
 
     /**
-     * Contains the logic for the upgrade tool. This retrieves an instance of
-     * {@link UpgradeTask} which is composed of smalled individual task that
-     * perform specific operation as part of the operation.
+     * Executes the upgrade task. This retrieves an instance of {@link UpgradeTask} which is composed
+     * of smaller individual tasks that perform specific operations as part of the overall process.
      *
      * @param terminal current terminal the command is running
      * @param options  options supplied to the command

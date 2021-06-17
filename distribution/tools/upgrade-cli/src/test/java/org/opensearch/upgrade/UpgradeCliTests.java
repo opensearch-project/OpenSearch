@@ -59,6 +59,7 @@ public class UpgradeCliTests extends CommandTestCase {
         Files.createDirectories(config);
         Files.createFile(config.resolve("opensearch.yml"));
         Files.createDirectory(config.resolve("jvm.options.d"));
+        Files.createFile(config.resolve("log4j2.properties"));
         env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
     }
 
@@ -153,6 +154,6 @@ public class UpgradeCliTests extends CommandTestCase {
     }
 
     private void assertLog4jPropertiesImported() throws IOException, GeneralSecurityException {
-        assertThat(Files.exists(env.configFile().resolve("log4j.properties")), is(true));
+        assertThat(Files.exists(env.configFile().resolve("log4j2.properties")), is(true));
     }
 }
