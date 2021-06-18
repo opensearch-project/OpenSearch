@@ -119,7 +119,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
             javaVersion = "1.8";
         }
         this.classname = in.readString();
-        this.folderName = in.readString();
+        if (in.getVersion().after(Version.V_1_0_0)) {
+            folderName = in.readString();
+        } else {
+            folderName = this.name;
+        }
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
             extendedPlugins = in.readStringList();
         } else {
@@ -145,6 +149,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
             out.writeString(javaVersion);
         }
         out.writeString(classname);
+        if (out.getVersion().after(Version.V_1_0_0)) {
+            out.writeString(folderName);
+        }
         if (out.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
             out.writeStringCollection(extendedPlugins);
         }
@@ -211,7 +218,13 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     "property [classname] is missing for plugin [" + name + "]");
         }
 
-        final String folderName = propsMap.remove("folderName");
+        final String folderNameValue = propsMap.remove("folderName");
+        final String folderName;
+        if (esVersion.after(Version.V_1_0_0)) {
+            folderName = folderNameValue;
+        } else {
+            folderName = name;
+        }
 
         final String extendedString = propsMap.remove("extended.plugins");
         final List<String> extendedPlugins;
@@ -357,6 +370,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("java_version", javaVersion);
             builder.field("description", description);
             builder.field("classname", classname);
+            builder.field("folderName", folderName);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
         }
@@ -399,7 +413,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(prefix).append("Java Version: ").append(javaVersion).append("\n")
             .append(prefix).append("Native Controller: ").append(hasNativeController).append("\n")
             .append(prefix).append("Extended Plugins: ").append(extendedPlugins).append("\n")
-            .append(prefix).append(" * Classname: ").append(classname);
+            .append(prefix).append(" * Classname: ").append(classname).append("\n")
+            .append(prefix).append("Folder name: ").append(folderName);
         return information.toString();
     }
 }

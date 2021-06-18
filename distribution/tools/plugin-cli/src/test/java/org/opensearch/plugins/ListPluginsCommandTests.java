@@ -169,7 +169,8 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Extended Plugins: []",
-                " * Classname: org.fake"
+                " * Classname: org.fake",
+                "Folder name: fake_plugin"
             ),
             terminal.getOutput()
         );
@@ -191,7 +192,8 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Java Version: 1.8",
                 "Native Controller: true",
                 "Extended Plugins: []",
-                " * Classname: org.fake"
+                " * Classname: org.fake",
+                "Folder name: fake_plugin1"
             ),
             terminal.getOutput()
         );
@@ -215,6 +217,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Native Controller: false",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
+                "Folder name: fake_plugin1",
                 "fake_plugin2",
                 "- Plugin information:",
                 "Name: fake_plugin2",
@@ -224,7 +227,8 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Extended Plugins: []",
-                " * Classname: org.fake2"
+                " * Classname: org.fake2",
+                "Folder name: fake_plugin2"
             ),
             terminal.getOutput()
         );
