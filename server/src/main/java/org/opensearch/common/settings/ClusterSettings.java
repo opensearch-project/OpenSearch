@@ -32,6 +32,7 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -577,6 +578,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
+            TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION,
             IndexingPressure.MAX_INDEXING_BYTES)));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
