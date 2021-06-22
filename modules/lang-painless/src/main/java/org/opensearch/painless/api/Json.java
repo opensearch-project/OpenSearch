@@ -39,6 +39,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 public class Json {
     /**
@@ -83,6 +84,8 @@ public class Json {
         }
         builder.value(data);
         builder.flush();
-        return builder.getOutputStream().toString();
+        try (OutputStream out = builder.getOutputStream()) {
+            return out.toString();
+        }
     }
 }
