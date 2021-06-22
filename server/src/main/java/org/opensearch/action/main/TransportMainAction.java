@@ -33,6 +33,7 @@
 package org.opensearch.action.main;
 
 import org.opensearch.Build;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
@@ -40,6 +41,8 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
@@ -47,8 +50,19 @@ import org.opensearch.transport.TransportService;
 
 public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportMainAction.class);
+
+    public static final String OVERRIDE_MAIN_RESPONSE_VERSION_KEY = "compatibility.override_main_response_version";
+
+    public static final Setting<Boolean> OVERRIDE_MAIN_RESPONSE_VERSION = Setting.boolSetting(
+        OVERRIDE_MAIN_RESPONSE_VERSION_KEY, false, Setting.Property.NodeScope, Setting.Property.Dynamic);
+
+    public static final String OVERRIDE_MAIN_RESPONSE_VERSION_DEPRECATION_MESSAGE = "overriding main response version" +
+        " number will be removed in a future version";
+
     private final String nodeName;
     private final ClusterService clusterService;
+    private volatile String responseVersion;
 
     @Inject
     public TransportMainAction(Settings settings, TransportService transportService,
@@ -56,6 +70,19 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         super(MainAction.NAME, transportService, actionFilters, MainRequest::new);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
+        setResponseVersion(OVERRIDE_MAIN_RESPONSE_VERSION.get(settings));
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(OVERRIDE_MAIN_RESPONSE_VERSION,
+            this::setResponseVersion);
+    }
+
+    private void setResponseVersion(boolean isResponseVersionOverrideEnabled) {
+        if (isResponseVersionOverrideEnabled) {
+            DEPRECATION_LOGGER.deprecate(OVERRIDE_MAIN_RESPONSE_VERSION.getKey(), OVERRIDE_MAIN_RESPONSE_VERSION_DEPRECATION_MESSAGE);
+            this.responseVersion = LegacyESVersion.V_7_10_2.toString();
+        } else {
+            this.responseVersion = Build.CURRENT.getQualifiedVersion();
+        }
     }
 
     @Override
@@ -63,6 +90,6 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         ClusterState clusterState = clusterService.state();
         listener.onResponse(
             new MainResponse(nodeName, Version.CURRENT, clusterState.getClusterName(),
-                    clusterState.metadata().clusterUUID(), Build.CURRENT));
+                    clusterState.metadata().clusterUUID(), Build.CURRENT, responseVersion));
     }
 }
