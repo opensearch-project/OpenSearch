@@ -70,10 +70,15 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     }
 
     public void acceptChannels(Supplier<NioSelector> selectorSupplier) throws IOException {
-        SocketChannel acceptedChannel;
-        while ((acceptedChannel = accept(rawChannel)) != null) {
-            NioSocketChannel nioChannel = channelFactory.acceptNioChannel(acceptedChannel, selectorSupplier);
-            acceptor.accept(nioChannel);
+        SocketChannel acceptedChannel = null;
+        try {
+            while ((acceptedChannel = accept(rawChannel)) != null) {
+                NioSocketChannel nioChannel = channelFactory.acceptNioChannel(acceptedChannel, selectorSupplier);
+                acceptor.accept(nioChannel);
+            }
+        } finally {
+            if (acceptedChannel != null)
+                acceptedChannel.close();
         }
     }
 
@@ -124,7 +129,10 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
         try {
             assert serverSocketChannel.isBlocking() == false;
             SocketChannel channel = AccessController.doPrivileged((PrivilegedExceptionAction<SocketChannel>) serverSocketChannel::accept);
-            assert serverSocketChannel.isBlocking() == false;
+            if (serverSocketChannel.isBlocking() == true) {
+                channel.close();
+                throw new AssertionError("serverSocketChannel is blocking.");
+            }
             return channel;
         } catch (PrivilegedActionException e) {
             throw (IOException) e.getCause();

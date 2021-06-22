@@ -64,12 +64,19 @@ public class XContentHelper {
                                               BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
-            if (compressedInput.markSupported() == false) {
-                compressedInput = new BufferedInputStream(compressedInput);
+            InputStream compressedInput = null;
+            try {
+                compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
+                if (compressedInput.markSupported() == false) {
+                    compressedInput = new BufferedInputStream(compressedInput);
+                }
+                final XContentType contentType = XContentFactory.xContentType(compressedInput);
+                return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+            } catch (Exception e) {
+                if(compressedInput != null)
+                    compressedInput.close();
+                throw e;
             }
-            final XContentType contentType = XContentFactory.xContentType(compressedInput);
-            return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
             return XContentFactory.xContent(xContentType(bytes)).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
@@ -83,11 +90,18 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
-            if (compressedInput.markSupported() == false) {
-                compressedInput = new BufferedInputStream(compressedInput);
+            InputStream compressedInput = null;
+            try {
+                compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
+                if (compressedInput.markSupported() == false) {
+                    compressedInput = new BufferedInputStream(compressedInput);
+                }
+                return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+            } catch (Exception e) {
+                if (compressedInput != null)
+                    compressedInput.close();
+                throw e;
             }
-            return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
             if (bytes instanceof BytesArray) {
                 final BytesArray array = (BytesArray) bytes;
@@ -124,7 +138,6 @@ public class XContentHelper {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
                 input = compressedStreamInput;
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             } else if (bytes instanceof BytesArray) {
                 final BytesArray arr = (BytesArray) bytes;
                 final byte[] raw = arr.array();
@@ -135,9 +148,9 @@ public class XContentHelper {
                         convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered));
             } else {
                 input = bytes.streamInput();
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             }
             try (InputStream stream = input) {
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(stream);
                 return new Tuple<>(Objects.requireNonNull(contentType),
                     convertToMap(XContentFactory.xContent(contentType), stream, ordered));
             }

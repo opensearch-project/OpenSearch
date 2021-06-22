@@ -57,37 +57,42 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
             .info("Unpacking " + tarFile.getName() + " using " + SymbolicLinkPreservingUntarTransform.class.getSimpleName() + ".");
         Function<String, Path> pathModifier = pathResolver();
 
-        TarArchiveInputStream tar = new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile)));
-        final Path destinationPath = targetDir.toPath();
-        TarArchiveEntry entry = tar.getNextTarEntry();
-        while (entry != null) {
-            final Path relativePath = pathModifier.apply(entry.getName());
-            if (relativePath == null || relativePath.getFileName().equals(CURRENT_DIR_PATH)) {
-                entry = tar.getNextTarEntry();
-                continue;
-            }
-
-            final Path destination = destinationPath.resolve(relativePath);
-            final Path parent = destination.getParent();
-            if (Files.exists(parent) == false) {
-                Files.createDirectories(parent);
-            }
-            if (entry.isDirectory()) {
-                Files.createDirectory(destination);
-            } else if (entry.isSymbolicLink()) {
-                Files.createSymbolicLink(destination, Paths.get(entry.getLinkName()));
-            } else {
-                // copy the file from the archive using a small buffer to avoid heaping
-                Files.createFile(destination);
-                try (FileOutputStream fos = new FileOutputStream(destination.toFile())) {
-                    tar.transferTo(fos);
+        try (
+            FileInputStream fis = new FileInputStream(tarFile);
+            GzipCompressorInputStream gzip = new GzipCompressorInputStream(fis);
+            TarArchiveInputStream tar = new TarArchiveInputStream(gzip)
+        ) {
+            final Path destinationPath = targetDir.toPath();
+            TarArchiveEntry entry = tar.getNextTarEntry();
+            while (entry != null) {
+                final Path relativePath = pathModifier.apply(entry.getName());
+                if (relativePath == null || relativePath.getFileName().equals(CURRENT_DIR_PATH)) {
+                    entry = tar.getNextTarEntry();
+                    continue;
                 }
+
+                final Path destination = destinationPath.resolve(relativePath);
+                final Path parent = destination.getParent();
+                if (Files.exists(parent) == false) {
+                    Files.createDirectories(parent);
+                }
+                if (entry.isDirectory()) {
+                    Files.createDirectory(destination);
+                } else if (entry.isSymbolicLink()) {
+                    Files.createSymbolicLink(destination, Paths.get(entry.getLinkName()));
+                } else {
+                    // copy the file from the archive using a small buffer to avoid heaping
+                    Files.createFile(destination);
+                    try (FileOutputStream fos = new FileOutputStream(destination.toFile())) {
+                        tar.transferTo(fos);
+                    }
+                }
+                if (entry.isSymbolicLink() == false) {
+                    // check if the underlying file system supports POSIX permissions
+                    chmod(destination, entry.getMode());
+                }
+                entry = tar.getNextTarEntry();
             }
-            if (entry.isSymbolicLink() == false) {
-                // check if the underlying file system supports POSIX permissions
-                chmod(destination, entry.getMode());
-            }
-            entry = tar.getNextTarEntry();
         }
 
     }
