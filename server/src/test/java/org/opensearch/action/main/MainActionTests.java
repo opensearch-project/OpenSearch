@@ -32,6 +32,7 @@
 
 package org.opensearch.action.main;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
@@ -40,6 +41,7 @@ import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.tasks.Task;
@@ -54,6 +56,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.action.main.TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION_KEY;
 
 public class MainActionTests extends OpenSearchTestCase {
 
@@ -61,6 +64,8 @@ public class MainActionTests extends OpenSearchTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterName clusterName = new ClusterName("opensearch");
         final Settings settings = Settings.builder().put("node.name", "my-node").build();
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         ClusterBlocks blocks;
         if (randomBoolean()) {
             if (randomBoolean()) {
@@ -98,5 +103,41 @@ public class MainActionTests extends OpenSearchTestCase {
 
         assertNotNull(responseRef.get());
         verify(clusterService, times(1)).state();
+    }
+
+    public void testMainResponseVersionOverrideEnabledByConfigSetting() {
+        final ClusterName clusterName = new ClusterName("opensearch");
+        ClusterState state = ClusterState.builder(clusterName).blocks(mock(ClusterBlocks.class)).build();
+
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+
+        final Settings settings = Settings.builder()
+            .put("node.name", "my-node")
+            .put(OVERRIDE_MAIN_RESPONSE_VERSION_KEY, true)
+            .build();
+
+        TransportMainAction action = new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService);
+        AtomicReference<MainResponse> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), new MainRequest(), new ActionListener<MainResponse>() {
+            @Override
+            public void onResponse(MainResponse mainResponse) {
+                responseRef.set(mainResponse);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("unexpected error", e);
+            }
+        });
+
+        final MainResponse mainResponse = responseRef.get();
+        assertEquals(LegacyESVersion.V_7_10_2.toString(), mainResponse.getVersionNumber());
+        assertWarnings(TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION_DEPRECATION_MESSAGE);
     }
 }
