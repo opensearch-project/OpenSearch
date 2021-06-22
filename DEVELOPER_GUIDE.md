@@ -49,7 +49,7 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 OpenSearch builds using Java 14 at a minimum. This means you must have a JDK 14 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 14 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-14`.
 
-One easy way to get Java 14 on *nix is to use [sdkman](https://sdkman.io/). 
+One easy way to get Java 14 on *nix is to use [sdkman](https://sdkman.io/).
 
 ```bash
 curl -s "https://get.sdkman.io" | bash
@@ -188,6 +188,14 @@ Officially supported plugins to OpenSearch. We decide that a feature should be a
 The canonical example of this is the ICU analysis plugin. It is important for folks who want the fairly language neutral ICU analyzer but the library to implement the analyzer is 11MB so we don't ship it with OpenSearch by default.
 
 Another example is the `discovery-gce` plugin. It is *vital* to folks running in [GCP](https://cloud.google.com/) but useless otherwise and it depends on a dozen extra jars.
+
+### `sandbox`
+
+This is where the community can add experimental features in to OpenSearch. There are three directories inside the sandbox - `libs`, `modules` and `plugins` - which mirror the subdirectories in the project root and have the same guidelines for deciding on where a new feature goes. The artifacts from `libs` and `modules` will be automatically included in the **snapshot** distributions. Once a certain feature is deemed worthy to be included in the OpenSearch release, it will be promoted to the corresponding subdirectory in the project root. **Note**: The sandbox code do not have any other guarantees such as backwards compatibility or long term support and can be removed at any time.
+
+To exclude the modules from snapshot distributions, use the `sandbox.enabled` system property.
+
+    ./gradlew assemble -Dsandbox.enabled=false
 
 ### `qa`
 

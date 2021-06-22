@@ -238,6 +238,34 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   restTestExpansions['expected.modules.count'] += 1
 }
 
+// copy all sandbox modules if the distribution is a snapshot
+if (VersionProperties.isOpenSearchSnapshot()) {
+  Properties sysProps = System.getProperties();
+  // setting this property to false will exclude the sandbox modules from the distribution
+  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "true");
+  if(sysProps != null && enableSandbox == "true") {
+    tasks.withType(NoticeTask).configureEach {
+      project(':sandbox:libs').subprojects.each { Project lib ->
+        licensesDir lib.file('licenses')
+        source lib.file('src/main/java')
+      }
+    }
+    project.rootProject.subprojects.findAll { it.parent.path == ':sandbox:modules' }.each { Project module ->
+      File licenses = new File(module.projectDir, 'licenses')
+      if (licenses.exists()) {
+        buildNotice.configure {
+          licensesDir licenses
+          source module.file('src/main/java')
+        }
+      }
+
+      copyModule(processOutputsTaskProvider, module)
+      copyLog4jProperties(buildLog4jConfigTaskProvider, module)
+      restTestExpansions['expected.modules.count'] += 1
+    }
+  }
+}
+
 copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
 
 project(':test:external-modules').subprojects.each { Project testModule ->
@@ -268,7 +296,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
