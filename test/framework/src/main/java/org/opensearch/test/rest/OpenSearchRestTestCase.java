@@ -950,15 +950,28 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static void expectSoftDeletesWarning(Request request, String indexName) {
-        final List<String> expectedWarnings = Collections.singletonList(
+        final List<String> esExpectedWarnings = Collections.singletonList(
+            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
+                "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
+        final List<String> opensearchExpectedWarnings = Collections.singletonList(
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. " +
-            "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
+                "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0) && version.before(Version.V_1_0_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.equals(esExpectedWarnings) == false);
             request.setOptions(requestOptions);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0)
+            && version.before(Version.V_1_0_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(esExpectedWarnings) == false);
+            request.setOptions(requestOptions);
+        }
+
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.equals(opensearchExpectedWarnings) == false);
+            request.setOptions(requestOptions);
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false
+                && warnings.equals(opensearchExpectedWarnings) == false);
             request.setOptions(requestOptions);
         }
     }
