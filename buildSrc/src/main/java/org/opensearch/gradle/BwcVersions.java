@@ -269,14 +269,17 @@ public class BwcVersions {
         unreleased.add(currentVersion);
 
         // No unreleased versions for 1.0.0
+        // todo remove this hack
         if (currentVersion.equals(Version.fromString("1.0.0"))) {
             return unmodifiableList(unreleased);
         }
 
-        // version 1 is the first release, there is no previous "unreleased version":
+        // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
         if (currentVersion.getMajor() != 1) {
-            // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
-            final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
+            final Version latestOfPreviousMajor = getLatestVersionByKey(
+                this.groupByMajor,
+                currentVersion.getMajor() == 1 ? 7 : currentVersion.getMajor() - 1
+            );
             unreleased.add(latestOfPreviousMajor);
             if (latestOfPreviousMajor.getRevision() == 0) {
                 // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
