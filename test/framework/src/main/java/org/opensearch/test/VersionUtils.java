@@ -79,7 +79,7 @@ public class VersionUtils {
             stableVersions = previousMajor;
             // remove current
             moveLastToUnreleased(currentMajor, unreleasedVersions);
-        } else {
+        } else if (current.major != 1) {
             // on a stable or release branch, ie N.x
             stableVersions = currentMajor;
             // remove the next maintenance bugfix
@@ -88,6 +88,8 @@ public class VersionUtils {
                 // The latest minor in the previous major is a ".0" release, so there must be an unreleased bugfix for the minor before that
                 moveLastToUnreleased(previousMajor, unreleasedVersions);
             }
+        } else {
+            stableVersions = currentMajor;
         }
 
         // remove last minor unless the it's the first OpenSearch version.
