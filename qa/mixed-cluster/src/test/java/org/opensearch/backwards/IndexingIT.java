@@ -32,6 +32,7 @@
 package org.opensearch.backwards;
 
 import org.apache.http.HttpHost;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -198,7 +199,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
             final int numberOfInitialDocs = 1 + randomInt(5);
             logger.info("indexing [{}] docs initially", numberOfInitialDocs);
             numDocs += indexDocs(index, 0, numberOfInitialDocs);
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
+            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().onOrAfter(LegacyESVersion.V_6_0_0) ? numDocs : 0, newNodeClient);
             logger.info("allowing shards on all nodes");
             updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             ensureGreen(index);
@@ -209,7 +210,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
             final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
             logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
             numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
+            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().onOrAfter(LegacyESVersion.V_6_0_0) ? numDocs : 0, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
             updateIndexSettings(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
@@ -219,7 +220,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
+            assertSeqNoOnShards(index, nodes,
+                nodes.getBWCVersion().onOrAfter(LegacyESVersion.V_6_0_0) ? numDocs : numDocsOnNewPrimary, newNodeClient);
             /*
              * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in
              * the recovery code.
@@ -238,7 +240,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
             for (Shard shard : buildShards(index, nodes, newNodeClient)) {
                 assertCount(index, "_only_nodes:" + shard.node.nodeName, numDocs);
             }
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
+            assertSeqNoOnShards(index, nodes,
+                nodes.getBWCVersion().onOrAfter(LegacyESVersion.V_6_0_0) ? numDocs : numDocsOnNewPrimary, newNodeClient);
         }
     }
 
