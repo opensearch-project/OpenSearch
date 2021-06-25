@@ -1,4 +1,4 @@
-## Version 1.0.0-GA Release Notes
+## Version 1.0.0 Release Notes
 
 * __Apply fix for health API response to distinguish no master (#819)__
 
