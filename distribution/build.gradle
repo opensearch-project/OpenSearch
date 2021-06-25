@@ -296,7 +296,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
