@@ -961,7 +961,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             requestOptions.setWarningsHandler(warnings -> warnings.equals(esExpectedWarnings) == false);
             request.setOptions(requestOptions);
         } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0)
-            && version.before(Version.V_1_0_0))) {
+                && version.before(Version.V_1_0_0))) {
             requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(esExpectedWarnings) == false);
             request.setOptions(requestOptions);
         }
