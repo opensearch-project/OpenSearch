@@ -43,7 +43,7 @@ public class MainResponse {
     private static final ConstructingObjectParser<MainResponse, Void> PARSER =
         new ConstructingObjectParser<>(MainResponse.class.getName(), true,
             args -> {
-                 return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3]);
+                 return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3], (String) args[4]);
             }
         );
 
@@ -52,6 +52,7 @@ public class MainResponse {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), Version.PARSER, new ParseField("version"));
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("cluster_name"));
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("cluster_uuid"));
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("tagline"));
 
     }
 
@@ -59,12 +60,14 @@ public class MainResponse {
     private final Version version;
     private final String clusterName;
     private final String clusterUuid;
+    private final String tagline;
 
-    public MainResponse(String nodeName, Version version, String clusterName, String clusterUuid) {
+    public MainResponse(String nodeName, Version version, String clusterName, String clusterUuid, String tagline) {
         this.nodeName = nodeName;
         this.version = version;
         this.clusterName = clusterName;
         this.clusterUuid = clusterUuid;
+        this.tagline = tagline;
     }
 
     public String getNodeName() {
@@ -83,6 +86,10 @@ public class MainResponse {
         return clusterUuid;
     }
 
+    public String getTagline() {
+        return tagline;
+    }
+
     public static MainResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
@@ -95,12 +102,13 @@ public class MainResponse {
         return nodeName.equals(that.nodeName) &&
             version.equals(that.version) &&
             clusterName.equals(that.clusterName) &&
-            clusterUuid.equals(that.clusterUuid);
+            clusterUuid.equals(that.clusterUuid) &&
+            tagline.equals(that.tagline);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeName, version, clusterName, clusterUuid);
+        return Objects.hash(nodeName, version, clusterName, clusterUuid, tagline);
     }
 
     public static class Version {

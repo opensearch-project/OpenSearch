@@ -71,6 +71,7 @@ public class MainResponseTests extends AbstractResponseTestCase<org.opensearch.a
         assertThat(serverTestInstance.getClusterName().value(), equalTo(clientInstance.getClusterName()));
         assertThat(serverTestInstance.getClusterUuid(), equalTo(clientInstance.getClusterUuid()));
         assertThat(serverTestInstance.getNodeName(), equalTo(clientInstance.getNodeName()));
+        assertThat("The OpenSearch Project: https://opensearch.org/", equalTo(clientInstance.getTagline()));
 
         assertThat(serverTestInstance.getBuild().hash(), equalTo(clientInstance.getVersion().getBuildHash()));
         assertThat(serverTestInstance.getVersion().toString(), equalTo(clientInstance.getVersion().getNumber()));
