@@ -238,8 +238,7 @@ public class Reindexer {
                  * external versioning.
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
-                false, logger, client, threadPool, request, listener, scriptService, sslConfig);
-            this.interceptor = interceptor;
+                false, logger, client, threadPool, request, listener, scriptService, sslConfig, interceptor);
         }
 
         @Override
