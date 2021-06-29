@@ -91,11 +91,11 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     public static final String REST_EXCEPTION_SKIP_STACK_TRACE = "rest.exception.stacktrace.skip";
     public static final boolean REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT = true;
     private static final boolean REST_EXCEPTION_SKIP_CAUSE_DEFAULT = false;
-    private static final String INDEX_METADATA_KEY = "opensearch.index";
-    private static final String INDEX_METADATA_KEY_UUID = "opensearch.index_uuid";
-    private static final String SHARD_METADATA_KEY = "opensearch.shard";
-    private static final String RESOURCE_METADATA_TYPE_KEY = "opensearch.resource.type";
-    private static final String RESOURCE_METADATA_ID_KEY = "opensearch.resource.id";
+    private String INDEX_METADATA_KEY = "opensearch.index";
+    private String INDEX_METADATA_KEY_UUID = "opensearch.index_uuid";
+    private String SHARD_METADATA_KEY = "opensearch.shard";
+    private String RESOURCE_METADATA_TYPE_KEY = "opensearch.resource.type";
+    private String RESOURCE_METADATA_ID_KEY = "opensearch.resource.id";
 
     private static final String TYPE = "type";
     private static final String REASON = "reason";
@@ -148,6 +148,13 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
 
     public OpenSearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
+        if (in.getVersion().onOrBefore(LegacyESVersion.V_7_10_2)) {
+            INDEX_METADATA_KEY = "es.index";
+            INDEX_METADATA_KEY_UUID = "es.index_uuid";
+            SHARD_METADATA_KEY = "es.shard";
+            RESOURCE_METADATA_TYPE_KEY = "es.resource.type";
+            RESOURCE_METADATA_ID_KEY = "es.resource.id";
+        }
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
         metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
@@ -348,7 +355,11 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         builder.field(REASON, message);
 
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
-            headerToXContent(builder, entry.getKey().substring("opensearch.".length()), entry.getValue());
+            if (entry.getKey().contains("es.")) {
+                headerToXContent(builder, entry.getKey().substring("es.".length()), entry.getValue());
+            } else {
+                headerToXContent(builder, entry.getKey().substring("opensearch.".length()), entry.getValue());
+            }
         }
 
         if (throwable instanceof OpenSearchException) {
