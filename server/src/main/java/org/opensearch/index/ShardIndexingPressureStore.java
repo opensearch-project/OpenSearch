@@ -73,13 +73,11 @@ public class ShardIndexingPressureStore {
             tracker = shardIndexingPressureColdStore.get(shardId);
             // If not already present in cold store instantiate a new one
             if (isNull(tracker)) {
-                ShardIndexingPressureTracker newShardIndexingPressureTracker = new ShardIndexingPressureTracker(shardId,
-                    this.shardIndexingPressureSettings.getShardPrimaryAndCoordinatingBaseLimits(),
-                    this.shardIndexingPressureSettings.getShardReplicaBaseLimits());
-                // Try update the new shard tracker to the hot store
-                tracker = shardIndexingPressureHotStore.putIfAbsent(shardId, newShardIndexingPressureTracker);
-                // Update the tracker so that we use the one actual in the hot store
-                tracker = tracker == null ? newShardIndexingPressureTracker : tracker;
+                tracker = shardIndexingPressureHotStore.computeIfAbsent(shardId, (k) ->
+                        new ShardIndexingPressureTracker(shardId,
+                            this.shardIndexingPressureSettings.getShardPrimaryAndCoordinatingBaseLimits(),
+                            this.shardIndexingPressureSettings.getShardReplicaBaseLimits())
+                        );
                 // Write through into the cold store for future reference
                 updateShardIndexingPressureColdStore(tracker);
             } else {
@@ -108,6 +106,12 @@ public class ShardIndexingPressureStore {
         }
     }
 
+    /**
+     * This is used to update the reference of tracker in cold store, to be re-used later of tracker is removed from hot store upon request
+     * completion. When the cold store size reaches maximum, all the tracker objects in cold store are flushed. Flush is a less frequent
+     * (periodic) operation, can be sized based on workload. It is okay to not to synchronize counters being flushed, as
+     * objects in the cold store are only empty references, and can be re-initialized if needed.
+     */
     private void updateShardIndexingPressureColdStore(ShardIndexingPressureTracker tracker) {
         if (shardIndexingPressureColdStore.size() > maxColdStoreSize) {
             shardIndexingPressureColdStore.clear();
