@@ -48,6 +48,8 @@ import org.opensearch.test.VersionUtils;
 import java.io.IOException;
 import java.util.Date;
 
+import static org.opensearch.action.main.MainResponse.TAGLINE;
+
 public class MainResponseTests extends AbstractSerializingTestCase<MainResponse> {
 
     @Override
@@ -99,7 +101,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                     + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
                     + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
                     + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"
-                + "\"tagline\":\"The OpenSearch Project: https://opensearch.org/\""
+                + "\"tagline\":\"" + TAGLINE + "\""
           + "}", Strings.toString(builder));
     }
 

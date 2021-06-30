@@ -108,6 +108,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.action.main.MainResponse.TAGLINE;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -180,7 +181,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
     public void testInfo() throws IOException {
         MainResponse testInfo = new MainResponse("nodeName", new MainResponse.Version("number", "buildType", "buildHash",
             "buildDate", true, "luceneVersion", "minimumWireCompatibilityVersion", "minimumIndexCompatibilityVersion"),
-            "clusterName", "clusterUuid", "The OpenSearch Project: https://opensearch.org/");
+            "clusterName", "clusterUuid", TAGLINE);
         mockResponse((ToXContentFragment) (builder, params) -> {
             // taken from the server side MainResponse
             builder.field("name", testInfo.getNodeName());

@@ -56,6 +56,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private String clusterUuid;
     private Build build;
     private String versionNumber;
+    public static final String TAGLINE = "The OpenSearch Project: https://opensearch.org/";
 
     MainResponse() {}
 
@@ -149,7 +150,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
             .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
             .endObject();
-        builder.field("tagline", "The OpenSearch Project: https://opensearch.org/");
+        builder.field("tagline", TAGLINE);
         builder.endObject();
         return builder;
     }

@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.opensearch.action.main.MainResponse.TAGLINE;
 
 public class MainResponseTests extends AbstractResponseTestCase<org.opensearch.action.main.MainResponse, MainResponse> {
     @Override
@@ -71,7 +72,7 @@ public class MainResponseTests extends AbstractResponseTestCase<org.opensearch.a
         assertThat(serverTestInstance.getClusterName().value(), equalTo(clientInstance.getClusterName()));
         assertThat(serverTestInstance.getClusterUuid(), equalTo(clientInstance.getClusterUuid()));
         assertThat(serverTestInstance.getNodeName(), equalTo(clientInstance.getNodeName()));
-        assertThat("The OpenSearch Project: https://opensearch.org/", equalTo(clientInstance.getTagline()));
+        assertThat(TAGLINE, equalTo(clientInstance.getTagline()));
 
         assertThat(serverTestInstance.getBuild().hash(), equalTo(clientInstance.getVersion().getBuildHash()));
         assertThat(serverTestInstance.getVersion().toString(), equalTo(clientInstance.getVersion().getNumber()));
