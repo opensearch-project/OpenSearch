@@ -49,7 +49,10 @@ import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.provider.Provider;
 
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * A plugin to manage getting and extracting distributions of OpenSearch.
@@ -73,6 +76,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private static final String DOWNLOAD_REPO_NAME_ES = "elasticsearch-downloads";
     private static final String SNAPSHOT_REPO_NAME_ES = "elasticsearch-snapshots";
     private static final String FAKE_SNAPSHOT_IVY_GROUP_ES = "elasticsearch-distribution-snapshot";
+
+    private static final String RELEASE_PATTERN_LAYOUT = "/core/opensearch/[revision]/[module]-min-[revision](-[classifier]).[ext]";
+    private static final String SNAPSHOT_PATTERN_LAYOUT =
+        "/snapshots/core/opensearch/[revision]/[module]-min-[revision](-[classifier]).[ext]";
 
     private NamedDomainObjectContainer<OpenSearchDistribution> distributionsContainer;
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
@@ -157,16 +164,17 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             .orElseGet(() -> DistributionDependency.of(dependencyNotation(distribution)));
     }
 
-    private static void addIvyRepo(Project project, String name, String url, String group) {
-        IvyArtifactRepository ivyRepo = project.getRepositories().ivy(repo -> {
+    private static void addIvyRepo(Project project, String name, String url, String group, String... patternLayout) {
+        final List<IvyArtifactRepository> repos = Arrays.stream(patternLayout).map(pattern -> project.getRepositories().ivy(repo -> {
             repo.setName(name);
             repo.setUrl(url);
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-            repo.patternLayout(layout -> layout.artifact("/releases/core/opensearch/[revision]/[module]-[revision](-[classifier]).[ext]"));
-        });
+            repo.patternLayout(layout -> layout.artifact(pattern));
+        })).collect(Collectors.toList());
+
         project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
             exclusiveContentRepository.filter(config -> config.includeGroup(group));
-            exclusiveContentRepository.forRepositories(ivyRepo);
+            exclusiveContentRepository.forRepositories(repos.toArray(new IvyArtifactRepository[repos.size()]));
         });
     }
 
@@ -187,8 +195,17 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
             return;
         }
-        addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts.opensearch.org", FAKE_IVY_GROUP);
-        addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots-no-kpi.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP);
+        addIvyRepo(
+            project,
+            DOWNLOAD_REPO_NAME,
+            "https://artifacts.opensearch.org",
+            FAKE_IVY_GROUP,
+            "/releases" + RELEASE_PATTERN_LAYOUT,
+            "/release-candidates" + RELEASE_PATTERN_LAYOUT
+        );
+
+        addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://artifacts.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP, SNAPSHOT_PATTERN_LAYOUT);
+
         addIvyRepo2(project, DOWNLOAD_REPO_NAME_ES, "https://artifacts-no-kpi.elastic.co", FAKE_IVY_GROUP_ES);
         addIvyRepo2(project, SNAPSHOT_REPO_NAME_ES, "https://snapshots-no-kpi.elastic.co", FAKE_SNAPSHOT_IVY_GROUP_ES);
     }
