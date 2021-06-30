@@ -4,9 +4,8 @@
 
     [Vacha](mailto:shahvacha19@gmail.com) - Wed, 30 Jun 2021 14:38:02 -0700
 
-    efs/remotes/upstream/1.0, refs/remotes/origin/1.0, refs/heads/1.0
     Signed-off-by: Vlad Rozov &lt;vrozov@users.noreply.github.com&gt;
-     Co-authored-by: Vlad Rozov &lt;vrozov@users.noreply.github.com&gt;
+    Co-authored-by: Vlad Rozov &lt;vrozov@users.noreply.github.com&gt;
 
 * __Update DistributionDownloader to fetch snapshots and staging bundles. (#904) (#906)__
 
