@@ -61,6 +61,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -108,6 +109,10 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
 
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends OpenSearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends OpenSearchException>, OpenSearchExceptionHandle> CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE;
+
+    private static final Pattern OS_METADATA = Pattern.compile("^opensearch\\.");
+    private static final Pattern ES_METADATA = Pattern.compile("^es\\.");
+
     private final Map<String, List<String>> metadata = new HashMap<>();
     private final Map<String, List<String>> headers = new HashMap<>();
 
@@ -150,7 +155,16 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-        metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
+        metadata.putAll(in.readMapOfLists(OpenSearchException::readAndReplace, StreamInput::readString));
+    }
+
+    private static String readAndReplace(StreamInput in) throws IOException {
+        String str = in.readString();
+        return in.getVersion().onOrBefore(LegacyESVersion.V_7_10_2) ? ES_METADATA.matcher(str).replaceFirst("opensearch.") : str;
+    }
+
+    private static void replaceAndWrite(StreamOutput out, String str) throws IOException {
+        out.writeString(out.getVersion().onOrBefore(LegacyESVersion.V_7_10_2) ? OS_METADATA.matcher(str).replaceFirst("es.") : str);
     }
 
     /**
@@ -293,7 +307,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         out.writeException(this.getCause());
         writeStackTraces(this, out, StreamOutput::writeException);
         out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMapOfLists(metadata, OpenSearchException::replaceAndWrite, StreamOutput::writeString);
     }
 
     public static OpenSearchException readException(StreamInput input, int id) throws IOException {
