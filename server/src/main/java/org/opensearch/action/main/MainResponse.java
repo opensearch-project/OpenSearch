@@ -56,6 +56,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private String clusterUuid;
     private Build build;
     private String versionNumber;
+    public static final String TAGLINE = "The OpenSearch Project: https://opensearch.org/";
 
     MainResponse() {}
 
@@ -151,6 +152,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
             .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
             .endObject();
+        builder.field("tagline", TAGLINE);
         builder.endObject();
         return builder;
     }
@@ -168,6 +170,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> response.nodeName = value, new ParseField("name"));
         PARSER.declareString((response, value) -> response.clusterName = new ClusterName(value), new ParseField("cluster_name"));
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
+        PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
             final String buildType = (String) value.get("build_type");
             response.build =
