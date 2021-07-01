@@ -79,7 +79,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     private static final String RELEASE_PATTERN_LAYOUT = "/core/opensearch/[revision]/[module]-min-[revision](-[classifier]).[ext]";
     private static final String SNAPSHOT_PATTERN_LAYOUT =
-        "/snapshots/core/opensearch/[revision]/[module]-min-[revision](-[classifier]).[ext]";
+        "/snapshots/core/opensearch/[revision]/[module]-min-[revision](-[classifier])-latest.[ext]";
 
     private NamedDomainObjectContainer<OpenSearchDistribution> distributionsContainer;
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
