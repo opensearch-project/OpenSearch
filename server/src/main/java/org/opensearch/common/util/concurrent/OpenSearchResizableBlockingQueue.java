@@ -12,9 +12,9 @@ import java.util.concurrent.BlockingQueue;
  * Mainly makes sense to use with blocking queues that are unbounded to provide the ability to do
  * capacity verification.
  */
-public class SifiResizableBlockingQueue<E> extends SizeBlockingQueue<E> {
+public class OpenSearchResizableBlockingQueue<E> extends SizeBlockingQueue<E> {
 
-    public SifiResizableBlockingQueue(BlockingQueue<E> queue, int capacity) {
+    public OpenSearchResizableBlockingQueue(BlockingQueue<E> queue, int capacity) {
         super(queue, capacity);
     }
 
