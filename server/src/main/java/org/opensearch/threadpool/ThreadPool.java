@@ -143,7 +143,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.LISTENER, ThreadPoolType.FIXED);
         map.put(Names.GET, ThreadPoolType.FIXED);
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
-        map.put(Names.WRITE, ThreadPoolType.RESIZABLE);
+        map.put(Names.WRITE, ThreadPoolType.FIXED);
         map.put(Names.SEARCH, ThreadPoolType.RESIZABLE);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
@@ -673,7 +673,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 // 5.x doesn't know about the "fixed_auto_queue_size" thread pool type, just write fixed.
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else if (type == ThreadPoolType.RESIZABLE) {
-                // old vfi doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
+                // Opensearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
+                // to avoid serialization/de-serization issue between nodes with different OpenSearch version
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else {
                 out.writeString(type.getType());

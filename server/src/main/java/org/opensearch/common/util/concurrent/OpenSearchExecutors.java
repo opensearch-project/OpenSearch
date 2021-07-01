@@ -143,7 +143,7 @@ public class OpenSearchExecutors {
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
         } else {
-            queue = new SifiResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
+            queue = new OpenSearchResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
                 queueCapacity);
         }
         return new OpenSearchThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
