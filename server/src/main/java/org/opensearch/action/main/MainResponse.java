@@ -138,9 +138,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("name", nodeName);
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
-        builder.startObject("version")
-            .field("distribution", build.getDistribution())
-            .field("number", versionNumber)
+        builder.startObject("version");
+        if (isCompatibilityModeDisabled()) {
+            builder.field("distribution", build.getDistribution());
+        }
+            builder.field("number", versionNumber)
             .field("build_type", build.type().displayName())
             .field("build_hash", build.hash())
             .field("build_date", build.date())
@@ -151,6 +153,12 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .endObject();
         builder.endObject();
         return builder;
+    }
+
+    private boolean isCompatibilityModeDisabled() {
+        // if we are not in compatibility mode (spoofing versionNumber), then
+        // build.getQualifiedVersion is always used.
+        return build.getQualifiedVersion().equals(versionNumber);
     }
 
     private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(), true,
