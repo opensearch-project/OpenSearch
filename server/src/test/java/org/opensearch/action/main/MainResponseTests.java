@@ -109,6 +109,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertTrue(Strings.toString(builder).contains("\"number\":\"" + responseVersion + "\","));
+        assertFalse(Strings.toString(builder).contains("\"distribution\":\"" + Build.CURRENT.getDistribution() + "\","));
     }
 
     @Override
