@@ -68,7 +68,7 @@ class DistributionDownloadFixture {
                 platform == OpenSearchDistribution.Platform.DARWIN)) ? "tar.gz" : "zip"
         if (Version.fromString(version).onOrAfter(Version.fromString("1.0.0"))) {
             if (version.contains("SNAPSHOT")) {
-                return "/snapshots/core/opensearch/${version}/opensearch-min-${version}-${platform}-x64.$fileType"
+                return "/snapshots/core/opensearch/${version}/opensearch-min-${version}-${platform}-x64-latest.$fileType"
             }
             return "/releases/core/opensearch/${version}/opensearch-min-${version}-${platform}-x64.$fileType"
         } else {
