@@ -2013,7 +2013,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE);
             try (Transport.Connection connection = serviceA.openConnection(node, builder.build())) {
-                assertEquals(connection.getVersion(), version);
+                // OpenSearch 1.0+ in bwc mode should only "upgrade" to Legacy v7.10.2
+                assertEquals(connection.getVersion(), version.onOrAfter(Version.V_1_0_0) ? LegacyESVersion.V_7_10_2 : version);
             }
         }
     }
