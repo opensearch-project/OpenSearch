@@ -1,5 +1,13 @@
 ## Version 1.0.0 Release Notes
 
+* __Refresh OpenSearch nodes version in cluster state after upgrade (#865) (#926)__
+
+    [Tianli Feng](mailto:ftianli@amazon.com) - Fri, 2 Jul 2021 16:53:47 +0000
+
+    Signed-off-by: Shweta Thareja &lt;tharejas@amazon.com&gt;
+    Co-authored-by:
+    shwetathareja &lt;shwetathareja@live.com&gt;
+
 * __Fix arm architecture translation issue (#809) (#917)__
 
     [Peter Nied](mailto:petern@amazon.com) - Fri, 2 Jul 2021 10:58:26 -0500
