@@ -234,7 +234,16 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
 
             if (distroVersion.onOrAfter("1.0.0")) {
-                classifier = ":" + distribution.getPlatform() + "-x64";
+                switch (distribution.getArchitecture()) {
+                    case ARM64:
+                        classifier = ":" + distribution.getPlatform() + "-arm64";
+                        break;
+                    case X64:
+                        classifier = ":" + distribution.getPlatform() + "-x64";
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported architecture: " + distribution.getArchitecture());
+                }
             } else if (distroVersion.onOrAfter("7.0.0")) {
                 classifier = ":" + distribution.getPlatform() + "-x86_64";
             } else {
