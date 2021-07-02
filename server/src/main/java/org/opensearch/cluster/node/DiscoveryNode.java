@@ -367,7 +367,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 }
             }
         }
-        if (out.getVersion().before(Version.V_1_0_0)) {
+        if (out.getVersion().before(Version.V_1_0_0) && version.onOrAfter(Version.V_1_0_0)) {
             Version.writeVersion(LegacyESVersion.V_7_10_2, out);
         } else {
             Version.writeVersion(version, out);
