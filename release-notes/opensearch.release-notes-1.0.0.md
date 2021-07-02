@@ -1,5 +1,54 @@
 ## Version 1.0.0 Release Notes
 
+* __Fix arm architecture translation issue (#809) (#917)__
+
+    [Peter Nied](mailto:petern@amazon.com) - Fri, 2 Jul 2021 10:58:26 -0500
+
+    Found when attempting to build on an `arm64` machine when I recieved an error
+    message below.  Root cause is that string equality in java cannot be done with
+    the `==` sign.
+
+    ```
+    unknown architecture [arm64] for jdk [provisioned_runtime], must be one of
+    [aarch64, x64]
+    ```
+    Signed-off-by: Peter Nied &lt;petern@amazon.com&gt;
+
+* __Fix Snapshot pattern in DistributionDownloader. (#916) (#920)__
+
+    [Marc Handalian](mailto:handalm@amazon.com) - Thu, 1 Jul 2021 22:01:13 -0500
+
+
+    Snapshots are published with a -latest flag into s3, this updates
+    the pattern
+    to correctly point to -latest.
+    Signed-off-by: Marc Handalian &lt;handalm@amazon.com&gt;
+
+* __Add &#39;tagline&#39; back to MainResponse in server that was removed in PR #427 (#913) (#915)__
+
+    [Tianli Feng](mailto:ftianli@amazon.com) - Thu, 1 Jul 2021 19:46:15 -0700
+
+
+    * Add &#34;tagline&#34; field back to &#34;MainResponse&#34; in sever side (not in
+    rest-high-level-client side) that removed in PR #427 .
+    * Replace with a new tagline &#34;The OpenSearch Project: https://opensearch.org/&#34;.
+
+    * Turn the tagline into a constant in
+    server/src/main/java/org/opensearch/action/main/MainResponse.java.
+
+    Signed-off-by: Tianli Feng &lt;ftianli@amazon.com&gt;
+
+* __Remove distribution from main response in compatibility mode (#911)__
+
+    [Marc Handalian](mailto:handalm@amazon.com) - Wed, 30 Jun 2021 19:15:22 -0700
+
+    This Change removes version.distribution when the version.number is
+    overridden
+    with the cluster setting compatibility.override_main_response_version.
+    Backport of https://github.com/opensearch-project/OpenSearch/pull/898
+
+    Signed-off-by: Marc Handalian &lt;handalm@amazon.com&gt;
+
 * __Replace metadata keys in OpenSearchException during serialization and deserialization (#905) (#909)__
 
     [Vacha](mailto:shahvacha19@gmail.com) - Wed, 30 Jun 2021 14:38:02 -0700
@@ -18,16 +67,16 @@
     only be checked if
     the release repository does not contain the requested
     version.
-     This change also updates the snapshot repository to point to a new
+    This change also updates the snapshot repository to point to a new
     snapshot
     repository.
-     Signed-off-by: Marc Handalian &lt;handalm@amazon.com&gt;
+    Signed-off-by: Marc Handalian &lt;handalm@amazon.com&gt;
 
 * __update external library &#39;pdfbox&#39; version to 2.0.24 to reduce vulnerability (#883) (#903)__
 
     [Tianli Feng](mailto:ftianli@amazon.com) - Tue, 29 Jun 2021 19:30:26 -0700
 
-
+    Signed-off-by: Tianli Feng &lt;ftianli@amazon.com&gt;
 
 
 * __Support running elasticsearch-oss distribution in test cluster for BWC (#764) (#774) (#882)__
@@ -50,9 +99,8 @@
 
 
     This commit fixes up the version framework to ensure a smooth version bump
-
     across releases.
-     Signed-off-by: Nicholas Walter Knize &lt;nknize@apache.org&gt;
+    Signed-off-by: Nicholas Walter Knize &lt;nknize@apache.org&gt;
 
 * __Apply fix for health API response to distinguish no master (#819)__
 
@@ -81,8 +129,7 @@
     - add unit tests for OpenSearch 1.0.0 with legacy ES versions.
     - update VersionUtils to include all legacy ES versions as released.
      Signed-off-by: Rabi Panda &lt;adnapibar@gmail.com&gt;
-    Signed-off-by: dblock
-    &lt;dblock@amazon.com&gt;
+    Signed-off-by: dblock &lt;dblock@amazon.com&gt;
     Co-authored-by: Rabi Panda &lt;adnapibar@gmail.com&gt;
 
 * __Add cluster setting to spoof version number returned from MainResponse (#847) (#870)__
@@ -96,7 +143,7 @@
     version.number returned from MainResponse
     for REST clients expecting legacy
     version 7.10.2.
-     Signed-off-by: Marc Handalian &lt;handalm@amazon.com&gt;
+    Signed-off-by: Marc Handalian &lt;handalm@amazon.com&gt;
 
 * __Fix resource leak issues suggested by Amazon CodeGuru (#816) (#860)__
 
@@ -118,6 +165,8 @@
 
     * Close resources when assertion error occurs, in `ServerChannelContext` class.
 
+    Signed-off-by: Tianli Feng &lt;ftianli@amazon.com&gt;
+
 * __[BWC] fix mixedCluster and rolling upgrades (#775) (#793)__
 
     [Nick Knize](mailto:nknize@gmail.com) - Fri, 28 May 2021 10:08:05 -0500
@@ -131,8 +180,8 @@
     Mixed clusters will not work beyond the duration of the upgrade since shards
 
     cannot be replicated from upgraded nodes to nodes running older versions.
-     Signed-off-by: Nicholas Walter Knize &lt;nknize@apache.org&gt;
-     Co-authored-by: Shweta Thareja &lt;tharejas@amazon.com&gt;
+    Signed-off-by: Nicholas Walter Knize &lt;nknize@apache.org&gt;
+    Co-authored-by: Shweta Thareja &lt;tharejas@amazon.com&gt;
 
 
 * __[BUG] fix MainResponse to spoof version number for legacy clients (#708)__
@@ -143,7 +192,7 @@
     This commit changes MainResponse to spoof OpenSearch 1.x version numbers as
 
     Legacy version number 7.10.2 for legacy clients.
-     Signed-off-by: Nicholas Walter Knize &lt;nknize@apache.org&gt;
+    Signed-off-by: Nicholas Walter Knize &lt;nknize@apache.org&gt;
 
 * __[CVE] Upgrade dependencies for Azure related plugins to mitigate CVEs (#688) (#771) (#784)__
 
