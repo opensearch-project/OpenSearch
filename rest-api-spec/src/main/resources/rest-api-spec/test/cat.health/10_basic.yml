@@ -1,7 +1,7 @@
 ---
 "Help":
   - skip:
-        version: " - 7.9.99"
+        version: " - 7.10.99"
         reason: "discovered_master added in OpenSearch 1.0.0"
   - do:
       cat.health:
@@ -31,7 +31,7 @@
 ---
 "Empty cluster":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.10.99"
       reason: "discovered_master added in OpenSearch 1.0.0"
   - do:
       cat.health: {}
@@ -62,7 +62,7 @@
 ---
 "With ts parameter":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.10.99"
       reason: "discovered_master added in OpenSearch 1.0.0"
   - do:
       cat.health:
