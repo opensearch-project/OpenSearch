@@ -77,7 +77,7 @@ public class NodeJoinController {
     public NodeJoinController(Settings settings, MasterService masterService, AllocationService allocationService,
                               ElectMasterService electMaster, RerouteService rerouteService) {
         this.masterService = masterService;
-        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
+        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, rerouteService, null) {
             @Override
             public void clusterStatePublished(ClusterChangedEvent event) {
                 electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());

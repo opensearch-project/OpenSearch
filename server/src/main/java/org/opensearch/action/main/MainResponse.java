@@ -56,6 +56,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private String clusterUuid;
     private Build build;
     private String versionNumber;
+    public static final String TAGLINE = "The OpenSearch Project: https://opensearch.org/";
 
     MainResponse() {}
 
@@ -138,9 +139,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("name", nodeName);
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
-        builder.startObject("version")
-            .field("distribution", build.getDistribution())
-            .field("number", versionNumber)
+        builder.startObject("version");
+        if (isCompatibilityModeDisabled()) {
+            builder.field("distribution", build.getDistribution());
+        }
+            builder.field("number", versionNumber)
             .field("build_type", build.type().displayName())
             .field("build_hash", build.hash())
             .field("build_date", build.date())
@@ -149,8 +152,15 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
             .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
             .endObject();
+        builder.field("tagline", TAGLINE);
         builder.endObject();
         return builder;
+    }
+
+    private boolean isCompatibilityModeDisabled() {
+        // if we are not in compatibility mode (spoofing versionNumber), then
+        // build.getQualifiedVersion is always used.
+        return build.getQualifiedVersion().equals(versionNumber);
     }
 
     private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(), true,
@@ -160,6 +170,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> response.nodeName = value, new ParseField("name"));
         PARSER.declareString((response, value) -> response.clusterName = new ClusterName(value), new ParseField("cluster_name"));
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
+        PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
             final String buildType = (String) value.get("build_type");
             response.build =
