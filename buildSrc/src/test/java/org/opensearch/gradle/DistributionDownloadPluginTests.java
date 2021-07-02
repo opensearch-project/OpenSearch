@@ -142,15 +142,25 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     public void testLocalCurrentVersionArchives() {
         for (Platform platform : Platform.values()) {
             for (boolean bundledJdk : new boolean[] { true, false }) {
-                // create a new project in each iteration, so that we know we are resolving the only additional project being created
-                Project project = createProject(BWC_MINOR, true);
-                String projectName = projectName(platform.toString(), bundledJdk);
-                projectName += (platform == Platform.WINDOWS ? "-zip" : "-tar");
-                Project archiveProject = ProjectBuilder.builder().withParent(archivesProject).withName(projectName).build();
-                archiveProject.getConfigurations().create("default");
-                archiveProject.getArtifacts().add("default", new File("doesnotmatter"));
-                createDistro(project, "distro", VersionProperties.getOpenSearch(), Type.ARCHIVE, platform, bundledJdk);
-                checkPlugin(project);
+                for (Architecture architecture : Architecture.values()) {
+                    // create a new project in each iteration, so that we know we are resolving the only additional project being created
+                    Project project = createProject(BWC_MINOR, true);
+                    String projectName = projectName(platform.toString(), bundledJdk);
+                    projectName += (platform == Platform.WINDOWS ? "-zip" : "-tar");
+                    Project archiveProject = ProjectBuilder.builder().withParent(archivesProject).withName(projectName).build();
+                    archiveProject.getConfigurations().create("default");
+                    archiveProject.getArtifacts().add("default", new File("doesnotmatter"));
+                    final OpenSearchDistribution distro = createDistro(
+                        project,
+                        "distro",
+                        VersionProperties.getOpenSearch(),
+                        Type.ARCHIVE,
+                        platform,
+                        bundledJdk
+                    );
+                    distro.setArchitecture(architecture);
+                    checkPlugin(project);
+                }
             }
         }
     }
