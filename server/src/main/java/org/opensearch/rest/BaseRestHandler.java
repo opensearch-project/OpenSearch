@@ -66,6 +66,8 @@ import java.util.stream.Collectors;
  */
 public abstract class BaseRestHandler implements RestHandler {
 
+    public static List<Route> routes;
+
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
 
@@ -99,7 +101,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * {@inheritDoc}
      */
     @Override
-    public abstract List<Route> routes();
+    public List<Route> routes() { return routes; }
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
