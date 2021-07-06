@@ -49,8 +49,10 @@ dependencies {
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-unchecked'
-compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
+compileJava.options.compilerArgs -= '-Xlint:cast'
+compileJava.options.compilerArgs -= '-Xlint:rawtypes'
+compileJava.options.compilerArgs -= '-Xlint:unchecked'
+compileTestJava.options.compilerArgs -= '-Xlint:rawtypes'
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 tasks.named('forbiddenApisMain').configure {

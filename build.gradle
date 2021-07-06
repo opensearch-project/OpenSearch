@@ -227,6 +227,41 @@ tasks.register("branchConsistency") {
 }
 
 allprojects {
+  // configure compiler options
+  tasks.withType(JavaCompile).configureEach { JavaCompile compile ->
+    compile.options.compilerArgs << '-Werror'
+    compile.options.compilerArgs << '-Xlint:auxiliaryclass'
+    compile.options.compilerArgs << '-Xlint:cast'
+    compile.options.compilerArgs << '-Xlint:classfile'
+    compile.options.compilerArgs << '-Xlint:dep-ann'
+    compile.options.compilerArgs << '-Xlint:divzero'
+    compile.options.compilerArgs << '-Xlint:empty'
+    compile.options.compilerArgs << '-Xlint:exports'
+    compile.options.compilerArgs << '-Xlint:fallthrough'
+    compile.options.compilerArgs << '-Xlint:finally'
+    compile.options.compilerArgs << '-Xlint:module'
+    compile.options.compilerArgs << '-Xlint:opens'
+    compile.options.compilerArgs << '-Xlint:overloads'
+    compile.options.compilerArgs << '-Xlint:overrides'
+    compile.options.compilerArgs << '-Xlint:processing'
+    compile.options.compilerArgs << '-Xlint:rawtypes'
+    compile.options.compilerArgs << '-Xlint:removal'
+    compile.options.compilerArgs << '-Xlint:requires-automatic'
+    compile.options.compilerArgs << '-Xlint:requires-transitive-automatic'
+    compile.options.compilerArgs << '-Xlint:static'
+    compile.options.compilerArgs << '-Xlint:unchecked'
+    compile.options.compilerArgs << '-Xlint:varargs'
+    compile.options.compilerArgs << '-Xlint:preview'
+    // TODO: disabled warnings: path, serial, options, deprecation, try
+    // -path because gradle will send in paths that don't always exist.
+    // -missing because we have tons of missing @returns and @param.
+    // -serial because we don't use java serialization.
+    compile.options.compilerArgs << '-Xdoclint:accessibility'
+    compile.options.compilerArgs << '-Xdoclint:html'
+    compile.options.compilerArgs << '-Xdoclint:reference'
+    compile.options.compilerArgs << '-Xdoclint:syntax'
+  }
+
   // ignore missing javadocs
   tasks.withType(Javadoc).configureEach { Javadoc javadoc ->
     // the -quiet here is because of a bug in gradle, in that adding a string option
