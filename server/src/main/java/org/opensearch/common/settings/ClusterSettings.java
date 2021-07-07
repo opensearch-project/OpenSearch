@@ -104,6 +104,8 @@ import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.ShardIndexingPressureSettings;
+import org.opensearch.index.ShardIndexingPressureStore;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -585,7 +587,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndexingPressure.MAX_INDEXING_BYTES,
             NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
             NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING,
-            NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING)));
+            NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
+            ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED,
+            ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED,
+            ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW,
+            ShardIndexingPressureSettings.SHARD_MIN_LIMIT,
+            ShardIndexingPressureStore.MAX_COLD_STORE_SIZE)));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
