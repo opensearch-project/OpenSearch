@@ -101,6 +101,8 @@ import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.ShardIndexingPressureSettings;
+import org.opensearch.index.ShardIndexingPressureStore;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -574,7 +576,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
-            IndexingPressure.MAX_INDEXING_BYTES)));
+            IndexingPressure.MAX_INDEXING_BYTES,
+            ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED,
+            ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED,
+            ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW,
+            ShardIndexingPressureSettings.SHARD_MIN_LIMIT,
+            ShardIndexingPressureStore.MAX_COLD_STORE_SIZE)));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
