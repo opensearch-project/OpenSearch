@@ -446,7 +446,7 @@ Please read your IDE documentation for how to attach a debugger to a JVM process
 
 # Building with extra plugins
 
-Additional plugins may be built alongside OpenSearch, where their dependency on OpenSearch will be substituted with the local OpenSearch build. To add your plugin, create a directory called opensearch-extra as a sibling of OpenSearch. Checkout your plugin underneath opensearch-extra and the build will automatically pick it up. You can verify the plugin is included as part of the build by checking the projects of the build.
+Additional plugins may be built alongside OpenSearch, where their dependency on OpenSearch will be substituted with the local OpenSearch build. To add your plugin, create a directory called `opensearch-extra` as a sibling of OpenSearch. Checkout your plugin underneath `opensearch-extra` and the build will automatically pick it up. You can verify the plugin is included as part of the build by checking the projects of the build.
 
     ./gradlew projects
 
