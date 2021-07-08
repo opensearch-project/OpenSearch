@@ -42,7 +42,7 @@ You will need the following pieces of software to run these tests:
 
 - Docker & Docker Compose
 - Vagrant
-- JDK 14
+- JDK 11
 - Gradle
 
 # Creating packages
