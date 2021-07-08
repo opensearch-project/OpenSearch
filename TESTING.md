@@ -424,7 +424,7 @@ In short, most new functionality should come with unit tests, and optionally RES
 
 ### Refactor code to make it easier to test
 
-Unfortunately, a large part of our code base is still hard to unit test. Sometimes because some classes have lots of dependencies that make them hard to instantiate. Sometimes because API contracts make tests hard to write. Code refactors that make functionality easier to unit test are encouraged. If this sounds very abstract to you, you can have a look at [this pull request](https://github.com/elastic/elasticsearch/pull/16610) for instance, which is a good example. It refactors `IndicesRequestCache` in such a way that: - it no longer depends on objects that are hard to instantiate such as `IndexShard` or `SearchContext`, - time-based eviction is applied on top of the cache rather than internally, which makes it easier to assert on what the cache is expected to contain at a given time.
+Unfortunately, a large part of our code base is still hard to unit test. Sometimes because some classes have lots of dependencies that make them hard to instantiate. Sometimes because API contracts make tests hard to write. Code refactors that make functionality easier to unit test are encouraged.
 
 ## Bad practices
 
