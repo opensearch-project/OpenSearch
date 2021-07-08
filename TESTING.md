@@ -378,7 +378,7 @@ Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example 
      -Dtests.class=org.opensearch.upgrades.RecoveryIT \
      -Dtests.method=testHistoryUUIDIsGenerated
 
-Tests are run for versions that are not yet released but with which the current version will be compatible with. These are automatically checked out and built from source. See [VersionCollection](./buildSrc/src/main/java/org/opensearch/gradle/VersionCollection.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
+Tests are run for versions that are not yet released but with which the current version will be compatible with. These are automatically checked out and built from source. See [BwcVersions](./buildSrc/src/main/java/org/opensearch/gradle/BwcVersions.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
 
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
 
