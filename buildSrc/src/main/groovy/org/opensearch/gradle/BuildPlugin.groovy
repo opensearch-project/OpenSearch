@@ -30,7 +30,9 @@ package org.opensearch.gradle
 
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
+import org.gradle.api.tasks.testing.Test
 import org.gradle.testing.jacoco.plugins.JacocoPluginExtension
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
 import org.gradle.testing.jacoco.tasks.JacocoReport
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin
@@ -92,9 +94,15 @@ class BuildPlugin implements Plugin<Project> {
     static void configureCodeCoverage(Project project) {
         JacocoPluginExtension jacoco = project.getExtensions().getByType(JacocoPluginExtension.class);
         jacoco.setToolVersion("0.8.7");
+        //project.tasks.register("jacocoTestReport", JacocoReport) { JacocoReport reportTask ->
         project.tasks.withType(JacocoReport) { JacocoReport reportTask ->
             reportTask.getReports().getXml().setEnabled(true);
             reportTask.getReports().getHtml().setEnabled(true);
+            reportTask.dependsOn(project.tasks.withType(Test));
+        }
+        project.tasks.withType(Test) { Test test ->
+            JacocoTaskExtension jacocoTaskExtension = test.getExtensions().getByType(JacocoTaskExtension.class);
+            jacocoTaskExtension.setDestinationFile(new File(project.getRootProject().getBuildDir(), "/jacoco/test.exec"))
         }
     }
 
