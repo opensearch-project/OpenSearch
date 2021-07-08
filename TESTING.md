@@ -372,11 +372,11 @@ A specific version can be tested as well. For example, to test bwc with version 
 
     ./gradlew v5.3.2#bwcTest
 
-Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
+Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example to test a rolling upgrade from 7.7.0:
 
-    ./gradlew :x-pack:qa:rolling-upgrade:v7.7.0#bwcTest \
-     -Dtests.class=org.opensearch.upgrades.UpgradeClusterClientYamlTestSuiteIT \
-     -Dtests.method="test {p0=*/40_ml_datafeed_crud/*}"
+    ./gradlew :qa:rolling-upgrade:v7.7.0#bwcTest \
+     -Dtests.class=org.opensearch.upgrades.RecoveryIT \
+     -Dtests.method=testHistoryUUIDIsGenerated
 
 Tests are run for versions that are not yet released but with which the current version will be compatible with. These are automatically checked out and built from source. See [VersionCollection](./buildSrc/src/main/java/org/opensearch/gradle/VersionCollection.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
 
