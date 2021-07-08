@@ -34,7 +34,6 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
 - [Test coverage analysis](#test-coverage-analysis)
 - [Building with extra plugins](#building-with-extra-plugins)
 - [Environment misc](#environment-misc)
-- [Benchmarking](#benchmarking)
 
 # Requirements
 
@@ -457,7 +456,3 @@ There is a known issue with macOS localhost resolve strategy that can cause some
     127.0.0.1       localhost OpenSearchMBP.local
     255.255.255.255 broadcasthost
     ::1             localhost OpenSearchMBP.local`
-
-# Benchmarking
-
-For changes that might affect the performance characteristics of OpenSearch you should also run macrobenchmarks. There is also a macrobenchmarking tool called [Rally](https://github.com/elastic/rally) which you can use to measure the performance impact. To get started, please see [Rally’s documentation](https://esrally.readthedocs.io/en/stable/).
