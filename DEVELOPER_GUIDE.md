@@ -11,7 +11,6 @@
     - [Visual Studio Code](#visual-studio-code)
     - [Eclipse](#eclipse)
   - [Project Layout](#project-layout)
-    - [`docs`](#docs)
     - [`distribution`](#distribution)
     - [`libs`](#libs)
     - [`modules`](#modules)
@@ -153,10 +152,6 @@ We would like to support Eclipse, but few of us use it and has fallen into disre
 ## Project Layout
 
 This repository is split into many top level directories. The most important ones are:
-
-### `docs`
-
-Documentation for the project.
 
 ### `distribution`
 
