@@ -442,9 +442,7 @@ Multi-threaded tests are often not reproducible due to the fact that there is no
 
 Generating test coverage reports for OpenSearch is currently not possible through Gradle. However, it *is* possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
 
-Test coverage reporting used to be possible with JaCoCo when OpenSearch was using Maven as its build system. Since the switch to Gradle though, this is no longer possible, seeing as the code currently used to build OpenSearch does not allow JaCoCo to recognize its tests. For more information on this, see the discussion in [issue #28867](https://github.com/elastic/elasticsearch/issues/28867).
-
-Read your IDE documentation for how to attach a debugger to a JVM process.
+Please read your IDE documentation for how to attach a debugger to a JVM process.
 
 # Building with extra plugins
 
