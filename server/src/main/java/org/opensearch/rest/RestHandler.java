@@ -38,6 +38,7 @@ import org.opensearch.rest.RestRequest.Method;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Handler for REST requests
@@ -170,5 +171,20 @@ public interface RestHandler {
         public Method getDeprecatedMethod() {
             return deprecatedMethod;
         }
+    }
+
+    /**
+     * Add customized prefix(_opendistro... and _plugins...)to API rest routes
+     * @param routes routes
+     * @param newPrefix new prefix
+     * @param oldPrefix old prefix
+     * @return new list of API routes prefixed with the strings listed in prefixes
+     * Total number of routes will be expanded len(prefixes) as much comparing to the list passed in
+     */
+    static List<ReplacedRoute> addRoutesPrefix(List<Route> routes, final String newPrefix, final String oldPrefix){
+        return routes.stream()
+            .map(p -> new ReplacedRoute(p.getMethod(), newPrefix + p.getPath(),
+                p.getMethod(), oldPrefix + p.getPath()))
+            .collect(Collectors.toList());
     }
 }
