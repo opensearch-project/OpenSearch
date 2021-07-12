@@ -1,0 +1,23 @@
+name: Link Checker
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  linkchecker:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: lychee Link Checker
+        id: lychee
+        uses: lycheeverse/lychee-action@master
+        with:
+          args: --accept=200,403,429  --exclude=http://www.unicode.org/Public/PROGRAMS/CVTUTF --exclude=http://www.eclipse.org/jetty/downloads.php --exclude=http://project.carrot2.org/license.html --exclude=http://bitbucket.org/jpbarrette/moman/overview/ --exclude=http://opensource.adobe.com/wiki/display/cmap/Downloads --exclude=http://viewvc.jboss.org/cgi-bin/viewvc.cgi/jbosscache/experimental/jsr166/ --exclude=http://eid-applet.googlecode.com/ --exclude=http://www.ecma-international.org/publications/files/ECMA-ST/Ecma%20PATENT/Patent%20statements%20ok/ECMA-376%20Edition%202%20Microsoft%20Patent%20Declaration.pdf --exclude=http://www.ecma-international.org/publications/files/ECMA-ST/Ecma%20PATENT/Patent%20statements%20ok/ECMA-376%20Adobe%20Patent%20Declaration.pdf --exclude=http://snapshot/ --exclude=http://www.darwinsys.com/file/ --exclude-mail "**/*.html" "**/*.md" "**/*.txt" "**/*.json"
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      - name: Fail if there were link errors
+        run: exit ${{ steps.lychee.outputs.exit_code }}

@@ -21,7 +21,7 @@ In general, you should define a few GC-related settings `-Xms8192M -Xmx8192M -XX
 
 #### Bulk indexing
 
-Download benchmark data from http://benchmarks.opensearch.org.s3.amazonaws.com/corpora/geonames and decompress them.
+Download benchmark data and decompress them.
 
 Example invocation:
 

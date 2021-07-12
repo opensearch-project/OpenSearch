@@ -1,7 +1,7 @@
 {
   "cat.example": {
     "documentation": {
-      "url": "https://www.opensearch.co/guide/en/opensearch/plugins/current/plugin-authors.html",
+      "url": "https://docs-beta.opensearch.org/opensearch/install/plugins/",
       "description": "Example"
     },
     "stability" : "stable",
