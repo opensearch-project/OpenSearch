@@ -174,17 +174,17 @@ public interface RestHandler {
     }
 
     /**
-     * Add customized prefix(_opendistro... and _plugins...)to API rest routes
+     * Replace deprecated route prefix with a new route prefix(_plugins)
      * @param routes routes
-     * @param newPrefix new prefix
-     * @param oldPrefix old prefix
-     * @return new list of API routes prefixed with the strings listed in prefixes
-     * Total number of routes will be expanded len(prefixes) as much comparing to the list passed in
+     * @param prefix new prefix
+     * @param deprecatedPrefix deprecated prefix
+     * @return new list of API routes prefixed with the prefix string
+     * Total number of routes will be the same as number of routes passed.
      */
-    static List<ReplacedRoute> addRoutesPrefix(List<Route> routes, final String newPrefix, final String oldPrefix){
+    static List<ReplacedRoute> replaceRoutes(List<Route> routes, final String prefix, final String deprecatedPrefix){
         return routes.stream()
-            .map(p -> new ReplacedRoute(p.getMethod(), newPrefix + p.getPath(),
-                p.getMethod(), oldPrefix + p.getPath()))
+            .map(r -> new ReplacedRoute(r.getMethod(), prefix + r.getPath(),
+                r.getMethod(), deprecatedPrefix + r.getPath()))
             .collect(Collectors.toList());
     }
 }
