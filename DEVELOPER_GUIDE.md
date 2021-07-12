@@ -11,7 +11,6 @@
     - [Visual Studio Code](#visual-studio-code)
     - [Eclipse](#eclipse)
   - [Project Layout](#project-layout)
-    - [`docs`](#docs)
     - [`distribution`](#distribution)
     - [`libs`](#libs)
     - [`modules`](#modules)
@@ -154,10 +153,6 @@ We would like to support Eclipse, but few of us use it and has fallen into disre
 
 This repository is split into many top level directories. The most important ones are:
 
-### `docs`
-
-Documentation for the project.
-
 ### `distribution`
 
 Builds our tar and zip archives and our rpm and deb packages.
@@ -175,7 +170,7 @@ For example, reindex requires the `connect` permission so it can perform reindex
 
 ### `plugins`
 
-Officially supported plugins to OpenSearch. We decide that a feature should be a plugin rather than shipped as a module because we feel that it is only important to a subset of users, especially if it requires extra dependencies.
+OpenSearch plugins. We decide that a feature should be a plugin rather than shipped as a module because we feel that it is only important to a subset of users, especially if it requires extra dependencies.
 
 The canonical example of this is the ICU analysis plugin. It is important for folks who want the fairly language neutral ICU analyzer but the library to implement the analyzer is 11MB so we don't ship it with OpenSearch by default.
 

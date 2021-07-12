@@ -362,7 +362,7 @@ public class IndexNameExpressionResolver {
         // trappy to hide throttled indices by default. In order to avoid breaking backward compatibility,
         // we changed it to look at the `index.frozen` setting instead, since frozen indices were the only
         // type of index to use the `search_throttled` threadpool at that time.
-        // NOTE: We can't reference the Setting object, which is only defined and registered in x-pack.
+        // NOTE: The Setting object was defined in an external plugin prior to OpenSearch fork.
         return (context.options.ignoreThrottled() && metadata.getSettings().getAsBoolean("index.frozen", false)) == false;
     }
 

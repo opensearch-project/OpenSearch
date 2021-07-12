@@ -40,7 +40,7 @@ apply from : "$rootDir/gradle/bwc-test.gradle"
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   if (bwcVersion.before('6.3.0')) {
     // explicitly running restart on the current node does not work in step 2
-    // below when plugins are installed, wihch is the case for x-pack as a plugin
+    // below when plugins are installed, which is the case for some plugins
     // prior to 6.3.0
     continue
   }

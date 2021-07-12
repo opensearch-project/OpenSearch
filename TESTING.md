@@ -34,7 +34,6 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
 - [Test coverage analysis](#test-coverage-analysis)
 - [Building with extra plugins](#building-with-extra-plugins)
 - [Environment misc](#environment-misc)
-- [Benchmarking](#benchmarking)
 
 # Requirements
 
@@ -42,7 +41,7 @@ You will need the following pieces of software to run these tests:
 
 - Docker & Docker Compose
 - Vagrant
-- JDK 14
+- JDK 11
 - Gradle
 
 # Creating packages
@@ -372,13 +371,13 @@ A specific version can be tested as well. For example, to test bwc with version 
 
     ./gradlew v5.3.2#bwcTest
 
-Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
+Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example to test a rolling upgrade from 7.7.0:
 
-    ./gradlew :x-pack:qa:rolling-upgrade:v7.7.0#bwcTest \
-     -Dtests.class=org.opensearch.upgrades.UpgradeClusterClientYamlTestSuiteIT \
-     -Dtests.method="test {p0=*/40_ml_datafeed_crud/*}"
+    ./gradlew :qa:rolling-upgrade:v7.7.0#bwcTest \
+     -Dtests.class=org.opensearch.upgrades.RecoveryIT \
+     -Dtests.method=testHistoryUUIDIsGenerated
 
-Tests are run for versions that are not yet released but with which the current version will be compatible with. These are automatically checked out and built from source. See [VersionCollection](./buildSrc/src/main/java/org/opensearch/gradle/VersionCollection.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
+Tests are run for versions that are not yet released but with which the current version will be compatible with. These are automatically checked out and built from source. See [BwcVersions](./buildSrc/src/main/java/org/opensearch/gradle/BwcVersions.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
 
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
 
@@ -424,7 +423,7 @@ In short, most new functionality should come with unit tests, and optionally RES
 
 ### Refactor code to make it easier to test
 
-Unfortunately, a large part of our code base is still hard to unit test. Sometimes because some classes have lots of dependencies that make them hard to instantiate. Sometimes because API contracts make tests hard to write. Code refactors that make functionality easier to unit test are encouraged. If this sounds very abstract to you, you can have a look at [this pull request](https://github.com/elastic/elasticsearch/pull/16610) for instance, which is a good example. It refactors `IndicesRequestCache` in such a way that: - it no longer depends on objects that are hard to instantiate such as `IndexShard` or `SearchContext`, - time-based eviction is applied on top of the cache rather than internally, which makes it easier to assert on what the cache is expected to contain at a given time.
+Unfortunately, a large part of our code base is still hard to unit test. Sometimes because some classes have lots of dependencies that make them hard to instantiate. Sometimes because API contracts make tests hard to write. Code refactors that make functionality easier to unit test are encouraged.
 
 ## Bad practices
 
@@ -442,13 +441,11 @@ Multi-threaded tests are often not reproducible due to the fact that there is no
 
 Generating test coverage reports for OpenSearch is currently not possible through Gradle. However, it *is* possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
 
-Test coverage reporting used to be possible with JaCoCo when OpenSearch was using Maven as its build system. Since the switch to Gradle though, this is no longer possible, seeing as the code currently used to build OpenSearch does not allow JaCoCo to recognize its tests. For more information on this, see the discussion in [issue #28867](https://github.com/elastic/elasticsearch/issues/28867).
-
-Read your IDE documentation for how to attach a debugger to a JVM process.
+Please read your IDE documentation for how to attach a debugger to a JVM process.
 
 # Building with extra plugins
 
-Additional plugins may be built alongside OpenSearch, where their dependency on OpenSearch will be substituted with the local OpenSearch build. To add your plugin, create a directory called opensearch-extra as a sibling of OpenSearch. Checkout your plugin underneath opensearch-extra and the build will automatically pick it up. You can verify the plugin is included as part of the build by checking the projects of the build.
+Additional plugins may be built alongside OpenSearch, where their dependency on OpenSearch will be substituted with the local OpenSearch build. To add your plugin, create a directory called `opensearch-extra` as a sibling of OpenSearch. Checkout your plugin underneath `opensearch-extra` and the build will automatically pick it up. You can verify the plugin is included as part of the build by checking the projects of the build.
 
     ./gradlew projects
 
@@ -459,7 +456,3 @@ There is a known issue with macOS localhost resolve strategy that can cause some
     127.0.0.1       localhost OpenSearchMBP.local
     255.255.255.255 broadcasthost
     ::1             localhost OpenSearchMBP.local`
-
-# Benchmarking
-
-For changes that might affect the performance characteristics of OpenSearch you should also run macrobenchmarks. There is also a macrobenchmarking tool called [Rally](https://github.com/elastic/rally) which you can use to measure the performance impact. To get started, please see [Rally’s documentation](https://esrally.readthedocs.io/en/stable/).
