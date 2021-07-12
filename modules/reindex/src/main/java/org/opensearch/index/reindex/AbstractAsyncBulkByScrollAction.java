@@ -114,7 +114,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     protected final ThreadPool threadPool;
     protected final ScriptService scriptService;
     protected final ReindexSslConfig sslConfig;
-    protected Optional<HttpRequestInterceptor> interceptor;
+    protected final Optional<HttpRequestInterceptor> interceptor;
 
     /**
      * The request for this action. Named mainRequest because we create lots of <code>request</code> variables all representing child
@@ -139,9 +139,18 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private int lastBatchSize;
 
     AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
+        boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
+        ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
+        @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig) {
+        this(task, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, logger, client,
+            threadPool, mainRequest, listener, scriptService, sslConfig, Optional.empty());
+    }
+
+    AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
                                     boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
-                                    @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig) {
+                                    @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig,
+                                    Optional<HttpRequestInterceptor> interceptor) {
         this.task = task;
         this.scriptService = scriptService;
         this.sslConfig = sslConfig;
@@ -155,7 +164,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
         this.listener = listener;
-        this.interceptor = Optional.empty();
+        this.interceptor = interceptor;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         scrollSource = buildScrollableResultSource(backoffPolicy);
