@@ -164,6 +164,10 @@ public interface RestHandler {
             this.deprecatedPath = deprecatedPath;
         }
 
+        public ReplacedRoute(Route route, String prefix, String deprecatedPrefix) {
+            this(route.getMethod(), prefix + route.getPath(), route.getMethod(), deprecatedPrefix + route.getPath());
+        }
+
         public String getDeprecatedPath() {
             return deprecatedPath;
         }
@@ -174,17 +178,15 @@ public interface RestHandler {
     }
 
     /**
-     * Replace deprecated route prefix with a new route prefix(_plugins)
+     * Construct replaced routes using routes template and prefixes for new and deprecated paths
      * @param routes routes
      * @param prefix new prefix
      * @param deprecatedPrefix deprecated prefix
      * @return new list of API routes prefixed with the prefix string
-     * Total number of routes will be the same as number of routes passed.
      */
     static List<ReplacedRoute> replaceRoutes(List<Route> routes, final String prefix, final String deprecatedPrefix){
         return routes.stream()
-            .map(r -> new ReplacedRoute(r.getMethod(), prefix + r.getPath(),
-                r.getMethod(), deprecatedPrefix + r.getPath()))
+            .map(route -> new ReplacedRoute(route, prefix, deprecatedPrefix))
             .collect(Collectors.toList());
     }
 }
