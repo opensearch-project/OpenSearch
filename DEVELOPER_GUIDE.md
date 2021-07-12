@@ -2,32 +2,39 @@
 
 So you want to contribute code to OpenSearch? Excellent! We're glad you're here. Here's what you need to do.
 
-- [Getting Started](#getting-started)
+- [Developer Guide](#developer-guide)
+  - [Getting Started](#getting-started)
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
+      - [JDK 14](#jdk-14)
+      - [Docker](#docker)
     - [Run Tests](#run-tests)
     - [Run OpenSearch](#run-opensearch)
-- [Use an Editor](#use-an-editor)
+  - [Use an Editor](#use-an-editor)
     - [IntelliJ IDEA](#intellij-idea)
     - [Visual Studio Code](#visual-studio-code)
     - [Eclipse](#eclipse)
-- [Project Layout](#project-layout)
-    - [docs](#docs)
-    - [distribution](#distribution)
-    - [libs](#libs)
-    - [modules](#modules)
-    - [plugins](#plugins)
-    - [qa](#qa)
-    - [server](#server)
-    - [test](#test)
-- [Java Language Formatting Guidelines](#java-language-formatting-guidelines)
+  - [Project Layout](#project-layout)
+    - [`distribution`](#distribution)
+    - [`libs`](#libs)
+    - [`modules`](#modules)
+    - [`plugins`](#plugins)
+    - [`qa`](#qa)
+    - [`server`](#server)
+    - [`test`](#test)
+  - [Java Language Formatting Guidelines](#java-language-formatting-guidelines)
     - [Editor / IDE Support](#editor--ide-support)
     - [Formatting Failures](#formatting-failures)
-- [Gradle Build](#gradle-build)
+  - [Gradle Build](#gradle-build)
     - [Configurations](#configurations)
-- [Misc](#misc)
+      - [implementation](#implementation)
+      - [api](#api)
+      - [runtimeOnly](#runtimeonly)
+      - [compileOnly](#compileonly)
+      - [testImplementation](#testimplementation)
+  - [Misc](#misc)
     - [git-secrets](#git-secrets)
-- [Submitting Changes](#submitting-changes)
+  - [Submitting Changes](#submitting-changes)
 
 ## Getting Started
 
@@ -156,10 +163,6 @@ We would like to support Eclipse, but few of us use it and has fallen into disre
 
 This repository is split into many top level directories. The most important ones are:
 
-### `docs`
-
-Documentation for the project.
-
 ### `distribution`
 
 Builds our tar and zip archives and our rpm and deb packages.
@@ -177,7 +180,7 @@ For example, reindex requires the `connect` permission so it can perform reindex
 
 ### `plugins`
 
-Officially supported plugins to OpenSearch. We decide that a feature should be a plugin rather than shipped as a module because we feel that it is only important to a subset of users, especially if it requires extra dependencies.
+OpenSearch plugins. We decide that a feature should be a plugin rather than shipped as a module because we feel that it is only important to a subset of users, especially if it requires extra dependencies.
 
 The canonical example of this is the ICU analysis plugin. It is important for folks who want the fairly language neutral ICU analyzer but the library to implement the analyzer is 11MB so we don't ship it with OpenSearch by default.
 
