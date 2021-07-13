@@ -158,16 +158,36 @@ public interface RestHandler {
         private final String deprecatedPath;
         private final Method deprecatedMethod;
 
+        /**
+         * Construct replaced routes using new and deprocated methods and new and deprecated paths
+         * @param method route method
+         * @param path new route path
+         * @param deprecatedMethod deprecated method
+         * @param deprecatedPath deprecated path
+         */
         public ReplacedRoute(Method method, String path, Method deprecatedMethod, String deprecatedPath) {
             super(method, path);
             this.deprecatedMethod = deprecatedMethod;
             this.deprecatedPath = deprecatedPath;
         }
 
-        public ReplacedRoute(Method method, String path, String deprecatedPath){
+        /**
+         * Construct replaced routes using route method, new and deprecated paths
+         * This constructor can be used when both new and deprecated paths use the same method
+         * @param method route method
+         * @param path new route path
+         * @param deprecatedPath deprecated path
+         */
+        public ReplacedRoute(Method method, String path, String deprecatedPath) {
             this(method, path, method, deprecatedPath);
         }
 
+        /**
+         * Construct replaced routes using route, new and deprecated prefixes
+         * @param route route
+         * @param prefix new route prefix
+         * @param deprecatedPrefix deprecated prefix
+         */
         public ReplacedRoute(Route route, String prefix, String deprecatedPrefix) {
             this(route.getMethod(), prefix + route.getPath(), deprecatedPrefix + route.getPath());
         }
