@@ -13,7 +13,7 @@
 ## Project Resources
 
 * [Project Website](https://opensearch.org/)
-* [Downloads](https://opensearch.org/downloads.html).
+* [Downloads](https://opensearch.org/downloads.html)
 * [Documentation](https://docs-beta.opensearch.org/)
 * Need help? Try [Forums](https://discuss.opendistrocommunity.dev/)
 * [Project Principles](https://opensearch.org/#principles)
