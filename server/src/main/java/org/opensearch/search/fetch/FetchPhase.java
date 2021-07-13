@@ -108,7 +108,7 @@ public class FetchPhase {
         }
 
         if (context.isCancelled()) {
-            throw new TaskCancelledException("cancelled");
+            throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
         }
 
         if (context.docIdsToLoadSize() == 0) {
@@ -140,7 +140,7 @@ public class FetchPhase {
         boolean hasSequentialDocs = hasSequentialDocs(docs);
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             if (context.isCancelled()) {
-                throw new TaskCancelledException("cancelled");
+                throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
             }
             int docId = docs[index].docId;
             try {
@@ -181,7 +181,7 @@ public class FetchPhase {
             }
         }
         if (context.isCancelled()) {
-            throw new TaskCancelledException("cancelled");
+            throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
         }
 
         TotalHits totalHits = context.queryResult().getTotalHits();
