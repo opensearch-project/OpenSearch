@@ -878,7 +878,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path pluginDir = createPluginDir(temp);
         String pluginZip = createPluginUrl("fake", pluginDir, "folderName", "fake-folder");
         installPlugin(pluginZip, env.v1());
-        assertPlugin("fake", pluginDir, env.v2());
+        assertPlugin("fake-folder", pluginDir, env.v2());
     }
 
     private void installPlugin(MockTerminal terminal, boolean isBatch) throws Exception {

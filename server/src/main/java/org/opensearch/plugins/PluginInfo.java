@@ -150,7 +150,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeString(classname);
         if (out.getVersion().after(Version.V_1_0_0)) {
-            out.writeString(folderName);
+            if (folderName != null) {
+                out.writeString(folderName);
+            } else {
+                out.writeString(name);
+            }
         }
         if (out.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
             out.writeStringCollection(extendedPlugins);

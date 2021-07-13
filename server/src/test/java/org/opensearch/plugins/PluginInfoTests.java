@@ -76,7 +76,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
-            "opensearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.V_1_0_0.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin",
             "folderName", "custom-folder");
@@ -95,7 +95,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "description", "fake desc",
             "name", "my_plugin",
             "version", "1.0",
-            "opensearch.version", Version.fromString("1.1.0").toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin",
             "folderName", "custom-folder");
