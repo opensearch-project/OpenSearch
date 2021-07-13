@@ -4,10 +4,16 @@ Contributing to OpenSearch
 OpenSearch is a community project that is built and maintained by people just like **you**.  We're glad you're interested in helping out.  There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
 
 ## Table of Contents:
-- [First Things First](#first-things-first)
-- [Ways to Contribute](#ways-to-contribute)
-- [Developer Certificate of Origin](#developer-certificate-of-origin)
-- [Review Process](#review-process)
+- [Contributing to OpenSearch](#contributing-to-opensearch)
+  - [Table of Contents:](#table-of-contents)
+  - [First Things First](#first-things-first)
+  - [Ways to Contribute](#ways-to-contribute)
+    - [Bug Reports](#bug-reports)
+    - [Feature Requests](#feature-requests)
+    - [Documentation Changes](#documentation-changes)
+    - [Contributing Code](#contributing-code)
+  - [Developer Certificate of Origin](#developer-certificate-of-origin)
+  - [Review Process](#review-process)
 
 
 ## First Things First
@@ -52,7 +58,7 @@ If you've thought of a way that OpenSearch could be better, we want to hear abou
 
 ### Documentation Changes
 
-If you would like to contribute to the documentation, please see [OpenSearch Docs repo](https://github.com/opensearch-project/documentation-website/blob/main/README.md).
+If you would like to contribute to the documentation, please do so in the [documentation-website](https://github.com/opensearch-project/documentation-website) repo. To contribute javadocs, please first check [OpenSearch#221](https://github.com/opensearch-project/OpenSearch/issues/221).
 
 ### Contributing Code
 
