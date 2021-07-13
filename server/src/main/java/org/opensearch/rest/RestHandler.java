@@ -164,8 +164,12 @@ public interface RestHandler {
             this.deprecatedPath = deprecatedPath;
         }
 
+        public ReplacedRoute(Method method, String path, String deprecatedPath){
+            this(method, path, method, deprecatedPath);
+        }
+
         public ReplacedRoute(Route route, String prefix, String deprecatedPrefix) {
-            this(route.getMethod(), prefix + route.getPath(), route.getMethod(), deprecatedPrefix + route.getPath());
+            this(route.getMethod(), prefix + route.getPath(), deprecatedPrefix + route.getPath());
         }
 
         public String getDeprecatedPath() {
