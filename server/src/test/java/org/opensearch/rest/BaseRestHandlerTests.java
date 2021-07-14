@@ -49,7 +49,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -87,11 +86,6 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             public String getName() {
                 return "test_one_unconsumed_response_action";
             }
-
-            @Override
-            public List<Route> routes() {
-                return Collections.emptyList();
-            }
         };
 
         final HashMap<String, String> params = new HashMap<>();
@@ -117,11 +111,6 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             @Override
             public String getName() {
                 return "test_multiple_unconsumed_response_action";
-            }
-
-            @Override
-            public List<Route> routes() {
-                return Collections.emptyList();
             }
         };
 
@@ -158,11 +147,6 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             @Override
             public String getName() {
                 return "test_unconsumed_did_you_mean_response_action";
-            }
-
-            @Override
-            public List<Route> routes() {
-                return Collections.emptyList();
             }
         };
 
@@ -207,11 +191,6 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             public String getName() {
                 return "test_unconsumed_response_action";
             }
-
-            @Override
-            public List<Route> routes() {
-                return Collections.emptyList();
-            }
         };
 
         final HashMap<String, String> params = new HashMap<>();
@@ -234,11 +213,6 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             @Override
             public String getName() {
                 return "test_default_response_action";
-            }
-
-            @Override
-            public List<Route> routes() {
-                return Collections.emptyList();
             }
         };
 
@@ -275,11 +249,6 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             public String getName() {
                 return "test_cat_response_action";
             }
-
-            @Override
-            public List<Route> routes() {
-                return Collections.emptyList();
-            }
         };
 
         final HashMap<String, String> params = new HashMap<>();
@@ -310,11 +279,6 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             public String getName() {
                 return "test_consumed_body";
             }
-
-            @Override
-            public List<Route> routes() {
-                return Collections.emptyList();
-            }
         };
 
         try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
@@ -339,11 +303,6 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             public String getName() {
                 return "test_unconsumed_body";
             }
-
-            @Override
-            public List<Route> routes() {
-                return Collections.emptyList();
-            }
         };
 
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
@@ -363,11 +322,6 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             @Override
             public String getName() {
                 return "test_unconsumed_body";
-            }
-
-            @Override
-            public List<Route> routes() {
-                return Collections.emptyList();
             }
         };
 
