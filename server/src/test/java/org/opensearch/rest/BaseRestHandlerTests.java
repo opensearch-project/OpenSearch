@@ -344,11 +344,13 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
     }
 
     public void testReplaceRoutesMethod() throws Exception {
-        List<Route> routes = Arrays.asList(new RestHandler.Route(Method.GET, "/path/test"));
+        List<Route> routes = Arrays.asList(new RestHandler.Route(Method.GET, "/path/test"),
+            new RestHandler.Route(Method.GET, "/path2/test"));
         List<ReplacedRoute> replacedRoutes = RestHandler.replaceRoutes(routes, "/prefix", "/deprecatedPrefix");
-        List<ReplacedRoute> expectedReplacedRoutes = Arrays.asList(new RestHandler.ReplacedRoute(Method.GET,
-            "/prefix/path/test", "/deprecatedPrefix/path/test"));
-        assertEquals(replacedRoutes, expectedReplacedRoutes);
+
+        for(int i = 0; i < routes.size(); i++) {
+            assertEquals(replacedRoutes.get(i).getPath(), "/prefix" + routes.get(i).getPath());
+        }
     }
 
 }
