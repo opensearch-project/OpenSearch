@@ -198,7 +198,7 @@ public class ShardIndexingPressureTracker {
      */
     public static class PerformanceTracker {
         private final AtomicLong latencyInMillis = new AtomicLong();
-        private final AtomicLong lastSuccessfulRequestTimestamp = new AtomicLong();
+        private volatile long lastSuccessfulRequestTimestamp = 0;
         private final AtomicLong totalOutstandingRequests = new AtomicLong();
         /**
          * Shard Window Throughput Tracker.
@@ -217,11 +217,11 @@ public class ShardIndexingPressureTracker {
         }
 
         public long getLastSuccessfulRequestTimestamp() {
-            return lastSuccessfulRequestTimestamp.get();
+            return lastSuccessfulRequestTimestamp;
         }
 
-        public long updateLastSuccessfulRequestTimestamp(long timeStamp) {
-            return lastSuccessfulRequestTimestamp.getAndSet(timeStamp);
+        public void updateLastSuccessfulRequestTimestamp(long timeStamp) {
+            lastSuccessfulRequestTimestamp = timeStamp;
         }
 
         public long getTotalOutstandingRequests() {

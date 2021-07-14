@@ -57,7 +57,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
     public void testCoordinatingPrimaryShardLimitsNotBreached() {
         ShardIndexingPressureTracker tracker = memoryManager.getShardIndexingPressureTracker(shardId1);
         tracker.getCommonOperationTracker().incrementCurrentCombinedCoordinatingAndPrimaryBytes(1);
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker, 1 * 1024, requestStartTime));
         assertFalse(memoryManager.isPrimaryShardLimitBreached(tracker,  1 * 1024, requestStartTime));
@@ -66,7 +66,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
     public void testReplicaShardLimitsNotBreached() {
         ShardIndexingPressureTracker tracker = memoryManager.getShardIndexingPressureTracker(shardId1);
         tracker.getReplicaOperationTracker().getStatsTracker().incrementCurrentBytes(1);
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         assertFalse(memoryManager.isReplicaShardLimitBreached(tracker, 1 * 1024, requestStartTime));
     }
@@ -75,7 +75,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureTracker tracker = memoryManager.getShardIndexingPressureTracker(shardId1);
         tracker.getCommonOperationTracker().incrementCurrentCombinedCoordinatingAndPrimaryBytes(10);
         long baseLimit = tracker.getPrimaryAndCoordinatingLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker, 1 * 1024, requestStartTime));
         assertFalse(memoryManager.isPrimaryShardLimitBreached(tracker, 1 * 1024, requestStartTime));
@@ -88,7 +88,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         ShardIndexingPressureTracker tracker = memoryManager.getShardIndexingPressureTracker(shardId1);
         tracker.getReplicaOperationTracker().getStatsTracker().incrementCurrentBytes(15);
         long baseLimit = tracker.getReplicaLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         assertFalse(memoryManager.isReplicaShardLimitBreached(tracker, 1 * 1024, requestStartTime));
         assertTrue(tracker.getReplicaLimits() > baseLimit);
@@ -102,7 +102,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetPrimaryAndCoordinatingLimits(tracker2.getPrimaryAndCoordinatingLimits(), 6 * 1024);
         long limit1 = tracker1.getPrimaryAndCoordinatingLimits();
         long limit2 = tracker2.getPrimaryAndCoordinatingLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, 8 * 1024, requestStartTime));
         assertEquals(1, tracker1.getCoordinatingOperationTracker().getRejectionTracker().getNodeLimitsBreachedRejections());
@@ -124,7 +124,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetReplicaLimits(tracker2.getReplicaLimits(), 10 * 1024);
         long limit1 = tracker1.getReplicaLimits();
         long limit2 = tracker2.getReplicaLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         assertTrue(memoryManager.isReplicaShardLimitBreached(tracker1, 10 * 1024, requestStartTime));
         assertEquals(limit1, tracker1.getReplicaLimits());
@@ -141,7 +141,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetPrimaryAndCoordinatingLimits(tracker2.getPrimaryAndCoordinatingLimits(), 6 * 1024);
         long limit1 = tracker1.getPrimaryAndCoordinatingLimits();
         long limit2 = tracker2.getPrimaryAndCoordinatingLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, 8 * 1024, requestStartTime));
         assertEquals(1, tracker1.getCoordinatingOperationTracker().getRejectionTracker().getNodeLimitsBreachedRejections());
@@ -163,7 +163,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetReplicaLimits(tracker2.getReplicaLimits(), 12 * 1024);
         long limit1 = tracker1.getReplicaLimits();
         long limit2 = tracker2.getReplicaLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         assertTrue(memoryManager.isReplicaShardLimitBreached(tracker1,  12 * 1024, requestStartTime));
         assertEquals(limit1, tracker1.getReplicaLimits());
@@ -180,7 +180,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetPrimaryAndCoordinatingLimits(tracker2.getPrimaryAndCoordinatingLimits(), 6 * 1024);
         long limit1 = tracker1.getPrimaryAndCoordinatingLimits();
         long limit2 = tracker2.getPrimaryAndCoordinatingLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().updateLastSuccessfulRequestTimestamp(requestStartTime - 100);
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
@@ -214,7 +214,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetReplicaLimits(tracker2.getReplicaLimits(), 12 * 1024);
         long limit1 = tracker1.getReplicaLimits();
         long limit2 = tracker2.getReplicaLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
         tracker1.getReplicaOperationTracker().getPerformanceTracker().updateLastSuccessfulRequestTimestamp(requestStartTime - 100);
         tracker1.getReplicaOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
         tracker1.getReplicaOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
@@ -236,7 +236,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetPrimaryAndCoordinatingLimits(tracker2.getPrimaryAndCoordinatingLimits(), 6 * 1024);
         long limit1 = tracker1.getPrimaryAndCoordinatingLimits();
         long limit2 = tracker2.getPrimaryAndCoordinatingLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().updateLastSuccessfulRequestTimestamp(requestStartTime - 100);
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
@@ -269,7 +269,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetReplicaLimits(tracker2.getReplicaLimits(), 12 * 1024);
         long limit1 = tracker1.getReplicaLimits();
         long limit2 = tracker2.getReplicaLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
         tracker1.getReplicaOperationTracker().getPerformanceTracker().updateLastSuccessfulRequestTimestamp(requestStartTime - 100);
         tracker1.getReplicaOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
 
@@ -291,7 +291,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetPrimaryAndCoordinatingLimits(tracker2.getPrimaryAndCoordinatingLimits(), 6 * 1024);
         long limit1 = tracker1.getPrimaryAndCoordinatingLimits();
         long limit2 = tracker2.getPrimaryAndCoordinatingLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().updateThroughputMovingAverage(Double.doubleToLongBits(1d));
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
@@ -333,7 +333,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetReplicaLimits(tracker2.getReplicaLimits(), 12 * 1024);
         long limit1 = tracker1.getReplicaLimits();
         long limit2 = tracker2.getReplicaLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
         tracker1.getReplicaOperationTracker().getPerformanceTracker().updateThroughputMovingAverage(Double.doubleToLongBits(1d));
         tracker1.getReplicaOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
         tracker1.getReplicaOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
@@ -359,7 +359,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetPrimaryAndCoordinatingLimits(tracker2.getPrimaryAndCoordinatingLimits(), 6 * 1024);
         long limit1 = tracker1.getPrimaryAndCoordinatingLimits();
         long limit2 = tracker2.getPrimaryAndCoordinatingLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().updateThroughputMovingAverage
             (Double.doubleToLongBits(1d));
@@ -403,7 +403,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetReplicaLimits(tracker2.getReplicaLimits(), 12 * 1024);
         long limit1 = tracker1.getReplicaLimits();
         long limit2 = tracker2.getReplicaLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
         tracker1.getReplicaOperationTracker().getPerformanceTracker().updateThroughputMovingAverage(Double.doubleToLongBits(1d));
         tracker1.getReplicaOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
         tracker1.getReplicaOperationTracker().getStatsTracker().incrementTotalBytes(80);
@@ -429,7 +429,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetPrimaryAndCoordinatingLimits(tracker2.getPrimaryAndCoordinatingLimits(), 6 * 1024);
         long limit1 = tracker1.getPrimaryAndCoordinatingLimits();
         long limit2 = tracker2.getPrimaryAndCoordinatingLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
 
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().updateThroughputMovingAverage(Double.doubleToLongBits(1d));
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
@@ -463,7 +463,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         tracker2.compareAndSetReplicaLimits(tracker2.getReplicaLimits(), 12 * 1024);
         long limit1 = tracker1.getReplicaLimits();
         long limit2 = tracker2.getReplicaLimits();
-        long requestStartTime = System.currentTimeMillis();
+        long requestStartTime = System.nanoTime();
         tracker1.getReplicaOperationTracker().getPerformanceTracker().updateThroughputMovingAverage(Double.doubleToLongBits(1d));
         tracker1.getReplicaOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
         tracker1.getReplicaOperationTracker().getStatsTracker().incrementTotalBytes(80);

@@ -15,6 +15,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.ShardIndexingPressureTracker.OperationTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.PerformanceTracker;
+import org.opensearch.index.ShardIndexingPressureTracker.RejectionTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.StatsTracker;
 import org.opensearch.index.shard.ShardId;
 
@@ -155,9 +156,7 @@ public class ShardIndexingPressureMemoryManager {
             logger.debug("Node limits breached for coordinating operation [node_total_bytes={} , " +
                     "node_primary_and_coordinating_limits={}]", nodeTotalBytes,
                 this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits());
-            tracker.getCoordinatingOperationTracker().getRejectionTracker().incrementNodeLimitsBreachedRejections();
-            this.totalNodeLimitsBreachedRejections.incrementAndGet();
-
+            incrementNodeLimitBreachedRejectionCount(tracker.getCoordinatingOperationTracker().getRejectionTracker());
             return true;
         }
         return false;
@@ -195,9 +194,7 @@ public class ShardIndexingPressureMemoryManager {
             logger.debug("Node limits breached for primary operation [node_total_bytes={}, " +
                     "node_primary_and_coordinating_limits={}]", nodeTotalBytes,
                 this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits());
-            tracker.getPrimaryOperationTracker().getRejectionTracker().incrementNodeLimitsBreachedRejections();
-            this.totalNodeLimitsBreachedRejections.incrementAndGet();
-
+            incrementNodeLimitBreachedRejectionCount(tracker.getPrimaryOperationTracker().getRejectionTracker());
             return true;
         }
         return false;
@@ -234,9 +231,7 @@ public class ShardIndexingPressureMemoryManager {
         if(nodeReplicaBytes > this.shardIndexingPressureSettings.getNodeReplicaLimits()) {
             logger.debug("Node limits breached for replica operation [node_replica_bytes={} , " +
                 "node_replica_limits={}]", nodeReplicaBytes, this.shardIndexingPressureSettings.getNodeReplicaLimits());
-            tracker.getReplicaOperationTracker().getRejectionTracker().incrementNodeLimitsBreachedRejections();
-            this.totalNodeLimitsBreachedRejections.incrementAndGet();
-
+            incrementNodeLimitBreachedRejectionCount(tracker.getReplicaOperationTracker().getRejectionTracker());
             return true;
         }
         return false;
@@ -310,8 +305,7 @@ public class ShardIndexingPressureMemoryManager {
         if(((double)nodeTotalBytes / nodeLimit) < this.nodeSoftLimit) {
             boolean isShardLimitsIncreased = increaseShardLimitSupplier.getAsBoolean();
             if (isShardLimitsIncreased == false) {
-                operationTracker.getRejectionTracker().incrementNodeLimitsBreachedRejections();
-                this.totalNodeLimitsBreachedRejections.incrementAndGet();
+                incrementNodeLimitBreachedRejectionCount(operationTracker.getRejectionTracker());
             }
             return !isShardLimitsIncreased;
         } else {
@@ -336,8 +330,7 @@ public class ShardIndexingPressureMemoryManager {
 
             boolean isShardLimitsIncreased = increaseShardLimitSupplier.getAsBoolean();
             if (isShardLimitsIncreased == false) {
-                operationTracker.getRejectionTracker().incrementNodeLimitsBreachedRejections();
-                this.totalNodeLimitsBreachedRejections.incrementAndGet();
+                incrementNodeLimitBreachedRejectionCount(operationTracker.getRejectionTracker());
             }
             return !isShardLimitsIncreased;
         }
@@ -454,5 +447,10 @@ public class ShardIndexingPressureMemoryManager {
 
     private void setNodeSoftLimit(double nodeSoftLimit) {
         this.nodeSoftLimit = nodeSoftLimit;
+    }
+
+    private void incrementNodeLimitBreachedRejectionCount(RejectionTracker rejectionTracker) {
+        rejectionTracker.incrementNodeLimitsBreachedRejections();
+        this.totalNodeLimitsBreachedRejections.incrementAndGet();
     }
 }
