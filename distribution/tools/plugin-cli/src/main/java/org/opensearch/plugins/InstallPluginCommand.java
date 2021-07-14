@@ -773,31 +773,22 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     // checking for existing version of the plugin
-    private void verifyPluginName(Path pluginPath, String pluginName, String pluginFolderName) throws UserException, IOException {
+    private void verifyPluginName(Path pluginPath, String pluginName) throws UserException, IOException {
         // don't let user install plugin conflicting with module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(pluginName)) {
             throw new UserException(ExitCodes.USAGE, "plugin '" + pluginName + "' cannot be installed as a plugin, it is a system module");
         }
 
-        Path destination = pluginPath.resolve(pluginName);
+        // scan all the installed plugins to see if the plugin being installed already exists
+        // either with the plugin name or a custom folder name
+        Path destination = PluginHelper.verifyIfPluginExists(pluginPath, pluginName);
         if (Files.exists(destination)) {
             final String message = String.format(
                 Locale.ROOT,
                 "plugin directory [%s] already exists; if you need to update the plugin, " + "uninstall it first using command 'remove %s'",
                 destination,
                 pluginName
-            );
-            throw new UserException(PLUGIN_EXISTS, message);
-        }
-
-        destination = pluginPath.resolve(pluginFolderName);
-        if (Files.exists(destination)) {
-            final String message = String.format(
-                Locale.ROOT,
-                "plugin directory [%s] already exists; if you need to update the plugin, " + "uninstall it first using command 'remove %s'",
-                destination,
-                pluginFolderName
             );
             throw new UserException(PLUGIN_EXISTS, message);
         }
@@ -812,7 +803,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         PluginsService.verifyCompatibility(info);
 
         // checking for existing version of the plugin
-        verifyPluginName(env.pluginsFile(), info.getName(), info.getTargetFolderName());
+        verifyPluginName(env.pluginsFile(), info.getName());
 
         PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
 
