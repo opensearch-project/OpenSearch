@@ -282,6 +282,18 @@ public class ShardIndexingPressureMemoryManager {
         return shardIndexingPressureStore.getShardIndexingPressureTracker(shardId);
     }
 
+    Map<ShardId, ShardIndexingPressureTracker> getShardIndexingPressureHotStore() {
+        return shardIndexingPressureStore.getShardIndexingPressureHotStore();
+    }
+
+    Map<ShardId, ShardIndexingPressureTracker> getShardIndexingPressureColdStore() {
+        return shardIndexingPressureStore.getShardIndexingPressureColdStore();
+    }
+
+    void tryTrackerCleanupFromHotStore(ShardIndexingPressureTracker tracker, BooleanSupplier condition) {
+        shardIndexingPressureStore.tryTrackerCleanupFromHotStore(tracker, condition);
+    }
+
     long getTotalNodeLimitsBreachedRejections() {
         return totalNodeLimitsBreachedRejections.get();
     }
