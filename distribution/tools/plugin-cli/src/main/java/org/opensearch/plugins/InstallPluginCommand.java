@@ -134,7 +134,7 @@ import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
  * opensearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
  */
-class InstallPluginCommand extends EnvironmentAwareCommand {
+public class InstallPluginCommand extends EnvironmentAwareCommand {
 
     private static final String PROPERTY_STAGING_ID = "opensearch.plugins.staging";
 
@@ -164,7 +164,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** The official plugins that can be installed simply by name. */
-    static final Set<String> OFFICIAL_PLUGINS;
+    public static final Set<String> OFFICIAL_PLUGINS;
     static {
         try (
             InputStream stream = InstallPluginCommand.class.getResourceAsStream("/plugins.txt");
@@ -212,7 +212,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         PLUGIN_FILES_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rw-r--r--"));
     }
 
-    InstallPluginCommand() {
+    public InstallPluginCommand() {
         super("Install a plugin");
         this.batchOption = parser.acceptsAll(
             Arrays.asList("b", "batch"),
