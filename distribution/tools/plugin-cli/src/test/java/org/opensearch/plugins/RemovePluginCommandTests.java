@@ -50,7 +50,9 @@ import java.io.StringReader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
@@ -90,34 +92,34 @@ public class RemovePluginCommandTests extends OpenSearchTestCase {
         env = TestEnvironment.newEnvironment(settings);
     }
 
-    void createPlugin(String name) throws IOException {
-        createPlugin(env.pluginsFile(), name);
+    void createPlugin(String name, String... additionalProps) throws IOException {
+        createPlugin(env.pluginsFile(), name, Version.CURRENT, additionalProps);
     }
 
     void createPlugin(String name, Version version) throws IOException {
         createPlugin(env.pluginsFile(), name, version);
     }
 
-    void createPlugin(Path path, String name) throws IOException {
-        createPlugin(path, name, Version.CURRENT);
-    }
-
-    void createPlugin(Path path, String name, Version version) throws IOException {
-        PluginTestUtil.writePluginProperties(
-            path.resolve(name),
-            "description",
-            "dummy",
-            "name",
-            name,
-            "version",
-            "1.0",
-            "opensearch.version",
-            version.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "classname",
-            "SomeClass"
-        );
+    void createPlugin(Path path, String name, Version version, String... additionalProps) throws IOException {
+        String[] properties = Stream.concat(
+            Stream.of(
+                "description",
+                "dummy",
+                "name",
+                name,
+                "version",
+                "1.0",
+                "opensearch.version",
+                version.toString(),
+                "java.version",
+                System.getProperty("java.specification.version"),
+                "classname",
+                "SomeClass"
+            ),
+            Arrays.stream(additionalProps)
+        ).toArray(String[]::new);
+        String pluginFolderName = additionalProps.length == 0 ? name : additionalProps[1];
+        PluginTestUtil.writePluginProperties(path.resolve(pluginFolderName), properties);
     }
 
     static MockTerminal removePlugin(String name, Path home, boolean purge) throws Exception {
@@ -150,6 +152,17 @@ public class RemovePluginCommandTests extends OpenSearchTestCase {
         createPlugin("other");
         removePlugin("fake", home, randomBoolean());
         assertFalse(Files.exists(env.pluginsFile().resolve("fake")));
+        assertTrue(Files.exists(env.pluginsFile().resolve("other")));
+        assertRemoveCleaned(env);
+    }
+
+    public void testRemovePluginWithCustomFolderName() throws Exception {
+        createPlugin("fake", "folderName", "custom-folder");
+        Files.createFile(env.pluginsFile().resolve("custom-folder").resolve("plugin.jar"));
+        Files.createDirectory(env.pluginsFile().resolve("custom-folder").resolve("subdir"));
+        createPlugin("other");
+        removePlugin("fake", home, randomBoolean());
+        assertFalse(Files.exists(env.pluginsFile().resolve("custom-folder")));
         assertTrue(Files.exists(env.pluginsFile().resolve("other")));
         assertRemoveCleaned(env);
     }

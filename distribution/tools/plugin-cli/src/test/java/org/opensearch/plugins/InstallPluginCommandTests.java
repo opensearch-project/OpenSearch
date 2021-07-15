@@ -576,6 +576,17 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assertInstallCleaned(env.v2());
     }
 
+    public void testExistingPluginWithCustomFolderName() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir, "folderName", "fake-folder");
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake-folder", pluginDir, env.v2());
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("already exists"));
+        assertInstallCleaned(env.v2());
+    }
+
     public void testBin() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
