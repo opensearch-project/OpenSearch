@@ -14,51 +14,38 @@ repositories {
 }
 
 jacoco {
-    toolVersion = "0.8.7"
+  toolVersion = "0.8.7"
 }
 
-task generateMergedReport(type: JacocoReport) {
-    //dependsOn = subprojects.test
-  //dependsOn(':server:test')
-//    subprojects.each {
-//      if (it.tasks.findByName('test'))
-//        dependsOn("${it.name}:test") }
-//  SourceSet[] allMainSourceSets = ([sourceSets.main] + subprojects*.sourceSets.main) as SourceSet[]
-//  sourceSets allMainSourceSets
-  doLast {
-//    subprojects.each {
-//      if(it.tasks.findByPath('test') && it.tasks.findByPath('test').enabled == true) {
-//        print it.sourceSets.main.allSource.srcDirs
-//      }
-//    }
+task jacocoMergedReport(type: JacocoReport, group: 'verification') {
+  description = 'Generates aggregate report from all subprojects.'
+  // def excludeFilter = ['distribution/bwc/minor/build']
+  // additionalSourceDirs.setFrom fileTree(dir: '.', include: '**/src/main/java/**/*.*')
+  // sourceDirectories.setFrom fileTree(dir: '.', include: '**/src/main/java/**/*.*')
+  // classDirectories.setFrom fileTree(dir: '.', include: '**/build/classes/java/main/**/*.class', exclude: excludeFilter)
+  executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/*.exec')
+  gradle.projectsEvaluated {
+    def selectedSubprojects = []
     subprojects.each {
-      if(it.tasks.findByPath('test') && it.tasks.findByPath('test').enabled == true && it.sourceSets.findByName("main")) {
-        //println it.sourceSets.main.output
-        //println project('server').sourceSets.main.output.classesDirs
+      if (it.tasks.findByPath('test') && it.tasks.findByPath('test').enabled == true && it.sourceSets.findByName("main")) {
+        selectedSubprojects.add(it)
       }
     }
+    additionalSourceDirs.setFrom files(selectedSubprojects.sourceSets.main.allSource.srcDirs)
+    sourceDirectories.setFrom files(selectedSubprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories.setFrom files(selectedSubprojects.sourceSets.main.output)
   }
-
-  def excludeFilter = ['distribution/bwc/minor/build']
-  classDirectories.setFrom fileTree(dir: '.', include: '**/build/classes/java/main/**/*.class', exclude: excludeFilter)
-  executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/test.exec')
-
-//    additionalSourceDirs.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
-//    sourceDirectories.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
-//    classDirectories.setFrom files(subprojects.sourceSets.main.output)
-//    executionData.setFrom project.fileTree(dir: '.', include: '**/build/jacoco/test.exec')
-    reports {
-      xml.enabled true
-      csv.enabled false
-      html.enabled true
-    }
+  reports {
+    xml.enabled true
+    html.enabled true
+  }
 }
 
-task jacocoGenerateRootReport(type: JacocoReport, group: 'Test Reporting') {
+task jacocoMergedReport2(type: JacocoReport, group: 'verification') {
   description = 'Generates aggregate report from all subprojects.'
 
-  def includeFilter = ['**/build/classes/java/**/*.class']
-  def excludeFilter = ['**/classes']
+  def includeFilter = ['**/build/classes/java/main/**/*.class']
+  def excludeFilter = ['distribution/bwc/minor/build']
   // classes which have duplicated names to overcome ` Can't add different class with same name issue` See https://github.com/jacoco/jacoco/issues/858
   def classTree = fileTree(dir: "${rootProject.projectDir}", includes: includeFilter, excludes: excludeFilter)
   def sourceTree = fileTree(dir: "${rootProject.projectDir}", includes: ['**/src/main/java/**/*.*'])
