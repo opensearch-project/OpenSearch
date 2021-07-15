@@ -38,15 +38,11 @@ task generateMergedReport(type: JacocoReport) {
       }
     }
   }
-  //additionalSourceDirs.setFrom files(project('server').sourceSets.main.allSource.srcDirs)
-  //sourceDirectories.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
-  //classDirectories.setFrom files('server/out/production/classes')
-//  classDirectories.setFrom files('server/build/classes/java/main')
-//  executionData.setFrom files('server/build/jacoco/test.exec')
-  classDirectories.setFrom fileTree(dir: '.', include: ['server/build/classes/java/main/**/*.class','client/**/build/classes/java/main/**/*.class'])//, exclude: '**/classes')
+
+  def excludeFilter = ['distribution/bwc/minor/build']
+  classDirectories.setFrom fileTree(dir: '.', include: '**/build/classes/java/main/**/*.class', exclude: excludeFilter)
   executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/test.exec')
 
-  //onlyIf = { true }
 //    additionalSourceDirs.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
 //    sourceDirectories.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
 //    classDirectories.setFrom files(subprojects.sourceSets.main.output)
