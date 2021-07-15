@@ -85,23 +85,23 @@ class BuildPlugin implements Plugin<Project> {
         configureLicenseAndNotice(project)
         project.pluginManager.apply('opensearch.publish')
         project.pluginManager.apply(DependenciesInfoPlugin)
-        project.pluginManager.apply('jacoco')
+        if (project.tasks.findByName('test').enabled == true) {
+            project.pluginManager.apply('jacoco')
+            configureCodeCoverage(project)
+        }
 
         PrecommitTasks.create(project, true)
-        configureCodeCoverage(project)
     }
 
     static void configureCodeCoverage(Project project) {
         JacocoPluginExtension jacoco = project.getExtensions().getByType(JacocoPluginExtension.class);
         jacoco.setToolVersion("0.8.7");
         //project.tasks.register("jacocoTestReport", JacocoReport) { JacocoReport reportTask ->
-        if (project.tasks.findByName('test').enabled == false) {
-            return;
-        }
         project.tasks.withType(JacocoReport) { JacocoReport reportTask ->
             reportTask.getReports().getXml().setEnabled(true);
             reportTask.getReports().getHtml().setEnabled(true);
-            reportTask.dependsOn(project.tasks.withType(Test));
+            //reportTask.dependsOn(project.tasks.withType(Test));
+            reportTask.additionalSourceDirs()
         }
 //        project.tasks.withType(Test) { Test test ->
 //            JacocoTaskExtension jacocoTaskExtension = test.getExtensions().getByType(JacocoTaskExtension.class);
