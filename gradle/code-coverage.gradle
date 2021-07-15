@@ -25,7 +25,7 @@ task codeCoverageReport(type: JacocoReport, group: 'verification') {
   gradle.projectsEvaluated {
     def selectedSubprojects = []
     subprojects.each {
-      if (it.pluginManager.hasPlugin('java') && it.tasks.findByName('test').enabled == true) {
+      if (it.pluginManager.hasPlugin('java') && it.tasks.findByName('test').enabled) {
         selectedSubprojects.add(it)
       }
     }
