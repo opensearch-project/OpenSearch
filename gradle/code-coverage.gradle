@@ -52,8 +52,8 @@ task codeCoverageReportforUnitTest(type: JacocoReport, group: 'verification') {
   gradle.projectsEvaluated {
     // Select subprojects that are supported by jacoco and have got unit tests
     def selectedSubprojects = subprojects.findAll { it.pluginManager.hasPlugin('java') && it.tasks.findByName('test').enabled }
-    sourceDirectories.setFrom files(subprojectsWithUnitTests.sourceSets.main.allSource.srcDirs)
-    classDirectories.setFrom files(subprojectsWithUnitTests.sourceSets.main.output)
+    sourceDirectories.setFrom files(selectedSubprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories.setFrom files(selectedSubprojects.sourceSets.main.output)
     dependsOn selectedSubprojects.test
   }
 }
