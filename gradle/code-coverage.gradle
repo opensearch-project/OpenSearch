@@ -19,10 +19,6 @@ jacoco {
 
 task jacocoMergedReport(type: JacocoReport, group: 'verification') {
   description = 'Generates aggregate report from all subprojects.'
-  // def excludeFilter = ['distribution/bwc/minor/build']
-  // additionalSourceDirs.setFrom fileTree(dir: '.', include: '**/src/main/java/**/*.*')
-  // sourceDirectories.setFrom fileTree(dir: '.', include: '**/src/main/java/**/*.*')
-  // classDirectories.setFrom fileTree(dir: '.', include: '**/build/classes/java/main/**/*.class', exclude: excludeFilter)
   executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/*.exec')
   gradle.projectsEvaluated {
     def selectedSubprojects = []
@@ -31,7 +27,6 @@ task jacocoMergedReport(type: JacocoReport, group: 'verification') {
         selectedSubprojects.add(it)
       }
     }
-    additionalSourceDirs.setFrom files(selectedSubprojects.sourceSets.main.allSource.srcDirs)
     sourceDirectories.setFrom files(selectedSubprojects.sourceSets.main.allSource.srcDirs)
     classDirectories.setFrom files(selectedSubprojects.sourceSets.main.output)
   }
@@ -41,23 +36,3 @@ task jacocoMergedReport(type: JacocoReport, group: 'verification') {
   }
 }
 
-task jacocoMergedReport2(type: JacocoReport, group: 'verification') {
-  description = 'Generates aggregate report from all subprojects.'
-
-  def includeFilter = ['**/build/classes/java/main/**/*.class']
-  def excludeFilter = ['distribution/bwc/minor/build']
-  // classes which have duplicated names to overcome ` Can't add different class with same name issue` See https://github.com/jacoco/jacoco/issues/858
-  def classTree = fileTree(dir: "${rootProject.projectDir}", includes: includeFilter, excludes: excludeFilter)
-  def sourceTree = fileTree(dir: "${rootProject.projectDir}", includes: ['**/src/main/java/**/*.*'])
-  def executionTree = fileTree(dir: "${rootProject.projectDir}", includes: ['**/build/jacoco/*.exec'])
-
-  classDirectories.from = files([classTree])
-  sourceDirectories.from = files([sourceTree])
-  executionData.from = files([executionTree])
-
-  reports {
-    xml.enabled true
-    html.enabled true
-    xml.destination file("${rootProject.projectDir}/build/reports/jacoco/report.xml")
-  }
-}

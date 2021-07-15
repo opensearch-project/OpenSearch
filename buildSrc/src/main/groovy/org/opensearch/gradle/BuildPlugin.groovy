@@ -87,26 +87,9 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply(DependenciesInfoPlugin)
         if (project.tasks.findByName('test').enabled == true) {
             project.pluginManager.apply('jacoco')
-            configureCodeCoverage(project)
         }
 
         PrecommitTasks.create(project, true)
-    }
-
-    static void configureCodeCoverage(Project project) {
-        JacocoPluginExtension jacoco = project.getExtensions().getByType(JacocoPluginExtension.class);
-        jacoco.setToolVersion("0.8.7");
-        //project.tasks.register("jacocoTestReport", JacocoReport) { JacocoReport reportTask ->
-        project.tasks.withType(JacocoReport) { JacocoReport reportTask ->
-            reportTask.getReports().getXml().setEnabled(true);
-            reportTask.getReports().getHtml().setEnabled(true);
-            //reportTask.dependsOn(project.tasks.withType(Test));
-            reportTask.additionalSourceDirs()
-        }
-//        project.tasks.withType(Test) { Test test ->
-//            JacocoTaskExtension jacocoTaskExtension = test.getExtensions().getByType(JacocoTaskExtension.class);
-//            jacocoTaskExtension.setDestinationFile(new File(project.getRootProject().getBuildDir(), "/jacoco/test.exec"))
-//        }
     }
 
     static void configureLicenseAndNotice(Project project) {
