@@ -30,10 +30,6 @@ package org.opensearch.gradle
 
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
-import org.gradle.api.tasks.testing.Test
-import org.gradle.testing.jacoco.plugins.JacocoPluginExtension
-import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
-import org.gradle.testing.jacoco.tasks.JacocoReport
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin
 import org.opensearch.gradle.precommit.PrecommitTasks
@@ -78,8 +74,8 @@ class BuildPlugin implements Plugin<Project> {
 
         if (project.pluginManager.hasPlugin('opensearch.standalone-rest-test')) {
             throw new InvalidUserDataException('opensearch.standalone-test, '
-                + 'opensearch.standalone-rest-test, and opensearch.build '
-                + 'are mutually exclusive')
+                    + 'opensearch.standalone-rest-test, and opensearch.build '
+                    + 'are mutually exclusive')
         }
         project.pluginManager.apply('opensearch.java')
         configureLicenseAndNotice(project)
