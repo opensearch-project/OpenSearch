@@ -6,33 +6,35 @@
  * compatible open source license.
  */
 
-apply plugin: 'java'
 apply plugin: 'jacoco'
 
 repositories {
   mavenCentral()
 }
 
-jacoco {
-  toolVersion = "0.8.7"
+allprojects {
+  plugins.withId('jacoco') {
+    jacoco.toolVersion = '0.8.7'
+  }
 }
 
-task jacocoMergedReport(type: JacocoReport, group: 'verification') {
+task codeCoverageReport(type: JacocoReport, group: 'verification') {
   description = 'Generates aggregate report from all subprojects.'
+
   executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/*.exec')
   gradle.projectsEvaluated {
     def selectedSubprojects = []
     subprojects.each {
-      if (it.tasks.findByPath('test') && it.tasks.findByPath('test').enabled == true && it.sourceSets.findByName("main")) {
+      if (it.pluginManager.hasPlugin('java') && it.tasks.findByName('test').enabled == true) {
         selectedSubprojects.add(it)
       }
     }
     sourceDirectories.setFrom files(selectedSubprojects.sourceSets.main.allSource.srcDirs)
     classDirectories.setFrom files(selectedSubprojects.sourceSets.main.output)
+    dependsOn selectedSubprojects.test
   }
   reports {
     xml.enabled true
     html.enabled true
   }
 }
-
