@@ -23,6 +23,7 @@ task codeCoverageReport(type: JacocoReport, group: 'verification') {
 
   executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/*.exec')
   gradle.projectsEvaluated {
+    // Select subprojects that are supported by jacoco and have got tests
     def selectedSubprojects = []
     subprojects.each {
       if (it.pluginManager.hasPlugin('java') && it.tasks.findByName('test').enabled) {
