@@ -18,24 +18,56 @@ allprojects {
   }
 }
 
+tasks.withType(JacocoReport) {
+  reports {
+    xml.enabled true
+    html.enabled true
+  }
+}
+
 task codeCoverageReport(type: JacocoReport, group: 'verification') {
   description = 'Generates aggregate report from all subprojects.'
 
   executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/*.exec')
+
   gradle.projectsEvaluated {
-    // Select subprojects that are supported by jacoco and have got tests
-    def selectedSubprojects = []
-    subprojects.each {
-      if (it.pluginManager.hasPlugin('java') && it.tasks.findByName('test').enabled) {
-        selectedSubprojects.add(it)
-      }
-    }
+    // Select subprojects that are supported by jacoco and have got unit tests
+    def selectedSubprojects = subprojects.findAll { it.pluginManager.hasPlugin('java') && it.tasks.findByName('test').enabled }
     sourceDirectories.setFrom files(selectedSubprojects.sourceSets.main.allSource.srcDirs)
     classDirectories.setFrom files(selectedSubprojects.sourceSets.main.output)
     dependsOn selectedSubprojects.test
+
+    selectedSubprojects = subprojects.findAll { it.pluginManager.hasPlugin('java') && it.tasks.findByName('integTest')}
+    sourceDirectories.setFrom files(selectedSubprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories.setFrom files(selectedSubprojects.sourceSets.main.output)
+    dependsOn selectedSubprojects.integTest
   }
-  reports {
-    xml.enabled true
-    html.enabled true
+}
+
+task codeCoverageReportforUnitTest(type: JacocoReport, group: 'verification') {
+  description = 'Generates aggregate report from all subprojects for unit test.'
+
+  executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/test.exec')
+
+  gradle.projectsEvaluated {
+    // Select subprojects that are supported by jacoco and have got unit tests
+    def selectedSubprojects = subprojects.findAll { it.pluginManager.hasPlugin('java') && it.tasks.findByName('test').enabled }
+    sourceDirectories.setFrom files(subprojectsWithUnitTests.sourceSets.main.allSource.srcDirs)
+    classDirectories.setFrom files(subprojectsWithUnitTests.sourceSets.main.output)
+    dependsOn selectedSubprojects.test
+  }
+}
+
+task codeCoverageReportforIntegTest(type: JacocoReport, group: 'verification') {
+  description = 'Generates aggregate report from all subprojects for integration test.'
+
+  executionData.setFrom fileTree(dir: '.', include: ['**/build/jacoco/integTest.exec', '**/build/jacoco/javaRestTest.exec'])
+
+  gradle.projectsEvaluated {
+    // Select subprojects that are supported by jacoco and have got integration tests
+    def selectedSubprojects = subprojects.findAll { it.pluginManager.hasPlugin('java') && it.tasks.findByName('integTest') }
+    sourceDirectories.setFrom files(selectedSubprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories.setFrom files(selectedSubprojects.sourceSets.main.output)
+    dependsOn selectedSubprojects.integTest
   }
 }
