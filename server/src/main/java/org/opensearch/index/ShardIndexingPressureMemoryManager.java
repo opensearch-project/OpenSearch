@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.ShardIndexingPressureTracker.OperationTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.PerformanceTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.RejectionTracker;
@@ -53,7 +54,7 @@ import java.util.function.ToLongFunction;
  *
  */
 public class ShardIndexingPressureMemoryManager {
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(ShardIndexingPressureMemoryManager.class);
 
     /**
      * Shard operating factor can be evaluated using currentShardBytes/shardLimits. Outcome of this expression is categorized as
@@ -73,9 +74,9 @@ public class ShardIndexingPressureMemoryManager {
      * This determines the max time elapsed since any request was processed successfully. Appropriate action is taken
      * once the below below defined threshold value is breached.
      */
-    public static final Setting<Integer> SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT =
-        Setting.intSetting("shard_indexing_pressure.secondary_parameter.successful_request.elapsed_timeout", 300000,
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<TimeValue> SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT =
+        Setting.positiveTimeSetting("shard_indexing_pressure.secondary_parameter.successful_request.elapsed_timeout",
+            TimeValue.timeValueMillis(300000), Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     /**
      * This determines the max outstanding request that are yet to be processed successfully. Appropriate
@@ -112,7 +113,7 @@ public class ShardIndexingPressureMemoryManager {
     private volatile double optimalOperatingFactor;
     private volatile double upperOperatingFactor;
 
-    private volatile int successfulRequestElapsedTimeout;
+    private volatile TimeValue successfulRequestElapsedTimeout;
     private volatile int maxOutstandingRequests;
 
     private volatile double primaryAndCoordinatingThroughputDegradationLimits;
@@ -134,7 +135,7 @@ public class ShardIndexingPressureMemoryManager {
         this.upperOperatingFactor = UPPER_OPERATING_FACTOR.get(settings).doubleValue();
         clusterSettings.addSettingsUpdateConsumer(UPPER_OPERATING_FACTOR, this::setUpperOperatingFactor);
 
-        this.successfulRequestElapsedTimeout = SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.get(settings).intValue();
+        this.successfulRequestElapsedTimeout = SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT, this::setSuccessfulRequestElapsedTimeout);
 
         this.maxOutstandingRequests = MAX_OUTSTANDING_REQUESTS.get(settings).intValue();
@@ -416,7 +417,7 @@ public class ShardIndexingPressureMemoryManager {
      */
     private boolean evaluateLastSuccessfulRequestDurationLimitsBreached(PerformanceTracker performanceTracker, long requestStartTime) {
         return (performanceTracker.getLastSuccessfulRequestTimestamp() > 0) &&
-            (requestStartTime - performanceTracker.getLastSuccessfulRequestTimestamp()) > this.successfulRequestElapsedTimeout &&
+            (requestStartTime - performanceTracker.getLastSuccessfulRequestTimestamp()) > this.successfulRequestElapsedTimeout.millis() &&
             performanceTracker.getTotalOutstandingRequests() > this.maxOutstandingRequests;
     }
 
@@ -432,7 +433,7 @@ public class ShardIndexingPressureMemoryManager {
         this.upperOperatingFactor = upperOperatingFactor;
     }
 
-    private void setSuccessfulRequestElapsedTimeout(int successfulRequestElapsedTimeout) {
+    private void setSuccessfulRequestElapsedTimeout(TimeValue successfulRequestElapsedTimeout) {
         this.successfulRequestElapsedTimeout = successfulRequestElapsedTimeout;
     }
 
