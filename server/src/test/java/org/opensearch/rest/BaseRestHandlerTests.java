@@ -45,10 +45,16 @@ import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.rest.RestRequest.Method;
+import org.opensearch.rest.RestHandler.Route;
+import org.opensearch.rest.RestHandler.ReplacedRoute;
+import org.opensearch.rest.RestHandler;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -334,6 +340,17 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
                     expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mockClient));
             assertThat(e, hasToString(containsString("request [GET /] does not support having a body")));
             assertFalse(executed.get());
+        }
+    }
+
+    public void testReplaceRoutesMethod() throws Exception {
+        List<Route> routes = Arrays.asList(new Route(Method.GET, "/path/test"), new Route(Method.PUT, "/path2/test"));
+        List<ReplacedRoute> replacedRoutes = RestHandler.replaceRoutes(routes, "/prefix", "/deprecatedPrefix");
+
+        for(int i = 0; i < routes.size(); i++) {
+            assertEquals("/prefix" + routes.get(i).getPath(), replacedRoutes.get(i).getPath());
+            assertEquals(routes.get(i).getMethod(), replacedRoutes.get(i).getMethod());
+            assertEquals("/deprecatedPrefix" + routes.get(i).getPath(), replacedRoutes.get(i).getDeprecatedPath());
         }
     }
 
