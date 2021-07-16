@@ -38,6 +38,7 @@ import org.opensearch.rest.RestRequest.Method;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Handler for REST requests
@@ -157,10 +158,38 @@ public interface RestHandler {
         private final String deprecatedPath;
         private final Method deprecatedMethod;
 
+        /**
+         * Construct replaced routes using new and deprocated methods and new and deprecated paths
+         * @param method route method
+         * @param path new route path
+         * @param deprecatedMethod deprecated method
+         * @param deprecatedPath deprecated path
+         */
         public ReplacedRoute(Method method, String path, Method deprecatedMethod, String deprecatedPath) {
             super(method, path);
             this.deprecatedMethod = deprecatedMethod;
             this.deprecatedPath = deprecatedPath;
+        }
+
+        /**
+         * Construct replaced routes using route method, new and deprecated paths
+         * This constructor can be used when both new and deprecated paths use the same method
+         * @param method route method
+         * @param path new route path
+         * @param deprecatedPath deprecated path
+         */
+        public ReplacedRoute(Method method, String path, String deprecatedPath) {
+            this(method, path, method, deprecatedPath);
+        }
+
+        /**
+         * Construct replaced routes using route, new and deprecated prefixes
+         * @param route route
+         * @param prefix new route prefix
+         * @param deprecatedPrefix deprecated prefix
+         */
+        public ReplacedRoute(Route route, String prefix, String deprecatedPrefix) {
+            this(route.getMethod(), prefix + route.getPath(), deprecatedPrefix + route.getPath());
         }
 
         public String getDeprecatedPath() {
@@ -170,5 +199,18 @@ public interface RestHandler {
         public Method getDeprecatedMethod() {
             return deprecatedMethod;
         }
+    }
+
+    /**
+     * Construct replaced routes using routes template and prefixes for new and deprecated paths
+     * @param routes routes
+     * @param prefix new prefix
+     * @param deprecatedPrefix deprecated prefix
+     * @return new list of API routes prefixed with the prefix string
+     */
+    static List<ReplacedRoute> replaceRoutes(List<Route> routes, final String prefix, final String deprecatedPrefix){
+        return routes.stream()
+            .map(route -> new ReplacedRoute(route, prefix, deprecatedPrefix))
+            .collect(Collectors.toList());
     }
 }
