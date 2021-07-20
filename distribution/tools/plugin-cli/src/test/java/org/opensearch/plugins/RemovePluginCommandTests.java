@@ -157,7 +157,7 @@ public class RemovePluginCommandTests extends OpenSearchTestCase {
     }
 
     public void testRemovePluginWithCustomFolderName() throws Exception {
-        createPlugin("fake", "folderName", "custom-folder");
+        createPlugin("fake", "custom.foldername", "custom-folder");
         Files.createFile(env.pluginsFile().resolve("custom-folder").resolve("plugin.jar"));
         Files.createDirectory(env.pluginsFile().resolve("custom-folder").resolve("subdir"));
         createPlugin("other");
@@ -274,6 +274,7 @@ public class RemovePluginCommandTests extends OpenSearchTestCase {
             BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));
             BufferedReader errorReader = new BufferedReader(new StringReader(terminal.getErrorOutput()))
         ) {
+            assertEquals("searching in other folders to find if plugin exists with custom folder name", reader.readLine());
             assertEquals("-> removing [fake]...", reader.readLine());
             assertEquals(
                 "ERROR: plugin [fake] not found; run 'opensearch-plugin list' to get list of installed plugins",

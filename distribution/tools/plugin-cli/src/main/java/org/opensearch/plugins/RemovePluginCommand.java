@@ -123,6 +123,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
          * to find if the concerned plugin is installed with a custom folder name.
          */
         if (!Files.exists(pluginDir)) {
+            terminal.println("searching in other folders to find if plugin exists with custom folder name");
             pluginDir = PluginHelper.verifyIfPluginExists(env.pluginsFile(), pluginName);
             pluginConfigDir = env.configFile().resolve(pluginDir.getFileName());
             removing = env.pluginsFile().resolve(".removing-" + pluginDir.getFileName());

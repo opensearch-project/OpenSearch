@@ -124,7 +124,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
             "1.8",
             "classname",
             classname,
-            "folderName",
+            "custom.foldername",
             "custom-folder",
             "has.native.controller",
             Boolean.toString(hasNativeController)

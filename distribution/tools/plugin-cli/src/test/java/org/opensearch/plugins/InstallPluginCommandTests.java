@@ -579,7 +579,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testExistingPluginWithCustomFolderName() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "folderName", "fake-folder");
+        String pluginZip = createPluginUrl("fake", pluginDir, "custom.foldername", "fake-folder");
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake-folder", pluginDir, env.v2());
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
@@ -887,7 +887,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testPluginInstallationWithCustomFolderName() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "folderName", "fake-folder");
+        String pluginZip = createPluginUrl("fake", pluginDir, "custom.foldername", "fake-folder");
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake-folder", pluginDir, env.v2());
     }
