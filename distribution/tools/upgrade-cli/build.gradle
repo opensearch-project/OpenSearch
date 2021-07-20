@@ -14,7 +14,6 @@ archivesBaseName = 'opensearch-upgrade-cli'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:opensearch-cli")
-  implementation project(":distribution:tools:plugin-cli")
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
