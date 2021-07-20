@@ -57,8 +57,16 @@ public class ShardIndexingPressureTracker {
         return primaryAndCoordinatingLimits.get();
     }
 
+    public boolean compareAndSetPrimaryAndCoordinatingLimits(long expectedValue, long newValue) {
+        return primaryAndCoordinatingLimits.compareAndSet(expectedValue, newValue);
+    }
+
     public long getReplicaLimits() {
         return replicaLimits.get();
+    }
+
+    public boolean compareAndSetReplicaLimits(long expectedValue, long newValue) {
+        return replicaLimits.compareAndSet(expectedValue, newValue);
     }
 
     public OperationTracker getCoordinatingOperationTracker() {
@@ -116,8 +124,16 @@ public class ShardIndexingPressureTracker {
             return currentBytes.get();
         }
 
+        public long incrementCurrentBytes(long bytes) {
+            return currentBytes.addAndGet(bytes);
+        }
+
         public long getTotalBytes() {
             return totalBytes.get();
+        }
+
+        public long incrementTotalBytes(long bytes) {
+            return totalBytes.addAndGet(bytes);
         }
 
         public long getRequestCount() {
@@ -149,12 +165,24 @@ public class ShardIndexingPressureTracker {
             return nodeLimitsBreachedRejections.get();
         }
 
+        public long incrementNodeLimitsBreachedRejections() {
+            return nodeLimitsBreachedRejections.incrementAndGet();
+        }
+
         public long getLastSuccessfulRequestLimitsBreachedRejections() {
             return lastSuccessfulRequestLimitsBreachedRejections.get();
         }
 
+        public long incrementLastSuccessfulRequestLimitsBreachedRejections() {
+            return lastSuccessfulRequestLimitsBreachedRejections.incrementAndGet();
+        }
+
         public long getThroughputDegradationLimitsBreachedRejections() {
             return throughputDegradationLimitsBreachedRejections.get();
+        }
+
+        public long incrementThroughputDegradationLimitsBreachedRejections() {
+            return throughputDegradationLimitsBreachedRejections.incrementAndGet();
         }
     }
 
@@ -170,7 +198,7 @@ public class ShardIndexingPressureTracker {
      */
     public static class PerformanceTracker {
         private final AtomicLong latencyInMillis = new AtomicLong();
-        private final AtomicLong lastSuccessfulRequestTimestamp = new AtomicLong();
+        private volatile long lastSuccessfulRequestTimestamp = 0;
         private final AtomicLong totalOutstandingRequests = new AtomicLong();
         /**
          * Shard Window Throughput Tracker.
@@ -184,16 +212,32 @@ public class ShardIndexingPressureTracker {
             return latencyInMillis.get();
         }
 
+        public long addLatencyInMillis(long latency) {
+            return latencyInMillis.addAndGet(latency);
+        }
+
         public long getLastSuccessfulRequestTimestamp() {
-            return lastSuccessfulRequestTimestamp.get();
+            return lastSuccessfulRequestTimestamp;
+        }
+
+        public void updateLastSuccessfulRequestTimestamp(long timeStamp) {
+            lastSuccessfulRequestTimestamp = timeStamp;
         }
 
         public long getTotalOutstandingRequests() {
             return totalOutstandingRequests.get();
         }
 
+        public long incrementTotalOutstandingRequests() {
+            return totalOutstandingRequests.incrementAndGet();
+        }
+
         public long getThroughputMovingAverage() {
             return throughputMovingAverage.get();
+        }
+
+        public long updateThroughputMovingAverage(long newAvg) {
+            return throughputMovingAverage.getAndSet(newAvg);
         }
 
         public boolean addNewThroughout(Double newThroughput) {
@@ -222,6 +266,10 @@ public class ShardIndexingPressureTracker {
 
         public long getCurrentCombinedCoordinatingAndPrimaryBytes() {
             return currentCombinedCoordinatingAndPrimaryBytes.get();
+        }
+
+        public long incrementCurrentCombinedCoordinatingAndPrimaryBytes(long bytes) {
+            return currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         }
 
         public long getTotalCombinedCoordinatingAndPrimaryBytes() {
