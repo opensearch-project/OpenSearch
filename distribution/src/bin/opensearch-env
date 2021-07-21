@@ -78,7 +78,9 @@ fi
 
 export HOSTNAME=$HOSTNAME
 
-${source.path.env}
+if [ -z "$OPENSEARCH_PATH_CONF" ]; then
+  ${source.path.env}
+fi
 
 if [ -z "$OPENSEARCH_PATH_CONF" ]; then
   echo "OPENSEARCH_PATH_CONF must be set to the configuration path"
