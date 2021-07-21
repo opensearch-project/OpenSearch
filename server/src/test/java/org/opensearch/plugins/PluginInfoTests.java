@@ -70,6 +70,44 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertThat(info.getExtendedPlugins(), empty());
     }
 
+    public void testReadFromPropertiesWithFolderNameAndVersionBefore() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(pluginDir,
+            "description", "fake desc",
+            "name", "my_plugin",
+            "version", "1.0",
+            "opensearch.version", Version.V_1_0_0.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", "FakePlugin",
+            "custom.foldername", "custom-folder");
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertEquals("my_plugin", info.getName());
+        assertEquals("fake desc", info.getDescription());
+        assertEquals("1.0", info.getVersion());
+        assertEquals("FakePlugin", info.getClassname());
+        assertEquals("my_plugin", info.getTargetFolderName());
+        assertThat(info.getExtendedPlugins(), empty());
+    }
+
+    public void testReadFromPropertiesWithFolderNameAndVersionAfter() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(pluginDir,
+            "description", "fake desc",
+            "name", "my_plugin",
+            "version", "1.0",
+            "opensearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", "FakePlugin",
+            "custom.foldername", "custom-folder");
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertEquals("my_plugin", info.getName());
+        assertEquals("fake desc", info.getDescription());
+        assertEquals("1.0", info.getVersion());
+        assertEquals("FakePlugin", info.getClassname());
+        assertEquals("custom-folder", info.getTargetFolderName());
+        assertThat(info.getExtendedPlugins(), empty());
+    }
+
     public void testReadFromPropertiesNameMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir);
@@ -199,7 +237,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
 
     public void testSerialize() throws Exception {
         PluginInfo info = new PluginInfo("c", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass",
-                                         Collections.singletonList("foo"), randomBoolean());
+                                         "c", Collections.singletonList("foo"), randomBoolean());
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
         ByteBuffer buffer = ByteBuffer.wrap(output.bytes().toBytesRef().bytes);
@@ -212,15 +250,15 @@ public class PluginInfoTests extends OpenSearchTestCase {
     public void testPluginListSorted() {
         List<PluginInfo> plugins = new ArrayList<>();
         plugins.add(new PluginInfo("c", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass",
-            Collections.emptyList(), randomBoolean()));
+            null, Collections.emptyList(), randomBoolean()));
         plugins.add(new PluginInfo("b", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass",
-            Collections.emptyList(), randomBoolean()));
+            null, Collections.emptyList(), randomBoolean()));
         plugins.add(new PluginInfo( "e", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass",
-            Collections.emptyList(), randomBoolean()));
+            null, Collections.emptyList(), randomBoolean()));
         plugins.add(new PluginInfo("a", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass",
-            Collections.emptyList(), randomBoolean()));
+            null, Collections.emptyList(), randomBoolean()));
         plugins.add(new PluginInfo("d", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass",
-            Collections.emptyList(), randomBoolean()));
+            null, Collections.emptyList(), randomBoolean()));
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
         final List<PluginInfo> infos = pluginsInfo.getPluginInfos();

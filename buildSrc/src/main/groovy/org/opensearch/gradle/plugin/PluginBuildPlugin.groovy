@@ -105,6 +105,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'opensearchVersion'   : Version.fromString(VersionProperties.getOpenSearch()).toString(),
                     'javaVersion'         : project.targetCompatibility as String,
                     'classname'           : extension1.classname,
+                    'customFolderName'    : extension1.customFolderName,
                     'extendedPlugins'     : extension1.extendedPlugins.join(','),
                     'hasNativeController' : extension1.hasNativeController,
                     'requiresKeystore'    : extension1.requiresKeystore
