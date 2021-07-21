@@ -110,7 +110,7 @@ if [[ "$OPENSEARCH_DISTRIBUTION_TYPE" == "docker" ]]; then
   #
   # will cause OpenSearch to be invoked with -Ecluster.name=testcluster
   #
-  # see https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#_setting_default_settings
+  # see https://opensearch.org/docs/opensearch/configuration/ 
 
   declare -a opensearch_arg_array
 
