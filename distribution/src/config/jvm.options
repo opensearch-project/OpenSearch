@@ -11,7 +11,7 @@
 ## -Xms4g
 ## -Xmx4g
 ##
-## See https://www.elastic.co/guide/en/elasticsearch/reference/current/heap-size.html
+## See https://opensearch.org/docs/opensearch/install/important-settings/
 ## for more information
 ##
 ################################################################
