@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -209,7 +210,7 @@ public abstract class BaseRestHandler implements RestHandler {
         protected final BaseRestHandler delegate;
 
         public Wrapper(BaseRestHandler delegate) {
-            this.delegate = delegate;
+            this.delegate = Objects.requireNonNull(delegate, "BaseRestHandler delegate can not be null");
         }
 
         @Override
@@ -255,6 +256,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         public boolean allowsUnsafeBuffers() {
             return delegate.allowsUnsafeBuffers();
+        }
+
+        @Override
+        public boolean allowSystemIndexAccessByDefault() {
+            return delegate.allowSystemIndexAccessByDefault();
         }
     }
 }
