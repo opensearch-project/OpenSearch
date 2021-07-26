@@ -67,12 +67,16 @@ public abstract class RestActionListener<Response> implements ActionListener<Res
 
     protected abstract void processResponse(Response response) throws Exception;
 
+    protected BytesRestResponse getRestResponse(Exception e) throws IOException {
+        return new BytesRestResponse(channel, e);
+    }
+
     private BytesRestResponse from(Exception e) throws IOException {
         try {
-            return new BytesRestResponse(channel, e);
+            return getRestResponse(e);
         } catch (Exception inner) {
             try {
-                return new BytesRestResponse(channel, inner);
+                return getRestResponse(inner);
             } finally {
                 inner.addSuppressed(e);
                 logger.error("failed to construct failure response", inner);
