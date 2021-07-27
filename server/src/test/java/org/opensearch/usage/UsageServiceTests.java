@@ -40,8 +40,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -198,11 +196,6 @@ public class UsageServiceTests extends OpenSearchTestCase {
         @Override
         public String getName() {
             return name;
-        }
-
-        @Override
-        public List<Route> routes() {
-            return Collections.emptyList();
         }
 
         @Override

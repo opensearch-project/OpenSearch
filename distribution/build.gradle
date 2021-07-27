@@ -296,7 +296,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsUpgradeCli'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -317,6 +317,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
+    libsUpgradeCli project(path: ':distribution:tools:upgrade-cli')
   }
 
   project.ext {
@@ -333,6 +334,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('tools/keystore-cli') {
           from(configurations.libsKeystoreCli)
+        }
+        into('tools/upgrade-cli') {
+          from(configurations.libsUpgradeCli)
         }
       }
     }

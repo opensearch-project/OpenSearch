@@ -114,9 +114,20 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             );
         }
 
-        final Path pluginDir = env.pluginsFile().resolve(pluginName);
-        final Path pluginConfigDir = env.configFile().resolve(pluginName);
-        final Path removing = env.pluginsFile().resolve(".removing-" + pluginName);
+        Path pluginDir = env.pluginsFile().resolve(pluginName);
+        Path pluginConfigDir = env.configFile().resolve(pluginName);
+        Path removing = env.pluginsFile().resolve(".removing-" + pluginName);
+
+        /*
+         * If the plugin directory is not found with the plugin name, scan the list of all installed plugins
+         * to find if the concerned plugin is installed with a custom folder name.
+         */
+        if (!Files.exists(pluginDir)) {
+            terminal.println("searching in other folders to find if plugin exists with custom folder name");
+            pluginDir = PluginHelper.verifyIfPluginExists(env.pluginsFile(), pluginName);
+            pluginConfigDir = env.configFile().resolve(pluginDir.getFileName());
+            removing = env.pluginsFile().resolve(".removing-" + pluginDir.getFileName());
+        }
 
         terminal.println("-> removing [" + pluginName + "]...");
         /*

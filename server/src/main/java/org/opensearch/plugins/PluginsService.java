@@ -136,7 +136,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", Version.CURRENT, "1.8",
-                                                   pluginClass.getName(), Collections.emptyList(), false);
+                                                   pluginClass.getName(), null, Collections.emptyList(), false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }

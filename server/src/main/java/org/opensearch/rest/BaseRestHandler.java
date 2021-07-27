@@ -95,12 +95,6 @@ public abstract class BaseRestHandler implements RestHandler {
      */
     public abstract String getName();
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public abstract List<Route> routes();
-
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // prepare the request for execution; has the side effect of touching the request parameters

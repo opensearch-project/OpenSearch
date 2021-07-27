@@ -1,5 +1,35 @@
 ## Version 1.0.0 Release Notes
 
+* __Add Snapshot maven repository (#942)__
+
+    [Marc Handalian](mailto:handalm@amazon.com) - Wed, 7 Jul 2021 15:52:30 -0700
+
+    efs/remotes/upstream/1.0, refs/heads/1.0
+    * Backport #829 to 1.0 so that we can publish patch snapshots to our maven
+    repository
+    Signed-off-by: Marc Handalian &lt;handalm@amazon.com&gt;
+
+* __[BUG] Fix cat.health test failures in pre 1.0.0 mixed cluster test (#928) (#935)__
+
+    [Nick Knize](mailto:nknize@gmail.com) - Fri, 2 Jul 2021 17:56:39 -0500
+
+    Fixes the cat.health yaml failures when running in a bwc mixed cluster with
+
+    legacy (pre 1.0.0) nodes.
+     Signed-off-by: Nicholas Walter Knize &lt;nknize@apache.org&gt;
+
+* __Update DistributionDownloader to support fetching arm64 bundles. (#929) (#934)__
+
+    [Marc Handalian](mailto:handalm@amazon.com) - Fri, 2 Jul 2021 22:10:24 +0000
+
+    Signed-off-by: Marc Handalian &lt;handalm@amazon.com&gt;
+
+* __Update favicon for OpenSearch (#933)__
+
+    [Rabi Panda](mailto:pandarab@amazon.com) - Fri, 2 Jul 2021 21:43:22 +0000
+
+    Signed-off-by: Rabi Panda &lt;pandarab@amazon.com&gt;
+
 * __Refresh OpenSearch nodes version in cluster state after upgrade (#865) (#926)__
 
     [Tianli Feng](mailto:ftianli@amazon.com) - Fri, 2 Jul 2021 16:53:47 +0000
@@ -246,18 +276,6 @@
 
 
     Signed-off-by: Sooraj Sinha &lt;soosinha@amazon.com&gt;
-     Co-authored-by: Sooraj Sinha &lt;81695996+soosinha@users.noreply.github.com&gt;
-
-* __Add Remote Reindex SPI extension (#547) (#756)__
-
-    [Abbas Hussain](mailto:abbas_10690@yahoo.com) - Sat, 22 May 2021 04:50:00 +0530
-
-
-    This change extends the remote reindex SPI to allow adding a custom
-    interceptor.
-    This interceptor can be plugged in to perform any processing on
-    the request or response.
-     Signed-off-by: Sooraj Sinha &lt;soosinha@amazon.com&gt;
      Co-authored-by: Sooraj Sinha &lt;81695996+soosinha@users.noreply.github.com&gt;
 
 * __Catch runtime exceptions to make class loader race conditions easier to debug. (#608) (#750)__
