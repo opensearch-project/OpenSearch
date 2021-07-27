@@ -40,7 +40,11 @@ tasks.register("codeCoverageReportForUnitTest", JacocoReport) {
 tasks.register("codeCoverageReportForIntegTest", JacocoReport) {
   description = 'Generates aggregate report from all subprojects for integration test.'
   group = 'verification'
-  executionData.setFrom fileTree(dir: '.', include: ['**/build/jacoco/integTest.exec', '**/build/jacoco/internalClusterTest.exec', '**/build/jacoco/javaRestTest.exec', '**/build/jacoco/yamlRestTest.exec' ])
+  def integrationTestExecPathList = ['**/build/jacoco/integTest.exec',
+                                     '**/build/jacoco/internalClusterTest.exec',
+                                     '**/build/jacoco/javaRestTest.exec',
+                                     '**/build/jacoco/yamlRestTest.exec' ]
+  executionData.setFrom fileTree(dir: '.', include: integrationTestExecPathList)
 }
 
 gradle.projectsEvaluated {
