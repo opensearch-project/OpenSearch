@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskId;
 
@@ -48,7 +49,12 @@ public class SearchTask extends CancellableTask {
 
     public SearchTask(long id, String type, String action, Supplier<String> descriptionSupplier,
                       TaskId parentTaskId, Map<String, String> headers) {
-        super(id, type, action, null, parentTaskId, headers);
+        this(id, type, action, descriptionSupplier, parentTaskId, headers, false, null);
+    }
+
+    public SearchTask(long id, String type, String action, Supplier<String> descriptionSupplier,
+        TaskId parentTaskId, Map<String, String> headers, boolean cancelOnTimeout, TimeValue cancelTimeout) {
+        super(id, type, action, null, parentTaskId, headers, cancelOnTimeout, cancelTimeout);
         this.descriptionSupplier = descriptionSupplier;
     }
 

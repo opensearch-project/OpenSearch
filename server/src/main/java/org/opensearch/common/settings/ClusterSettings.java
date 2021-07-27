@@ -345,6 +345,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
             ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
+            TransportSearchAction.SEARCH_REQUEST_CANCELLATION_ENABLE_SETTING,
+            TransportSearchAction.SEARCH_REQUEST_CANCEL_AFTER_TIMEINTERVAL_SETTING,
             RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
             RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE,
             SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,

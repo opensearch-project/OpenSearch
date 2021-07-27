@@ -33,6 +33,7 @@
 package org.opensearch.tasks;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,9 +45,18 @@ public abstract class CancellableTask extends Task {
 
     private volatile String reason;
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    private final boolean cancelOnTimeout;
+    private final TimeValue cancellationTimeout;
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
+        this(id, type, action, description, parentTaskId, headers, false, null);
+    }
+
+    public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers,
+        boolean cancelOnTimeout, TimeValue cancellationTimeout) {
         super(id, type, action, description, parentTaskId, headers);
+        this.cancelOnTimeout = cancelOnTimeout;
+        this.cancellationTimeout = cancellationTimeout;
     }
 
     /**
@@ -75,6 +85,14 @@ public abstract class CancellableTask extends Task {
 
     public boolean isCancelled() {
         return cancelled.get();
+    }
+
+    public boolean shouldCancelOnTimeout() {
+        return cancelOnTimeout;
+    }
+
+    public TimeValue getCancellationTimeout() {
+        return cancellationTimeout;
     }
 
     /**

@@ -692,7 +692,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers);
+        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, true, cancelAfterTimeInterval);
     }
 
     public final String buildDescription() {
