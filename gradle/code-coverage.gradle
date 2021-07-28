@@ -19,21 +19,18 @@ allprojects {
   }
 }
 
-tasks.register("codeCoverageReport", JacocoReport) {
+def codeCoverageReportTask = tasks.register("codeCoverageReport", JacocoReport) {
   description = 'Generates aggregate report from all subprojects.'
-  group = 'verification'
   executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/*.exec')
 }
 
 tasks.register("codeCoverageReportForUnitTest", JacocoReport) {
   description = 'Generates aggregate report from all subprojects for unit test.'
-  group = 'verification'
   executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/test.exec')
 }
 
 tasks.register("codeCoverageReportForIntegrationTest", JacocoReport) {
   description = 'Generates aggregate report from all subprojects for integration test.'
-  group = 'verification'
   // These kinds of tests are integration test, and the tests can be ran by Gradle tasks with the same name
   def integrationTestExecPathList = ['**/build/jacoco/integTest.exec',
                                      '**/build/jacoco/internalClusterTest.exec',
@@ -43,6 +40,8 @@ tasks.register("codeCoverageReportForIntegrationTest", JacocoReport) {
 }
 
 tasks.withType(JacocoReport).configureEach {
+  group = JavaBasePlugin.VERIFICATION_GROUP
+
   // Select projects with corresponding tests in order to run proper tests and select proper classes to generate the report
   def projectsWithJavaPlugin = subprojects.findAll { it.pluginManager.hasPlugin('java') }
   def projectsWithUnitTest = projectsWithJavaPlugin.findAll { it.tasks.findByName('test').enabled }
@@ -82,4 +81,9 @@ tasks.withType(JacocoReport).configureEach {
     xml.enabled true
     html.enabled true
   }
+}
+
+// Attach code coverage report task to Gradle check task
+project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure{
+  dependsOn codeCoverageReportTask
 }
