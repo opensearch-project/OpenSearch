@@ -18,7 +18,7 @@ allprojects {
   }
 }
 
-tasks.withType(JacocoReport) {
+tasks.withType(JacocoReport).configureEach {
   reports {
     xml.enabled true
     html.enabled true
@@ -37,7 +37,7 @@ tasks.register("codeCoverageReportForUnitTest", JacocoReport) {
   executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/test.exec')
 }
 
-tasks.register("codeCoverageReportForIntegTest", JacocoReport) {
+tasks.register("codeCoverageReportForIntegrationTest", JacocoReport) {
   description = 'Generates aggregate report from all subprojects for integration test.'
   group = 'verification'
   def integrationTestExecPathList = ['**/build/jacoco/integTest.exec',
@@ -47,42 +47,38 @@ tasks.register("codeCoverageReportForIntegTest", JacocoReport) {
   executionData.setFrom fileTree(dir: '.', include: integrationTestExecPathList)
 }
 
-gradle.projectsEvaluated {
+tasks.withType(JacocoReport).configureEach {
   def projectsWithJavaPlugin = subprojects.findAll { it.pluginManager.hasPlugin('java') }
   def projectsWithUnitTest = projectsWithJavaPlugin.findAll { it.tasks.findByName('test').enabled }
   def projectsWithIntegTest = projectsWithJavaPlugin.findAll {it.tasks.findByName('integTest')}
   def projectsWithInternalClusterTest = projectsWithJavaPlugin.findAll {it.tasks.findByName('internalClusterTest')}
   def projectsWithJavaRestTest = projectsWithJavaPlugin.findAll {it.tasks.findByName('javaRestTest')}
   def projectsWithYamlRestTest = projectsWithJavaPlugin.findAll {it.tasks.findByName('yamlRestTest')}
-  def projectsWithAllIntegTest = projectsWithIntegTest + projectsWithInternalClusterTest + projectsWithJavaRestTest + projectsWithYamlRestTest
-  def projectsWithTest = projectsWithUnitTest + projectsWithAllIntegTest
+  def projectsWithIntegrationTest = projectsWithIntegTest + projectsWithInternalClusterTest + projectsWithJavaRestTest + projectsWithYamlRestTest
+  def projectsWithTest = projectsWithUnitTest + projectsWithIntegrationTest
 
-  tasks.named("codeCoverageReportForUnitTest").configure {
-    dependsOn projectsWithUnitTest.test
-    sourceDirectories.setFrom files(projectsWithUnitTest.sourceSets.main.allSource.srcDirs)
-    classDirectories.setFrom files(projectsWithUnitTest.sourceSets.main.output)
+  def selectedProjects
+  switch (name) {
+    case "codeCoverageReportForUnitTest":
+      dependsOn projectsWithUnitTest.test
+      selectedProjects = projectsWithUnitTest
+      break
+    case "codeCoverageReportForIntegrationTest":
+      dependsOn projectsWithIntegTest.integTest
+      dependsOn projectsWithInternalClusterTest.internalClusterTest
+      dependsOn projectsWithJavaRestTest.javaRestTest
+      dependsOn projectsWithYamlRestTest.yamlRestTest
+      selectedProjects = projectsWithIntegrationTest
+      break
+    default:
+      dependsOn projectsWithUnitTest.test
+      dependsOn projectsWithIntegTest.integTest
+      dependsOn projectsWithInternalClusterTest.internalClusterTest
+      dependsOn projectsWithJavaRestTest.javaRestTest
+      dependsOn projectsWithYamlRestTest.yamlRestTest
+      selectedProjects = projectsWithTest
+      break
   }
-
-  tasks.named("codeCoverageReportForIntegTest").configure {
-    dependsOn {
-      projectsWithIntegTest.integTest
-      projectsWithInternalClusterTest.internalClusterTest
-      projectsWithJavaRestTest.javaRestTest
-      projectsWithYamlRestTest.yamlRestTest
-    }
-    sourceDirectories.setFrom files(projectsWithAllIntegTest.sourceSets.main.allSource.srcDirs)
-    classDirectories.setFrom files(projectsWithAllIntegTest.sourceSets.main.output)
-  }
-
-  tasks.named("codeCoverageReport").configure {
-    dependsOn {
-      projectsWithUnitTest.test
-      projectsWithIntegTest.integTest
-      projectsWithInternalClusterTest.internalClusterTest
-      projectsWithJavaRestTest.javaRestTest
-      projectsWithYamlRestTest.yamlRestTest
-    }
-    sourceDirectories.setFrom files(projectsWithTest.sourceSets.main.allSource.srcDirs)
-    classDirectories.setFrom files(projectsWithTest.sourceSets.main.output)
-  }
+  sourceDirectories.setFrom files(selectedProjects.sourceSets.main.allSource.srcDirs)
+  classDirectories.setFrom files(selectedProjects.sourceSets.main.output)
 }
