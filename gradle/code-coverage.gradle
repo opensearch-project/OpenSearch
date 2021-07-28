@@ -84,6 +84,6 @@ tasks.withType(JacocoReport).configureEach {
 }
 
 // Attach code coverage report task to Gradle check task
-project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure{
+project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
   dependsOn codeCoverageReportTask
 }
