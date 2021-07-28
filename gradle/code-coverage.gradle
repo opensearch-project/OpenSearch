@@ -18,13 +18,6 @@ allprojects {
   }
 }
 
-tasks.withType(JacocoReport).configureEach {
-  reports {
-    xml.enabled true
-    html.enabled true
-  }
-}
-
 tasks.register("codeCoverageReport", JacocoReport) {
   description = 'Generates aggregate report from all subprojects.'
   group = 'verification'
@@ -81,4 +74,9 @@ tasks.withType(JacocoReport).configureEach {
   }
   sourceDirectories.setFrom files(selectedProjects.sourceSets.main.allSource.srcDirs)
   classDirectories.setFrom files(selectedProjects.sourceSets.main.output)
+
+  reports {
+    xml.enabled true
+    html.enabled true
+  }
 }
