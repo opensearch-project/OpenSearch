@@ -28,36 +28,26 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
     private final Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
         .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
         .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 1)
-        .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), 20)
+        .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
         .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
         .put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 100)
         .build();
 
     final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     final ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
+    public enum OperationType { COORDINATING, PRIMARY, REPLICA }
 
     public void testCoordinatingPrimaryThreadedUpdateToShardLimits() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 500);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                if(randomBoolean){
-                    releasables[counter] = shardIndexingPressure.markCoordinatingOperationStarted(shardId1, 15, false);
-                } else {
-                    releasables[counter] = shardIndexingPressure.markPrimaryOperationStarted(shardId1, 15, false);
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
+        Releasable[] releasable;
+        if (randomBoolean) {
+            releasable = fireConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 15, OperationType.COORDINATING);
+        } else {
+            releasable = fireConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 15, OperationType.PRIMARY);
         }
 
         if(randomBoolean) {
@@ -75,7 +65,7 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
             .getCurrentPrimaryAndCoordinatingLimits() > 0.75);
 
         for (int i = 0; i < NUM_THREADS; i++) {
-            releasables[i].close();
+            releasable[i].close();
         }
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
@@ -96,22 +86,10 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
 
     public void testReplicaThreadedUpdateToShardLimits() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 500);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
-        for (int i = 0; i < NUM_THREADS; i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                releasables[counter] = shardIndexingPressure.markReplicaOperationStarted(shardId1, 15, false);
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
+        Releasable[] releasable = fireConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 15, OperationType.REPLICA);
 
         assertEquals(NUM_THREADS * 15, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
             .getCurrentReplicaBytes());
@@ -121,7 +99,7 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
             .getCurrentReplicaLimits() > 0.75);
 
         for (int i = 0; i < NUM_THREADS; i++) {
-            releasables[i].close();
+            releasable[i].close();
         }
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
@@ -133,31 +111,15 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
 
     public void testCoordinatingPrimaryThreadedSimultaneousUpdateToShardLimits() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 500);
-        final Thread[] threads = new Thread[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads[i] = new Thread(() -> {
-                if(randomBoolean) {
-                    Releasable coodinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId1, 100, false);
-                    coodinating.close();
-                } else {
-                    Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId1, 100, false);
-                    primary.close();
-                }
-            });
-            try {
-                Thread.sleep(randomIntBetween(5, 15));
-            } catch (InterruptedException e) {
-                //Do Nothing
-            }
-            threads[i].start();
-        }
 
-        for (Thread t : threads) {
-            t.join();
+        if (randomBoolean) {
+            fireAndCompleteConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 100, OperationType.COORDINATING);
+        } else {
+            fireAndCompleteConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 100, OperationType.PRIMARY);
         }
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
@@ -177,26 +139,10 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
 
     public void testReplicaThreadedSimultaneousUpdateToShardLimits() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 500);
-        final Thread[] threads = new Thread[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads[i] = new Thread(() -> {
-                Releasable coodinating = shardIndexingPressure.markReplicaOperationStarted(shardId1, 100, false);
-                coodinating.close();
-            });
-            try {
-                Thread.sleep(randomIntBetween(5, 15));
-            } catch (InterruptedException e) {
-                //Do Nothing
-            }
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
+        fireAndCompleteConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 100, OperationType.REPLICA);
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
@@ -206,32 +152,15 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
 
     public void testCoordinatingPrimaryThreadedUpdateToShardLimitsWithRandomBytes() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 400);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                if(randomBoolean) {
-                    releasables[counter] = shardIndexingPressure.markCoordinatingOperationStarted(shardId1,
-                        scaledRandomIntBetween(1, 20), false);
-                } else {
-                    releasables[counter] = shardIndexingPressure.markPrimaryOperationStarted(shardId1,
-                        scaledRandomIntBetween(1, 20), false);
-                }
-            });
-            threads[i].start();
-        }
 
-        for (Thread t : threads) {
-            t.join();
-        }
-
-        for (int i = 0; i < NUM_THREADS; i++) {
-            releasables[i].close();
+        if (randomBoolean) {
+            fireAllThenCompleteConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 15, OperationType.COORDINATING);
+        } else {
+            fireAllThenCompleteConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 15, OperationType.PRIMARY);
         }
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
@@ -252,27 +181,10 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
 
     public void testReplicaThreadedUpdateToShardLimitsWithRandomBytes() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 400);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
-        for (int i = 0; i < NUM_THREADS; i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                releasables[counter] = shardIndexingPressure.markReplicaOperationStarted(shardId1,
-                    scaledRandomIntBetween(1, 20), false);
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
-
-        for (int i = 0; i < NUM_THREADS; i++) {
-            releasables[i].close();
-        }
+        fireAllThenCompleteConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 15, OperationType.REPLICA);
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
         assertNull(shardStoreStats);
@@ -400,28 +312,15 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
 
     public void testCoordinatingPrimaryConcurrentUpdatesOnShardIndexingPressureTrackerObjects() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 400);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "new_uuid");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                if(randomBoolean) {
-                    releasables[counter] = shardIndexingPressure.markCoordinatingOperationStarted(shardId1,
-                        scaledRandomIntBetween(1, 20), false);
-                } else {
-                    releasables[counter] = shardIndexingPressure.markPrimaryOperationStarted(shardId1,
-                        scaledRandomIntBetween(1, 20), false);
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
+        Releasable[] releasables;
+        if(randomBoolean) {
+            releasables = fireConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 15, OperationType.COORDINATING);
+        } else {
+            releasables = fireConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 15, OperationType.PRIMARY);
         }
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats()
@@ -470,23 +369,11 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
 
     public void testReplicaConcurrentUpdatesOnShardIndexingPressureTrackerObjects() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(100, 400);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "new_uuid");
         ShardId shardId1 = new ShardId(index, 0);
-        for (int i = 0; i < NUM_THREADS; i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                releasables[counter] = shardIndexingPressure.markReplicaOperationStarted(shardId1,
-                    scaledRandomIntBetween(1, 20), false);
-            });
-            threads[i].start();
-        }
 
-        for (Thread t : threads) {
-            t.join();
-        }
+        final Releasable[] releasables = fireConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 20, OperationType.REPLICA);
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats()
             .getIndexingPressureShardStats(shardId1);
@@ -529,62 +416,27 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
             .put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 80)
             .build();
         final int NUM_THREADS = scaledRandomIntBetween(80, 100);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
 
-        //Generating a load to have a fair throughput
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads[i] = new Thread(() -> {
-                for (int j = 0; j < randomIntBetween(400, 500); j++) {
-                    Releasable releasable;
-                    if(randomBoolean) {
-                        releasable = shardIndexingPressure.markCoordinatingOperationStarted(shardId1, 100, false);
-                    } else {
-                        releasable = shardIndexingPressure.markPrimaryOperationStarted(shardId1, 100, false);
-                    }
-                    try {
-                        Thread.sleep(100);
-                    } catch (Exception e) {
-                        //Do Nothing
-                    }
-                    releasable.close();
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
+        //Generating a concurrent + sequential load to have a fair throughput
+        if (randomBoolean) {
+            fireConcurrentAndParallelRequestsForUniformThroughPut(NUM_THREADS, shardIndexingPressure, shardId1, 100, 100,
+                OperationType.COORDINATING);
+        } else {
+            fireConcurrentAndParallelRequestsForUniformThroughPut(NUM_THREADS, shardIndexingPressure, shardId1, 100, 100,
+                OperationType.PRIMARY);
         }
 
         //Generating a load to such that the requests in the window shows degradation in throughput.
-        for (int i = 0; i < ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.get(settings).intValue(); i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                if(randomBoolean) {
-                    releasables[counter] = shardIndexingPressure.markCoordinatingOperationStarted(shardId1, 100, false);
-                } else {
-                    releasables[counter] = shardIndexingPressure.markPrimaryOperationStarted(shardId1, 100, false);
-                }
-                try {
-                    Thread.sleep(200);
-                } catch (Exception e) {
-                    //Do Nothing
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
-
-        for (int i = 0; i < ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.get(settings).intValue(); i++) {
-            releasables[i].close();
+        if (randomBoolean) {
+            fireAllThenCompleteConcurrentRequestsWithUniformDelay(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.get(settings),
+                shardIndexingPressure, shardId1, 100, 200, OperationType.COORDINATING);
+        } else {
+            fireAllThenCompleteConcurrentRequestsWithUniformDelay(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.get(settings),
+                shardIndexingPressure, shardId1, 100, 200, OperationType.PRIMARY);
         }
 
         //Generate a load which breaches both primary parameter
@@ -631,53 +483,17 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
             .put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 100)
             .build();
         final int NUM_THREADS = scaledRandomIntBetween(100, 120);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
 
         //Generating a load to have a fair throughput
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads[i] = new Thread(() -> {
-                for (int j = 0; j < randomIntBetween(400, 500); j++) {
-                    Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId1,  100, false);
-                    try {
-                        Thread.sleep(100);
-                    } catch (Exception e) {
-                        //Do Nothing
-                    }
-                    replica.close();
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
+        fireConcurrentAndParallelRequestsForUniformThroughPut(NUM_THREADS, shardIndexingPressure, shardId1, 100, 100,
+            OperationType.REPLICA);
 
         //Generating a load to such that the requests in the window shows degradation in throughput.
-        for (int i = 0; i < ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.get(settings).intValue(); i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                releasables[counter] = shardIndexingPressure.markReplicaOperationStarted(shardId1, 100, false);
-                try {
-                    Thread.sleep(200);
-                } catch (Exception e) {
-                    //Do Nothing
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
-
-        for (int i = 0; i < ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.get(settings).intValue(); i++) {
-            releasables[i].close();
-        }
+        fireAllThenCompleteConcurrentRequestsWithUniformDelay(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.get(settings),
+            shardIndexingPressure, shardId1, 100, 200, OperationType.REPLICA);
 
         //Generate a load which breaches both primary parameter
         expectThrows(OpenSearchRejectedExecutionException.class,
@@ -700,11 +516,9 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
             .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 100)
-            .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), 20)
+            .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
             .build();
         final int NUM_THREADS = scaledRandomIntBetween(110, 150);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
@@ -720,20 +534,11 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
         }
 
         //Generating a load such that requests are blocked requests.
-        for (int i = 0; i < NUM_THREADS; i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                if(randomBoolean) {
-                    releasables[counter] = shardIndexingPressure.markCoordinatingOperationStarted(shardId1, 10, false);
-                } else {
-                    releasables[counter] = shardIndexingPressure.markPrimaryOperationStarted(shardId1, 10, false);
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
+        Releasable[] releasables;
+        if (randomBoolean) {
+            releasables = fireConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 10, OperationType.COORDINATING);
+        } else {
+            releasables =  fireConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 10, OperationType.PRIMARY);
         }
 
         //Mimic the time elapsed after requests being stuck
@@ -787,11 +592,9 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
             .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 100)
-            .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), 20)
+            .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
             .build();
         final int NUM_THREADS = scaledRandomIntBetween(110, 150);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
@@ -801,25 +604,13 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
         replica.close();
 
         //Generating a load such that requests are blocked requests.
-        for (int i = 0; i < NUM_THREADS; i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                releasables[counter] = shardIndexingPressure.markReplicaOperationStarted(shardId1, 10, false);
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
-
+        final Releasable[] releasables = fireConcurrentRequests(NUM_THREADS, shardIndexingPressure, shardId1, 10, OperationType.REPLICA);
         //Mimic the time elapsed after requests being stuck
         Thread.sleep(randomIntBetween(50, 100));
 
         //Generate a load which breaches both primary parameter
         expectThrows(OpenSearchRejectedExecutionException.class,
             () -> shardIndexingPressure.markReplicaOperationStarted(shardId1, 300 * 1024, false));
-
 
         for (int i = 0; i < NUM_THREADS; i++) {
             releasables[i].close();
@@ -842,36 +633,22 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
             .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 100)
-            .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), 20)
+            .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
             .build();
         final int NUM_THREADS = scaledRandomIntBetween(100, 150);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
 
         //Generating a load to such that the requests in the window shows degradation in throughput.
-        for (int i = 0; i < NUM_THREADS; i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                if(randomBoolean) {
-                    releasables[counter] = shardIndexingPressure.markCoordinatingOperationStarted(shardId1, 10, false);
-                } else {
-                    releasables[counter] = shardIndexingPressure.markPrimaryOperationStarted(shardId1, 10, false);
-                }
-                try {
-                    Thread.sleep(randomIntBetween(50, 100));
-                } catch (Exception e) {
-                    //Do Nothing
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
+        Releasable[] releasables;
+        if (randomBoolean) {
+            releasables = fireConcurrentRequestsWithUniformDelay(NUM_THREADS, shardIndexingPressure, shardId1, 10,
+                randomIntBetween(50, 100), OperationType.COORDINATING);
+        } else {
+            releasables =  fireConcurrentRequestsWithUniformDelay(NUM_THREADS, shardIndexingPressure, shardId1, 10,
+                randomIntBetween(50, 100), OperationType.PRIMARY);
         }
 
         //Generate a load which breaches both primary parameter
@@ -922,37 +699,20 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
             .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 100)
-            .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), 20)
+            .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
             .build();
         final int NUM_THREADS = scaledRandomIntBetween(100, 150);
-        final Thread[] threads = new Thread[NUM_THREADS];
-        final Releasable[] releasables = new Releasable[NUM_THREADS];
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
 
         //Generating a load to such that the requests in the window shows degradation in throughput.
-        for (int i = 0; i < NUM_THREADS; i++) {
-            int counter = i;
-            threads[i] = new Thread(() -> {
-                releasables[counter] = shardIndexingPressure.markReplicaOperationStarted(shardId1, 10, false);
-                try {
-                    Thread.sleep(randomIntBetween(50, 100));
-                } catch (Exception e) {
-                    //Do Nothing
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
+        final Releasable[] releasables = fireConcurrentRequestsWithUniformDelay(NUM_THREADS, shardIndexingPressure, shardId1, 10,
+            randomIntBetween(50, 100), OperationType.COORDINATING);
 
         //Generate a load which breaches both primary parameter
         expectThrows(OpenSearchRejectedExecutionException.class,
             () -> shardIndexingPressure.markReplicaOperationStarted(shardId1, 340 * 1024, false));
-
 
         for (int i = 0; i < NUM_THREADS; i++) {
             releasables[i].close();
@@ -967,5 +727,123 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
         assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1)
             .getReplicaLastSuccessfulRequestLimitsBreachedRejections());
         assertEquals(384, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1).getCurrentReplicaLimits());
+    }
+
+    private void fireAndCompleteConcurrentRequests(int concurrency, ShardIndexingPressure shardIndexingPressure, ShardId shardId,
+                                                   long bytes, OperationType operationType) throws Exception {
+        fireAndCompleteConcurrentRequestsWithUniformDelay(concurrency, shardIndexingPressure, shardId, bytes, randomIntBetween(5, 15),
+            operationType);
+    }
+
+    private void fireAndCompleteConcurrentRequestsWithUniformDelay(int concurrency, ShardIndexingPressure shardIndexingPressure,
+                                                                   ShardId shardId, long bytes, long delay,
+                                                                   OperationType operationType) throws Exception {
+        final Thread[] threads = new Thread[concurrency];
+        for (int i = 0; i < concurrency; i++) {
+            threads[i] = new Thread(() -> {
+                if(operationType == OperationType.COORDINATING) {
+                    Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, bytes, false);
+                    coordinating.close();
+                } else if (operationType == OperationType.PRIMARY){
+                    Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, bytes, false);
+                    primary.close();
+                } else {
+                    Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, bytes, false);
+                    replica.close();
+                }
+            });
+            try {
+                Thread.sleep(delay);
+            } catch (InterruptedException e) {
+                //Do Nothing
+            }
+            threads[i].start();
+        }
+        for (Thread t : threads) {
+            t.join();
+        }
+    }
+
+    private Releasable[] fireConcurrentRequests(int concurrency, ShardIndexingPressure shardIndexingPressure, ShardId shardId,
+                                                long bytes, OperationType operationType) throws Exception {
+        return fireConcurrentRequestsWithUniformDelay(concurrency, shardIndexingPressure, shardId, bytes, 0, operationType);
+    }
+
+    private Releasable[] fireConcurrentRequestsWithUniformDelay(int concurrency, ShardIndexingPressure shardIndexingPressure,
+                                                                ShardId shardId, long bytes, long delay,
+                                                                OperationType operationType) throws Exception {
+        final Thread[] threads = new Thread[concurrency];
+        final Releasable[] releasable = new Releasable[concurrency];
+        for (int i = 0; i < concurrency; i++) {
+            int counter = i;
+            threads[i] = new Thread(() -> {
+                if(operationType == OperationType.COORDINATING) {
+                    releasable[counter]  = shardIndexingPressure.markCoordinatingOperationStarted(shardId, bytes, false);
+                } else if (operationType == OperationType.PRIMARY){
+                    releasable[counter]  = shardIndexingPressure.markPrimaryOperationStarted(shardId, bytes, false);
+                } else {
+                    releasable[counter] = shardIndexingPressure.markReplicaOperationStarted(shardId, bytes, false);
+                }
+                try {
+                    Thread.sleep(delay);
+                } catch (Exception e) {
+                    //Do Nothing
+                }
+            });
+            threads[i].start();
+        }
+        for (Thread t : threads) {
+            t.join();
+        }
+        return releasable;
+    }
+
+    private void fireAllThenCompleteConcurrentRequests(int concurrency, ShardIndexingPressure shardIndexingPressure, ShardId shardId,
+                                                       long bytes, OperationType operationType) throws Exception {
+
+
+        fireAllThenCompleteConcurrentRequestsWithUniformDelay(concurrency, shardIndexingPressure, shardId, bytes, 0, operationType);
+    }
+
+    private void fireAllThenCompleteConcurrentRequestsWithUniformDelay(int concurrency, ShardIndexingPressure shardIndexingPressure,
+                                                                       ShardId shardId, long bytes, long delay,
+                                                                       OperationType operationType) throws Exception {
+
+        final Releasable[] releasable = fireConcurrentRequestsWithUniformDelay(concurrency, shardIndexingPressure, shardId, bytes, delay,
+            operationType);
+        for (int i = 0; i < concurrency; i++) {
+            releasable[i].close();
+        }
+    }
+
+    private void fireConcurrentAndParallelRequestsForUniformThroughPut(int concurrency, ShardIndexingPressure shardIndexingPressure,
+                                                                       ShardId shardId, long bytes, long delay,
+                                                                       OperationType operationType) throws Exception {
+        final Thread[] threads = new Thread[concurrency];
+        for (int i = 0; i < concurrency; i++) {
+            threads[i] = new Thread(() -> {
+                for (int j = 0; j < randomIntBetween(400, 500); j++) {
+                    Releasable releasable;
+                    if(operationType == OperationType.COORDINATING) {
+                        releasable = shardIndexingPressure.markCoordinatingOperationStarted(shardId, bytes, false);
+                    } else if (operationType == OperationType.PRIMARY){
+                        releasable = shardIndexingPressure.markPrimaryOperationStarted(shardId, bytes, false);
+                    } else {
+                        releasable = shardIndexingPressure.markReplicaOperationStarted(shardId, bytes, false);
+                    }
+                    try {
+                        Thread.sleep(delay);
+                    } catch (Exception e) {
+                        //Do Nothing
+                    }
+                    releasable.close();
+                }
+            });
+            threads[i].start();
+        }
+
+        for (Thread t : threads) {
+            t.join();
+        }
     }
 }

@@ -429,7 +429,7 @@ public class ShardIndexingPressureMemoryManager {
      */
     private boolean evaluateLastSuccessfulRequestDurationLimitsBreached(PerformanceTracker performanceTracker, long requestStartTime) {
         return (performanceTracker.getLastSuccessfulRequestTimestamp() > 0) &&
-            (requestStartTime - performanceTracker.getLastSuccessfulRequestTimestamp()) > this.successfulRequestElapsedTimeout.millis() &&
+            (requestStartTime - performanceTracker.getLastSuccessfulRequestTimestamp()) > this.successfulRequestElapsedTimeout.nanos() &&
             performanceTracker.getTotalOutstandingRequests() > this.maxOutstandingRequests;
     }
 
