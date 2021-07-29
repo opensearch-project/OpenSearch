@@ -73,7 +73,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     protected RankFeatureQueryBuilder doCreateTestQueryBuilder() {
         ScoreFunction function;
         boolean mayUseNegativeField = true;
-        switch (random().nextInt(3)) {
+        switch (random().nextInt(4)) {
         case 0:
             mayUseNegativeField = false;
             function = new ScoreFunction.Log(1 + randomFloat());
@@ -87,6 +87,9 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
             break;
         case 2:
             function = new ScoreFunction.Sigmoid(randomFloat(), randomFloat());
+            break;
+        case 3:
+            function = new ScoreFunction.Linear();
             break;
         default:
             throw new AssertionError();
