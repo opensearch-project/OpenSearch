@@ -89,6 +89,11 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
         }
     }
 
+    @Override
+    public boolean getShouldLogSlowTask() {
+        return true;
+    }
+
     public ShardSearchContextId contextId() {
         return contextId;
     }

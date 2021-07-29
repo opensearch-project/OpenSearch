@@ -63,6 +63,10 @@ public interface TaskAwareRequest {
         return new Task(id, type, action, getDescription(), parentTaskId, headers);
     }
 
+    default boolean getShouldLogSlowTask() {
+        return false;
+    }
+
     /**
      * Returns optional description of the request to be displayed by the task manager
      */
