@@ -322,6 +322,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return originalIndices.indicesOptions();
     }
 
+    @Override
+    public boolean getShouldLogSlowTask() {
+        return true;
+    }
+
     public ShardId shardId() {
         return shardId;
     }

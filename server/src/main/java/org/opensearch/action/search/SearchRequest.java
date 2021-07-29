@@ -674,6 +674,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers);
     }
 
+    @Override
+    public boolean getShouldLogSlowTask() {
+        return true;
+    }
+
     public final String buildDescription() {
         StringBuilder sb = new StringBuilder();
         sb.append("indices[");

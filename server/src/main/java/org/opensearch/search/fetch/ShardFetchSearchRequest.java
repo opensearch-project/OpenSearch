@@ -82,6 +82,11 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     }
 
     @Override
+    public boolean getShouldLogSlowTask() {
+        return true;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         OriginalIndices.writeOriginalIndices(originalIndices, out);

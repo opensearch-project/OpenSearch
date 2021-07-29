@@ -93,13 +93,17 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             unregisterChildNode.close();
             throw e;
         }
+        if (task != null && request.getShouldLogSlowTask()) {
+            listener = new SlowTaskExecutionActionListener<>(taskManager, task, listener, logger);
+        }
+        final ActionListener<Response> finalListener = listener;
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 try {
                     Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
                 } finally {
-                    listener.onResponse(response);
+                    finalListener.onResponse(response);
                 }
             }
 
@@ -108,7 +112,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 try {
                     Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
                 } finally {
-                    listener.onFailure(e);
+                    finalListener.onFailure(e);
                 }
             }
         });
@@ -162,6 +166,10 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
         if (task != null && request.getShouldStoreResult()) {
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
+        }
+
+        if (task != null && request.getShouldLogSlowTask()) {
+            listener = new SlowTaskExecutionActionListener<>(taskManager, task, listener, logger);
         }
 
         RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
@@ -231,6 +239,42 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 delegate.onFailure(inner);
+            }
+        }
+    }
+
+    /**
+     * Wrapper for an action listener that logs slow task executions
+     */
+    private static class SlowTaskExecutionActionListener<Response extends ActionResponse> implements ActionListener<Response> {
+        private final ActionListener<Response> delegate;
+        private final Task task;
+        private final TaskManager taskManager;
+        private final Logger logger;
+
+        private SlowTaskExecutionActionListener(TaskManager taskManager, Task task, ActionListener<Response> delegate, Logger logger) {
+            this.taskManager = taskManager;
+            this.task = task;
+            this.delegate = delegate;
+            this.logger = logger;
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            try {
+                taskManager.maybeLogSlowExecution(task, System.nanoTime() - task.getStartTimeNanos());
+            } catch (Exception e) {
+                delegate.onResponse(response);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            try {
+                taskManager.maybeLogSlowExecution(task, System.nanoTime() - task.getStartTimeNanos());
+            } catch (Exception inner) {
+                logger.error("Failed to log slow execution due to ", inner);
+                delegate.onFailure(e);
             }
         }
     }

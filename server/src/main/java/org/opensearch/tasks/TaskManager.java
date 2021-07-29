@@ -44,6 +44,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.support.SlowTaskExecutionLogService;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -104,6 +105,8 @@ public class TaskManager implements ClusterStateApplier {
 
     private TaskResultsService taskResultsService;
 
+    private SlowTaskExecutionLogService slowTaskExecutionLogService;
+
     private volatile DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
     private final ByteSizeValue maxHeaderSize;
@@ -123,6 +126,10 @@ public class TaskManager implements ClusterStateApplier {
 
     public void setTaskCancellationService(TaskCancellationService taskCancellationService) {
         this.cancellationService.set(taskCancellationService);
+    }
+
+    public void setSlowTaskExecutionLogService(SlowTaskExecutionLogService slowTaskExecutionLogService) {
+        this.slowTaskExecutionLogService = slowTaskExecutionLogService;
     }
 
     /**
@@ -300,6 +307,13 @@ public class TaskManager implements ClusterStateApplier {
                 listener.onFailure(e);
             }
         });
+    }
+
+    /**
+     * Logs slow Execution
+     */
+    public void maybeLogSlowExecution(Task task, long tookTime) {
+        slowTaskExecutionLogService.maybeLog(task, tookTime);
     }
 
     /**
