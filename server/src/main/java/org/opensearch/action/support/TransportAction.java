@@ -264,6 +264,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             try {
                 taskManager.maybeLogSlowExecution(task, System.nanoTime() - task.getStartTimeNanos());
             } catch (Exception e) {
+                logger.error("Failed to log slow execution due to ", e);
+            } finally {
                 delegate.onResponse(response);
             }
         }
@@ -274,6 +276,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 taskManager.maybeLogSlowExecution(task, System.nanoTime() - task.getStartTimeNanos());
             } catch (Exception inner) {
                 logger.error("Failed to log slow execution due to ", inner);
+            } finally {
                 delegate.onFailure(e);
             }
         }
