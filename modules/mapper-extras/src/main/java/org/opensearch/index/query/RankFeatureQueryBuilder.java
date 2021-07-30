@@ -39,6 +39,7 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.RankFeatureFieldMapper.RankFeatureFieldType;
 import org.opensearch.index.mapper.RankFeatureMetaFieldMapper;
@@ -257,6 +258,51 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
                 return FeatureField.newSigmoidQuery(field, feature, DEFAULT_BOOST, pivot, exp);
             }
         }
+
+        /**
+         * A scoring function that scores documents as simply {@code S}
+         * where S is the indexed value of the static feature.
+         */
+        public static class Linear extends ScoreFunction {
+
+            private static final ObjectParser<Linear, Void> PARSER = new ObjectParser<>("linear", Linear::new);
+
+            public Linear() {
+            }
+
+            private Linear(StreamInput in) {
+                this();
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (obj == null || getClass() != obj.getClass()) {
+                    return false;
+                }
+                return true;
+            }
+
+            @Override
+            public int hashCode() {
+                return getClass().hashCode();
+            }
+
+            @Override
+            void writeTo(StreamOutput out) throws IOException {
+                out.writeByte((byte) 3);
+            }
+
+            @Override
+            void doXContent(XContentBuilder builder) throws IOException {
+                builder.startObject("linear");
+                builder.endObject();
+            }
+
+            @Override
+            Query toQuery(String field, String feature, boolean positiveScoreImpact) throws IOException {
+                return FeatureField.newLinearQuery(field, feature, DEFAULT_BOOST);
+            }
+        }
     }
 
     private static ScoreFunction readScoreFunction(StreamInput in) throws IOException {
@@ -268,6 +314,8 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
             return new ScoreFunction.Saturation(in);
         case 2:
             return new ScoreFunction.Sigmoid(in);
+        case 3:
+            return new ScoreFunction.Linear(in);
         default:
             throw new IOException("Illegal score function id: " + b);
         }
@@ -281,7 +329,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
                 long numNonNulls = Arrays.stream(args, 3, args.length).filter(Objects::nonNull).count();
                 final RankFeatureQueryBuilder query;
                 if (numNonNulls > 1) {
-                    throw new IllegalArgumentException("Can only specify one of [log], [saturation] and [sigmoid]");
+                    throw new IllegalArgumentException("Can only specify one of [log], [saturation], [sigmoid] and [linear]");
                 } else if (numNonNulls == 0) {
                     query = new RankFeatureQueryBuilder(field, new ScoreFunction.Saturation());
                 } else {
@@ -305,6 +353,8 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
                 ScoreFunction.Saturation.PARSER, new ParseField("saturation"));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
                 ScoreFunction.Sigmoid.PARSER, new ParseField("sigmoid"));
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
+            ScoreFunction.Linear.PARSER, new ParseField("linear"));
     }
 
     public static final String NAME = "rank_feature";
