@@ -220,8 +220,8 @@ public class ShardIndexingPressure extends IndexingPressure {
         performanceTracker.addNewThroughout(requestThroughput);
         if (performanceTracker.getThroughputMovingQueueSize() > shardIndexingPressureSettings.getRequestSizeWindow()) {
             double front = performanceTracker.getFirstThroughput();
-            double movingAverage = calculateMovingAverage(performanceTracker.getThroughputMovingAverage(), front, requestThroughput,
-                shardIndexingPressureSettings.getRequestSizeWindow());
+            double movingAverage = memoryManager.calculateMovingAverage(performanceTracker.getThroughputMovingAverage(), front,
+                requestThroughput, shardIndexingPressureSettings.getRequestSizeWindow());
             performanceTracker.updateThroughputMovingAverage(Double.doubleToLongBits(movingAverage));
         } else {
             double movingAverage = (double) statsTracker.getTotalBytes() / performanceTracker.getLatencyInMillis();
@@ -253,14 +253,6 @@ public class ShardIndexingPressure extends IndexingPressure {
         memoryManager.tryTrackerCleanupFromHotStore(tracker,
             () -> (tracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes() == 0 &&
                 tracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes() == 0));
-    }
-
-    private double calculateMovingAverage(long currentAverage, double frontValue, double currentValue, int count) {
-        if(count > 0) {
-            return ((Double.longBitsToDouble(currentAverage) * count) + currentValue - frontValue) / count;
-        } else {
-            return currentValue;
-        }
     }
 
     private void rejectShardRequest(ShardIndexingPressureTracker tracker, long bytes, long nodeTotalBytes, long shardTotalBytes,

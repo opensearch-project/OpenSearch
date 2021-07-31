@@ -294,6 +294,14 @@ public class ShardIndexingPressureMemoryManager {
         shardIndexingPressureStore.tryTrackerCleanupFromHotStore(tracker, condition);
     }
 
+    double calculateMovingAverage(long currentAverage, double frontValue, double currentValue, int count) {
+        if(count > 0) {
+            return ((Double.longBitsToDouble(currentAverage) * count) + currentValue - frontValue) / count;
+        } else {
+            return currentValue;
+        }
+    }
+
     long getTotalNodeLimitsBreachedRejections() {
         return totalNodeLimitsBreachedRejections.get();
     }
