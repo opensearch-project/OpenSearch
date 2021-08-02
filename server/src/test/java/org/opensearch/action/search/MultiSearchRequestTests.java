@@ -143,12 +143,12 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
 
     public void testCancelAfterIntervalAtParentAndFewChildRequest() throws Exception {
         final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\", " +
-            "\"cancel_after_timeinterval\" : \"10s\"}\r\n" +
+            "\"cancel_after_time_interval\" : \"10s\"}\r\n" +
             "{\"query\" : {\"match_all\" :{}}}\r\n {\"search_type\" : \"dfs_query_then_fetch\"}\n" +
             "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON)
-            .withParams(Collections.singletonMap("cancel_after_timeinterval", "20s"))
+            .withParams(Collections.singletonMap("cancel_after_time_interval", "20s"))
             .build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
         assertThat(request.requests().size(), equalTo(2));
@@ -165,7 +165,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON)
-            .withParams(Collections.singletonMap("cancel_after_timeinterval", "20s"))
+            .withParams(Collections.singletonMap("cancel_after_time_interval", "20s"))
             .build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
         assertThat(request.requests().size(), equalTo(1));
@@ -383,7 +383,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
 
     public void testSerDeWithCancelAfterTimeIntervalParameterAndRandomVersion() throws IOException {
         final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\", " +
-            "\"cancel_after_timeinterval\" : \"10s\"}\r\n{\"query\" : {\"match_all\" :{}}}\r\n";
+            "\"cancel_after_time_interval\" : \"10s\"}\r\n{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON)
             .build();

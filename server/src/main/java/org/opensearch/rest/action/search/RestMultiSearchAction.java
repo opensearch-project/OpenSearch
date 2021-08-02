@@ -159,7 +159,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();
-        final TimeValue cancelAfterTime = restRequest.paramAsTime("cancel_after_timeinterval", null);
+        final TimeValue cancelAfterTimeInterval = restRequest.paramAsTime("cancel_after_time_interval", null);
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
             if (preFilterShardSize != null && request.getPreFilterShardSize() == null) {
@@ -168,10 +168,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
             if (maxConcurrentShardRequests != null) {
                 request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
             }
-            // if cancel_after_timeinterval parameter is set at per search request level than that is used otherwise one set at
+            // if cancel_after_time_interval parameter is set at per search request level than that is used otherwise one set at
             // multi search request level will be used
-            if (cancelAfterTime != null && request.getCancelAfterTimeInterval() == null) {
-                request.setCancelAfterTimeInterval(cancelAfterTime);
+            if (request.getCancelAfterTimeInterval() == null) {
+                request.setCancelAfterTimeInterval(cancelAfterTimeInterval);
             }
         }
         return multiRequest;

@@ -273,8 +273,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             allowNoIndices = value;
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
-                        } else if ("cancel_after_timeinterval".equals(entry.getKey()) ||
-                            "cancelAfterTimeinterval".equals(entry.getKey())) {
+                        } else if ("cancel_after_time_interval".equals(entry.getKey()) ||
+                            "cancelAfterTimeInterval".equals(entry.getKey())) {
                             searchRequest.setCancelAfterTimeInterval(nodeTimeValue(value, null));
                         } else {
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
@@ -367,7 +367,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
         }
         if (request.getCancelAfterTimeInterval() != null) {
-            xContentBuilder.field("cancel_after_timeinterval", request.getCancelAfterTimeInterval().getStringRep());
+            xContentBuilder.field("cancel_after_time_interval", request.getCancelAfterTimeInterval().getStringRep());
         }
         xContentBuilder.endObject();
     }

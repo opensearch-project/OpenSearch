@@ -132,7 +132,7 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             searchRequest.setCancelAfterTimeInterval(
-                TimeValue.parseTimeValue(randomTimeValue(), null, "cancel_after_timeinterval"));
+                TimeValue.parseTimeValue(randomTimeValue(), null, "cancel_after_time_interval"));
         }
         return searchRequest;
     }

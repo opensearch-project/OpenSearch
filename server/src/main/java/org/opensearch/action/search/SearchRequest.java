@@ -115,7 +115,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
-    // search request level timeout after which it will be cancelled
     private TimeValue cancelAfterTimeInterval;
 
     public SearchRequest() {
