@@ -125,10 +125,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     // cluster level setting for timeout based search cancellation. If search request level parameter is present then that will take
     // precedence over the cluster setting value
-    public static final String SEARCH_REQUEST_CANCEL_AFTER_TIMEINTERVAL_SETTING_KEY = "search.cancel_after_timeinterval";
-    public static final Setting<TimeValue> SEARCH_REQUEST_CANCEL_AFTER_TIMEINTERVAL_SETTING =
-        Setting.timeSetting(SEARCH_REQUEST_CANCEL_AFTER_TIMEINTERVAL_SETTING_KEY, TimeValue.timeValueSeconds(300), SearchService.NO_TIMEOUT,
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final String SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY = "search.cancel_after_time_interval";
+    public static final Setting<TimeValue> SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING =
+        Setting.timeSetting(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, TimeValue.timeValueSeconds(300),
+            SearchService.NO_TIMEOUT, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     // cluster level setting to control enabling/disabling the timeout based cancellation. This is enabled by default
     public static final String SEARCH_REQUEST_CANCELLATION_ENABLE_SETTING_KEY = "search.timeout.cancellation.enable";
@@ -261,7 +261,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final boolean isTimeoutCancelEnabled = clusterService.getClusterSettings().get(SEARCH_REQUEST_CANCELLATION_ENABLE_SETTING);
         if (task instanceof CancellableTask && ((CancellableTask) task).shouldCancelOnTimeout() && isTimeoutCancelEnabled) {
             listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(client, (CancellableTask) task,
-                clusterService.getClusterSettings().get(SEARCH_REQUEST_CANCEL_AFTER_TIMEINTERVAL_SETTING), listener);
+                clusterService.getClusterSettings().get(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING), listener);
         }
         executeRequest(task, searchRequest, this::searchAsyncAction, listener);
     }
