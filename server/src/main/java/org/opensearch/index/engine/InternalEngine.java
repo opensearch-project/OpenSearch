@@ -2702,6 +2702,9 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        if (source.equals(HistorySource.TRANSLOG.name())) {
+            return getTranslog().newSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
+        }
         ensureSoftDeletesEnabled();
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);

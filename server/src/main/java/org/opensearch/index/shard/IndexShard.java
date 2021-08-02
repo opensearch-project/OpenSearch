@@ -2010,6 +2010,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     *
+     * Creates a new history snapshot for reading operations since
+     * the provided starting seqno (inclusive) and ending seqno (inclusive)
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
+     */
+    public Translog.Snapshot getHistoryOperations(String reason, Engine.HistorySource source,
+                                                  long startingSeqNo, long endSeqNo) throws IOException {
+        return getEngine().newChangesSnapshot(source.name(), mapperService, startingSeqNo, endSeqNo, true);
+    }
+    /**
      * Checks if we have a completed history of operations since the given starting seqno (inclusive).
      * This method should be called after acquiring the retention lock; See {@link #acquireHistoryRetentionLock(Engine.HistorySource)}
      */
