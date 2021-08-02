@@ -1852,6 +1852,11 @@ public abstract class Engine implements Closeable {
 
     }
 
+    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize,
+                                  long softDeletesRetentionOps, boolean translogPruningByRetentionLease) {
+
+    }
+
     /**
      * Returns the timestamp of the last write in nanoseconds.
      * Note: this time might not be absolutely accurate since the {@link Operation#startTime()} is used which might be
