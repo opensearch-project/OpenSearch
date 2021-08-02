@@ -80,6 +80,11 @@ public class RestMasterAction extends AbstractCatAction {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
