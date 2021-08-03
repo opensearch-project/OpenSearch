@@ -256,10 +256,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // only if task is of type CancellableTask and support cancellation on timeout, treat this request eligible for timeout based
         // cancellation. There may be other top level requests like AsyncSearch which is using SearchRequest internally and has it's own
-        // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and provide the necessary
-        // flag to indicate it and bypass this mechanism
+        // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
+        // cancelAfterTimeInterval to NO_TIMEOUT and bypass this mechanism
         final boolean isTimeoutCancelEnabled = clusterService.getClusterSettings().get(SEARCH_REQUEST_CANCELLATION_ENABLE_SETTING);
-        if (task instanceof CancellableTask && ((CancellableTask) task).shouldCancelOnTimeout() && isTimeoutCancelEnabled) {
+        if (task instanceof CancellableTask && isTimeoutCancelEnabled) {
             listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(client, (CancellableTask) task,
                 clusterService.getClusterSettings().get(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING), listener);
         }
