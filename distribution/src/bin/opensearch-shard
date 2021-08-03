@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 OPENSEARCH_MAIN_CLASS=org.opensearch.index.shard.ShardToolCli \
   "`dirname "$0"`"/opensearch-cli \
