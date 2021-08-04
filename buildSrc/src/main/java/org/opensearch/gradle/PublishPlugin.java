@@ -128,6 +128,11 @@ public class PublishPlugin implements Plugin<Project> {
             // have to defer this until archivesBaseName is set
             project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
 
+            if (project.getPlugins().hasPlugin("opensearch.java")) {
+                publication.artifact(project.getTasks().getByName("sourcesJar"));
+                publication.artifact(project.getTasks().getByName("javadocJar"));
+            }
+
             generatePomTask.configure(
                 t -> t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName())))
             );
