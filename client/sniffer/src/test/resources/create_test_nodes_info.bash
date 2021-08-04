@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Recreates the v_nodes_http.json files in this directory. This is
 # meant to be an "every once in a while" thing that we do only when

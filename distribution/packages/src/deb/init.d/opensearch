@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # /etc/init.d/opensearch -- startup script for OpenSearch
 #
