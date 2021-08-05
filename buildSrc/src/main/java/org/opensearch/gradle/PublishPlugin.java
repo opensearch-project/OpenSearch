@@ -121,14 +121,15 @@ public class PublishPlugin implements Plugin<Project> {
             });
         });
 
-        // Add git origin info to generated POM files
         publishing.getPublications().withType(MavenPublication.class, publication -> {
+            // Add git origin info to generated POM files
             publication.getPom().withXml(PublishPlugin::addScmInfo);
 
             // have to defer this until archivesBaseName is set
             project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
 
-            if (project.getPlugins().hasPlugin("opensearch.java")) {
+            // publish sources and javadoc for Java projects.
+            if (project.getPluginManager().hasPlugin("opensearch.java")) {
                 publication.artifact(project.getTasks().getByName("sourcesJar"));
                 publication.artifact(project.getTasks().getByName("javadocJar"));
             }
