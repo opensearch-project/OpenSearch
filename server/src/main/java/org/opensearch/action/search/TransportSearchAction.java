@@ -130,10 +130,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Setting.timeSetting(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, TimeValue.timeValueSeconds(300),
             SearchService.NO_TIMEOUT, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
-    // cluster level setting to control enabling/disabling the timeout based cancellation. This is enabled by default
-    public static final String SEARCH_REQUEST_CANCELLATION_ENABLE_SETTING_KEY = "search.timeout.cancellation.enable";
-    public static final Setting<Boolean> SEARCH_REQUEST_CANCELLATION_ENABLE_SETTING =
-        Setting.boolSetting(SEARCH_REQUEST_CANCELLATION_ENABLE_SETTING_KEY, true, Setting.Property.Dynamic,
+    // cluster level setting to control enforcing server/request level cancel_after_time_interval value
+    public static final String SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_KEY = "search.enforce_server.timeout.cancellation";
+    public static final Setting<Boolean> SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_SETTING =
+        Setting.boolSetting(SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_KEY, false, Setting.Property.Dynamic,
             Setting.Property.NodeScope);
 
     private final NodeClient client;
@@ -258,10 +258,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // cancellation. There may be other top level requests like AsyncSearch which is using SearchRequest internally and has it's own
         // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
         // cancelAfterTimeInterval to NO_TIMEOUT and bypass this mechanism
-        final boolean isTimeoutCancelEnabled = clusterService.getClusterSettings().get(SEARCH_REQUEST_CANCELLATION_ENABLE_SETTING);
-        if (task instanceof CancellableTask && isTimeoutCancelEnabled) {
+        if (task instanceof CancellableTask) {
             listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(client, (CancellableTask) task,
-                clusterService.getClusterSettings().get(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING), listener);
+                clusterService.getClusterSettings(), listener);
         }
         executeRequest(task, searchRequest, this::searchAsyncAction, listener);
     }

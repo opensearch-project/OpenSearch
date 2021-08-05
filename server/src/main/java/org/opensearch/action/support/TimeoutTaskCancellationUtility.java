@@ -15,6 +15,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.CancellableTask;
@@ -26,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.opensearch.action.search.TransportSearchAction.SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_SETTING;
+import static org.opensearch.action.search.TransportSearchAction.SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING;
 
 public class TimeoutTaskCancellationUtility {
 
@@ -36,16 +39,19 @@ public class TimeoutTaskCancellationUtility {
      * generic thread pool
      * @param client - {@link NodeClient}
      * @param taskToCancel - task to schedule cancellation for
-     * @param globalTimeout - global timeout to use for scheduling cancellation task in absence of task level parameter
+     * @param clusterSettings - {@link ClusterSettings}
      * @param listener - original listener associated with the task
      * @return wrapped listener
      */
-    public static <Response> ActionListener<Response> wrapWithCancellationListener(NodeClient client, CancellableTask taskToCancel,
-        TimeValue globalTimeout, ActionListener<Response> listener) {
-        final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null) ? globalTimeout
-            : taskToCancel.getCancellationTimeout();
-        // Note: If -1 (or no timeout) is set at request level then we will use that value instead of cluster level value. This will help
-        // to turn off cancellation at request level.
+    public static <Response> ActionListener<Response>  wrapWithCancellationListener(NodeClient client, CancellableTask taskToCancel,
+        ClusterSettings clusterSettings, ActionListener<Response> listener) {
+        final TimeValue globalTimeout = clusterSettings.get(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING);
+        final boolean enforceServerSideTimeout = clusterSettings.get(SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_SETTING);
+        final TimeValue timeoutInterval = enforceServerSideTimeout ? globalTimeout :
+            (taskToCancel.getCancellationTimeout() == null) ? globalTimeout : taskToCancel.getCancellationTimeout();
+        // Note: -1 (or no timeout) will help to turn off cancellation. With enforceServerSideTimeout as false, it will be controlled by
+        // request level parameter. When enforceServerSideTimeout is true, it will be controlled by cluster level cancel_after_time_interval
+        // setting
         ActionListener<Response> listenerToReturn = listener;
         if (timeoutInterval.equals(SearchService.NO_TIMEOUT)) {
             return listenerToReturn;
