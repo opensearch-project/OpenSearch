@@ -187,6 +187,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void upgradePlugin(List<Provider<RegularFile>> plugins) {
+        nodes.all(each -> each.upgradePlugin(plugins));
+    }
+
+    @Override
     public void module(Provider<RegularFile> module) {
         nodes.all(each -> each.module(module));
     }
@@ -401,6 +406,19 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         node.goToNextVersion();
         commonNodeConfig(node, null, null);
         nodeIndex += 1;
+        node.start();
+    }
+
+    public void upgradeNodeAndPluginToNextVersion(List<Provider<RegularFile>> plugins) {
+        if (nodeIndex + 1 > nodes.size()) {
+            throw new TestClustersException("Ran out of nodes to take to the next version");
+        }
+        OpenSearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
+        node.stop(false);
+        node.goToNextVersion();
+        commonNodeConfig(node, null, null);
+        nodeIndex += 1;
+        node.upgradePlugin(plugins);
         node.start();
     }
 
