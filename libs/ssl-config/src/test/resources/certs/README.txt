@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # This is README describes how the certificates in this directory were created.
 # This file can also be executed as a script
