@@ -307,6 +307,11 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         assertEquals(Arrays.asList(expectedFirstDoc.toString(), expectedSecondDoc.toString()), collect("field", queryShardContext));
     }
 
+    public void testSearchLookupShardId() throws IOException {
+        SearchLookup searchLookup = createQueryShardContext("uuid", null, null).lookup();
+        assertEquals(0, searchLookup.shardId());
+    }
+
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
         return createQueryShardContext(indexUuid, clusterAlias, null);
     }
