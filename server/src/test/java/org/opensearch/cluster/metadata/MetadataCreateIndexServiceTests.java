@@ -965,7 +965,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     public void testIndexLifecycleNameSetting() {
-        //https://github.com/opensearch-project/OpenSearch/issues/1019
+        // see: https://github.com/opensearch-project/OpenSearch/issues/1019
         final Settings ilnSetting = Settings.builder().put("index.lifecycle.name", "dummy").build();
         withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(

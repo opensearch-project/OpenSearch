@@ -1044,7 +1044,7 @@ public class MetadataCreateIndexService {
         for (final String key : settings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
-                //https://github.com/opensearch-project/OpenSearch/issues/1019
+                // see: https://github.com/opensearch-project/OpenSearch/issues/1019
                 if(!indexScopedSettings.isPrivateSetting(key)) {
                     validationErrors.add("expected [" + key + "] to be private but it was not");
                 }
