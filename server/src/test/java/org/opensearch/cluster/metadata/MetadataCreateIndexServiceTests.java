@@ -66,6 +66,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
@@ -961,6 +962,31 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Collections.emptySet());
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+    }
+
+    public void testIndexLifecycleNameSetting() {
+        // see: https://github.com/opensearch-project/OpenSearch/issues/1019
+        final Settings ilnSetting = Settings.builder().put("index.lifecycle.name", "dummy").build();
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                null,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                new Environment(Settings.builder().put("path.home", "dummy").build(), null),
+                new IndexScopedSettings(ilnSetting, Collections.emptySet()),
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                true
+            );
+
+            final List<String> validationErrors =  checkerService.getIndexSettingsValidationErrors(ilnSetting, true);
+            assertThat(validationErrors.size(), is(1));
+            assertThat(validationErrors.get(0), is("expected [index.lifecycle.name] to be private but it was not"));
+        }));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
