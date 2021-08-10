@@ -240,8 +240,8 @@ public class ShardIndexingPressureTracker {
             return totalOutstandingRequests.incrementAndGet();
         }
 
-        public long updateTotalOutstandingRequests(long count) {
-            return totalOutstandingRequests.getAndSet(count);
+        public void resetTotalOutstandingRequests() {
+            totalOutstandingRequests.set(0L);
         }
 
         public long getThroughputMovingAverage() {

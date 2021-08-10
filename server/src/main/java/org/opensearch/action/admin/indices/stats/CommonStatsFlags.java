@@ -83,8 +83,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             includeUnloadedSegments = in.readBoolean();
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) &&
-            ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
+        if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
             includeAllShardIndexingPressureTrackers = in.readBoolean();
             includeOnlyTopIndexingPressureMetrics = in.readBoolean();
         }
@@ -106,8 +105,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeBoolean(includeUnloadedSegments);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) &&
-            ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
+        if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
             out.writeBoolean(includeAllShardIndexingPressureTrackers);
             out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
         }

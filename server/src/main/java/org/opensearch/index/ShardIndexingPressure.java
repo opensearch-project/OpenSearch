@@ -5,6 +5,8 @@
 
 package org.opensearch.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
@@ -24,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Shard Indexing Pressure is a framework level artefact build on top of IndexingPressure to track incoming indexing request, per shard.
@@ -39,6 +42,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class ShardIndexingPressure extends IndexingPressure {
 
+    private static final Logger logger = LogManager.getLogger(ShardIndexingPressure.class);
     private final ShardIndexingPressureSettings shardIndexingPressureSettings;
     private final ShardIndexingPressureMemoryManager memoryManager;
 
@@ -83,14 +87,14 @@ public class ShardIndexingPressure extends IndexingPressure {
         markShardOperationStarted(statsTracker, tracker.getCoordinatingOperationTracker().getPerformanceTracker());
         boolean isShadowModeBreach = shardLevelLimitBreached;
 
-        return () -> {
+        return wrapReleasable(() -> {
             currentCombinedCoordinatingAndPrimaryBytes.addAndGet(-bytes);
             currentCoordinatingBytes.addAndGet(-bytes);
             markShardOperationComplete(bytes, requestStartTime, isShadowModeBreach, tracker.getCoordinatingOperationTracker(),
                 tracker.getCommonOperationTracker());
             memoryManager.decreaseShardPrimaryAndCoordinatingLimits(tracker);
             tryReleaseTracker(tracker);
-        };
+        });
     }
 
     public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(ShardId shardId, long bytes) {
@@ -103,10 +107,10 @@ public class ShardIndexingPressure extends IndexingPressure {
         tracker.getPrimaryOperationTracker().getStatsTracker().incrementCurrentBytes(bytes);
         tracker.getPrimaryOperationTracker().getStatsTracker().incrementTotalBytes(bytes);
 
-        return () -> {
+        return wrapReleasable(() -> {
             currentPrimaryBytes.addAndGet(-bytes);
             tracker.getPrimaryOperationTracker().getStatsTracker().incrementCurrentBytes(-bytes);
-        };
+        });
     }
 
     public Releasable markPrimaryOperationStarted(ShardId shardId, long bytes, boolean forceExecution) {
@@ -143,14 +147,14 @@ public class ShardIndexingPressure extends IndexingPressure {
         markShardOperationStarted(statsTracker, tracker.getPrimaryOperationTracker().getPerformanceTracker());
         boolean isShadowModeBreach = shardLevelLimitBreached;
 
-        return () -> {
+        return wrapReleasable(() -> {
             currentCombinedCoordinatingAndPrimaryBytes.addAndGet(-bytes);
             currentPrimaryBytes.addAndGet(-bytes);
             markShardOperationComplete(bytes, requestStartTime, isShadowModeBreach, tracker.getPrimaryOperationTracker(),
                 tracker.getCommonOperationTracker());
             memoryManager.decreaseShardPrimaryAndCoordinatingLimits(tracker);
             tryReleaseTracker(tracker);
-        };
+        });
     }
 
     public Releasable markReplicaOperationStarted(ShardId shardId, long bytes, boolean forceExecution) {
@@ -182,11 +186,23 @@ public class ShardIndexingPressure extends IndexingPressure {
         markShardOperationStarted(statsTracker, tracker.getReplicaOperationTracker().getPerformanceTracker());
         boolean isShadowModeBreach = shardLevelLimitBreached;
 
-        return () -> {
+        return wrapReleasable(() -> {
             currentReplicaBytes.addAndGet(-bytes);
             markShardOperationComplete(bytes, requestStartTime, isShadowModeBreach, tracker.getReplicaOperationTracker());
             memoryManager.decreaseShardReplicaLimits(tracker);
             tryReleaseTracker(tracker);
+        });
+    }
+
+    private static Releasable wrapReleasable(Releasable releasable) {
+        final AtomicBoolean called = new AtomicBoolean();
+        return () -> {
+            if (called.compareAndSet(false, true)) {
+                releasable.close();
+            } else {
+                logger.error("ShardIndexingPressure Release is called twice", new IllegalStateException("Releasable is called twice"));
+                assert false : "ShardIndexingPressure Release is called twice";
+            }
         };
     }
 
@@ -207,7 +223,7 @@ public class ShardIndexingPressure extends IndexingPressure {
 
         performanceTracker.addLatencyInMillis(requestLatency);
         performanceTracker.updateLastSuccessfulRequestTimestamp(requestEndTime);
-        performanceTracker.updateTotalOutstandingRequests(0);
+        performanceTracker.resetTotalOutstandingRequests();
 
         if(requestLatency > 0) {
             calculateRequestThroughput(bytes, requestLatency, performanceTracker, statsTracker);

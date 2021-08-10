@@ -794,4 +794,27 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         }
         assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId).getCurrentCoordinatingBytes());
     }
+
+    public void testAssertionOnReleaseExecutedTwice() {
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
+        Index index = new Index("IndexName", "UUID");
+        ShardId shardId = new ShardId(index, 0);
+        String assertionMessage = "ShardIndexingPressure Release is called twice";
+
+        Releasable releasable = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1024, false);
+        releasable.close();
+        expectThrows(AssertionError.class, assertionMessage, releasable::close);
+
+        releasable = shardIndexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(shardId, 1024);
+        releasable.close();
+        expectThrows(AssertionError.class, assertionMessage, releasable::close);
+
+        releasable = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1024, false);
+        releasable.close();
+        expectThrows(AssertionError.class, assertionMessage, releasable::close);
+
+        releasable = shardIndexingPressure.markReplicaOperationStarted(shardId, 1024, false);
+        releasable.close();
+        expectThrows(AssertionError.class, assertionMessage, releasable::close);
+    }
 }
