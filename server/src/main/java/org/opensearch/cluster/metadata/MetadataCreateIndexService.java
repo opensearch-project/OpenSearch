@@ -1044,7 +1044,10 @@ public class MetadataCreateIndexService {
         for (final String key : settings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
-                assert indexScopedSettings.isPrivateSetting(key) : "expected [" + key + "] to be private but it was not";
+                // see: https://github.com/opensearch-project/OpenSearch/issues/1019
+                if(!indexScopedSettings.isPrivateSetting(key)) {
+                    validationErrors.add("expected [" + key + "] to be private but it was not");
+                }
             } else if (setting.isPrivateIndex()) {
                 validationErrors.add("private index setting [" + key + "] can not be set explicitly");
             }
