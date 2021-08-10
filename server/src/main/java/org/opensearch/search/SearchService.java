@@ -65,6 +65,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
@@ -656,7 +657,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.scroll() != null) {
                 decreaseScrollContexts = openScrollContexts::decrementAndGet;
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
-                    throw new OpenSearchException(
+                    throw new OpenSearchRejectedExecutionException(
                         "Trying to create too many scroll contexts. Must be less than or equal to: [" +
                             maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
                             + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
