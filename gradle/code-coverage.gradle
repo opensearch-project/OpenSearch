@@ -1,0 +1,94 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'jacoco'
+
+repositories {
+  mavenCentral()
+}
+
+allprojects {
+  plugins.withId('jacoco') {
+    // The default JaCoCo version in Gradle 6.6.1 is 0.8.5, but at least version 0.8.6 officially supports Java 14
+    jacoco.toolVersion = '0.8.7'
+  }
+}
+
+def codeCoverageReportTask = tasks.register("codeCoverageReport", JacocoReport) {
+  description = 'Generates aggregate report from all subprojects.'
+  executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/*.exec')
+}
+
+tasks.register("codeCoverageReportForUnitTest", JacocoReport) {
+  description = 'Generates aggregate report from all subprojects for unit test.'
+  executionData.setFrom fileTree(dir: '.', include: '**/build/jacoco/test.exec')
+}
+
+tasks.register("codeCoverageReportForIntegrationTest", JacocoReport) {
+  description = 'Generates aggregate report from all subprojects for integration test.'
+  // These kinds of tests are integration test, and the tests can be ran by Gradle tasks with the same name
+  def integrationTestExecPathList = ['**/build/jacoco/integTest.exec',
+                                     '**/build/jacoco/internalClusterTest.exec',
+                                     '**/build/jacoco/javaRestTest.exec',
+                                     '**/build/jacoco/yamlRestTest.exec' ]
+  executionData.setFrom fileTree(dir: '.', include: integrationTestExecPathList)
+}
+
+tasks.withType(JacocoReport).configureEach {
+  group = JavaBasePlugin.VERIFICATION_GROUP
+
+  // Select projects with corresponding tests in order to run proper tests and select proper classes to generate the report
+  def projectsWithJavaPlugin = subprojects.findAll { it.pluginManager.hasPlugin('java') }
+  def projectsWithUnitTest = projectsWithJavaPlugin.findAll { it.tasks.findByName('test').enabled }
+  def projectsWithIntegTest = projectsWithJavaPlugin.findAll {it.tasks.findByName('integTest')}
+  def projectsWithInternalClusterTest = projectsWithJavaPlugin.findAll {it.tasks.findByName('internalClusterTest')}
+  def projectsWithJavaRestTest = projectsWithJavaPlugin.findAll {it.tasks.findByName('javaRestTest')}
+  def projectsWithYamlRestTest = projectsWithJavaPlugin.findAll {it.tasks.findByName('yamlRestTest')}
+  def projectsWithIntegrationTest = projectsWithIntegTest + projectsWithInternalClusterTest + projectsWithJavaRestTest + projectsWithYamlRestTest
+  def projectsWithTest = projectsWithUnitTest + projectsWithIntegrationTest
+
+  def selectedProjects
+  switch (name) {
+    case "codeCoverageReportForUnitTest":
+      dependsOn projectsWithUnitTest.test
+      selectedProjects = projectsWithUnitTest
+      break
+    case "codeCoverageReportForIntegrationTest":
+      dependsOn projectsWithIntegTest.integTest
+      dependsOn projectsWithInternalClusterTest.internalClusterTest
+      dependsOn projectsWithJavaRestTest.javaRestTest
+      dependsOn projectsWithYamlRestTest.yamlRestTest
+      selectedProjects = projectsWithIntegrationTest
+      break
+    default:
+      dependsOn projectsWithUnitTest.test
+      dependsOn projectsWithIntegTest.integTest
+      dependsOn projectsWithInternalClusterTest.internalClusterTest
+      dependsOn projectsWithJavaRestTest.javaRestTest
+      dependsOn projectsWithYamlRestTest.yamlRestTest
+      selectedProjects = projectsWithTest
+      break
+  }
+  sourceDirectories.setFrom files(selectedProjects.sourceSets.main.allSource.srcDirs)
+  classDirectories.setFrom files(selectedProjects.sourceSets.main.output)
+
+  reports {
+    xml.enabled true
+    // Code coverage report in HTML format is on demand， since it takes up 100+MB of disk space.
+    if (System.getProperty('tests.coverage.html_report')) {
+      html.enabled true
+    }
+  }
+}
+
+if (System.getProperty("tests.coverage")) {
+  // Attach code coverage report task to Gradle check task
+  project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
+    dependsOn codeCoverageReportTask
+  }
+}
