@@ -252,6 +252,8 @@ public class MetadataUpdateSettingsService {
                     IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {
                     for (String index : actualIndices) {
                         MetadataCreateIndexService.validateTranslogRetentionSettings(metadataBuilder.get(index).getSettings());
+                        // validate storeType for deprecating index stores
+                        MetadataCreateIndexService.validateStoreTypeSettings(metadataBuilder.get(index).getSettings());
                     }
                 }
                 boolean changed = false;
