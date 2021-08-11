@@ -125,15 +125,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     // cluster level setting for timeout based search cancellation. If search request level parameter is present then that will take
     // precedence over the cluster setting value
-    public static final String SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY = "search.cancel_after_time_interval";
-    public static final Setting<TimeValue> SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING =
-        Setting.timeSetting(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, TimeValue.timeValueSeconds(300),
-            SearchService.NO_TIMEOUT, Setting.Property.Dynamic, Setting.Property.NodeScope);
-
-    // cluster level setting to control enforcing server/request level cancel_after_time_interval value
-    public static final String SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_KEY = "search.enforce_server.timeout.cancellation";
-    public static final Setting<Boolean> SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_SETTING =
-        Setting.boolSetting(SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_KEY, false, Setting.Property.Dynamic,
+    public static final String SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY = "search.cancel_after_time_interval";
+    public static final Setting<TimeValue> SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING =
+        Setting.timeSetting(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, SearchService.NO_TIMEOUT, Setting.Property.Dynamic,
             Setting.Property.NodeScope);
 
     private final NodeClient client;

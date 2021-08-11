@@ -74,8 +74,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static org.opensearch.action.search.TransportSearchAction.SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_KEY;
-import static org.opensearch.action.search.TransportSearchAction.SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY;
+import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY;
 import static org.opensearch.index.query.QueryBuilders.scriptQuery;
 import static org.opensearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
@@ -253,7 +252,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
 
         TimeValue cancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout)
+            .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout)
             .build()).get();
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setAllowPartialSearchResults(randomBoolean())
@@ -442,7 +441,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         indexTestData();
         TimeValue cancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout)
+            .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout)
             .build()).get();
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setAllowPartialSearchResults(randomBoolean())
@@ -465,12 +464,10 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         indexTestData();
         TimeValue cancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_KEY, true)
-            .put(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, NO_TIMEOUT)
+            .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, NO_TIMEOUT)
             .build()).get();
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setAllowPartialSearchResults(randomBoolean())
-            .setCancelAfterTimeInterval(cancellationTimeout)
             .setQuery(
                 scriptQuery(new Script(
                     ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
@@ -510,7 +507,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         indexTestData();
         TimeValue cancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout)
+            .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout)
             .build()).get();
         ActionFuture<MultiSearchResponse> mSearchResponse = client().prepareMultiSearch()
             .add(client().prepareSearch("test").setAllowPartialSearchResults(randomBoolean())
@@ -542,7 +539,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         TimeValue reqCancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
         TimeValue clusterCancellationTimeout = new TimeValue(3, TimeUnit.SECONDS);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, clusterCancellationTimeout)
+            .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, clusterCancellationTimeout)
             .build()).get();
         ActionFuture<MultiSearchResponse> mSearchResponse = client().prepareMultiSearch()
             .add(client().prepareSearch("test").setAllowPartialSearchResults(randomBoolean())

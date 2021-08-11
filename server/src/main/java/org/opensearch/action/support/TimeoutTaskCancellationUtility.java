@@ -27,8 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.opensearch.action.search.TransportSearchAction.SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_SETTING;
-import static org.opensearch.action.search.TransportSearchAction.SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING;
+import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
 
 public class TimeoutTaskCancellationUtility {
 
@@ -45,13 +44,11 @@ public class TimeoutTaskCancellationUtility {
      */
     public static <Response> ActionListener<Response>  wrapWithCancellationListener(NodeClient client, CancellableTask taskToCancel,
         ClusterSettings clusterSettings, ActionListener<Response> listener) {
-        final TimeValue globalTimeout = clusterSettings.get(SEARCH_REQUEST_CANCEL_AFTER_TIME_INTERVAL_SETTING);
-        final boolean enforceServerSideTimeout = clusterSettings.get(SEARCH_ENFORCE_SERVER_TIMEOUT_CANCELLATION_SETTING);
-        final TimeValue timeoutInterval = enforceServerSideTimeout ? globalTimeout :
-            (taskToCancel.getCancellationTimeout() == null) ? globalTimeout : taskToCancel.getCancellationTimeout();
-        // Note: -1 (or no timeout) will help to turn off cancellation. With enforceServerSideTimeout as false, it will be controlled by
-        // request level parameter. When enforceServerSideTimeout is true, it will be controlled by cluster level cancel_after_time_interval
-        // setting
+        final TimeValue globalTimeout = clusterSettings.get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
+        final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null) ? globalTimeout
+            : taskToCancel.getCancellationTimeout();
+        // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
+        // set to null and cluster level set to -1.
         ActionListener<Response> listenerToReturn = listener;
         if (timeoutInterval.equals(SearchService.NO_TIMEOUT)) {
             return listenerToReturn;
