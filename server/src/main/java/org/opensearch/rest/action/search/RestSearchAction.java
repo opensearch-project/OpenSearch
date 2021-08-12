@@ -208,6 +208,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.setCcsMinimizeRoundtrips(
                 request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips()));
         }
+
+        searchRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", null));
     }
 
     /**
