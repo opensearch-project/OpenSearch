@@ -51,16 +51,16 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.opensearch.grok.GrokCaptureType.BOOLEAN;
 import static org.opensearch.grok.GrokCaptureType.DOUBLE;
 import static org.opensearch.grok.GrokCaptureType.FLOAT;
 import static org.opensearch.grok.GrokCaptureType.INTEGER;
 import static org.opensearch.grok.GrokCaptureType.LONG;
 import static org.opensearch.grok.GrokCaptureType.STRING;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 
 public class GrokTests extends OpenSearchTestCase {
@@ -344,7 +344,17 @@ public class GrokTests extends OpenSearchTestCase {
             String pattern = "%{NAME1}";
             new Grok(bank, pattern, false, logger::warn);
         });
-        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2]",
+        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME1=>NAME2]",
+            e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new TreeMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME2}!!!");
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false, logger::warn);
+        });
+        assertEquals("circular reference in pattern [NAME2][!!!%{NAME2}!!!]",
             e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
@@ -358,7 +368,25 @@ public class GrokTests extends OpenSearchTestCase {
             new Grok(bank, pattern, false, logger::warn );
         });
         assertEquals("circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] " +
-            "via patterns [NAME2=>NAME3=>NAME4]", e.getMessage());
+            "via patterns [NAME1=>NAME2=>NAME3=>NAME4]", e.getMessage());
+    }
+
+    public void testMalformedPattern() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME1", "!!!%{NAME2:!!!");
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false, logger::warn);
+        });
+        assertEquals("Malformed pattern [NAME1][!!!%{NAME2:!!!]", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME1", "!!!%{NAME2!!!");
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false, logger::warn);
+        });
+        assertEquals("Malformed pattern [NAME1][!!!%{NAME2!!!]", e.getMessage());
     }
 
     public void testBooleanCaptures() {
