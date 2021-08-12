@@ -59,6 +59,8 @@ public interface TestClusterConfiguration {
 
     void plugin(String pluginProjectPath);
 
+    void upgradePlugin(List<Provider<RegularFile>> plugins);
+
     void module(Provider<RegularFile> module);
 
     void module(String moduleProjectPath);
