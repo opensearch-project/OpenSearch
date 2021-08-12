@@ -32,11 +32,14 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskId;
 
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
  * Task storing information about a currently running {@link SearchRequest}.
@@ -46,9 +49,14 @@ public class SearchTask extends CancellableTask {
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
 
-    public SearchTask(long id, String type, String action, Supplier<String> descriptionSupplier,
-                      TaskId parentTaskId, Map<String, String> headers) {
-        super(id, type, action, null, parentTaskId, headers);
+    public SearchTask(long id, String type, String action, Supplier<String> descriptionSupplier, TaskId parentTaskId,
+        Map<String, String> headers) {
+        this(id, type, action, descriptionSupplier, parentTaskId, headers, NO_TIMEOUT);
+    }
+
+    public SearchTask(long id, String type, String action, Supplier<String> descriptionSupplier, TaskId parentTaskId,
+        Map<String, String> headers, TimeValue cancelAfterTimeInterval) {
+        super(id, type, action, null, parentTaskId, headers, cancelAfterTimeInterval);
         this.descriptionSupplier = descriptionSupplier;
     }
 

@@ -66,6 +66,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStringValue;
+import static org.opensearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
 
 /**
  * A multi search API request.
@@ -272,6 +273,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             allowNoIndices = value;
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
+                        } else if ("cancel_after_time_interval".equals(entry.getKey()) ||
+                            "cancelAfterTimeInterval".equals(entry.getKey())) {
+                            searchRequest.setCancelAfterTimeInterval(nodeTimeValue(value, null));
                         } else {
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }
@@ -361,6 +365,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         if (request.allowPartialSearchResults() != null) {
             xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
+        }
+        if (request.getCancelAfterTimeInterval() != null) {
+            xContentBuilder.field("cancel_after_time_interval", request.getCancelAfterTimeInterval().getStringRep());
         }
         xContentBuilder.endObject();
     }

@@ -115,6 +115,12 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(searchRequest.getAbsoluteStartMillis(), deserializedRequest.getAbsoluteStartMillis());
             assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
         }
+
+        if (version.onOrAfter(Version.V_1_1_0)) {
+            assertEquals(searchRequest.getCancelAfterTimeInterval(), deserializedRequest.getCancelAfterTimeInterval());
+        } else {
+            assertNull(deserializedRequest.getCancelAfterTimeInterval());
+        }
     }
 
     public void testReadFromPre6_7_0() throws IOException {
@@ -261,6 +267,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
+        mutators.add(() -> mutation.setCancelAfterTimeInterval(searchRequest.getCancelAfterTimeInterval() != null
+            ? null : TimeValue.parseTimeValue(randomTimeValue(), null, "cancel_after_time_interval")));
         randomFrom(mutators).run();
         return mutation;
     }

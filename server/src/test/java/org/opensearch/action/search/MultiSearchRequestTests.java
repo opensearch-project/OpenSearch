@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedRunnable;
@@ -39,7 +40,9 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -54,6 +57,7 @@ import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.StreamsUtils;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
@@ -62,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.search.RandomSearchRequestGenerator.randomSearchRequest;
@@ -134,6 +139,38 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         assertThat(request.requests().get(0).indicesOptions(),
             equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(0).types().length, equalTo(0));
+    }
+
+    public void testCancelAfterIntervalAtParentAndFewChildRequest() throws Exception {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\", " +
+            "\"cancel_after_time_interval\" : \"10s\"}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n {\"search_type\" : \"dfs_query_then_fetch\"}\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON)
+            .withParams(Collections.singletonMap("cancel_after_time_interval", "20s"))
+            .build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        assertThat(request.requests().size(), equalTo(2));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        // verifies that child search request parameter value is used for first search request
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS), request.requests().get(0).getCancelAfterTimeInterval());
+        // verifies that parent msearch parameter value is used for second search request
+        assertEquals(request.requests().get(1).searchType(), SearchType.DFS_QUERY_THEN_FETCH);
+        assertEquals(new TimeValue(20, TimeUnit.SECONDS), request.requests().get(1).getCancelAfterTimeInterval());
+    }
+
+    public void testOnlyParentMSearchRequestWithCancelAfterTimeIntervalParameter() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON)
+            .withParams(Collections.singletonMap("cancel_after_time_interval", "20s"))
+            .build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertEquals(new TimeValue(20, TimeUnit.SECONDS), request.requests().get(0).getCancelAfterTimeInterval());
     }
 
     public void testDefaultIndicesOptions() throws IOException {
@@ -316,6 +353,12 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
                 new ParseField(MatchAllQueryBuilder.NAME), (p, c) -> MatchAllQueryBuilder.fromXContent(p))));
     }
 
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        return new NamedWriteableRegistry(singletonList(new NamedWriteableRegistry.Entry(QueryBuilder.class,
+            MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new)));
+    }
+
     public void testMultiLineSerialization() throws IOException {
         int iters = 16;
         for (int i = 0; i < iters; i++) {
@@ -335,6 +378,24 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             MultiSearchRequest.readMultiLineFormat(new BytesArray(originalBytes), xContentType.xContent(),
                     consumer, null, null, null, null, null, null, xContentRegistry(), true, deprecationLogger);
             assertEquals(originalRequest, parsedRequest);
+        }
+    }
+
+    public void testSerDeWithCancelAfterTimeIntervalParameterAndRandomVersion() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\", " +
+            "\"cancel_after_time_interval\" : \"10s\"}\r\n{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON)
+            .build();
+        Version version = VersionUtils.randomVersion(random());
+        MultiSearchRequest originalRequest = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        MultiSearchRequest deserializedRequest = copyWriteable(originalRequest, writableRegistry(), MultiSearchRequest::new, version);
+
+        if (version.before(Version.V_1_1_0)) {
+            assertNull(deserializedRequest.requests().get(0).getCancelAfterTimeInterval());
+        } else {
+            assertEquals(originalRequest.requests().get(0).getCancelAfterTimeInterval(),
+                deserializedRequest.requests().get(0).getCancelAfterTimeInterval());
         }
     }
 
