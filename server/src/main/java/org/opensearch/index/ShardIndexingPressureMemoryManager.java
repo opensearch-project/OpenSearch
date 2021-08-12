@@ -282,6 +282,26 @@ public class ShardIndexingPressureMemoryManager {
         return shardIndexingPressureStore.getShardIndexingPressureTracker(shardId);
     }
 
+    Map<ShardId, ShardIndexingPressureTracker> getShardIndexingPressureHotStore() {
+        return shardIndexingPressureStore.getShardIndexingPressureHotStore();
+    }
+
+    Map<ShardId, ShardIndexingPressureTracker> getShardIndexingPressureColdStore() {
+        return shardIndexingPressureStore.getShardIndexingPressureColdStore();
+    }
+
+    void tryTrackerCleanupFromHotStore(ShardIndexingPressureTracker tracker, BooleanSupplier condition) {
+        shardIndexingPressureStore.tryTrackerCleanupFromHotStore(tracker, condition);
+    }
+
+    double calculateMovingAverage(long currentAverage, double frontValue, double currentValue, int count) {
+        if(count > 0) {
+            return ((Double.longBitsToDouble(currentAverage) * count) + currentValue - frontValue) / count;
+        } else {
+            return currentValue;
+        }
+    }
+
     long getTotalNodeLimitsBreachedRejections() {
         return totalNodeLimitsBreachedRejections.get();
     }
@@ -417,7 +437,7 @@ public class ShardIndexingPressureMemoryManager {
      */
     private boolean evaluateLastSuccessfulRequestDurationLimitsBreached(PerformanceTracker performanceTracker, long requestStartTime) {
         return (performanceTracker.getLastSuccessfulRequestTimestamp() > 0) &&
-            (requestStartTime - performanceTracker.getLastSuccessfulRequestTimestamp()) > this.successfulRequestElapsedTimeout.millis() &&
+            (requestStartTime - performanceTracker.getLastSuccessfulRequestTimestamp()) > this.successfulRequestElapsedTimeout.nanos() &&
             performanceTracker.getTotalOutstandingRequests() > this.maxOutstandingRequests;
     }
 

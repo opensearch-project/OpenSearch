@@ -36,6 +36,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.index.ShardIndexingPressureSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -53,6 +54,8 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     private String[] completionDataFields = null;
     private boolean includeSegmentFileSizes = false;
     private boolean includeUnloadedSegments = false;
+    private boolean includeAllShardIndexingPressureTrackers = false;
+    private boolean includeOnlyTopIndexingPressureMetrics = false;
 
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
@@ -80,6 +83,10 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             includeUnloadedSegments = in.readBoolean();
         }
+        if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
+            includeAllShardIndexingPressureTrackers = in.readBoolean();
+            includeOnlyTopIndexingPressureMetrics = in.readBoolean();
+        }
     }
 
     @Override
@@ -98,6 +105,10 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeBoolean(includeUnloadedSegments);
         }
+        if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
+            out.writeBoolean(includeAllShardIndexingPressureTrackers);
+            out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
+        }
     }
 
     /**
@@ -111,6 +122,8 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         completionDataFields = null;
         includeSegmentFileSizes = false;
         includeUnloadedSegments = false;
+        includeAllShardIndexingPressureTrackers = false;
+        includeOnlyTopIndexingPressureMetrics = false;
         return this;
     }
 
@@ -125,6 +138,8 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         completionDataFields = null;
         includeSegmentFileSizes = false;
         includeUnloadedSegments = false;
+        includeAllShardIndexingPressureTrackers = false;
+        includeOnlyTopIndexingPressureMetrics = false;
         return this;
     }
 
@@ -198,8 +213,26 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         return this;
     }
 
+    public CommonStatsFlags includeAllShardIndexingPressureTrackers(boolean includeAllShardPressureTrackers) {
+        this.includeAllShardIndexingPressureTrackers = includeAllShardPressureTrackers;
+        return this;
+    }
+
+    public CommonStatsFlags includeOnlyTopIndexingPressureMetrics(boolean includeOnlyTopIndexingPressureMetrics) {
+        this.includeOnlyTopIndexingPressureMetrics = includeOnlyTopIndexingPressureMetrics;
+        return this;
+    }
+
     public boolean includeUnloadedSegments() {
         return this.includeUnloadedSegments;
+    }
+
+    public boolean includeAllShardIndexingPressureTrackers() {
+        return this.includeAllShardIndexingPressureTrackers;
+    }
+
+    public boolean includeOnlyTopIndexingPressureMetrics() {
+        return this.includeOnlyTopIndexingPressureMetrics;
     }
 
     public boolean includeSegmentFileSizes() {

@@ -139,6 +139,10 @@ public class ShardIndexingPressureTracker {
         public long getRequestCount() {
             return requestCount.get();
         }
+
+        public long incrementRequestCount() {
+            return requestCount.incrementAndGet();
+        }
     }
 
     /**
@@ -159,6 +163,10 @@ public class ShardIndexingPressureTracker {
 
         public long getTotalRejections() {
             return totalRejections.get();
+        }
+
+        public long incrementTotalRejections() {
+            return totalRejections.incrementAndGet();
         }
 
         public long getNodeLimitsBreachedRejections() {
@@ -232,6 +240,10 @@ public class ShardIndexingPressureTracker {
             return totalOutstandingRequests.incrementAndGet();
         }
 
+        public void resetTotalOutstandingRequests() {
+            totalOutstandingRequests.set(0L);
+        }
+
         public long getThroughputMovingAverage() {
             return throughputMovingAverage.get();
         }
@@ -274,6 +286,10 @@ public class ShardIndexingPressureTracker {
 
         public long getTotalCombinedCoordinatingAndPrimaryBytes() {
             return totalCombinedCoordinatingAndPrimaryBytes.get();
+        }
+
+        public long incrementTotalCombinedCoordinatingAndPrimaryBytes(long bytes) {
+            return totalCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         }
     }
 }
