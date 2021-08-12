@@ -44,6 +44,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -158,6 +159,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();
+        final TimeValue cancelAfterTimeInterval = restRequest.paramAsTime("cancel_after_time_interval", null);
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
             if (preFilterShardSize != null && request.getPreFilterShardSize() == null) {
@@ -165,6 +167,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
             }
             if (maxConcurrentShardRequests != null) {
                 request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+            }
+            // if cancel_after_time_interval parameter is set at per search request level than that is used otherwise one set at
+            // multi search request level will be used
+            if (request.getCancelAfterTimeInterval() == null) {
+                request.setCancelAfterTimeInterval(cancelAfterTimeInterval);
             }
         }
         return multiRequest;

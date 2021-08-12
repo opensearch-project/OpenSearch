@@ -41,6 +41,7 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.client.Client;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.client.node.NodeClient;
@@ -81,6 +82,7 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
@@ -120,6 +122,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
             "action.search.shard_count.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.NodeScope);
+
+    // cluster level setting for timeout based search cancellation. If search request level parameter is present then that will take
+    // precedence over the cluster setting value
+    public static final String SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY = "search.cancel_after_time_interval";
+    public static final Setting<TimeValue> SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING =
+        Setting.timeSetting(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, SearchService.NO_TIMEOUT, Setting.Property.Dynamic,
+            Setting.Property.NodeScope);
 
     private final NodeClient client;
     private final ThreadPool threadPool;
@@ -239,6 +248,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        // only if task is of type CancellableTask and support cancellation on timeout, treat this request eligible for timeout based
+        // cancellation. There may be other top level requests like AsyncSearch which is using SearchRequest internally and has it's own
+        // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
+        // cancelAfterTimeInterval to NO_TIMEOUT and bypass this mechanism
+        if (task instanceof CancellableTask) {
+            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(client, (CancellableTask) task,
+                clusterService.getClusterSettings(), listener);
+        }
         executeRequest(task, searchRequest, this::searchAsyncAction, listener);
     }
 

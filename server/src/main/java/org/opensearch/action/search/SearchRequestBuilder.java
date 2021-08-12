@@ -626,4 +626,12 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         this.request.setPreFilterShardSize(preFilterShardSize);
         return this;
     }
+
+    /**
+     * Request level time interval to control how long search is allowed to execute after which it is cancelled.
+     */
+    public SearchRequestBuilder setCancelAfterTimeInterval(TimeValue cancelAfterTimeInterval) {
+        this.request.setCancelAfterTimeInterval(cancelAfterTimeInterval);
+        return this;
+    }
 }

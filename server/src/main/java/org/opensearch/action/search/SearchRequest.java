@@ -33,6 +33,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -114,6 +115,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
+    private TimeValue cancelAfterTimeInterval;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -191,6 +194,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
+        this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
     }
 
     /**
@@ -237,6 +241,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             ccsMinimizeRoundtrips = in.readBoolean();
         }
+
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            cancelAfterTimeInterval = in.readOptionalTimeValue();
+        }
     }
 
     @Override
@@ -270,6 +278,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(ccsMinimizeRoundtrips);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            out.writeOptionalTimeValue(cancelAfterTimeInterval);
         }
     }
 
@@ -669,9 +681,17 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
     }
 
+    public void setCancelAfterTimeInterval(TimeValue cancelAfterTimeInterval) {
+        this.cancelAfterTimeInterval = cancelAfterTimeInterval;
+    }
+
+    public TimeValue getCancelAfterTimeInterval() {
+        return cancelAfterTimeInterval;
+    }
+
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers);
+        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
     }
 
     public final String buildDescription() {
@@ -718,14 +738,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
                 Objects.equals(localClusterAlias, that.localClusterAlias) &&
                 absoluteStartMillis == that.absoluteStartMillis &&
-                ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips;
+                ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips &&
+                Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
                 scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips);
+                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips, cancelAfterTimeInterval);
     }
 
     @Override
@@ -746,6 +767,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 ", localClusterAlias=" + localClusterAlias +
                 ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
                 ", ccsMinimizeRoundtrips=" + ccsMinimizeRoundtrips +
-                ", source=" + source + '}';
+                ", source=" + source +
+                ", cancelAfterTimeInterval=" + cancelAfterTimeInterval + "}";
     }
 }
