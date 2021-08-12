@@ -208,6 +208,10 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         // LUCENE-8936
         .put("spanishminimalstem", Void.class)
         .put("delimitedboost", Void.class)
+        // LUCENE-9574: test flags on tokens vs a bitmask and drops tokens that have all specified flags
+        .put("dropifflagged", Void.class)
+        // LUCENE-9575: recognize arbitrary patterns that include punctuation
+        .put("patterntyping", Void.class)
         .immutableMap();
 
     static final Map<String,Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String,Class<?>>()
