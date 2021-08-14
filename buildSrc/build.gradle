@@ -183,10 +183,11 @@ if (project != rootProject) {
 
   dependencies {
     reaper project('reaper')
-    distribution project(':distribution:archives:windows-zip')
     distribution project(':distribution:archives:darwin-tar')
-    distribution project(':distribution:archives:linux-tar')
+    distribution project(':distribution:archives:freebsd-tar')
     distribution project(':distribution:archives:linux-arm64-tar')
+    distribution project(':distribution:archives:linux-tar')
+    distribution project(':distribution:archives:windows-zip')
 
     integTestRuntimeOnly(project(":libs:opensearch-core"))
   }

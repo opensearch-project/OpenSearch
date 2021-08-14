@@ -88,20 +88,6 @@ distribution_archives {
     }
   }
 
-  windowsZip {
-    archiveClassifier = 'windows-x64'
-    content {
-      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', true)
-    }
-  }
-
-  noJdkWindowsZip {
-    archiveClassifier = 'no-jdk-windows-x64'
-    content {
-      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', false)
-    }
-  }
-
   darwinTar {
     archiveClassifier = 'darwin-x64'
     content {
@@ -113,6 +99,20 @@ distribution_archives {
     archiveClassifier = 'no-jdk-darwin-x64'
     content {
       archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', false)
+    }
+  }
+
+  freebsdTar {
+    archiveClassifier = 'freebsd-x64'
+    content {
+      archiveFiles(modulesFiles('freebsd-x64'), 'tar', 'freebsd', 'x64', true)
+    }
+  }
+
+  noJdkFreebsdTar {
+    archiveClassifier = 'no-jdk-freebsd-x64'
+    content {
+      archiveFiles(modulesFiles('freebsd-x64'), 'tar', 'freebsd', 'x64', false)
     }
   }
 
@@ -134,6 +134,20 @@ distribution_archives {
     archiveClassifier = 'no-jdk-linux-x64'
     content {
       archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', false)
+    }
+  }
+
+  windowsZip {
+    archiveClassifier = 'windows-x64'
+    content {
+      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', true)
+    }
+  }
+
+  noJdkWindowsZip {
+    archiveClassifier = 'no-jdk-windows-x64'
+    content {
+      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', false)
     }
   }
 }
