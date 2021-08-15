@@ -114,7 +114,7 @@ public class HttpHandlingSettings {
                 SETTING_PIPELINING_MAX_EVENTS.get(settings),
                 SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis(),
                 SETTING_CORS_ENABLED.get(settings));
-    	List<String> headers = org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_CUSTOM_HEADERS.get(settings);
+    	List<String> headers = org.opensearch.http.HttpTransportSettings.SETTING_HTTP_CUSTOM_HEADERS.get(settings);
     	handler.setCustomHeaders(headers);
         return handler;
     }
