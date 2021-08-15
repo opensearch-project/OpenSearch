@@ -134,6 +134,22 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
             }
 
+            List<String> headers = settings.getCustomHeaders();
+            
+            //System.out.println("Custom Headers are: "+ headers);
+            if(headers!=null)
+            {
+            	for(String header:headers)
+                {
+                	if(header.contains(":"))
+                	{
+                		String[] parts = header.split(":");
+                		setHeaderField(httpResponse, parts[0], parts[1], false);
+                		
+                	}
+                }
+            }
+
             // Add all custom headers
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());

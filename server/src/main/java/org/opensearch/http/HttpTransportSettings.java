@@ -52,6 +52,8 @@ import static org.opensearch.common.settings.Setting.listSetting;
 
 public final class HttpTransportSettings {
 
+    public static final Setting<List<String>> SETTING_HTTP_CUSTOM_HEADERS =
+            listSetting("http.custom.headers", emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<Boolean> SETTING_CORS_ENABLED =
         Setting.boolSetting("http.cors.enabled", false, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_ORIGIN =
