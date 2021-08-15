@@ -46,6 +46,8 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOU
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 import static org.opensearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 
+import java.util.List;
+
 public class HttpHandlingSettings {
 
     private final int maxContentLength;
