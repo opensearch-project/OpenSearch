@@ -18,6 +18,9 @@ import org.opensearch.index.store.SmbDirectoryWrapper;
 import java.io.IOException;
 import java.nio.file.Path;
 
+/**
+ * Factory to create a new NIO File System type directory accessible as a SMB share
+ */
 public final class SmbNIOFsDirectoryFactory extends FsDirectoryFactory {
 
     @Override

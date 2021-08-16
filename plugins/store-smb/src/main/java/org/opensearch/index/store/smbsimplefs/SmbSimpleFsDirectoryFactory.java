@@ -44,6 +44,11 @@ import org.opensearch.index.store.SmbDirectoryWrapper;
 import java.io.IOException;
 import java.nio.file.Path;
 
+/**
+ * Factory to create a new Simple File System type directory accessible as a SMB share
+ *
+ * @deprecated use {@link org.opensearch.index.store.smbniofs.SmbNIOFsDirectoryFactory} instead
+ */
 @Deprecated
 public final class SmbSimpleFsDirectoryFactory extends FsDirectoryFactory {
 

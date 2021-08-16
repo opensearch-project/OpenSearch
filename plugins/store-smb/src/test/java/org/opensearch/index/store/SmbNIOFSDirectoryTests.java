@@ -14,6 +14,9 @@ import org.apache.lucene.store.NIOFSDirectory;
 import java.io.IOException;
 import java.nio.file.Path;
 
+/**
+ * SMB Tests using NIO FileSystem as index store type.
+ */
 public class SmbNIOFSDirectoryTests extends OpenSearchBaseDirectoryTestCase {
 
     @Override
