@@ -161,8 +161,9 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
                     assertTrue(type + " " + directory.toString(), directory instanceof MMapDirectory);
                     break;
                 case SIMPLEFS:
-                    assertWarnings("simplefs is no longer supported and will be removed in 2.0. Using [niofs] instead.");
-                    assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
+                    assertWarnings("simplefs is no longer supported and will be removed in 2.0. Use [niofs], which offers equal "
+                        + "or better performance, instead.");
+                    assertTrue(type + " " + directory.toString(), directory instanceof SimpleFSDirectory);
                     break;
                 case FS:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {

@@ -56,6 +56,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -237,7 +238,7 @@ public class PersistedClusterStateService {
         // it is possible to disable the use of MMapDirectory for indices, and it may be surprising to users that have done so if we still
         // use a MMapDirectory here, which might happen with FSDirectory.open(path). Concurrency is of no concern here so a
         // NIOFSDirectory is fine:
-        return new SimpleFSDirectory(path);
+        return new NIOFSDirectory(path);
     }
 
     public Path[] getDataPaths() {

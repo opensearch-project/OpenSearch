@@ -370,8 +370,6 @@ public final class IndexModule {
         private final String settingsKey;
         private final boolean deprecated;
 
-        private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Type.class);
-
         Type(final String settingsKey) {
             this(settingsKey, false);
         }
@@ -405,7 +403,6 @@ public final class IndexModule {
                 throw new IllegalArgumentException("no matching store type for [" + key + "]");
             }
             if (type.isDeprecated()) {
-                final String settingsKey = key;
                 DEPRECATION_LOGGER.deprecate(type.getSettingsKey(), " is deprecated and will be removed in 2.0");
             }
             return type;
