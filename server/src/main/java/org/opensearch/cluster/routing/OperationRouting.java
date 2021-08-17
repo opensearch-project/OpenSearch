@@ -55,8 +55,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.Booleans.parseBoolean;
-
 public class OperationRouting {
 
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING = Setting.boolSetting(
@@ -66,39 +64,34 @@ public class OperationRouting {
         Setting.Property.NodeScope
     );
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(OperationRouting.class);
-    private static final String IGNORE_AWARENESS_ATTRIBUTES_PROPERTY = "opensearch.search.ignore_awareness_attributes";
-    static final String IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE =
-        "searches will not be routed based on awareness attributes starting in version 8.0.0; "
-            + "to opt into this behaviour now please set the system property ["
-            + IGNORE_AWARENESS_ATTRIBUTES_PROPERTY
-            + "] to [true]";
-
-    private List<String> awarenessAttributes;
-    private boolean useAdaptiveReplicaSelection;
+    public static final String IGNORE_AWARENESS_ATTRIBUTES = "cluster.search.ignore_awareness_attributes";
+    public static final Setting<Boolean> IGNORE_AWARENESS_ATTRIBUTES_SETTING = Setting.boolSetting(IGNORE_AWARENESS_ATTRIBUTES, true, Setting.Property.Dynamic,
+        Setting.Property.NodeScope);
+    private volatile List<String> awarenessAttributes;
+    private volatile boolean useAdaptiveReplicaSelection;
+    private volatile boolean ignoreAwarenessAttr;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
-        boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
-        if (ignoreAwarenessAttr == false) {
-            awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
-            if (awarenessAttributes.isEmpty() == false) {
-                deprecationLogger.deprecate("searches_not_routed_on_awareness_attributes", IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
-            }
-            clusterSettings.addSettingsUpdateConsumer(
-                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-                this::setAwarenessAttributes
-            );
-        } else {
-            awarenessAttributes = Collections.emptyList();
-        }
-
+        this.ignoreAwarenessAttr = clusterSettings.get(IGNORE_AWARENESS_ATTRIBUTES_SETTING);
+        this.awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
+            this::setAwarenessAttributes);
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
+        clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
+    }
+
+    void setIgnoreAwarenessAttributes(boolean ignoreAwarenessAttributes) {
+        this.ignoreAwarenessAttr = ignoreAwarenessAttributes;
+    }
+
+    public boolean isIgnoreAwarenessAttr() {
+        return ignoreAwarenessAttr;
     }
 
     List<String> getAwarenessAttributes() {
@@ -106,13 +99,11 @@ public class OperationRouting {
     }
 
     private void setAwarenessAttributes(List<String> awarenessAttributes) {
-        boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
-        if (ignoreAwarenessAttr == false) {
-            if (this.awarenessAttributes.isEmpty() && awarenessAttributes.isEmpty() == false) {
-                deprecationLogger.deprecate("searches_not_routed_on_awareness_attributes", IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
-            }
-            this.awarenessAttributes = awarenessAttributes;
-        }
+        this.awarenessAttributes = awarenessAttributes;
+    }
+
+    public boolean ignoreAwarenessAttributes() {
+        return this.awarenessAttributes.isEmpty() || this.ignoreAwarenessAttr;
     }
 
     public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
@@ -286,21 +277,16 @@ public class OperationRouting {
         // for a different element in the list by also incorporating the
         // shard ID into the hash of the user-supplied preference key.
         routingHash = 31 * routingHash + indexShard.shardId.hashCode();
-
-        if (awarenessAttributes.isEmpty()) {
+        if (ignoreAwarenessAttributes()) {
             return indexShard.activeInitializingShardsIt(routingHash);
         } else {
             return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, routingHash);
         }
     }
 
-    private ShardIterator shardRoutings(
-        IndexShardRoutingTable indexShard,
-        DiscoveryNodes nodes,
-        @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
-    ) {
-        if (awarenessAttributes.isEmpty()) {
+    private ShardIterator shardRoutings(IndexShardRoutingTable indexShard, DiscoveryNodes nodes,
+            @Nullable ResponseCollectorService collectorService, @Nullable Map<String, Long> nodeCounts) {
+        if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
                 return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
             } else {
