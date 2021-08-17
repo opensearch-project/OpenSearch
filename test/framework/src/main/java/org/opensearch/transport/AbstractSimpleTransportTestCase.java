@@ -1979,7 +1979,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
 
     public void testHandshakeWithIncompatVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        Version version = Version.fromString("2.0.0");
+        Version version = LegacyESVersion.fromString("6.0.0");
         try (MockTransportService service = buildService("TS_C", version,  Settings.EMPTY)) {
             service.start();
             service.acceptIncomingRequests();
@@ -2050,9 +2050,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
-                // OpenSearch sends a handshake version spoofed as Legacy version 7_10_2
-                // todo change for OpenSearch 2.0.0
-                assertEquals(LegacyESVersion.V_7_10_2, connection.getVersion());
+                assertEquals(Version.V_2_0_0, connection.getVersion());
             }
         }
     }
@@ -2371,7 +2369,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(50, transportStats.getTxSize().getBytes());
+                assertEquals(51, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2381,15 +2379,15 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(106, transportStats.getTxSize().getBytes());
+                assertEquals(111, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // response has been received
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
-            assertEquals(46, stats.getRxSize().getBytes());
-            assertEquals(106, stats.getTxSize().getBytes());
+            assertEquals(50, stats.getRxSize().getBytes());
+            assertEquals(111, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2486,7 +2484,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(50, transportStats.getTxSize().getBytes());
+                assertEquals(51, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2496,7 +2494,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(106, transportStats.getTxSize().getBytes());
+                assertEquals(111, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2508,10 +2506,10 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             BytesStreamOutput streamOutput = new BytesStreamOutput();
             exception.writeTo(streamOutput);
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
-            // 49 bytes are the non-exception message bytes that have been received. It should include the initial
+            // 53 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
-            assertEquals(failedMessage, 49 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(106, stats.getTxSize().getBytes());
+            assertEquals(failedMessage, 53 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
+            assertEquals(111, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }

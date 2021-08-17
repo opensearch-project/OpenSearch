@@ -73,7 +73,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_1_0_0 = new Version(1000099, org.apache.lucene.util.Version.LUCENE_8_8_2);
     public static final Version V_1_0_1 = new Version(1000199, org.apache.lucene.util.Version.LUCENE_8_8_2);
     public static final Version V_1_1_0 = new Version(1010099, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version CURRENT = V_1_1_0;
+    public static final Version V_2_0_0 = new Version(2000099, org.apache.lucene.util.Version.LUCENE_8_9_0);
+    public static final Version CURRENT = V_2_0_0;
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -306,6 +307,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     protected Version computeMinCompatVersion() {
         if (major == 1) {
             return LegacyESVersion.V_6_8_0;
+        } else if (major == 2) {
+            return LegacyESVersion.V_7_10_0;
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return Version.fromId(5060099);

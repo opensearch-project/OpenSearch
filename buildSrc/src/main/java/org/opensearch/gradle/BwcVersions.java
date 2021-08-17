@@ -379,6 +379,9 @@ public class BwcVersions {
         if (currentMajor == 1) {
             // add 6.x compatible for OpenSearch 1.0.0
             return unmodifiableList(Stream.concat(groupByMajor.get(prevMajor - 1).stream(), result.stream()).collect(Collectors.toList()));
+        } else if (currentMajor == 2) {
+            // add 7.x compatible for OpenSearch 2.0.0
+            return unmodifiableList(Stream.concat(groupByMajor.get(7).stream(), result.stream()).collect(Collectors.toList()));
         }
         return unmodifiableList(result);
     }
@@ -386,7 +389,7 @@ public class BwcVersions {
     public List<Version> getWireCompatible() {
         List<Version> wireCompat = new ArrayList<>();
         int currentMajor = currentVersion.getMajor();
-        int lastMajor = currentMajor == 1 ? 6 : currentMajor - 1;
+        int lastMajor = currentMajor == 1 ? 6 : currentMajor == 2 ? 7 : currentMajor - 1;
         List<Version> lastMajorList = groupByMajor.get(lastMajor);
         if (lastMajorList == null) {
             throw new IllegalStateException("Expected to find a list of versions for version: " + lastMajor);
@@ -402,7 +405,14 @@ public class BwcVersions {
             for (Version v : previousMajor) {
                 wireCompat.add(v);
             }
+        } else if (currentMajor == 2) {
+            // add all of the 1.x line:
+            List<Version> previousMajor = groupByMajor.get(1);
+            for (Version v : previousMajor) {
+                wireCompat.add(v);
+            }
         }
+
         wireCompat.addAll(groupByMajor.get(currentMajor));
         wireCompat.remove(currentVersion);
         wireCompat.sort(Version::compareTo);

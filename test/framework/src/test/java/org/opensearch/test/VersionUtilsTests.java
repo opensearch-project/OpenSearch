@@ -224,12 +224,12 @@ public class VersionUtilsTests extends OpenSearchTestCase {
     }
 
     public static class TestVersionBumpIn2x {
-        public static final Version V_1_6_0 = Version.fromString("1.6.0");
-        public static final Version V_1_6_1 = Version.fromString("1.6.1");
-        public static final Version V_1_6_2 = Version.fromString("1.6.2");
-        public static final Version V_2_0_0 = Version.fromString("2.0.0");
-        public static final Version V_2_0_1 = Version.fromString("2.0.1");
-        public static final Version V_2_1_0 = Version.fromString("2.1.0");
+        public static final Version V_1_6_0 = Version.fromString("2.6.0");
+        public static final Version V_1_6_1 = Version.fromString("2.6.1");
+        public static final Version V_1_6_2 = Version.fromString("2.6.2");
+        public static final Version V_2_0_0 = Version.fromString("3.0.0");
+        public static final Version V_2_0_1 = Version.fromString("3.0.1");
+        public static final Version V_2_1_0 = Version.fromString("3.1.0");
         public static final Version CURRENT = V_2_1_0;
     }
 
@@ -262,7 +262,7 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         public static final Version CURRENT = V_2_2_0;
     }
 
-    public void testResolveReleasedVersionsAtNewMinorBranchIn6x() {
+    public void testResolveReleasedVersionsAtNewMinorBranchIn2x() {
         Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestNewMinorBranchIn6x.CURRENT,
             TestNewMinorBranchIn6x.class);
         List<Version> released = t.v1();
@@ -271,12 +271,12 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         assertThat(released, equalTo(Arrays.asList(
             TestNewMinorBranchIn6x.V_1_6_0,
             TestNewMinorBranchIn6x.V_1_6_1,
+            TestNewMinorBranchIn6x.V_1_6_2,
             TestNewMinorBranchIn6x.V_2_0_0,
             TestNewMinorBranchIn6x.V_2_0_1,
             TestNewMinorBranchIn6x.V_2_1_0,
             TestNewMinorBranchIn6x.V_2_1_1)));
         assertThat(unreleased, equalTo(Arrays.asList(
-            TestNewMinorBranchIn6x.V_1_6_2,
             TestNewMinorBranchIn6x.V_2_1_2,
             TestNewMinorBranchIn6x.V_2_2_0)));
     }
