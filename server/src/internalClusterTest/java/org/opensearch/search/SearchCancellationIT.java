@@ -509,7 +509,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
             .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout)
             .build()).get();
-        ActionFuture<MultiSearchResponse> mSearchResponse = client().prepareMultiSearch()
+        ActionFuture<MultiSearchResponse> mSearchResponse = client().prepareMultiSearch().setMaxConcurrentSearchRequests(2)
             .add(client().prepareSearch("test").setAllowPartialSearchResults(randomBoolean())
                 .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME,
                     Collections.emptyMap()))))
@@ -541,7 +541,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
             .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, clusterCancellationTimeout)
             .build()).get();
-        ActionFuture<MultiSearchResponse> mSearchResponse = client().prepareMultiSearch()
+        ActionFuture<MultiSearchResponse> mSearchResponse = client().prepareMultiSearch().setMaxConcurrentSearchRequests(3)
             .add(client().prepareSearch("test").setAllowPartialSearchResults(randomBoolean())
                 .setCancelAfterTimeInterval(reqCancellationTimeout)
                 .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME,
