@@ -789,7 +789,8 @@ public class OperationRoutingTests extends OpenSearchTestCase {
     /**
      * The following setup is created to test ARS
      */
-    private ClusterState updateStatetoTestARS(String[] indices, int numberOfShards, int numberOfReplicas, DiscoveryNode[] nodes, ClusterState state) {
+    private ClusterState updateStatetoTestARS(String[] indices, int numberOfShards, int numberOfReplicas,
+                                              DiscoveryNode[] nodes, ClusterState state) {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         ClusterState.Builder clusterState = ClusterState.builder(state);
@@ -806,11 +807,12 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 // Assign all the primary shards on nodes in zone-a (node_a0 or node_a1)
                 indexShardRoutingBuilder
-                    .addShard(TestShardRouting.newShardRouting(index, i, nodes[randomInt(1)].getId(), null, true, ShardRoutingState.STARTED));
+                    .addShard(TestShardRouting.newShardRouting(index, i, nodes[randomInt(1)].getId(),
+                        null, true, ShardRoutingState.STARTED));
                 for (int replica = 0; replica < numberOfReplicas; replica++) {
                     // Assign all the replicas on nodes in zone-b (node_b2)
-                    indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, nodes[2].getId(), null, false,
-                        ShardRoutingState.STARTED));
+                    indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, nodes[2].getId(),
+                        null, false, ShardRoutingState.STARTED));
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
             }
