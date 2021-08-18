@@ -238,11 +238,10 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
             assertThat(response.getQueryExplanation().size(), equalTo(1));
             assertThat(
                 response.getQueryExplanation().get(0).getExplanation(),
-                equalTo(
-                    "(MatchNoDocsQuery(\"failed [bar] query, caused by number_format_exception:[For input string: \"foo\"]\") "
-                        + "| foo:foo | baz:foo)"
-                )
+                containsString("MatchNoDocsQuery(\"failed [bar] query, caused by number_format_exception:[For input string: \"foo\"]\")")
             );
+            assertThat(response.getQueryExplanation().get(0).getExplanation(), containsString("foo:foo"));
+            assertThat(response.getQueryExplanation().get(0).getExplanation(), containsString("baz:foo"));
             assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         }
     }

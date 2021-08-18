@@ -1832,6 +1832,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertSearchHits(searchResponse, "child-id");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testHighlightersIgnoreParentChild() throws IOException {
         assertAcked(
             prepareCreate("test").addMapping(

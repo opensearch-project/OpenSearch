@@ -34,6 +34,7 @@ package org.opensearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -43,6 +44,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
@@ -1401,7 +1404,8 @@ public class TranslogTests extends OpenSearchTestCase {
         final Set<Long> seenSeqNos = new HashSet<>();
         boolean opsHaveValidSequenceNumbers = randomBoolean();
         for (int i = 0; i < numOps; i++) {
-            BytesStreamOutput out = new BytesStreamOutput(4);
+            byte[] bytes = new byte[4];
+            DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(bytes));
             out.writeInt(i);
             long seqNo;
             do {
@@ -1411,7 +1415,7 @@ public class TranslogTests extends OpenSearchTestCase {
             if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 seenSeqNos.add(seqNo);
             }
-            writer.add(ReleasableBytesReference.wrap(out.bytes()), seqNo);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), seqNo);
         }
         assertThat(persistedSeqNos, empty());
         writer.sync();
@@ -1433,9 +1437,10 @@ public class TranslogTests extends OpenSearchTestCase {
         assertThat(reader.getCheckpoint().minSeqNo, equalTo(minSeqNo));
         assertThat(reader.getCheckpoint().maxSeqNo, equalTo(maxSeqNo));
 
-        BytesStreamOutput out = new BytesStreamOutput(4);
+        byte[] bytes = new byte[4];
+        DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(bytes));
         out.writeInt(2048);
-        writer.add(ReleasableBytesReference.wrap(out.bytes()), randomNonNegativeLong());
+        writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
 
         if (reader instanceof TranslogReader) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -1641,9 +1646,10 @@ public class TranslogTests extends OpenSearchTestCase {
         ) {
             TranslogWriter writer = translog.getCurrent();
 
-            BytesStreamOutput out = new BytesStreamOutput(4);
+            byte[] bytes = new byte[4];
+            DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(new byte[4]));
             out.writeInt(1);
-            writer.add(ReleasableBytesReference.wrap(out.bytes()), 1);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
             assertThat(persistedSeqNos, empty());
             startBlocking.set(true);
             Thread thread = new Thread(() -> {
@@ -1657,7 +1663,7 @@ public class TranslogTests extends OpenSearchTestCase {
             writeStarted.await();
 
             // Add will not block even though we are currently writing/syncing
-            writer.add(ReleasableBytesReference.wrap(out.bytes()), 2);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
 
             blocker.countDown();
             // Sync against so that both operations are written
@@ -1672,10 +1678,10 @@ public class TranslogTests extends OpenSearchTestCase {
         try (TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1)) {
             final int numOps = randomIntBetween(8, 128);
             for (int i = 0; i < numOps; i++) {
-                final BytesStreamOutput out = new BytesStreamOutput(4);
-                out.reset();
+                final byte[] bytes = new byte[4];
+                final DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(bytes));
                 out.writeInt(i);
-                writer.add(ReleasableBytesReference.wrap(out.bytes()), randomNonNegativeLong());
+                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
             }
             writer.sync();
             final Checkpoint writerCheckpoint = writer.getCheckpoint();

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.translog;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -64,11 +65,12 @@ final class Checkpoint {
     final long minTranslogGeneration;
     final long trimmedAboveSeqNo;
 
-    private static final int CURRENT_VERSION = 3; // introduction of trimmed above seq#
+    private static final int VERSION_LUCENE_BIG_ENDIAN = 3; // big endian format (Lucene 9+ switches to little endian)
+    private static final int CURRENT_VERSION = 4; // introduction of trimmed above seq#
 
     private static final String CHECKPOINT_CODEC = "ckp";
 
-    static final int V3_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC) + Integer.BYTES  // ops
+    static final int V4_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC) + Integer.BYTES  // ops
         + Long.BYTES // offset
         + Long.BYTES // generation
         + Long.BYTES // minimum sequence number
@@ -153,6 +155,10 @@ final class Checkpoint {
     }
 
     static Checkpoint readCheckpointV3(final DataInput in) throws IOException {
+        return readCheckpointV4(EndiannessReverserUtil.wrapDataInput(in));
+    }
+
+    static Checkpoint readCheckpointV4(final DataInput in) throws IOException {
         final long offset = in.readLong();
         final int numOps = in.readInt();
         final long generation = in.readLong();
@@ -191,10 +197,10 @@ final class Checkpoint {
             try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, CURRENT_VERSION, CURRENT_VERSION);
-                assert fileVersion == CURRENT_VERSION : fileVersion;
-                assert indexInput.length() == V3_FILE_SIZE : indexInput.length();
-                return Checkpoint.readCheckpointV3(indexInput);
+                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, VERSION_LUCENE_BIG_ENDIAN, CURRENT_VERSION);
+                assert fileVersion == CURRENT_VERSION || fileVersion == VERSION_LUCENE_BIG_ENDIAN : fileVersion;
+                assert indexInput.length() == V4_FILE_SIZE : indexInput.length();
+                return fileVersion == CURRENT_VERSION ? Checkpoint.readCheckpointV4(indexInput) : Checkpoint.readCheckpointV3(indexInput);
             } catch (CorruptIndexException | NoSuchFileException | IndexFormatTooOldException | IndexFormatTooNewException e) {
                 throw new TranslogCorruptedException(path.toString(), e);
             }
@@ -207,9 +213,8 @@ final class Checkpoint {
         // now go and write to the channel, in one go.
         try (FileChannel channel = factory.open(checkpointFile, options)) {
             Channels.writeToChannel(bytes, channel);
-            // no need to force metadata, file size stays the same and we did the full fsync
-            // when we first created the file, so the directory entry doesn't change as well
-            channel.force(false);
+            // force fsync with metadata since this is used on file creation
+            channel.force(true);
         }
     }
 
@@ -222,7 +227,7 @@ final class Checkpoint {
     }
 
     private static byte[] createCheckpointBytes(Path checkpointFile, Checkpoint checkpoint) throws IOException {
-        final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(V3_FILE_SIZE) {
+        final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(V4_FILE_SIZE) {
             @Override
             public synchronized byte[] toByteArray() {
                 // don't clone
@@ -235,17 +240,17 @@ final class Checkpoint {
                 resourceDesc,
                 checkpointFile.toString(),
                 byteOutputStream,
-                V3_FILE_SIZE
+                V4_FILE_SIZE
             )
         ) {
             CodecUtil.writeHeader(indexOutput, CHECKPOINT_CODEC, CURRENT_VERSION);
             checkpoint.write(indexOutput);
             CodecUtil.writeFooter(indexOutput);
 
-            assert indexOutput.getFilePointer() == V3_FILE_SIZE : "get you numbers straight; bytes written: "
+            assert indexOutput.getFilePointer() == V4_FILE_SIZE : "get you numbers straight; bytes written: "
                 + indexOutput.getFilePointer()
                 + ", buffer size: "
-                + V3_FILE_SIZE;
+                + V4_FILE_SIZE;
             assert indexOutput.getFilePointer() < 512 : "checkpoint files have to be smaller than 512 bytes for atomic writes; size: "
                 + indexOutput.getFilePointer();
         }

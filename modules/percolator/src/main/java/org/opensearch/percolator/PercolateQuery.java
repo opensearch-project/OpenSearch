@@ -34,11 +34,11 @@ package org.opensearch.percolator;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -56,7 +56,6 @@ import org.opensearch.common.lucene.Lucene;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 final class PercolateQuery extends Query implements Accountable {
 
@@ -112,8 +111,6 @@ final class PercolateQuery extends Query implements Accountable {
         final Weight verifiedMatchesWeight = verifiedMatchesQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, boost);
         final Weight candidateMatchesWeight = candidateMatchesQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, boost);
         return new Weight(this) {
-            @Override
-            public void extractTerms(Set<Term> set) {}
 
             @Override
             public Explanation explain(LeafReaderContext leafReaderContext, int docId) throws IOException {
@@ -243,6 +240,11 @@ final class PercolateQuery extends Query implements Accountable {
 
     Query getVerifiedMatchesQuery() {
         return verifiedMatchesQuery;
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        visitor.visitLeaf(this);
     }
 
     // Comparing identity here to avoid being cached
