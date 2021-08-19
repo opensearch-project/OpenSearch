@@ -48,6 +48,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -138,6 +139,8 @@ public final class IndexModule {
     // for test purposes only
     public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING =
         Setting.boolSetting("index.queries.cache.everything", false, Property.IndexScope);
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndexModule.class);
 
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
@@ -365,9 +368,15 @@ public final class IndexModule {
         FS("fs");
 
         private final String settingsKey;
+        private final boolean deprecated;
 
         Type(final String settingsKey) {
+            this(settingsKey, false);
+        }
+
+        Type(final String settingsKey, final boolean deprecated) {
             this.settingsKey = settingsKey;
+            this.deprecated = deprecated;
         }
 
         private static final Map<String, Type> TYPES;
@@ -384,10 +393,17 @@ public final class IndexModule {
             return this.settingsKey;
         }
 
+        public boolean isDeprecated() {
+            return deprecated;
+        }
+
         public static Type fromSettingsKey(final String key) {
             final Type type = TYPES.get(key);
             if (type == null) {
                 throw new IllegalArgumentException("no matching store type for [" + key + "]");
+            }
+            if (type.isDeprecated()) {
+                DEPRECATION_LOGGER.deprecate(type.getSettingsKey(), " is deprecated and will be removed in 2.0");
             }
             return type;
         }
@@ -404,8 +420,6 @@ public final class IndexModule {
     public static Type defaultStoreType(final boolean allowMmap) {
         if (allowMmap && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
             return Type.HYBRIDFS;
-        } else if (Constants.WINDOWS) {
-            return Type.SIMPLEFS;
         } else {
             return Type.NIOFS;
         }
