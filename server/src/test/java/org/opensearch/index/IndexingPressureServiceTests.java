@@ -60,7 +60,7 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
             Settings.builder().put(settings), updated, getTestClass().getName());
         clusterSettings.applySettings(updated.build());
 
-        Releasable releasable = service.markCoordinatingOperationStarted(shardId, 1024, false);
+        Releasable releasable = service.markCoordinatingOperationStarted(1024, false);
         IndexingPressurePerShardStats shardStats = service.shardStats(CommonStatsFlags.ALL).getIndexingPressureShardStats(shardId);
         assertNull(shardStats);
         IndexingPressureStats nodeStats = service.nodeStats();

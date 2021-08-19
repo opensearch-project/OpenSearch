@@ -25,11 +25,19 @@ public class IndexingPressureService {
         shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
     }
 
+    public Releasable markCoordinatingOperationStarted(long bytes, boolean forceExecution) {
+        if (isShardIndexingPressureEnabled() == false) {
+            return shardIndexingPressure.markCoordinatingOperationStarted(bytes, forceExecution);
+        } else {
+            return () -> {};
+        }
+    }
+
     public Releasable markCoordinatingOperationStarted(ShardId shardId, long bytes, boolean forceExecution) {
         if (isShardIndexingPressureEnabled()) {
             return shardIndexingPressure.markCoordinatingOperationStarted(shardId, bytes, forceExecution);
         } else {
-            return shardIndexingPressure.markCoordinatingOperationStarted(bytes, forceExecution);
+            return () -> {};
         }
     }
 
