@@ -68,6 +68,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
@@ -983,10 +984,21 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 true
             );
 
-            final List<String> validationErrors =  checkerService.getIndexSettingsValidationErrors(ilnSetting, true);
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(ilnSetting, true);
             assertThat(validationErrors.size(), is(1));
             assertThat(validationErrors.get(0), is("expected [index.lifecycle.name] to be private but it was not"));
         }));
+    }
+
+    public void testDeprecatedSimpleFSStoreSettings() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder settings = Settings.builder();
+        settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey());
+        request.settings(settings.build());
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, null, Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(), Collections.emptySet());
+        assertWarnings("[simplefs] is deprecated and will be removed in 2.0. Use [niofs], which offers equal " +
+            "or better performance, or other file systems instead.");
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

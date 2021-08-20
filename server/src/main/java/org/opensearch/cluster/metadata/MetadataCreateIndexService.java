@@ -76,6 +76,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -783,7 +784,18 @@ public class MetadataCreateIndexService {
                     "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
         }
         validateTranslogRetentionSettings(indexSettings);
+        validateStoreTypeSettings(indexSettings);
+
         return indexSettings;
+    }
+
+    public static void validateStoreTypeSettings(Settings settings) {
+        // deprecate simplefs store type:
+        if (IndexModule.Type.SIMPLEFS.match(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings))) {
+            DEPRECATION_LOGGER.deprecate("store_type_setting",
+                "[simplefs] is deprecated and will be removed in 2.0. Use [niofs], which offers equal or better performance, " +
+                    "or other file systems instead.");
+        }
     }
 
     static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
