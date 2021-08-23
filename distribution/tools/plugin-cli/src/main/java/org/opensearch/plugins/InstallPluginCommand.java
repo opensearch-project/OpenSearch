@@ -261,7 +261,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
                 final PluginInfo pluginInfo = installPlugin(terminal, isBatch, extractedZip, env, deleteOnFailure);
-                terminal.println("-> Installed " + pluginInfo.getName());
+                terminal.println("-> Installed " + pluginInfo.getName() + " with folder name " + pluginInfo.getTargetFolderName());
                 // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
                 deleteOnFailures.remove(pluginId);
                 deleteOnFailures.put(pluginInfo.getName(), deleteOnFailure);
@@ -780,7 +780,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "plugin '" + pluginName + "' cannot be installed as a plugin, it is a system module");
         }
 
-        final Path destination = pluginPath.resolve(pluginName);
+        // scan all the installed plugins to see if the plugin being installed already exists
+        // either with the plugin name or a custom folder name
+        Path destination = PluginHelper.verifyIfPluginExists(pluginPath, pluginName);
         if (Files.exists(destination)) {
             final String message = String.format(
                 Locale.ROOT,
@@ -864,14 +866,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
         PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
 
-        final Path destination = env.pluginsFile().resolve(info.getName());
+        String targetFolderName = info.getTargetFolderName();
+        final Path destination = env.pluginsFile().resolve(targetFolderName);
         deleteOnFailure.add(destination);
 
         installPluginSupportFiles(
             info,
             tmpRoot,
-            env.binFile().resolve(info.getName()),
-            env.configFile().resolve(info.getName()),
+            env.binFile().resolve(targetFolderName),
+            env.configFile().resolve(targetFolderName),
             deleteOnFailure
         );
         movePlugin(tmpRoot, destination);
