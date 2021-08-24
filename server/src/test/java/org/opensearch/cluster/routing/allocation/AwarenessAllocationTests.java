@@ -35,14 +35,17 @@ package org.opensearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -900,5 +903,102 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
         logger.info("--> all replicas are allocated and started since we have one node in each zone and rack");
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+    }
+
+    public void testDisabledForcedAllocationPreventsOverload() {
+        AllocationService strategy = createAllocationService(Settings.builder()
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 21)
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 21)
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 21)
+            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCED_ALLOCATION_DISABLE_SETTING.getKey(), true)
+            .put("cluster.routing.allocation.awareness.attribute.zone.capacity", 3)
+            .put("cluster.routing.allocation.awareness.force.zone.values", "zone_1,zone_2,zone_3")
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .build());
+
+        logger.info("Building initial routing table for 'fullAwareness1'");
+
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(21).numberOfReplicas(2))
+            .build();
+
+        RoutingTable initialRoutingTable = RoutingTable.builder()
+            .addAsNew(metadata.index("test"))
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+
+        logger.info("--> adding three nodes on same zone and do rerouting");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+            .add(newNode("node1", singletonMap("zone", "zone_1")))
+            .add(newNode("node2", singletonMap("zone", "zone_1")))
+            .add(newNode("node3", singletonMap("zone", "zone_1")))
+        ).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(21));
+
+        logger.info("--> start the shards (primaries)");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        logger.info("--> replica will not start because we have only one rack value");
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(21));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+
+        logger.info("--> add three new node with a new rack and reroute");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
+            .add(newNode("node4", singletonMap("zone", "zone_2")))
+            .add(newNode("node5", singletonMap("zone", "zone_2")))
+            .add(newNode("node6", singletonMap("zone", "zone_2")))
+        ).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
+
+        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(21));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(21));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo("node4"));
+
+        logger.info("--> complete relocation");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(42));
+
+        logger.info("--> do another reroute, make sure nothing moves");
+        assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
+
+        logger.info("--> add another node with a new rack, make sure nothing moves");
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
+            .add(newNode("node7", singletonMap("zone", "zone_3")))
+            .add(newNode("node8", singletonMap("zone", "zone_3")))
+            .add(newNode("node9", singletonMap("zone", "zone_3")))
+        ).build();
+        ClusterState newState = strategy.reroute(clusterState, "reroute");
+        while (newState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty() == false) {
+            newState = startInitializingShardsAndReroute(strategy, newState);
+        }
+        assertThat(newState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(63));
+
+        logger.info("--> Remove random node from zones holding all primary and all replicas");
+        //remove two nodes in one zone to cause distribution zone1->3 , zone2->3, zone3->1
+        newState = removeNode(newState, randomFrom("node1", "node7" ), strategy);
+        logger.info("--> Remove another random node from zones holding all primary and all replicas");
+        newState = removeNode(newState, randomFrom("node2", "node8" ), strategy);
+        newState = strategy.reroute(newState, "reroute");
+        while (newState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty() == false) {
+            newState = startInitializingShardsAndReroute(strategy, newState);
+        }
+        //ensure minority zone doesn't get overloaded
+        assertThat(newState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(49));
+        assertThat(newState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(14));
+        for (ShardRouting shard : newState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
+            assertEquals(shard.unassignedInfo().getReason(), UnassignedInfo.Reason.NODE_LEFT);
+        }
+    }
+
+    private ClusterState removeNode(ClusterState clusterState, String nodeName, AllocationService allocationService) {
+        return allocationService.disassociateDeadNodes(ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.getNodes()).remove(nodeName)).build(), true, "reroute");
     }
 }
