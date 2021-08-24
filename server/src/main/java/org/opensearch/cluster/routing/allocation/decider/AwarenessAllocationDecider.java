@@ -32,17 +32,12 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -52,7 +47,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.set.Sets;
 
 import static java.util.Collections.emptyList;
 
@@ -105,41 +99,17 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING =
         Setting.groupSetting("cluster.routing.allocation.awareness.force.", Property.Dynamic, Property.NodeScope);
-    public static final Setting<Settings> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_CAPACITY_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.awareness.attribute.", Property.Dynamic, Property.NodeScope);
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCED_ALLOCATION_DISABLE_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.awareness.forced_allocation.disable", false,
-            Property.Dynamic, Property.NodeScope);
-    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_AWARENESS_SKEWNESS_LIMIT =
-        Setting.intSetting("cluster.routing.allocation.awareness.skewness.limit", 10, Property.Dynamic, Property.NodeScope);
 
     private volatile List<String> awarenessAttributes;
 
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
 
-    private volatile Map<String, Integer> awarenessAttributeCapacities;
-
-    private volatile boolean disableForcedAllocation;
-
-    private volatile int skewnessLimit;
-
-    private static final Logger logger = LogManager.getLogger(AwarenessAllocationDecider.class);
-
     public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
-        this.disableForcedAllocation = CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCED_ALLOCATION_DISABLE_SETTING.get(settings);
-        this.skewnessLimit = CLUSTER_ROUTING_ALLOCATION_AWARENESS_SKEWNESS_LIMIT.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_SKEWNESS_LIMIT,
-            this::setSkewnessLimit);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING, this::setAwarenessAttributes);
         setForcedAwarenessAttributes(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings));
-        setAwarenessAttributeCapacities(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_CAPACITY_GROUP_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
-            this::setForcedAwarenessAttributes);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_CAPACITY_GROUP_SETTING,
-            this::setAwarenessAttributeCapacities);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCED_ALLOCATION_DISABLE_SETTING,
-            this::setDisableForcedAllocation);
+                this::setForcedAwarenessAttributes);
     }
 
     private void setForcedAwarenessAttributes(Settings forceSettings) {
@@ -154,26 +124,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         this.forcedAwarenessAttributes = forcedAwarenessAttributes;
     }
 
-    private void setSkewnessLimit(int skewnessLimit) {
-        this.skewnessLimit = skewnessLimit;
-    }
-
-    private void setAwarenessAttributeCapacities(Settings awarenessCapacitySettings) {
-        Map<String, Integer> groupCapacity = new HashMap<>();
-        Map<String, Settings> forceGroups = awarenessCapacitySettings.getAsGroups();
-        for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
-            Integer capacity = entry.getValue().getAsInt("capacity", -1);
-            groupCapacity.put(entry.getKey(), capacity);
-        }
-        this.awarenessAttributeCapacities = groupCapacity;
-    }
-
     private void setAwarenessAttributes(List<String> awarenessAttributes) {
         this.awarenessAttributes = awarenessAttributes;
-    }
-
-    private void setDisableForcedAllocation(boolean disableForcedAllocation) {
-        this.disableForcedAllocation = disableForcedAllocation;
     }
 
     @Override
@@ -207,29 +159,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             // build attr_value -> nodes map
             ObjectIntHashMap<String> nodesPerAttribute = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
 
-            if (disableForcedAllocation) {
-                //the current node attribute value under consideration
-                String nodeAttributeValue = node.node().getAttributes().get(awarenessAttribute);
-                Set<String> skewedAttributeValues = null;
-                try {
-                    skewedAttributeValues = skewedNodesPerAttributeValue(nodesPerAttribute, awarenessAttribute);
-                } catch (IllegalStateException e) {
-                    logger.warn(() -> new ParameterizedMessage("Inconsistent configuration to decide on skewness for attribute " +
-                        "[{}] due to ", awarenessAttribute) , e);
-                }
-                if (skewedAttributeValues != null && skewedAttributeValues.contains(nodeAttributeValue)) {
-                    //the current attribute value has nodes that are skewed
-                    return allocation.decision(Decision.NO, NAME,
-                        "there are too many copies of the shard allocated to nodes with attribute [%s], due to skewed distribution of " +
-                            "nodes for attribute value [%s] expected the nodes for this attribute to be [%d] but found nodes per " +
-                            "attribute to be [%d]",
-                        awarenessAttribute,
-                        nodeAttributeValue,
-                        awarenessAttributeCapacities.get(awarenessAttribute),
-                        nodesPerAttribute.get(awarenessAttribute));
-                }
-            }
-
             // build the count of shards per attribute value
             ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
             for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting.shardId())) {
@@ -247,7 +176,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                     if (node.nodeId().equals(nodeId) == false) {
                         // we work on different nodes, move counts around
                         shardPerAttribute.putOrAdd(allocation.routingNodes().node(nodeId).node().getAttributes().get(awarenessAttribute),
-                            0, -1);
+                                0, -1);
                         shardPerAttribute.addTo(node.node().getAttributes().get(awarenessAttribute), 1);
                     }
                 } else {
@@ -270,56 +199,17 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
             if (currentNodeCount > maximumNodeCount) {
                 return allocation.decision(Decision.NO, NAME,
-                    "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total configured " +
+                        "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total configured " +
                         "shard copies for this shard id and [%d] total attribute values, expected the allocated shard count per " +
                         "attribute [%d] to be less than or equal to the upper bound of the required number of shards per attribute [%d]",
-                    awarenessAttribute,
-                    shardCount,
-                    numberOfAttributes,
-                    currentNodeCount,
-                    maximumNodeCount);
+                        awarenessAttribute,
+                        shardCount,
+                        numberOfAttributes,
+                        currentNodeCount,
+                        maximumNodeCount);
             }
         }
 
         return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
-    }
-
-    private Set<String> skewedNodesPerAttributeValue(ObjectIntHashMap<String> nodesPerAttribute, String awarenessAttribute) {
-        Set<String> underCapacityAttributeValues = null;
-        int capacity = awarenessAttributeCapacities.getOrDefault(awarenessAttribute, -1);
-        if (forcedAwarenessAttributes.containsKey(awarenessAttribute) == false || capacity <= 0) {
-            // forced awareness is not enabled for this attribute
-            return Collections.emptySet();
-        }
-        List<String> forcedAwarenessAttribute = forcedAwarenessAttributes.get(awarenessAttribute);
-        if (forcedAwarenessAttribute.size() > nodesPerAttribute.size()) {
-            //we have a complete attribute failures
-            return Collections.emptySet();
-        } else if (forcedAwarenessAttribute.size() == nodesPerAttribute.size()) {
-            int minimumNodesBeforeSkewness = (int) Math.ceil((1 - skewnessLimit / 100.0) * capacity);
-            for (String attributeValue : forcedAwarenessAttribute) {
-                if (nodesPerAttribute.containsKey(attributeValue) == false) {
-                    //forced attribute values and discovery nodes have a mismatch
-                    throw new IllegalStateException("Missing attribute value in discovered nodes:" + attributeValue);
-                } else if (nodesPerAttribute.get(attributeValue) < minimumNodesBeforeSkewness) {
-                    if (underCapacityAttributeValues == null) {
-                        underCapacityAttributeValues = Sets.newHashSet(attributeValue);
-                    } else {
-                        underCapacityAttributeValues.add(attributeValue);
-                    }
-                } else if (nodesPerAttribute.get(attributeValue) > capacity) {
-                    throw new IllegalStateException("Unexpected capacity for attribute value :" + attributeValue + "expected : " + capacity
-                        + "found :" + nodesPerAttribute.get(attributeValue));
-                }
-            }
-            if (underCapacityAttributeValues != null && underCapacityAttributeValues.size() == forcedAwarenessAttribute.size()
-                && forcedAwarenessAttribute.size() != 1) {
-                throw new IllegalStateException("Unexpected capacity for attribute  :" + awarenessAttribute + "capacity" + capacity);
-            }
-        } else {
-            throw new IllegalStateException("Mismatch between forced awareness attribute  :" + forcedAwarenessAttributes
-                + "and discovered nodes " + nodesPerAttribute);
-        }
-        return underCapacityAttributeValues;
     }
 }

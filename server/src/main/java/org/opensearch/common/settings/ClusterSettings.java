@@ -33,6 +33,7 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.main.TransportMainAction;
+import org.opensearch.cluster.routing.allocation.decider.NodeOverloadAwareAllocationDecider;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -220,9 +221,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME,
             TransportClient.CLIENT_TRANSPORT_SNIFF,
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
-            AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_CAPACITY_GROUP_SETTING,
-            AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_SKEWNESS_LIMIT,
-            AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCED_ALLOCATION_DISABLE_SETTING,
             BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
             BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
             BalancedShardsAllocator.THRESHOLD_SETTING,
@@ -583,7 +581,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
             TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION,
-            IndexingPressure.MAX_INDEXING_BYTES)));
+            IndexingPressure.MAX_INDEXING_BYTES,
+            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_TOTAL_CAPACITY_SETTING,
+            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_LIMIT_SETTING,
+            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_ALLOW_UNASSIGNED_PRIMARIES_SETTING)));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
