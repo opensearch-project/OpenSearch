@@ -95,15 +95,20 @@ public class VersionUtils {
         // remove last minor unless the it's the first OpenSearch version.
         // all Legacy ES versions are released, so we don't exclude any.
         if (current.equals(Version.V_1_0_0) == false) {
-            Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
-            if (lastMinor.revision == 0) {
-                if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
-                    // a minor is being staged, which is also unreleased
-                    moveLastToUnreleased(stableVersions, unreleasedVersions);
-                }
-                // remove the next bugfix
-                if (stableVersions.isEmpty() == false) {
-                    moveLastToUnreleased(stableVersions, unreleasedVersions);
+            List<Version> lastMinorLine = stableVersions.get(stableVersions.size() - 1);
+            if (lastMinorLine.get(lastMinorLine.size() - 1) instanceof LegacyESVersion == false) {
+                // if the last minor line is Legacy there are no more staged releases; do nothing
+                Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
+                if (lastMinor instanceof LegacyESVersion == false && lastMinor.revision == 0) {
+                    // no more staged legacy versions
+                    if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
+                        // a minor is being staged, which is also unreleased
+                        moveLastToUnreleased(stableVersions, unreleasedVersions);
+                    }
+                    // remove the next bugfix
+                    if (stableVersions.isEmpty() == false) {
+                        moveLastToUnreleased(stableVersions, unreleasedVersions);
+                    }
                 }
             }
         }
