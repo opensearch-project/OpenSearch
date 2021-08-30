@@ -269,7 +269,6 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(activeRefs, indexShard.store().refCount());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/578")
     public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -315,7 +314,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         thread.start();
         startGun.await();
         try {
-            final int rounds = scaledRandomIntBetween(100, 10000);
+            final int rounds = scaledRandomIntBetween(100, 1000);
             SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
             SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true)
                 .scroll(new Scroll(TimeValue.timeValueMinutes(1)));
