@@ -45,7 +45,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
@@ -80,11 +80,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     public TransportResyncReplicationAction(Settings settings, TransportService transportService,
                                             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                             ShardStateAction shardStateAction, ActionFilters actionFilters,
-                                            IndexingPressure indexingPressure, SystemIndices systemIndices) {
+                                            IndexingPressureService indexingPressureService, SystemIndices systemIndices) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             ResyncReplicationRequest::new, ResyncReplicationRequest::new, EXECUTOR_NAME_FUNCTION,
             true, /* we should never reject resync because of thread pool capacity on primary */
-            indexingPressure, systemIndices);
+            indexingPressureService, systemIndices);
     }
 
     @Override

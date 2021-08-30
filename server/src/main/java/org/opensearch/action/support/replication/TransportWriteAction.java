@@ -49,7 +49,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.shard.IndexShard;
@@ -76,7 +76,7 @@ public abstract class TransportWriteAction<
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
-    protected final IndexingPressure indexingPressure;
+    protected final IndexingPressureService indexingPressureService;
     protected final SystemIndices systemIndices;
 
     private final Function<IndexShard, String> executorFunction;
@@ -85,13 +85,14 @@ public abstract class TransportWriteAction<
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                    ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
                                    Writeable.Reader<ReplicaRequest> replicaRequest, Function<IndexShard, String> executorFunction,
-                                   boolean forceExecutionOnPrimary, IndexingPressure indexingPressure, SystemIndices systemIndices) {
+                                   boolean forceExecutionOnPrimary, IndexingPressureService indexingPressureService,
+                                   SystemIndices systemIndices) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executorFunction = executorFunction;
-        this.indexingPressure = indexingPressure;
+        this.indexingPressureService = indexingPressureService;
         this.systemIndices = systemIndices;
     }
 
@@ -101,7 +102,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+        return indexingPressureService.markPrimaryOperationStarted(request.shardId, primaryOperationSize(request), force(request));
     }
 
     protected boolean force(ReplicatedWriteRequest<?> request) {
@@ -119,7 +120,8 @@ public abstract class TransportWriteAction<
             // If this primary request was received from a local reroute initiated by the node client, we
             // must mark a new primary operation local to the coordinating node.
             if (localRerouteInitiatedByNodeClient) {
-                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationSize(request));
+                return indexingPressureService.markPrimaryOperationLocalToCoordinatingNodeStarted(request.shardId,
+                    primaryOperationSize(request));
             } else {
                 return () -> {};
             }
@@ -127,7 +129,7 @@ public abstract class TransportWriteAction<
             // If this primary request was received directly from the network, we must mark a new primary
             // operation. This happens if the write action skips the reroute step (ex: rsync) or during
             // primary delegation, after the primary relocation hand-off.
-            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+            return indexingPressureService.markPrimaryOperationStarted(request.shardId, primaryOperationSize(request), force(request));
         }
     }
 
@@ -137,7 +139,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), force(request));
+        return indexingPressureService.markReplicaOperationStarted(request.shardId, replicaOperationSize(request), force(request));
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
