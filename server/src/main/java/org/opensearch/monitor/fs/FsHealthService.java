@@ -142,13 +142,12 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     public StatusInfo getHealth() {
         StatusInfo statusInfo;
         Set<Path> unhealthyPaths = this.unhealthyPaths;
-        if (enabled == false ) {
+        if (enabled == false) {
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
         } else if (brokenLock) {
             statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
         } else if (lastRunTimeMillis.get() > Long.MIN_VALUE && currentTimeMillisSupplier.getAsLong() -
             lastRunTimeMillis.get() > refreshInterval.millis() + healthyTimeoutThreshold.millis()) {
-            logger.info("healthy threshold breached");
             statusInfo = new StatusInfo(UNHEALTHY, "healthy threshold breached");
         } else if (unhealthyPaths == null) {
             statusInfo = new StatusInfo(HEALTHY, "health check passed");
@@ -178,6 +177,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                 }
             } catch (Exception e) {
                 logger.error("health check failed", e);
+            } finally {
+                setLastRunTimeMillis();
             }
         }
 
@@ -189,7 +190,6 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             } catch (IllegalStateException e) {
                 logger.error("health check failed", e);
                 brokenLock = true;
-                setLastRunTimeMillis();
                 return;
             }
 
@@ -220,7 +220,6 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             }
             unhealthyPaths = currentUnhealthyPaths;
             brokenLock = false;
-            setLastRunTimeMillis();
         }
     }
 
