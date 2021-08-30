@@ -188,7 +188,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         long healthyTimeoutThreshold = randomLongBetween(500, 1000);
         long refreshInterval = randomLongBetween(20, 50);
         long slowLogThreshold = randomLongBetween(100, 200);
-        long fsFreezeDelay = randomLongBetween(healthyTimeoutThreshold + 1000 , 2000);
+        long delayBetweenChecks = 100;
         final Settings settings = Settings.builder()
             .put(FsHealthService.HEALTHY_TIMEOUT_SETTING.getKey(), healthyTimeoutThreshold + "ms")
             .put(FsHealthService.REFRESH_INTERVAL_SETTING.getKey(), refreshInterval + "ms")
@@ -225,7 +225,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             assertThat(disruptedPathCount, equalTo(1));
             logger.info("--> Fix file system disruption");
             disruptFileSystemProvider.injectIODelay.set(false);
-            assertTrue(waitUntil(() -> fsHealthSrvc.getHealth().getStatus() == HEALTHY, (2 * fsFreezeDelay) + refreshInterval,
+            assertTrue(waitUntil(() -> fsHealthSrvc.getHealth().getStatus() == HEALTHY, delayBetweenChecks + (2 * refreshInterval),
                 TimeUnit.MILLISECONDS));
             fsHealth = fsHealthSrvc.getHealth();
             assertEquals(HEALTHY, fsHealth.getStatus());

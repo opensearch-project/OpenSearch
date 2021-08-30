@@ -80,7 +80,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private final LongSupplier currentTimeMillisSupplier;
     private volatile Scheduler.Cancellable scheduledFuture;
     private volatile TimeValue healthyTimeoutThreshold;
-    private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
+    private final AtomicLong lastRunStartTimeMillis = new AtomicLong(Long.MIN_VALUE);
 
     @Nullable
     private volatile Set<Path> unhealthyPaths;
@@ -146,8 +146,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
         } else if (brokenLock) {
             statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
-        } else if (lastRunTimeMillis.get() >= 0 && currentTimeMillisSupplier.getAsLong() -
-            lastRunTimeMillis.get() > refreshInterval.millis() + healthyTimeoutThreshold.millis()) {
+        } else if (lastRunStartTimeMillis.get() >= 0 && currentTimeMillisSupplier.getAsLong() -
+            lastRunStartTimeMillis.get() > healthyTimeoutThreshold.millis()) {
             statusInfo = new StatusInfo(UNHEALTHY, "healthy threshold breached");
         } else if (unhealthyPaths == null) {
             statusInfo = new StatusInfo(HEALTHY, "health check passed");
@@ -166,20 +166,18 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
         FsHealthMonitor() {
             this.byteToWrite = UUIDs.randomBase64UUID().getBytes(StandardCharsets.UTF_8);
-            setLastRunTimeMillis();
         }
 
         @Override
         public void run() {
             try {
                 if (enabled) {
+                    setLastRunStartTimeMillis();
                     monitorFSHealth();
                     logger.debug("health check succeeded");
                 }
             } catch (Exception e) {
                 logger.error("health check failed", e);
-            } finally {
-                setLastRunTimeMillis();
             }
         }
 
@@ -224,8 +222,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         }
     }
 
-    private void setLastRunTimeMillis() {
-        lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
+    private void setLastRunStartTimeMillis() {
+        lastRunStartTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
     }
 }
 
