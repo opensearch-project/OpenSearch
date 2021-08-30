@@ -146,7 +146,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
         } else if (brokenLock) {
             statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
-        } else if (lastRunTimeMillis.get() > Long.MIN_VALUE && currentTimeMillisSupplier.getAsLong() -
+        } else if (lastRunTimeMillis.get() >= 0 && currentTimeMillisSupplier.getAsLong() -
             lastRunTimeMillis.get() > refreshInterval.millis() + healthyTimeoutThreshold.millis()) {
             statusInfo = new StatusInfo(UNHEALTHY, "healthy threshold breached");
         } else if (unhealthyPaths == null) {
@@ -164,8 +164,9 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         static final String TEMP_FILE_NAME = ".opensearch_temp_file";
         private byte[] byteToWrite;
 
-        FsHealthMonitor(){
+        FsHealthMonitor() {
             this.byteToWrite = UUIDs.randomBase64UUID().getBytes(StandardCharsets.UTF_8);
+            setLastRunTimeMillis();
         }
 
         @Override
