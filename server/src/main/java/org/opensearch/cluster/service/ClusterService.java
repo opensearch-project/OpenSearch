@@ -49,6 +49,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -77,6 +78,8 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final String nodeName;
 
     private RerouteService rerouteService;
+
+    private IndexingPressureService indexingPressureService;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this(settings, clusterSettings, new MasterService(settings, clusterSettings, threadPool),
@@ -201,6 +204,20 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public MasterService getMasterService() {
         return masterService;
+    }
+
+    /**
+     * Getter and Setter for IndexingPressureService, This method exposes IndexingPressureService stats to other plugins for usage.
+     * Although Indexing Pressure instances can be accessed via Node and NodeService class but none of them are
+     * present in the createComponents signature of Plugin interface currently. {@link org.opensearch.plugins.Plugin#createComponents}
+     * Going forward, IndexingPressureService will have required constructs for exposing listeners/interfaces for plugin development.(#478)
+     */
+    public void setIndexingPressureService(IndexingPressureService indexingPressureService) {
+        this.indexingPressureService = indexingPressureService;
+    }
+
+    public IndexingPressureService getIndexingPressureService() {
+        return indexingPressureService;
     }
 
     public ClusterApplierService getClusterApplierService() {
