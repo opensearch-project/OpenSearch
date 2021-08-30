@@ -34,4 +34,4 @@ This project is licensed under the [Apache v2.0 License](LICENSE.txt).
 
 ## Copyright
 
-Copyright 2020-2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Copyright OpenSearch Contributors. See [NOTICE](NOTICE.txt) for details.
