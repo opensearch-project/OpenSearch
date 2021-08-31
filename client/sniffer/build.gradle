@@ -47,8 +47,8 @@ dependencies {
   testImplementation project(":client:test")
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.elasticsearch:securemock:${versions.securemock}"
-  testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testImplementation "org.mockito:mockito-core:${versions.mockito}"
+  testImplementation "org.objenesis:objenesis:${versions.objenesis}"
 }
 
 tasks.named('forbiddenApisMain').configure {
