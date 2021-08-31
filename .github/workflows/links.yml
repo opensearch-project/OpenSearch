@@ -12,11 +12,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - name: Load Excludes
+        run: |
+          LYCHEE_EXCLUDE=$(sed -e :a  -e 'N;s/\n/ --exclude /;ta' .lycheeexclude)
+          echo "LYCHEE_EXCLUDE=$LYCHEE_EXCLUDE" >> $GITHUB_ENV
+
       - name: lychee Link Checker
         id: lychee
         uses: lycheeverse/lychee-action@master
         with:
-          args: --accept=200,403,429  --exclude=http://www.unicode.org/Public/PROGRAMS/CVTUTF --exclude=http://www.eclipse.org/jetty/downloads.php --exclude=http://project.carrot2.org/license.html --exclude=http://bitbucket.org/jpbarrette/moman/overview/ --exclude=http://opensource.adobe.com/wiki/display/cmap/Downloads --exclude=http://viewvc.jboss.org/cgi-bin/viewvc.cgi/jbosscache/experimental/jsr166/ --exclude=http://eid-applet.googlecode.com/ --exclude=http://www.ecma-international.org/publications/files/ECMA-ST/Ecma%20PATENT/Patent%20statements%20ok/ECMA-376%20Edition%202%20Microsoft%20Patent%20Declaration.pdf --exclude=http://www.ecma-international.org/publications/files/ECMA-ST/Ecma%20PATENT/Patent%20statements%20ok/ECMA-376%20Adobe%20Patent%20Declaration.pdf --exclude=http://snapshot/ --exclude=http://www.darwinsys.com/file/ --exclude=https://www.sqlite.org/copyright.html --exclude=http://www.bouncycastle.org/ --exclude=http://www.icu-project.org --exclude=http://www.sjp.pl/slownik/en/ --exclude=http://www.brics.dk/automaton/ --exclude=http://jaspell.sourceforge.net/ --exclude=http://www.opensource.org/licenses/bsd-license.php --exclude=http://www.jcraft.com/jzlib/ --exclude=http://www.slf4j.org/ --exclude=http://www.python.org/download/releases/2.4.2/license/ --exclude=http://www.python.org/download/releases/3.1.2/license/ --exclude=http://www.jcip.net --exclude=http://www.7-zip.org/sdk.html --exclude=http://www.mozilla.org/MPL/ --exclude=http://www.ecma-international.org/publications/standards/Ecma-376.htm --exclude=http://www.ecma-international.org/memento/Ecmabylaws.htm --exclude=http://www.microsoft.com/openspecifications/en/us/programs/osp/default.aspx --exclude=http://www.bea.com/ --exclude=http://www.unidata.ucar.edu/software/netcdf-java/ --exclude=http://www.clker.com/clipart-13653.html --exclude=http://www.joda.org/ --exclude=http://www.eclipse.org/licenses/edl-v10.html --exclude=http://www.eclipse.org/legal/cpl-v10.html --exclude=http://www.mozilla.org/MPL/MPL-1.1.html --exclude=http://source.icu-project.org/repos/icu/icu/trunk/license.html --exclude=http://unicode.org/copyright.html --exclude-mail "**/*.html" "**/*.md" "**/*.txt" "**/*.json"
+          args: --accept=200,403,429 --exclude ${{ env.LYCHEE_EXCLUDE }} --exclude-mail "**/*.html" "**/*.md" "**/*.txt" "**/*.json"
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
       - name: Fail if there were link errors
