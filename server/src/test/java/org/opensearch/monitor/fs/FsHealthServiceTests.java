@@ -186,7 +186,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
 
     public void testFailsHealthOnHungIOBeyondHealthyTimeout() throws Exception {
         long healthyTimeoutThreshold = randomLongBetween(500, 1000);
-        long refreshInterval = randomLongBetween(20, 50);
+        long refreshInterval = randomLongBetween(50, 100);
         long slowLogThreshold = randomLongBetween(100, 200);
         long delayBetweenChecks = 100;
         final Settings settings = Settings.builder()
