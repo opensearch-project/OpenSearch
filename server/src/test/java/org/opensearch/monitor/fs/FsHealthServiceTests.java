@@ -186,7 +186,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
 
     public void testFailsHealthOnHungIOBeyondHealthyTimeout() throws Exception {
         long healthyTimeoutThreshold = randomLongBetween(500, 1000);
-        long refreshInterval = randomLongBetween(50, 100);
+        long refreshInterval = randomLongBetween(500, 1000);
         long slowLogThreshold = randomLongBetween(100, 200);
         long delayBetweenChecks = 100;
         final Settings settings = Settings.builder()
@@ -216,7 +216,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             disruptFileSystemProvider.injectIODelay.set(true);
             final FsHealthService fsHealthSrvc = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthSrvc.doStart();
-            assertTrue(waitUntil(() -> fsHealthSrvc.getHealth().getStatus() == UNHEALTHY, healthyTimeoutThreshold + refreshInterval,
+            assertTrue(waitUntil(() -> fsHealthSrvc.getHealth().getStatus() == UNHEALTHY, healthyTimeoutThreshold + (2 *refreshInterval),
                 TimeUnit.MILLISECONDS));
             fsHealth = fsHealthSrvc.getHealth();
             assertEquals(UNHEALTHY, fsHealth.getStatus());

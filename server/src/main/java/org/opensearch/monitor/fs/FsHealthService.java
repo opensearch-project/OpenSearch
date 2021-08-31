@@ -147,7 +147,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         } else if (brokenLock) {
             statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
         } else if (lastRunStartTimeMillis.get() >= 0 && currentTimeMillisSupplier.getAsLong() -
-            lastRunStartTimeMillis.get() > healthyTimeoutThreshold.millis()) {
+            lastRunStartTimeMillis.get() > healthyTimeoutThreshold.millis() + refreshInterval.millis()) {
             statusInfo = new StatusInfo(UNHEALTHY, "healthy threshold breached");
         } else if (unhealthyPaths == null) {
             statusInfo = new StatusInfo(HEALTHY, "health check passed");
