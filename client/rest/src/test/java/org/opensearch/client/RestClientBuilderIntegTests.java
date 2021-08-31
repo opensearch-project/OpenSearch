@@ -37,7 +37,6 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import org.apache.http.HttpHost;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -73,7 +72,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
-        httpsServer = MockHttpServer.createHttps(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext()));
         httpsServer.createContext("/", new ResponseHandler());
         httpsServer.start();
