@@ -57,6 +57,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -81,6 +82,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private volatile Scheduler.Cancellable scheduledFuture;
     private volatile TimeValue healthyTimeoutThreshold;
     private final AtomicLong lastRunStartTimeMillis = new AtomicLong(Long.MIN_VALUE);
+    private final AtomicBoolean checkInProgress = new AtomicBoolean();
 
     @Nullable
     private volatile Set<Path> unhealthyPaths;
@@ -146,8 +148,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
         } else if (brokenLock) {
             statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
-        } else if (lastRunStartTimeMillis.get() >= 0 && currentTimeMillisSupplier.getAsLong() -
-            lastRunStartTimeMillis.get() > healthyTimeoutThreshold.millis() + refreshInterval.millis()) {
+        } else if (checkInProgress.get() && currentTimeMillisSupplier.getAsLong() -
+            lastRunStartTimeMillis.get() > healthyTimeoutThreshold.millis()) {
             statusInfo = new StatusInfo(UNHEALTHY, "healthy threshold breached");
         } else if (unhealthyPaths == null) {
             statusInfo = new StatusInfo(HEALTHY, "health check passed");
@@ -170,14 +172,22 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
         @Override
         public void run() {
+            boolean checkEnabled = enabled;
             try {
-                if (enabled) {
-                    setLastRunStartTimeMillis();
-                    monitorFSHealth();
-                    logger.debug("health check succeeded");
+                if (checkEnabled) {
+                    if (checkInProgress.compareAndSet(false, true)) {
+                        setLastRunStartTimeMillis();
+                        monitorFSHealth();
+                        logger.debug("health check succeeded");
+                    }
                 }
             } catch (Exception e) {
                 logger.error("health check failed", e);
+            } finally {
+                if (checkEnabled) {
+                    boolean completed = checkInProgress.compareAndSet(true, false);
+                    assert completed;
+                }
             }
         }
 
