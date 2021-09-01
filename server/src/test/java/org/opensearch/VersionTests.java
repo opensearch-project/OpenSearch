@@ -245,8 +245,12 @@ public class VersionTests extends OpenSearchTestCase {
         } else if (opensearchMajor == 2) {
             major = 8;
         }
-        assertEquals(VersionUtils.getFirstVersionOfMajor(candidates, major - 1),
-            opensearchVersion.minimumIndexCompatibilityVersion());
+        Version expected = VersionUtils.getFirstVersionOfMajor(candidates, major - 1);
+        Version actual = opensearchVersion.minimumIndexCompatibilityVersion();
+        // since some legacy versions still support build (alpha, beta, RC) we check major minor revision only
+        assertEquals(expected.major, actual.major);
+        assertEquals(expected.minor, actual.minor);
+        assertEquals(expected.revision, actual.revision);
     }
 
     public void testToString() {
