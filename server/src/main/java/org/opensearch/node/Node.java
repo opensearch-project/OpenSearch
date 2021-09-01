@@ -218,6 +218,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -316,6 +317,9 @@ public class Node implements Closeable {
         try {
             Settings tmpSettings = Settings.builder().put(initialEnvironment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
+
+            // Enabling shard indexing backpressure node-attribute
+            tmpSettings = addShardIndexingBackPressureAttributeSettings(tmpSettings);
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
@@ -746,6 +750,13 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    private Settings addShardIndexingBackPressureAttributeSettings(Settings settings) {
+        String ShardIndexingBackPressureEnabledValue = "true";
+        return Settings.builder().put(settings)
+            .put(NODE_ATTRIBUTES.getKey() + SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, ShardIndexingBackPressureEnabledValue)
+            .build();
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

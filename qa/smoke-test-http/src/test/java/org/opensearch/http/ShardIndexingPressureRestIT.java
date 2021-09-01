@@ -33,8 +33,6 @@ import static org.hamcrest.Matchers.lessThan;
     numClientNodes = 0)
 public class ShardIndexingPressureRestIT extends HttpSmokeTestCase {
 
-    private static final Settings unboundedWriteQueue = Settings.builder().put("thread_pool.write.queue_size", -1).build();
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -42,7 +40,6 @@ public class ShardIndexingPressureRestIT extends HttpSmokeTestCase {
             .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "1KB")
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
-            .put(unboundedWriteQueue)
             .build();
     }
 
@@ -235,5 +232,66 @@ public class ShardIndexingPressureRestIT extends HttpSmokeTestCase {
 
         assertThat(node1PrimaryRejections, equalTo(0));
         assertThat(node2PrimaryRejections, equalTo(0));
+
+        // Update cluster setting to enable shadow mode
+        Request updateSettingRequest = new Request("PUT", "/_cluster/settings");
+        updateSettingRequest.setJsonEntity("{\"persistent\": {\"shard_indexing_pressure\": {\"enforced\": \"false\"}}}");
+        final Response updateSettingResponse = getRestClient().performRequest(updateSettingRequest);
+        assertThat(updateSettingResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
+
+        Request shadowIndexingRequest = new Request("POST", "/index_name/_doc/");
+        shadowIndexingRequest.setJsonEntity("{\"x\": \"text\"}");
+        final Response shadowIndexingResponse = getRestClient().performRequest(shadowIndexingRequest);
+        assertThat(shadowIndexingResponse.getStatusLine().getStatusCode(), equalTo(CREATED.getStatus()));
+
+        Request getShardStats3 = new Request("GET", "/_nodes/stats/shard_indexing_pressure?include_all");
+        final Response shardStats3 = getRestClient().performRequest(getShardStats3);
+        Map<String, Object> shardStatsMap3 = XContentHelper.convertToMap(JsonXContent.jsonXContent, shardStats3.getEntity().getContent(),
+            true);
+        ArrayList<Object> values3 = new ArrayList<>(((Map<Object, Object>) shardStatsMap3.get("nodes")).values());
+        assertThat(values3.size(), equalTo(2));
+        XContentTestUtils.JsonMapView node1AfterShadowMode = new XContentTestUtils.JsonMapView((Map<String, Object>)
+            values3.get(0));
+        ArrayList<Object> shard1IndexingPressureValuesAfterShadowMode = new ArrayList<>(((Map<Object, Object>)
+            node1AfterShadowMode.get("shard_indexing_pressure.stats")).values());
+        assertThat(shard1IndexingPressureValuesAfterShadowMode.size(), equalTo(1));
+        XContentTestUtils.JsonMapView shard1AfterShadowMode = new XContentTestUtils.JsonMapView((Map<String, Object>)
+            shard1IndexingPressureValuesAfterShadowMode.get(0));
+        node1TotalLimitsRejections = node1AfterShadowMode.get("shard_indexing_pressure.total_rejections_breakup_shadow_mode" +
+            ".node_limits");
+        shard1CoordinatingRejections = shard1AfterShadowMode.get("rejection.coordinating.coordinating_rejections");
+        shard1PrimaryRejections = shard1AfterShadowMode.get("rejection.primary.primary_rejections");
+        shard1CoordinatingNodeRejections = shard1AfterShadowMode.get("rejection.coordinating.breakup_shadow_mode.node_limits");
+
+        XContentTestUtils.JsonMapView node2AfterShadowMode = new XContentTestUtils.JsonMapView((Map<String, Object>)
+            values3.get(1));
+        ArrayList<Object> shard2IndexingPressureValuesAfterShadowMode = new ArrayList<>(((Map<Object, Object>)
+            node2AfterShadowMode.get("shard_indexing_pressure.stats")).values());
+        assertThat(shard2IndexingPressureValuesAfterShadowMode.size(), equalTo(1));
+        XContentTestUtils.JsonMapView shard2AfterShadowMode = new XContentTestUtils.JsonMapView((Map<String, Object>)
+            shard2IndexingPressureValuesAfterShadowMode.get(0));
+        node2TotalLimitsRejections = node2AfterShadowMode.get("shard_indexing_pressure.total_rejections_breakup_shadow_mode" +
+            ".node_limits");
+        shard2CoordinatingRejections = shard2AfterShadowMode.get("rejection.coordinating.coordinating_rejections");
+        shard2PrimaryRejections = shard2AfterShadowMode.get("rejection.primary.primary_rejections");
+        shard2CoordinatingNodeRejections = shard2AfterShadowMode.get("rejection.coordinating.breakup_shadow_mode.node_limits");
+
+        if (shard1CoordinatingRejections == 0) {
+            assertThat(shard2CoordinatingRejections, equalTo(1));
+            assertThat(shard2CoordinatingNodeRejections, equalTo(1));
+            assertThat(node2TotalLimitsRejections, equalTo(1));
+        } else {
+            assertThat(shard1CoordinatingRejections, equalTo(1));
+            assertThat(shard1CoordinatingNodeRejections, equalTo(1));
+            assertThat(node1TotalLimitsRejections, equalTo(1));
+        }
+
+        assertThat(shard1PrimaryRejections, equalTo(0));
+        assertThat(shard2PrimaryRejections, equalTo(0));
+
+        //Reset persistent setting to clear cluster metadata
+        updateSettingRequest = new Request("PUT", "/_cluster/settings");
+        updateSettingRequest.setJsonEntity("{\"persistent\": {\"shard_indexing_pressure\": {\"enforced\": null}}}");
+        getRestClient().performRequest(updateSettingRequest);
     }
 }
