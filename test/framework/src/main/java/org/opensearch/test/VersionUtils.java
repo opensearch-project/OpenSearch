@@ -240,6 +240,11 @@ public class VersionUtils {
         return RELEASED_VERSIONS.get(0);
     }
 
+    public static Version getFirstVersionOfMajor(List<Version> versions, int major) {
+        Map<Integer, List<Version>> majorVersions = versions.stream().collect(Collectors.groupingBy(v -> (int)v.major));
+        return majorVersions.get(major).get(0);
+    }
+
     /** Returns a random {@link Version} from all available versions. */
     public static Version randomVersion(Random random) {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
