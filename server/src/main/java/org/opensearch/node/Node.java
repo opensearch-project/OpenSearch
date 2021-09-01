@@ -319,7 +319,9 @@ public class Node implements Closeable {
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
             // Enabling shard indexing backpressure node-attribute
-            tmpSettings = addShardIndexingBackPressureAttributeSettings(tmpSettings);
+            tmpSettings = Settings.builder().put(tmpSettings)
+                .put(NODE_ATTRIBUTES.getKey() + SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, "true")
+                .build();
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
@@ -750,13 +752,6 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
-    }
-
-    private Settings addShardIndexingBackPressureAttributeSettings(Settings settings) {
-        String ShardIndexingBackPressureEnabledValue = "true";
-        return Settings.builder().put(settings)
-            .put(NODE_ATTRIBUTES.getKey() + SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, ShardIndexingBackPressureEnabledValue)
-            .build();
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
