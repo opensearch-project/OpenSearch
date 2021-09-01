@@ -238,8 +238,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     // LegacyESVersion major 7 is equivalent to Version major 1
     public int compareMajor(Version other) {
-        int m = major == 1 ? 7 : major;
-        int om = other.major == 1 ? 7 : other.major;
+        int m = major == 1 ? 7 : major == 2 ? 8 : major;
+        int om = other.major == 1 ? 7 : other.major == 2 ? 8 : other.major;
         return Integer.compare(m, om);
     }
 
@@ -293,6 +293,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return Version.fromId(5060099);
+        } else if (major == 2) {
+            return LegacyESVersion.V_7_10_0;
         } else if (major >= 7) {
             // all major versions from 7 onwards are compatible with last minor series of the previous major
             Version bwcVersion = null;
@@ -339,6 +341,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             bwcMajor = 2; // we jumped from 2 to 5
         } else if (major == 7 || major == 1) {
             return LegacyESVersion.V_6_0_0_beta1;
+        } else if (major == 2) {
+            return LegacyESVersion.V_7_0_0;
         } else {
             bwcMajor = major - 1;
         }
@@ -354,8 +358,20 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             && version.onOrAfter(minimumCompatibilityVersion());
 
         // OpenSearch version 1 is the functional equivalent of predecessor version 7
-        int a = major == 1 ? 7 : major;
-        int b = version.major == 1 ? 7 : version.major;
+        // OpenSearch version 2 is the functional equivalent of predecessor unreleased version "8"
+        // todo refactor this logic after removing deprecated features
+        int a = major;
+        if (major == 1) {
+            a = 7;
+        } else if (major == 2) {
+            a = 8;
+        }
+        int b = version.major;
+        if (version.major == 1) {
+            b = 7;
+        } else if (version.major == 2) {
+            b = 8;
+        }
 
         assert compatible == false || Math.max(a, b) - Math.min(a, b) <= 1;
         return compatible;
