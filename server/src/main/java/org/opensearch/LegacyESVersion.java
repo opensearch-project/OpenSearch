@@ -167,7 +167,7 @@ public class LegacyESVersion extends Version {
                             final int minor = Integer.valueOf(fields[2]) * 10000;
                             final int revision = Integer.valueOf(fields[3]) * 100;
                             final int expectedId;
-                            if (fields[1].equals("1")) {
+                            if (major > 0 && major < 6000000) {
                                 expectedId = 0x08000000 ^ (major + minor + revision + 99);
                             } else {
                                 expectedId = (major + minor + revision + 99);
