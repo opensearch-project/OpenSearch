@@ -14,11 +14,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.concurrent.TimeUnit;
+
 public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase {
 
     private final Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
         .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 1)
-        .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), 20)
+        .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
         .put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 2)
         .build();
     private final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -181,8 +183,9 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         long limit1 = tracker1.getPrimaryAndCoordinatingLimits();
         long limit2 = tracker2.getPrimaryAndCoordinatingLimits();
         long requestStartTime = System.nanoTime();
+        long delay = TimeUnit.MILLISECONDS.toNanos(100);
 
-        tracker1.getCoordinatingOperationTracker().getPerformanceTracker().updateLastSuccessfulRequestTimestamp(requestStartTime - 100);
+        tracker1.getCoordinatingOperationTracker().getPerformanceTracker().updateLastSuccessfulRequestTimestamp(requestStartTime - delay);
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
         tracker1.getCoordinatingOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
 
@@ -192,7 +195,7 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         assertEquals(0, tracker2.getCoordinatingOperationTracker().getRejectionTracker()
             .getLastSuccessfulRequestLimitsBreachedRejections());
 
-        tracker1.getPrimaryOperationTracker().getPerformanceTracker().updateLastSuccessfulRequestTimestamp(requestStartTime - 100);
+        tracker1.getPrimaryOperationTracker().getPerformanceTracker().updateLastSuccessfulRequestTimestamp(requestStartTime - delay);
         tracker1.getPrimaryOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
         tracker1.getPrimaryOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
 
@@ -215,7 +218,8 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         long limit1 = tracker1.getReplicaLimits();
         long limit2 = tracker2.getReplicaLimits();
         long requestStartTime = System.nanoTime();
-        tracker1.getReplicaOperationTracker().getPerformanceTracker().updateLastSuccessfulRequestTimestamp(requestStartTime - 100);
+        long delay = TimeUnit.MILLISECONDS.toNanos(100);
+        tracker1.getReplicaOperationTracker().getPerformanceTracker().updateLastSuccessfulRequestTimestamp(requestStartTime - delay);
         tracker1.getReplicaOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
         tracker1.getReplicaOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
 
