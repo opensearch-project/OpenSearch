@@ -211,6 +211,23 @@ public class VersionTests extends OpenSearchTestCase {
         assertEquals(0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion().revision);
     }
 
+    public void testOpenSearchMinCompatVersion() {
+        Version opensearchVersion = VersionUtils.randomOpenSearchVersion(random());
+        // opensearch 1.x minCompat is Legacy 6.8.0
+        // opensearch 2.x minCompat is Legacy 7.10.0
+        // opensearch 3.x minCompat is 1.{last minor version}.0
+        // until 3.0 is staged the following line will only return legacy versions
+        List<Version> candidates = opensearchVersion.major >= 3 ? VersionUtils.allOpenSearchVersions() : VersionUtils.allLegacyVersions();
+        int opensearchMajor = opensearchVersion.major;
+        int major = opensearchMajor - 1;
+        if (opensearchMajor == 1) {
+            major = 7;
+        } else if (opensearchMajor == 2) {
+            major = 8;
+        }
+        assertEquals(VersionUtils.lastFirstReleasedMinorFromMajor(candidates, major - 1), opensearchVersion.computeMinCompatVersion());
+    }
+
     public void testToString() {
         // with 2.0.beta we lowercase
         assertEquals("2.0.0-beta1", LegacyESVersion.fromString("2.0.0-beta1").toString());
