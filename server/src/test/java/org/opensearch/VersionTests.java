@@ -32,7 +32,6 @@
 
 package org.opensearch;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
