@@ -174,8 +174,10 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         public void run() {
             boolean checkEnabled = enabled;
             try {
-                if (checkEnabled && checkInProgress.compareAndSet(false, true)) {
+                if (checkEnabled) {
                     setLastRunStartTimeMillis();
+                    boolean started = checkInProgress.compareAndSet(false, true);
+                    assert started;
                     monitorFSHealth();
                     logger.debug("health check succeeded");
                 }
