@@ -398,7 +398,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             sb.append(build);
         } else if (isBeta()) {
             sb.append("-beta");
-            sb.append(build-25);
+            sb.append(build - 25);
         } else if (build < 99) {
             sb.append("-rc");
             sb.append(build - 50);
