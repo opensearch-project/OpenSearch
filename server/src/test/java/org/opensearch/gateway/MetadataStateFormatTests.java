@@ -38,7 +38,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.Metadata;
@@ -193,7 +193,7 @@ public class MetadataStateFormatTests extends OpenSearchTestCase {
     }
 
     public static void corruptFile(Path fileToCorrupt, Logger logger) throws IOException {
-        try (SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParent())) {
+        try (NIOFSDirectory dir = new NIOFSDirectory(fileToCorrupt.getParent())) {
             long checksumBeforeCorruption;
             try (IndexInput input = dir.openInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
@@ -245,7 +245,7 @@ public class MetadataStateFormatTests extends OpenSearchTestCase {
 
     private static void ensureOnlyOneStateFile(Path[] paths) throws IOException {
         for (Path path : paths) {
-            try (Directory dir = new SimpleFSDirectory(path.resolve(MetadataStateFormat.STATE_DIR_NAME))) {
+            try (Directory dir = new NIOFSDirectory(path.resolve(MetadataStateFormat.STATE_DIR_NAME))) {
                 assertThat(dir.listAll().length, equalTo(1));
             }
         }

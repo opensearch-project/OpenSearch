@@ -42,7 +42,7 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -441,7 +441,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
         InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
         Dictionary dictionary;
-        try (Directory tmp = new SimpleFSDirectory(environment.tmpFile())) {
+        try (Directory tmp = new NIOFSDirectory(environment.tmpFile())) {
             dictionary = new Dictionary(tmp, "hunspell", aff, dic);
         }
         AnalysisModule module = new AnalysisModule(environment, singletonList(new AnalysisPlugin() {

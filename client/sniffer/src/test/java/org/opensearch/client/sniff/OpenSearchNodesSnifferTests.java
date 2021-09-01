@@ -48,7 +48,6 @@ import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientTestCase;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -153,7 +152,7 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
     }
 
     private static HttpServer createHttpServer(final SniffResponse sniffResponse, final int sniffTimeoutMillis) throws IOException {
-        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        HttpServer httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.createContext("/_nodes/http", new ResponseHandler(sniffTimeoutMillis, sniffResponse));
         return httpServer;
     }

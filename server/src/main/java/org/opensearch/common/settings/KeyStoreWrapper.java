@@ -40,7 +40,7 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
@@ -236,7 +236,7 @@ public class KeyStoreWrapper implements SecureSettings {
             return null;
         }
 
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
         try (IndexInput indexInput = directory.openInput(keystoreFileName, IOContext.READONCE)) {
             ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
             final int formatVersion;
@@ -502,7 +502,7 @@ public class KeyStoreWrapper implements SecureSettings {
     public synchronized void save(Path configDir, char[] password) throws Exception {
         ensureOpen();
 
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
         try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {

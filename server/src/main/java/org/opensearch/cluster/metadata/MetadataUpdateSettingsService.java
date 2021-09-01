@@ -250,8 +250,12 @@ public class MetadataUpdateSettingsService {
 
                 if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings) ||
                     IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {
+                    Settings indexSettings;
                     for (String index : actualIndices) {
-                        MetadataCreateIndexService.validateTranslogRetentionSettings(metadataBuilder.get(index).getSettings());
+                        indexSettings = metadataBuilder.get(index).getSettings();
+                        MetadataCreateIndexService.validateTranslogRetentionSettings(indexSettings);
+                        // validate storeType for deprecating index stores
+                        MetadataCreateIndexService.validateStoreTypeSettings(indexSettings);
                     }
                 }
                 boolean changed = false;
