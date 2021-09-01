@@ -88,8 +88,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         Settings.builder().build();
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(VersionUtils.getPreviousVersion(Version.CURRENT
-                .minimumIndexCompatibilityVersion())))
+            .settings(settings(Version.fromString("5.8.0")))
             .numberOfShards(1)
             .numberOfReplicas(1).build();
         metaBuilder.put(indexMetadata, false);
