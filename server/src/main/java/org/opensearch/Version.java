@@ -177,19 +177,35 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             throw new IllegalArgumentException("illegal version format - snapshot labels are not supported");
         }
         String[] parts = version.split("[.-]");
-        // todo: add back optional build number
-        if (parts.length != 3) {
-            throw new IllegalArgumentException("the version needs to contain major, minor, and revision: " + version);
+        if (parts.length < 3 || parts.length > 4) {
+            throw new IllegalArgumentException(
+                "the version needs to contain major, minor, and revision, and optionally the build: " + version);
         }
 
         try {
             final int rawMajor = Integer.parseInt(parts[0]);
-
+            final int betaOffset = 25; // 0 - 24 is taking by alpha builds
+            
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
             int build = 99;
+            if (parts.length == 4) {
+                String buildStr = parts[3];
+                if (buildStr.startsWith("alpha")) {
+                    build = Integer.parseInt(buildStr.substring(5));
+                    assert build < 25 : "expected a alpha build but " + build + " >= 25";
+                } else if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
+                    build = betaOffset + Integer.parseInt(buildStr.substring(4));
+                    assert build < 50 : "expected a beta build but " + build + " >= 50";
+                } else if (buildStr.startsWith("RC") || buildStr.startsWith("rc")) {
+                    build = Integer.parseInt(buildStr.substring(2)) + 50;
+                } else {
+                    throw new IllegalArgumentException("unable to parse version " + version);
+                }
+            }
+            
             return fromId((major + minor + revision + build) ^ MASK);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse version " + version, e);
@@ -398,18 +414,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             sb.append("-alpha");
             sb.append(build);
         } else if (isBeta()) {
-            if (major >= 2) {
-                sb.append("-beta");
-            } else {
-                sb.append(".Beta");
-            }
-            sb.append(major < 5 ? build : build-25);
+            sb.append("-beta");
+            sb.append(build - 25);
         } else if (build < 99) {
-            if (major >= 2) {
-                sb.append("-rc");
-            } else {
-                sb.append(".RC");
-            }
+            sb.append("-rc");
             sb.append(build - 50);
         }
         return sb.toString();

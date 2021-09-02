@@ -265,12 +265,36 @@ public class VersionTests extends OpenSearchTestCase {
         assertEquals("5.0.0-alpha1", LegacyESVersion.fromString("5.0.0-alpha1").toString());
     }
 
+    public void testIsRc() {
+        assertTrue(LegacyESVersion.fromString("2.0.0-rc1").isRC());
+        assertTrue(LegacyESVersion.fromString("1.0.0.RC1").isRC());
+        assertTrue(Version.fromString("1.0.0-rc1").isRC());
+        assertTrue(Version.fromString("2.0.0.RC1").isRC());
+
+        for (int i = 0 ; i < 25; i++) {
+            assertEquals(LegacyESVersion.fromString("5.0.0-rc" + i).id, LegacyESVersion.fromId(5000000 + i + 50).id);
+            assertEquals("5.0.0-rc" + i, LegacyESVersion.fromId(5000000 + i + 50).toString());
+            
+            assertEquals(Version.fromString("1.0.0-rc" + i).id, Version.fromId(135217728 + i + 50).id);
+            assertEquals("1.0.0-rc" + i, Version.fromId(135217728 + i + 50).toString());
+        }
+    }
+    
     public void testIsBeta() {
         assertTrue(LegacyESVersion.fromString("2.0.0-beta1").isBeta());
         assertTrue(LegacyESVersion.fromString("1.0.0.Beta1").isBeta());
         assertTrue(LegacyESVersion.fromString("0.90.0.Beta1").isBeta());
-    }
+        assertTrue(Version.fromString("1.0.0.Beta1").isBeta());
+        assertTrue(Version.fromString("2.0.0.beta1").isBeta());
 
+        for (int i = 0 ; i < 25; i++) {
+            assertEquals(LegacyESVersion.fromString("5.0.0-beta" + i).id, LegacyESVersion.fromId(5000000 + i + 25).id);
+            assertEquals("5.0.0-beta" + i, LegacyESVersion.fromId(5000000 + i + 25).toString());
+            
+            assertEquals(Version.fromString("1.0.0-beta" + i).id, Version.fromId(135217728 + i + 25).id);
+            assertEquals("1.0.0-beta" + i, Version.fromId(135217728 + i + 25).toString());
+        }
+    }
 
     public void testIsAlpha() {
         assertTrue(new LegacyESVersion(5000001, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
@@ -279,15 +303,16 @@ public class VersionTests extends OpenSearchTestCase {
         assertTrue(LegacyESVersion.fromString("5.0.0-alpha14").isAlpha());
         assertEquals(5000014, LegacyESVersion.fromString("5.0.0-alpha14").id);
         assertTrue(LegacyESVersion.fromId(5000015).isAlpha());
+        
+        assertEquals(135217742, Version.fromString("1.0.0-alpha14").id);
+        assertTrue(Version.fromString("1.0.0-alpha14").isAlpha());
 
         for (int i = 0 ; i < 25; i++) {
             assertEquals(LegacyESVersion.fromString("5.0.0-alpha" + i).id, LegacyESVersion.fromId(5000000 + i).id);
             assertEquals("5.0.0-alpha" + i, LegacyESVersion.fromId(5000000 + i).toString());
-        }
-
-        for (int i = 0 ; i < 25; i++) {
-            assertEquals(LegacyESVersion.fromString("5.0.0-beta" + i).id, LegacyESVersion.fromId(5000000 + i + 25).id);
-            assertEquals("5.0.0-beta" + i, LegacyESVersion.fromId(5000000 + i + 25).toString());
+            
+            assertEquals(Version.fromString("1.0.0-alpha" + i).id, Version.fromId(135217728 + i).id);
+            assertEquals("1.0.0-alpha" + i, Version.fromId(135217728 + i).toString());
         }
     }
 
