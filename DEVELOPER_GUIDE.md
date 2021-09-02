@@ -282,13 +282,29 @@ of this is `junit`.
 
 ### git-secrets
 
-Security is our top priority. Avoid checking in credentials, install [awslabs/git-secrets](https://github.com/awslabs/git-secrets).
+Security is our top priority. Avoid checking in credentials.
 
+#### Installation
+Install [awslabs/git-secrets](https://github.com/awslabs/git-secrets) by running the following commands.
 ```
 git clone https://github.com/awslabs/git-secrets.git
 cd git-secrets
 make install
 ```
+
+#### Configuration
+You can configure git secrets per repository, you need to change the directory to the root of the repository and run the following command.
+```
+git secrets --install
+✓ Installed commit-msg hook to .git/hooks/commit-msg
+✓ Installed pre-commit hook to .git/hooks/pre-commit
+✓ Installed prepare-commit-msg hook to .git/hooks/prepare-commit-msg
+```
+Then, you need to apply patterns for git-secrets, you can install the AWS standard patterns by running the following command.
+```
+git secrets --register-aws
+```
+
 
 ## Submitting Changes
 
