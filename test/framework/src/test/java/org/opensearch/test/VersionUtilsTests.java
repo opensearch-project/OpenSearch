@@ -224,13 +224,13 @@ public class VersionUtilsTests extends OpenSearchTestCase {
     }
 
     public static class TestVersionBumpIn2x {
-        public static final Version V_1_6_0 = Version.fromString("2.6.0");
-        public static final Version V_1_6_1 = Version.fromString("2.6.1");
-        public static final Version V_1_6_2 = Version.fromString("2.6.2");
-        public static final Version V_2_0_0 = Version.fromString("3.0.0");
-        public static final Version V_2_0_1 = Version.fromString("3.0.1");
-        public static final Version V_2_1_0 = Version.fromString("3.1.0");
-        public static final Version CURRENT = V_2_1_0;
+        public static final Version V_2_6_0 = Version.fromString("2.6.0");
+        public static final Version V_2_6_1 = Version.fromString("2.6.1");
+        public static final Version V_2_6_2 = Version.fromString("2.6.2");
+        public static final Version V_3_0_0 = Version.fromString("3.0.0");
+        public static final Version V_3_0_1 = Version.fromString("3.0.1");
+        public static final Version V_3_1_0 = Version.fromString("3.1.0");
+        public static final Version CURRENT = V_3_1_0;
     }
 
     public void testResolveReleasedVersionsAtVersionBumpIn2x() {
@@ -240,13 +240,13 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
-            TestVersionBumpIn2x.V_1_6_0,
-            TestVersionBumpIn2x.V_1_6_1,
-            TestVersionBumpIn2x.V_2_0_0)));
+            TestVersionBumpIn2x.V_2_6_0,
+            TestVersionBumpIn2x.V_2_6_1,
+            TestVersionBumpIn2x.V_3_0_0)));
         assertThat(unreleased, equalTo(Arrays.asList(
-            TestVersionBumpIn2x.V_1_6_2,
-            TestVersionBumpIn2x.V_2_0_1,
-            TestVersionBumpIn2x.V_2_1_0)));
+            TestVersionBumpIn2x.V_2_6_2,
+            TestVersionBumpIn2x.V_3_0_1,
+            TestVersionBumpIn2x.V_3_1_0)));
     }
 
     public static class TestNewMinorBranchIn6x {
