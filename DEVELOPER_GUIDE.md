@@ -317,7 +317,7 @@ git secrets --register-aws
 ```
 
 ## Components
-As you work in the repo you may notice issues getting labeled with component labels.  It's a housekeeping task to help up group together similar pieces of work.  You can pretty much ignore it, but if you're curious, here's what the different labels mean:
+As you work in the OpenSearch repo you may notice issues getting labeled with component labels.  It's a housekeeping task to help group together similar pieces of work.  You can pretty much ignore it, but if you're curious, here's what the different labels mean:
 
 ### Build libraries & interfaces
 Tasks to make sure the build tasks are useful and packaging and distribution are easy.
