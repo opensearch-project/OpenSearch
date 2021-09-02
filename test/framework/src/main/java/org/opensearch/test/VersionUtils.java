@@ -66,11 +66,19 @@ public class VersionUtils {
             .collect(Collectors.groupingBy(v -> (int)v.major));
         // this breaks b/c 5.x is still in version list but master doesn't care about it!
         //assert majorVersions.size() == 2;
+        List<List<Version>> oldVersions = new ArrayList<>(0);
+        List<List<Version>> previousMajor = new ArrayList<>(0);
+        if (current.major == 2) {
+            // add legacy first
+            oldVersions.addAll(splitByMinor(majorVersions.getOrDefault(6, Collections.emptyList())));
+            previousMajor.addAll(splitByMinor(majorVersions.getOrDefault(7, Collections.emptyList())));
+        }
         // TODO: remove oldVersions, we should only ever have 2 majors in Version
+        // rebasing OpenSearch to 1.0.0 means the previous major version was Legacy 7.0.0
         int previousMajorID = current.major == 1 ? 7 : current.major - 1;
-        List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault(previousMajorID - 1, Collections.emptyList()));
-        // rebasing OpenSearch to 1.0.0 means the previous major version was 7.0.0
-        List<List<Version>> previousMajor = splitByMinor(majorVersions.get(previousMajorID));
+        oldVersions.addAll(splitByMinor(majorVersions.getOrDefault(previousMajorID - 1, Collections.emptyList())));
+        previousMajor.addAll(splitByMinor(majorVersions.getOrDefault(previousMajorID, Collections.emptyList())));
+
         List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int)current.major));
 
         List<Version> unreleasedVersions = new ArrayList<>();
@@ -80,7 +88,7 @@ public class VersionUtils {
             stableVersions = previousMajor;
             // remove current
             moveLastToUnreleased(currentMajor, unreleasedVersions);
-        } else if (current.major != 1) {
+        } else if (current.major != 1 && current.major != 2) {
             // on a stable or release branch, ie N.x
             stableVersions = currentMajor;
             // remove the next maintenance bugfix
@@ -93,7 +101,7 @@ public class VersionUtils {
             stableVersions = currentMajor;
         }
 
-        // remove last minor unless the it's the first OpenSearch version.
+        // remove last minor unless it's the first OpenSearch version.
         // all Legacy ES versions are released, so we don't exclude any.
         if (current.equals(Version.V_1_0_0) == false) {
             List<Version> lastMinorLine = stableVersions.get(stableVersions.size() - 1);
@@ -227,8 +235,7 @@ public class VersionUtils {
     public static Version getPreviousMinorVersion() {
         for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
             Version v = RELEASED_VERSIONS.get(i);
-            if (v.minor < Version.CURRENT.minor
-                || (v.major != 1 && v.major < (Version.CURRENT.major != 1 ? Version.CURRENT.major : 8))) {
+            if (v.minor < Version.CURRENT.minor || v.major < Version.CURRENT.major) {
                 return v;
             }
         }

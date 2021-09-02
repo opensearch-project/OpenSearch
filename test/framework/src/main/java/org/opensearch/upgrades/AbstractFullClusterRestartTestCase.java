@@ -34,44 +34,15 @@ package org.opensearch.upgrades;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.client.Request;
 import org.opensearch.common.Booleans;
-import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
-import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Map;
-
-import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractFullClusterRestartTestCase extends OpenSearchRestTestCase {
 
     private static final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
-
-    @Before
-    public void init() throws IOException {
-        assertThat("we don't need this branch if we aren't compatible with 6.0",
-                Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(LegacyESVersion.V_6_0_0), equalTo(true));
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
-            XContentBuilder template = jsonBuilder();
-            template.startObject();
-            {
-                template.field("index_patterns", "*");
-                template.field("order", "0");
-                template.startObject("settings");
-                template.field("number_of_shards", 5);
-                template.endObject();
-            }
-            template.endObject();
-            Request createTemplate = new Request("PUT", "/_template/template");
-            createTemplate.setJsonEntity(Strings.toString(template));
-            client().performRequest(createTemplate);
-        }
-    }
 
     public static boolean isRunningAgainstOldCluster() {
         return runningAgainstOldCluster;

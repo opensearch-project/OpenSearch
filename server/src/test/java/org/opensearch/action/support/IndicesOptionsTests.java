@@ -57,7 +57,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalInt;
 
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -95,38 +94,6 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
 
             assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
-        }
-    }
-
-    public void testSerializationPre70() throws Exception {
-        int iterations = randomIntBetween(5, 20);
-        List<Version> declaredVersions = Version.getDeclaredVersions(LegacyESVersion.class);
-        OptionalInt maxV6Id = declaredVersions.stream().filter(v -> v.major == 6).mapToInt(v -> v.id).max();
-        assertTrue(maxV6Id.isPresent());
-        final Version maxVersion = Version.fromId(maxV6Id.getAsInt());
-        for (int i = 0; i < iterations; i++) {
-            Version version = randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), maxVersion);
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-
-            BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(version);
-            indicesOptions.writeIndicesOptions(output);
-
-            StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(version);
-            IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
-
-            assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
-            assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
-            assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
-            assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
-
-            assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
-            assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
-
-            assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
-            assertEquals(indicesOptions2.ignoreThrottled(), indicesOptions.ignoreThrottled());
         }
     }
 

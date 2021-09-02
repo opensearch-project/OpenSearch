@@ -448,7 +448,7 @@ public class VersionTests extends OpenSearchTestCase {
         }
         final Version lastMinorFromPreviousMajor =
                 VersionUtils
-                        .allVersions()
+                        .allReleasedVersions()
                         .stream()
                         .filter(v -> v.major == (currentOrNextMajorVersion.major == 1 ? 7 : currentOrNextMajorVersion.major - 1))
                         .max(Version::compareTo)
@@ -464,7 +464,7 @@ public class VersionTests extends OpenSearchTestCase {
                 Locale.ROOT,
                 "[%s] should %s be compatible with [%s]",
                 previousMinorVersion,
-                isCompatible ? "" : " not",
+                isCompatible ? "" : "not",
                 currentOrNextMajorVersion);
         assertThat(
                 message,
