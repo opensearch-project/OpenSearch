@@ -186,7 +186,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         try {
             final int rawMajor = Integer.parseInt(parts[0]);
             final int betaOffset = 25; // 0 - 24 is taking by alpha builds
-            
+
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
@@ -206,7 +206,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                     throw new IllegalArgumentException("unable to parse version " + version);
                 }
             }
-            
+
             return fromId((major + minor + revision + build) ^ MASK);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse version " + version, e);
@@ -312,8 +312,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return Version.fromId(5060099);
-        } else if (major == 2) {
-            return LegacyESVersion.V_7_10_0;
         } else if (major >= 7) {
             // all major versions from 7 onwards are compatible with last minor series of the previous major
             Version bwcVersion = null;
