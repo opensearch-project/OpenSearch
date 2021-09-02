@@ -36,7 +36,6 @@ import java.security.AccessController;
 import java.security.Permission;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -119,17 +118,8 @@ public class SecureSM extends SecurityManager {
      *
      * @return an instance of SecureSM where test packages can halt or exit the virtual machine
      */
-    public static SecureSM createTestSecureSM() {
+    public static SecureSM createTestSecureSM(final Set<String> trustedHosts) {
         return new SecureSM(TEST_RUNNER_PACKAGES) {
-            // Collect host names and addresses of all local loopback interfaces so we could check 
-            // if the network connection is being made only on those.
-            final Set<String> TRUSTED_HOSTS = new HashSet<>(Arrays.asList(
-               "localhost",
-               "0:0:0:0:0:0:0:1", 
-               "0:0:0:0:0:0:0:1%lo", 
-               "ip6-localhost", 
-               "127.0.0.1"));
-            
             // Trust these callers inside the test suite only
             final String[] TRUSTED_CALLERS = new String[] {
                 "sun.net.httpserver.ServerImpl",
@@ -140,7 +130,7 @@ public class SecureSM extends SecurityManager {
             @Override
             public void checkConnect(String host, int port) {
                 // Allow to connect from selected trusted classes to local addresses only 
-                if (!hasTrustedCallerChain() || !TRUSTED_HOSTS.contains(host)) {
+                if (!hasTrustedCallerChain() || !trustedHosts.contains(host)) {
                     super.checkConnect(host, port);
                 }
             }
@@ -148,9 +138,9 @@ public class SecureSM extends SecurityManager {
             @Override
             public void checkAccept(String host, int port) {
                 // Allow to accept connections from selected trusted classes to local addresses only 
-                if (!hasTrustedCallerChain() || !TRUSTED_HOSTS.contains(host)) {
+                if (!hasTrustedCallerChain() || !trustedHosts.contains(host)) {
                     super.checkAccept(host, port);
-                } 
+                }
             }
             
             private boolean hasTrustedCallerChain() {
