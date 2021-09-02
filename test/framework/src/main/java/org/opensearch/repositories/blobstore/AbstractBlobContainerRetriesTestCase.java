@@ -45,7 +45,6 @@ import org.opensearch.common.io.Streams;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -81,7 +80,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends OpenSearchTes
 
     @Before
     public void setUp() throws Exception {
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         super.setUp();
     }

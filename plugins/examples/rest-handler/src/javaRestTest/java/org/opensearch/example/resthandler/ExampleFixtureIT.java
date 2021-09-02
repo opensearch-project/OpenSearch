@@ -32,7 +32,6 @@
 
 package org.opensearch.example.resthandler;
 
-import org.elasticsearch.mocksocket.MockSocket;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.BufferedReader;
@@ -57,7 +56,7 @@ public class ExampleFixtureIT extends OpenSearchTestCase {
         final URL url = new URL("http://" + externalAddress);
         final InetAddress address = InetAddress.getByName(url.getHost());
         try (
-            Socket socket = new MockSocket(address, url.getPort());
+            Socket socket = new Socket(address, url.getPort());
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
         ) {

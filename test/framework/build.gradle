@@ -46,7 +46,6 @@ dependencies {
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.elasticsearch:securemock:${versions.securemock}"
-  api "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
 compileJava.options.compilerArgs -= '-Xlint:cast'

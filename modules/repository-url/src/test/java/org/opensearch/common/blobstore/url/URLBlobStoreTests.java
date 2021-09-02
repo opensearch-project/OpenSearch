@@ -37,7 +37,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -67,7 +66,7 @@ public class URLBlobStoreTests extends OpenSearchTestCase {
         }
         blobName = randomAlphaOfLength(8);
 
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 6001), 0);
+        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 6001), 0);
 
         httpServer.createContext("/indices/" + blobName, (s) -> {
             s.sendResponseHeaders(200, message.length);

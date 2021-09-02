@@ -35,7 +35,10 @@ package org.opensearch.secure_sm;
 import java.security.AccessController;
 import java.security.Permission;
 import java.security.PrivilegedAction;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Extension of SecurityManager that works around a few design flaws in Java Security.
@@ -104,11 +107,58 @@ public class SecureSM extends SecurityManager {
      *    <li><code>org.eclipse.internal.junit.runner.</code></li>
      *    <li><code>com.intellij.rt.execution.junit.</code></li>
      * </ul>
+     * 
+     * For testing purposes, the security manager grants network permissions "connect, accept" 
+     * to following classes, granted they only access local network interfaces.
+     * 
+     *  <ul>
+     *    <li><code>sun.net.httpserver.ServerImpl</code></li>
+     *    <li><code>java.net.ServerSocket"</code></li>
+     *    <li><code>java.net.Socket</code></li>
+     * </ul>
      *
      * @return an instance of SecureSM where test packages can halt or exit the virtual machine
      */
     public static SecureSM createTestSecureSM() {
-        return new SecureSM(TEST_RUNNER_PACKAGES);
+        return new SecureSM(TEST_RUNNER_PACKAGES) {
+            // Collect host names and addresses of all local loopback interfaces so we could check 
+            // if the network connection is being made only on those.
+            final Set<String> TRUSTED_HOSTS = new HashSet<>(Arrays.asList(
+               "localhost",
+               "0:0:0:0:0:0:0:1", 
+               "0:0:0:0:0:0:0:1%lo", 
+               "ip6-localhost", 
+               "127.0.0.1"));
+            
+            // Trust these callers inside the test suite only
+            final String[] TRUSTED_CALLERS = new String[] {
+                "sun.net.httpserver.ServerImpl",
+                "java.net.ServerSocket",
+                "java.net.Socket"
+            };
+            
+            @Override
+            public void checkConnect(String host, int port) {
+                // Allow to connect from selected trusted classes to local addresses only 
+                if (!hasTrustedCallerChain() || !TRUSTED_HOSTS.contains(host)) {
+                    super.checkConnect(host, port);
+                }
+            }
+            
+            @Override
+            public void checkAccept(String host, int port) {
+                // Allow to accept connections from selected trusted classes to local addresses only 
+                if (!hasTrustedCallerChain() || !TRUSTED_HOSTS.contains(host)) {
+                    super.checkAccept(host, port);
+                } 
+            }
+            
+            private boolean hasTrustedCallerChain() {
+                return Arrays
+                    .stream(getClassContext())
+                    .anyMatch(c -> Arrays.stream(TRUSTED_CALLERS).anyMatch(t -> c.getName().startsWith(t)));
+            }
+        };
     }
 
     static final String[] TEST_RUNNER_PACKAGES = new String[] {

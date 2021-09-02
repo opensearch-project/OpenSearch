@@ -56,7 +56,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -118,7 +117,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     @Before
     public void setUp() throws Exception {
         threadPool = new TestThreadPool(getTestClass().getName(), AzureRepositoryPlugin.executorBuilder());
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         super.setUp();
     }
