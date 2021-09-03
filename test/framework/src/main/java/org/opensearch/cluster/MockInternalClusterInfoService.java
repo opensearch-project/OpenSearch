@@ -99,7 +99,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                     .toArray(FsInfo.Path[]::new)), nodeStats.getTransport(),
                 nodeStats.getHttp(), nodeStats.getBreaker(), nodeStats.getScriptStats(), nodeStats.getDiscoveryStats(),
                 nodeStats.getIngestStats(), nodeStats.getAdaptiveSelectionStats(), nodeStats.getScriptCacheStats(),
-                nodeStats.getIndexingPressureStats());
+                nodeStats.getIndexingPressureStats(), nodeStats.getShardIndexingPressureStats());
         }).collect(Collectors.toList());
     }
 
