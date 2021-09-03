@@ -80,8 +80,8 @@ tasks.withType(JacocoReport).configureEach {
   reports {
     xml.enabled true
     // Code coverage report in HTML format is on demand， since it takes up 100+MB of disk space.
-    if (System.getProperty('tests.coverage.html_report')) {
-      html.enabled true
+    if (!System.getProperty('tests.coverage.html_report')) {
+      html.enabled false
     }
   }
 }
