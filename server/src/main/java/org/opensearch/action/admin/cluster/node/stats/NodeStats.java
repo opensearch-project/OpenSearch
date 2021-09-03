@@ -43,7 +43,9 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
+import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.stats.IndexingPressureStats;
+import org.opensearch.index.stats.ShardIndexingPressureStats;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.ingest.IngestStats;
@@ -112,6 +114,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private IndexingPressureStats indexingPressureStats;
 
+    @Nullable
+    private ShardIndexingPressureStats shardIndexingPressureStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -147,6 +152,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             indexingPressureStats = null;
         }
+        if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
+            shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
+        } else {
+            shardIndexingPressureStats = null;
+        }
+
     }
 
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
@@ -158,7 +169,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
                      @Nullable IngestStats ingestStats,
                      @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
                      @Nullable ScriptCacheStats scriptCacheStats,
-                     @Nullable IndexingPressureStats indexingPressureStats) {
+                     @Nullable IndexingPressureStats indexingPressureStats,
+                     @Nullable ShardIndexingPressureStats shardIndexingPressureStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -176,6 +188,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.adaptiveSelectionStats = adaptiveSelectionStats;
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
+        this.shardIndexingPressureStats = shardIndexingPressureStats;
     }
 
     public long getTimestamp() {
@@ -280,6 +293,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return indexingPressureStats;
     }
 
+    @Nullable
+    public ShardIndexingPressureStats getShardIndexingPressureStats() {
+        return shardIndexingPressureStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -308,6 +326,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeOptionalWriteable(indexingPressureStats);
+        }
+        if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
+            out.writeOptionalWriteable(shardIndexingPressureStats);
         }
     }
 
@@ -377,6 +398,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getIndexingPressureStats() != null) {
             getIndexingPressureStats().toXContent(builder, params);
+        }
+        if (getShardIndexingPressureStats() != null) {
+            getShardIndexingPressureStats().toXContent(builder, params);
         }
         return builder;
     }
