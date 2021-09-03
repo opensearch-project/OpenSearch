@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.discovery.zen;
+package org.opensearch.cluster.coordination;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

@@ -39,7 +39,6 @@ import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_SETTING;
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING;
 import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -65,21 +64,9 @@ public class NoMasterBlockServiceTests extends OpenSearchTestCase {
         assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
     }
 
-    public void testIgnoresLegacySettingBlockingWrites() {
-        createService(Settings.builder().put(LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "write").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
-        assertDeprecatedWarningEmitted();
-    }
-
     public void testBlocksWritesIfConfiguredBySetting() {
         createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "write").build());
         assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
-    }
-
-    public void testIgnoresLegacySettingBlockingAll() {
-        createService(Settings.builder().put(LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "all").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
-        assertDeprecatedWarningEmitted();
     }
 
     public void testBlocksAllIfConfiguredBySetting() {
@@ -99,14 +86,6 @@ public class NoMasterBlockServiceTests extends OpenSearchTestCase {
         );
     }
 
-    public void testRejectsInvalidLegacySetting() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> createService(Settings.builder().put(LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "unknown").build())
-        );
-        assertDeprecatedWarningEmitted();
-    }
-
     public void testSettingCanBeUpdated() {
         createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "all").build());
         assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
@@ -116,14 +95,5 @@ public class NoMasterBlockServiceTests extends OpenSearchTestCase {
 
         clusterSettings.applySettings(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "metadata_write").build());
         assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_METADATA_WRITES));
-    }
-
-    public void testIgnoresUpdatesToLegacySetting() {
-        createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "all").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
-
-        clusterSettings.applySettings(Settings.builder().put(LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "write").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
-        assertDeprecatedWarningEmitted();
     }
 }

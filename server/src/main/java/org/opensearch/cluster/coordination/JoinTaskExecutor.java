@@ -47,7 +47,6 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.zen.ElectMasterService;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
 import org.opensearch.transport.TransportService;
 
@@ -70,8 +69,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final Logger logger;
     private final RerouteService rerouteService;
     private final TransportService transportService;
-
-    private final int minimumMasterNodesOnLocalNode;
 
     public static class Task {
 
@@ -117,7 +114,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     ) {
         this.allocationService = allocationService;
         this.logger = logger;
-        minimumMasterNodesOnLocalNode = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
         this.rerouteService = rerouteService;
         this.transportService = transportService;
     }
@@ -270,7 +266,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         ClusterState tmpState = ClusterState.builder(currentState)
             .nodes(nodesBuilder)
             .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
-            .minimumMasterNodesOnPublishingMaster(minimumMasterNodesOnLocalNode)
             .build();
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
         allocationService.cleanCaches();

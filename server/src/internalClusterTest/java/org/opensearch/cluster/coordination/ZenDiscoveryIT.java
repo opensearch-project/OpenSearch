@@ -47,7 +47,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryStats;
-import org.opensearch.discovery.zen.FaultDetection;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.TestCustomMetadata;
 import org.opensearch.transport.RemoteTransportException;
@@ -73,10 +72,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
 
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
-        Settings defaultSettings = Settings.builder()
-            .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s")
-            .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1")
-            .build();
 
         Settings masterNodeSettings = masterOnlyNode();
         internalCluster().startNodes(2, masterNodeSettings);

@@ -39,13 +39,13 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.DiscoverySettings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.node.Node;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -209,7 +209,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     public void testBootstrapNotBootstrappedCluster() throws Exception {
         String node = internalCluster().startNode(
             Settings.builder()
-                .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
+                .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                 .build()
         );
         assertBusy(() -> {
@@ -289,14 +289,12 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
         logger.info("--> start 1st master-eligible node");
         masterNodes.add(
-            internalCluster().startMasterOnlyNode(
-                Settings.builder().put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
-            )
+            internalCluster().startMasterOnlyNode(Settings.builder().put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build())
         ); // node ordinal 0
 
         logger.info("--> start one data-only node");
         String dataNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+            Settings.builder().put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
         ); // node ordinal 1
 
         logger.info("--> start 2nd and 3rd master-eligible nodes and bootstrap");
@@ -491,7 +489,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         String node = internalCluster().startMasterOnlyNode(
             Settings.builder()
                 // give the cluster 2 seconds to elect the master (it should not)
-                .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s")
+                .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s")
                 .put(masterNodeDataPathSettings)
                 .build()
         );

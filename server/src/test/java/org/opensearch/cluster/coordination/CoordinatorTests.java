@@ -56,7 +56,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryModule;
-import org.opensearch.discovery.zen.PublishClusterStateStats;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.MockLogAppender;
