@@ -218,6 +218,14 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                             logger.warn("health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
                                 path, elapsedTime, slowPathLoggingThreshold);
                         }
+                        if (elapsedTime > healthyTimeoutThreshold.millis()) {
+                            logger.error("health check of [{}] failed, took [{}ms] which is above the healthy threshold of [{}]",
+                                path, elapsedTime, healthyTimeoutThreshold);
+                            if (currentUnhealthyPaths == null) {
+                                currentUnhealthyPaths = new HashSet<>(1);
+                            }
+                            currentUnhealthyPaths.add(path);
+                        }
                     }
                 } catch (Exception ex) {
                     logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
