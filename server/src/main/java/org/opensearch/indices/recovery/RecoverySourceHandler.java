@@ -261,11 +261,24 @@ public class RecoverySourceHandler {
                 // advances and not when creating a new safe commit. In any case this is a best-effort thing since future recoveries can
                 // always fall back to file-based ones, and only really presents a problem if this primary fails before things have settled
                 // down.
-                startingSeqNo = softDeletesEnabled
-                    ? Long.parseLong(safeCommitRef.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L
-                    : 0;
+                if(softDeletesEnabled) {
+                    final long minimumRetainingSequenceNumber = shard.getRetentionLeases()
+                        .leases()
+                        .stream()
+                        .mapToLong(RetentionLease::retainingSequenceNumber)
+                        .min()
+                        .orElse(Long.MAX_VALUE);
+                    final long safeCommitSeqNo = Long.parseLong(safeCommitRef.getIndexCommit()
+                        .getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
+                    if(shard.indexSettings().shouldPruneTranslogByRetentionLease()) {
+                        startingSeqNo = SequenceNumbers.min(safeCommitSeqNo, minimumRetainingSequenceNumber);
+                    } else {
+                        startingSeqNo = safeCommitSeqNo;
+                    }
+                } else {
+                    startingSeqNo = 0;
+                }
                 logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
-
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", historySource, startingSeqNo);
                     final Releasable releaseStore = acquireStore(shard.store());

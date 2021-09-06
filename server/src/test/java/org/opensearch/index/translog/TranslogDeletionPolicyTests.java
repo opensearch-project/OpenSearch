@@ -90,11 +90,6 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
         }
     }
 
-    public void testBytesRetentionWithRetentionLease() throws Exception {
-        long now = System.currentTimeMillis();
-
-    }
-
     public void testAgeRetention() throws IOException {
         long now = System.currentTimeMillis();
         Tuple<List<TranslogReader>, TranslogWriter> readersAndWriter = createReadersAndWriter(now);
