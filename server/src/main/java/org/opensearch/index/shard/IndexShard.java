@@ -1959,6 +1959,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine engineOrNull = getEngineOrNull();
         if (engineOrNull != null) {
             final boolean disableTranslogRetention = indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery;
+            logger.error("testIndex - shouldPruneTranslogByRetentionLease = {}", indexSettings.shouldPruneTranslogByRetentionLease());
+            logger.error("testIndex - retentionSizeInBytes = {}", indexSettings.getTranslogRetentionSize());
             engineOrNull.onSettingsChanged(
                 disableTranslogRetention ? TimeValue.MINUS_ONE : indexSettings.getTranslogRetentionAge(),
                 disableTranslogRetention && !indexSettings.shouldPruneTranslogByRetentionLease() ?

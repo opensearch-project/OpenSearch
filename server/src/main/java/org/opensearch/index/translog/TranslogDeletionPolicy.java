@@ -32,9 +32,11 @@
 
 package org.opensearch.index.translog;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Counter;
 import org.opensearch.Assertions;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -51,6 +53,7 @@ public class TranslogDeletionPolicy {
 
     private final Map<Object, RuntimeException> openTranslogRef;
     private Supplier<RetentionLeases> retentionLeasesSupplier;
+    private static Logger log = Loggers.getLogger(TranslogDeletionPolicy.class, "TestTranslog");
 
     public void assertNoOpenTranslogRefs() {
         if (openTranslogRef.isEmpty() == false) {
@@ -114,6 +117,8 @@ public class TranslogDeletionPolicy {
 
     public synchronized void shouldPruneTranslogByRetentionLease(boolean translogPruneByRetentionLease) {
         this.shouldPruneTranslogByRetentionLease = translogPruneByRetentionLease;
+        log.error("testIndex - shouldPruneTranslogByRetentionLease = {}", shouldPruneTranslogByRetentionLease);
+        log.error("testIndex - retentionSizeInBytes = {}", retentionSizeInBytes);
     }
 
     /**
