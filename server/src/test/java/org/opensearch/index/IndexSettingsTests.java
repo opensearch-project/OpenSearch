@@ -655,4 +655,36 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertThat(indexSettings.getTranslogRetentionAge(), equalTo(ageSetting));
         assertThat(indexSettings.getTranslogRetentionSize(), equalTo(sizeSetting));
     }
+
+    public void testTranslogPruningSettingsWithSoftDeletesEnabled() {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_4_0, Version.CURRENT));
+
+        ByteSizeValue retentionSize = new ByteSizeValue(512, ByteSizeUnit.MB);
+        boolean translogPruningEnabled = randomBoolean();
+        settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.getKey(), translogPruningEnabled);
+        IndexMetadata metadata = newIndexMeta("index", settings.build());
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        if(translogPruningEnabled) {
+            assertTrue(indexSettings.shouldPruneTranslogByRetentionLease());
+            assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(retentionSize.getBytes()));
+        } else {
+            assertFalse(indexSettings.shouldPruneTranslogByRetentionLease());
+            assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(-1L));
+        }
+    }
+
+    public void testTranslogPruningSettingsWithSoftDeletesDisabled() {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        boolean translogPruningEnabled = randomBoolean();
+        ByteSizeValue retentionSize = new ByteSizeValue(512, ByteSizeUnit.MB);
+        settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.getKey(), translogPruningEnabled);
+        IndexMetadata metadata = newIndexMeta("index", settings.build());
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(indexSettings.shouldPruneTranslogByRetentionLease());
+        assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(retentionSize.getBytes()));
+    }
 }

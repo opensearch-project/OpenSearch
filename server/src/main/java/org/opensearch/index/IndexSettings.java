@@ -297,8 +297,7 @@ public final class IndexSettings {
 
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
         Setting.byteSizeSetting("index.translog.retention.size",
-            settings -> shouldDisableTranslogRetention(settings) &&
-                !shouldPruneTranslogByRetentionLease(settings) ? "-1" : DEFAULT_TRANSLOG_RETENTION_SIZE.getStringRep(),
+            settings -> DEFAULT_TRANSLOG_RETENTION_SIZE.getStringRep(),
             Property.Dynamic, Property.IndexScope);
 
     /**
@@ -536,7 +535,8 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = version.onOrAfter(LegacyESVersion.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
-        translogPruningByRetentionLease = version.onOrAfter(LegacyESVersion.V_6_5_0) &&
+        translogPruningByRetentionLease = version.onOrAfter(Version.V_1_1_0) &&
+            scopedSettings.get(INDEX_SOFT_DELETES_SETTING) &&
             scopedSettings.get(INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING);
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
@@ -639,8 +639,8 @@ public final class IndexSettings {
     }
 
     private void setTranslogPruningByRetentionLease(boolean enabled) {
-        this.translogPruningByRetentionLease = enabled;
-        if(enabled) {
+        this.translogPruningByRetentionLease = this.softDeleteEnabled && enabled;
+        if(translogPruningByRetentionLease) {
             setTranslogRetentionSize(DEFAULT_TRANSLOG_RETENTION_SIZE);
         }
     }
@@ -850,8 +850,12 @@ public final class IndexSettings {
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
     public ByteSizeValue getTranslogRetentionSize() {
-        assert shouldDisableTranslogRetention(settings) && !shouldPruneTranslogByRetentionLease() == false ||
-            translogRetentionSize.getBytes() == -1L : translogRetentionSize;
+        if(shouldDisableTranslogRetention(settings) && !shouldPruneTranslogByRetentionLease(settings)) {
+            return new ByteSizeValue(-1);
+        }
+        else if(shouldPruneTranslogByRetentionLease(settings) && translogRetentionSize.getBytes() == -1) {
+            return DEFAULT_TRANSLOG_RETENTION_SIZE;
+        }
         return translogRetentionSize;
     }
 
