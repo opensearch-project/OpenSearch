@@ -31,7 +31,6 @@
 
 package org.opensearch.action;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.support.WriteResponse;
@@ -168,13 +167,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         type = in.readString();
         id = in.readString();
         version = in.readZLong();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
-            seqNo = in.readZLong();
-            primaryTerm = in.readVLong();
-        } else {
-            seqNo = UNASSIGNED_SEQ_NO;
-            primaryTerm = UNASSIGNED_PRIMARY_TERM;
-        }
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
         forcedRefresh = in.readBoolean();
         result = Result.readFrom(in);
     }
@@ -317,10 +311,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         out.writeString(type);
         out.writeString(id);
         out.writeZLong(version);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
-            out.writeZLong(seqNo);
-            out.writeVLong(primaryTerm);
-        }
+        out.writeZLong(seqNo);
+        out.writeVLong(primaryTerm);
         out.writeBoolean(forcedRefresh);
         result.writeTo(out);
     }

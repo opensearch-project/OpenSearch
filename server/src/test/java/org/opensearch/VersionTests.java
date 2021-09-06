@@ -204,7 +204,7 @@ public class VersionTests extends OpenSearchTestCase {
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
-        Version lastVersion = LegacyESVersion.V_6_8_0; // TODO: remove this once min compat version is a constant instead of method
+        Version lastVersion = LegacyESVersion.fromId(6080099); // TODO: remove this once min compat version is a constant instead of method
         assertEquals(lastVersion.major, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion().major);
         assertEquals("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
                 lastVersion.minor, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion().minor);
@@ -274,12 +274,12 @@ public class VersionTests extends OpenSearchTestCase {
         for (int i = 0 ; i < 25; i++) {
             assertEquals(LegacyESVersion.fromString("5.0.0-rc" + i).id, LegacyESVersion.fromId(5000000 + i + 50).id);
             assertEquals("5.0.0-rc" + i, LegacyESVersion.fromId(5000000 + i + 50).toString());
-            
+
             assertEquals(Version.fromString("1.0.0-rc" + i).id, Version.fromId(135217728 + i + 50).id);
             assertEquals("1.0.0-rc" + i, Version.fromId(135217728 + i + 50).toString());
         }
     }
-    
+
     public void testIsBeta() {
         assertTrue(LegacyESVersion.fromString("2.0.0-beta1").isBeta());
         assertTrue(LegacyESVersion.fromString("1.0.0.Beta1").isBeta());
@@ -290,7 +290,7 @@ public class VersionTests extends OpenSearchTestCase {
         for (int i = 0 ; i < 25; i++) {
             assertEquals(LegacyESVersion.fromString("5.0.0-beta" + i).id, LegacyESVersion.fromId(5000000 + i + 25).id);
             assertEquals("5.0.0-beta" + i, LegacyESVersion.fromId(5000000 + i + 25).toString());
-            
+
             assertEquals(Version.fromString("1.0.0-beta" + i).id, Version.fromId(135217728 + i + 25).id);
             assertEquals("1.0.0-beta" + i, Version.fromId(135217728 + i + 25).toString());
         }
@@ -303,14 +303,14 @@ public class VersionTests extends OpenSearchTestCase {
         assertTrue(LegacyESVersion.fromString("5.0.0-alpha14").isAlpha());
         assertEquals(5000014, LegacyESVersion.fromString("5.0.0-alpha14").id);
         assertTrue(LegacyESVersion.fromId(5000015).isAlpha());
-        
+
         assertEquals(135217742, Version.fromString("1.0.0-alpha14").id);
         assertTrue(Version.fromString("1.0.0-alpha14").isAlpha());
 
         for (int i = 0 ; i < 25; i++) {
             assertEquals(LegacyESVersion.fromString("5.0.0-alpha" + i).id, LegacyESVersion.fromId(5000000 + i).id);
             assertEquals("5.0.0-alpha" + i, LegacyESVersion.fromId(5000000 + i).toString());
-            
+
             assertEquals(Version.fromString("1.0.0-alpha" + i).id, Version.fromId(135217728 + i).id);
             assertEquals("1.0.0-alpha" + i, Version.fromId(135217728 + i).toString());
         }
@@ -432,11 +432,10 @@ public class VersionTests extends OpenSearchTestCase {
 
     public void testIsCompatible() {
         assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
-        assertFalse(isCompatible(LegacyESVersion.V_6_6_0, LegacyESVersion.V_7_0_0));
-        assertFalse(isCompatible(LegacyESVersion.V_6_7_0, LegacyESVersion.V_7_0_0));
-        assertTrue(isCompatible(LegacyESVersion.V_6_8_0, LegacyESVersion.V_7_0_0));
-        assertFalse(isCompatible(Version.fromId(2000099), LegacyESVersion.V_7_0_0));
-        assertFalse(isCompatible(Version.fromId(2000099), LegacyESVersion.V_6_5_0));
+        assertFalse(isCompatible(Version.V_1_0_0, Version.V_2_0_0));
+        assertFalse(isCompatible(LegacyESVersion.fromId(6080099), LegacyESVersion.V_7_0_0));
+        assertFalse(isCompatible(LegacyESVersion.fromId(2000099), LegacyESVersion.V_7_0_0));
+        assertFalse(isCompatible(LegacyESVersion.fromId(2000099), LegacyESVersion.V_6_5_0));
 
         int currentMajorID = Version.computeID(Version.CURRENT.major, 0, 0, 99);
         final Version currentMajorVersion = Version.fromId(currentMajorID);

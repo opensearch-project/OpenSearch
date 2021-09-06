@@ -46,7 +46,6 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
@@ -207,16 +206,5 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 .recoverFrom(metadata.getIndex())
                 .resizeType(resizeRequest.getResizeType())
                 .copySettings(resizeRequest.getCopySettings() == null ? false : resizeRequest.getCopySettings());
-    }
-
-    @Override
-    protected String getMasterActionName(DiscoveryNode node) {
-        if (node.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)){
-            return super.getMasterActionName(node);
-        } else {
-            // this is for BWC - when we send this to version that doesn't have ResizeAction.NAME registered
-            // we have to send to shrink instead.
-            return ShrinkAction.NAME;
-        }
     }
 }

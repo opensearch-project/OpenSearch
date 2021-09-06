@@ -99,15 +99,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            in.readBoolean(); // updateAllTypes
-        }
         concreteIndex = in.readOptionalWriteable(Index::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            origin = in.readOptionalString();
-        } else {
-            origin = null;
-        }
+        origin = in.readOptionalString();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             writeIndexOnly = in.readBoolean();
         }
@@ -357,13 +350,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
         out.writeString(source);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(true); // updateAllTypes
-        }
         out.writeOptionalWriteable(concreteIndex);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            out.writeOptionalString(origin);
-        }
+        out.writeOptionalString(origin);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeBoolean(writeIndexOnly);
         }

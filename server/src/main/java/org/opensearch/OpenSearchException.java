@@ -1051,7 +1051,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.index.shard.ShardNotInPrimaryModeException.class,
                 org.opensearch.index.shard.ShardNotInPrimaryModeException::new,
                 155,
-                LegacyESVersion.V_6_8_1),
+                UNKNOWN_VERSION_ADDED),
         RETENTION_LEASE_INVALID_RETAINING_SEQUENCE_NUMBER_EXCEPTION(
                 org.opensearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
                 org.opensearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
