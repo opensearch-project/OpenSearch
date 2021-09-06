@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.ToXContentFragment;
@@ -52,14 +51,6 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
     }
 
     public abstract Result evaluate(Stats stats);
-
-    /**
-     * Checks if this condition is available in a specific version.
-     * This makes sure BWC when introducing a new condition which is not recognized by older versions.
-     */
-    boolean includedInVersion(Version version) {
-        return true;
-    }
 
     @Override
     public boolean equals(Object o) {

@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -89,7 +88,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     private final boolean shardsAcknowledged;
 
     RolloverResponse(StreamInput in) throws IOException {
-        super(in, false);
+        super(in, false, true);
         oldIndex = in.readString();
         newIndex = in.readString();
         int conditionSize = in.readVInt();
