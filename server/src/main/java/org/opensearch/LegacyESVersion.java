@@ -167,7 +167,7 @@ public class LegacyESVersion extends Version {
                             final int minor = Integer.valueOf(fields[2]) * 10000;
                             final int revision = Integer.valueOf(fields[3]) * 100;
                             final int expectedId;
-                            if (fields[1].equals("1")) {
+                            if (major > 0 && major < 6000000) {
                                 expectedId = 0x08000000 ^ (major + minor + revision + 99);
                             } else {
                                 expectedId = (major + minor + revision + 99);
@@ -287,5 +287,30 @@ public class LegacyESVersion extends Version {
      */
     protected int maskId(final int id) {
         return id;
+    }
+    
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(major).append('.').append(minor).append('.').append(revision);
+        if (isAlpha()) {
+            sb.append("-alpha");
+            sb.append(build);
+        } else if (isBeta()) {
+            if (major >= 2) {
+                sb.append("-beta");
+            } else {
+                sb.append(".Beta");
+            }
+            sb.append(major < 5 ? build : build-25);
+        } else if (build < 99) {
+            if (major >= 2) {
+                sb.append("-rc");
+            } else {
+                sb.append(".RC");
+            }
+            sb.append(build - 50);
+        }
+        return sb.toString();
     }
 }

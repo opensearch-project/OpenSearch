@@ -367,9 +367,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * version mode
      **/
     public static void ensureMajorVersionBarrier(Version joiningNodeVersion, Version minClusterNodeVersion) {
-        final byte jnMajor = joiningNodeVersion.major == 1 ? 7 : joiningNodeVersion.major;
         final byte clusterMajor = minClusterNodeVersion.major == 1? 7: minClusterNodeVersion.major;
-        if (jnMajor < clusterMajor) {
+        if (joiningNodeVersion.compareMajor(minClusterNodeVersion) < 0) {
             throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
                 "All nodes in the cluster are of a higher major [" + clusterMajor + "].");
         }
