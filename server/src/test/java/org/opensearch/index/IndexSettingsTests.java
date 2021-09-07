@@ -658,8 +658,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testTranslogPruningSettingsWithSoftDeletesEnabled() {
         Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_4_0, Version.CURRENT));
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_1_1_0);
 
         ByteSizeValue retentionSize = new ByteSizeValue(512, ByteSizeUnit.MB);
         boolean translogPruningEnabled = randomBoolean();

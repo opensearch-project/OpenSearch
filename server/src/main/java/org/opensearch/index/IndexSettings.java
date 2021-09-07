@@ -536,7 +536,7 @@ public final class IndexSettings {
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = version.onOrAfter(LegacyESVersion.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
         translogPruningByRetentionLease = version.onOrAfter(Version.V_1_1_0) &&
-            scopedSettings.get(INDEX_SOFT_DELETES_SETTING) &&
+            softDeleteEnabled &&
             scopedSettings.get(INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING);
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
@@ -639,10 +639,7 @@ public final class IndexSettings {
     }
 
     private void setTranslogPruningByRetentionLease(boolean enabled) {
-        this.translogPruningByRetentionLease = this.softDeleteEnabled && enabled;
-        if(translogPruningByRetentionLease) {
-            setTranslogRetentionSize(DEFAULT_TRANSLOG_RETENTION_SIZE);
-        }
+        this.translogPruningByRetentionLease = INDEX_SOFT_DELETES_SETTING.get(settings) && enabled;
     }
 
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
