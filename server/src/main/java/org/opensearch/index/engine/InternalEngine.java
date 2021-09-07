@@ -2700,11 +2700,19 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+    public Translog.Snapshot newChangesSnapshot(String source, HistorySource historySource, MapperService mapperService,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
-        if (source.equals(HistorySource.TRANSLOG.name())) {
+        if(historySource == HistorySource.INDEX) {
+            return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
+        } else {
             return getTranslog().newSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
         }
+    }
+
+
+    @Override
+    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         ensureSoftDeletesEnabled();
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
