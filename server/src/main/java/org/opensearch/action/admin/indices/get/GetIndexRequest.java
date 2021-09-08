@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.get;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.info.ClusterInfoRequest;
 import org.opensearch.common.io.stream.StreamInput;

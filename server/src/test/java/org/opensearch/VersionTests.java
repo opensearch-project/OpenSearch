@@ -119,7 +119,7 @@ public class VersionTests extends OpenSearchTestCase {
     }
 
     public void testMinimumIndexCompatibilityVersion() {
-        assertEquals(Version.fromId(5000099), LegacyESVersion.V_6_0_0_beta1.minimumIndexCompatibilityVersion());
+        assertEquals(Version.fromId(5000099), LegacyESVersion.fromId(6000026).minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099), Version.fromId(5000099).minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099),
                 Version.fromId(5010000).minimumIndexCompatibilityVersion());
@@ -179,7 +179,7 @@ public class VersionTests extends OpenSearchTestCase {
 
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetadata.SETTING_INDEX_UUID
-        final LegacyESVersion version = LegacyESVersion.V_6_0_0_beta1;
+        final LegacyESVersion version = (LegacyESVersion)LegacyESVersion.fromId(6000026);
         assertEquals(version, Version.indexCreated(
             Settings.builder()
                 .put(IndexMetadata.SETTING_INDEX_UUID, "foo")
@@ -199,8 +199,8 @@ public class VersionTests extends OpenSearchTestCase {
         assertThat(Version.fromString("5.3.0").minimumCompatibilityVersion(), equalTo(major5x));
 
         Version major56x = LegacyESVersion.fromString("5.6.0");
-        assertThat(LegacyESVersion.V_6_5_0.minimumCompatibilityVersion(), equalTo(major56x));
-        assertThat(LegacyESVersion.V_6_3_1.minimumCompatibilityVersion(), equalTo(major56x));
+        assertThat(LegacyESVersion.fromId(6050099).minimumCompatibilityVersion(), equalTo(major56x));
+        assertThat(LegacyESVersion.fromId(6030199).minimumCompatibilityVersion(), equalTo(major56x));
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()

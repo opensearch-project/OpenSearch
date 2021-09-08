@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -42,7 +41,6 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
@@ -183,16 +181,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routing().required());
-        if (out.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
-            // timestamp
-            out.writeBoolean(false); // enabled
-            out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern());
-            out.writeOptionalString("now"); // 5.x default
-            out.writeOptionalBoolean(null);
-        }
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(false); // hasParentField
-        }
     }
 
     @Override
@@ -222,19 +210,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         source = CompressedXContent.readCompressedString(in);
         // routing
         routing = new Routing(in.readBoolean());
-        if (in.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
-            // timestamp
-            boolean enabled = in.readBoolean();
-            if (enabled) {
-                throw new IllegalArgumentException("_timestamp may not be enabled");
-            }
-            in.readString(); // format
-            in.readOptionalString(); // defaultTimestamp
-            in.readOptionalBoolean(); // ignoreMissing
-        }
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            in.readBoolean(); // hasParentField
-        }
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {

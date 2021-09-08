@@ -35,7 +35,6 @@ package org.opensearch.index.translog;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
@@ -1104,8 +1103,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public static class Index implements Operation {
 
-        public static final int FORMAT_6_0 = 8; // since 6.0.0
-        public static final int FORMAT_NO_PARENT = FORMAT_6_0 + 1; // since 7.0
+        public static final int FORMAT_NO_PARENT = 9; // since 7.0
         public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
         public static final int SERIALIZATION_FORMAT = FORMAT_NO_VERSION_TYPE;
 
@@ -1120,7 +1118,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         private Index(final StreamInput in) throws IOException {
             final int format = in.readVInt(); // SERIALIZATION_FORMAT
-            assert format >= FORMAT_6_0 : "format was: " + format;
             id = in.readString();
             type = in.readString();
             source = in.readBytesReference();
@@ -1214,7 +1211,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? SERIALIZATION_FORMAT : FORMAT_6_0;
+            final int format = SERIALIZATION_FORMAT;
             out.writeVInt(format);
             out.writeString(id);
             out.writeString(type);
@@ -1381,7 +1378,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? SERIALIZATION_FORMAT : FORMAT_6_0;
+            final int format = SERIALIZATION_FORMAT;
             out.writeVInt(format);
             out.writeString(type);
             out.writeString(id);

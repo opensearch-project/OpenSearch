@@ -39,7 +39,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 
 import java.io.IOException;
 import java.util.HashMap;

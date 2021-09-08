@@ -67,9 +67,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
         build = Build.readBuild(in);
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            in.readBoolean();
-        }
         versionNumber = build.getQualifiedVersion();
     }
 
@@ -128,9 +125,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(true);
-        }
     }
 
     @Override

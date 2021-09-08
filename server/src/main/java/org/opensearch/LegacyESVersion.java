@@ -56,8 +56,6 @@ public class LegacyESVersion extends Version {
         new LegacyESVersion(6000027, org.apache.lucene.util.Version.LUCENE_7_0_0);
     public static final LegacyESVersion V_6_0_0_rc1 =
         new LegacyESVersion(6000051, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_rc2 =
-        new LegacyESVersion(6000052, org.apache.lucene.util.Version.LUCENE_7_0_1);
     public static final LegacyESVersion V_6_0_0 =
         new LegacyESVersion(6000099, org.apache.lucene.util.Version.LUCENE_7_0_1);
     public static final LegacyESVersion V_6_0_1 =
@@ -71,7 +69,6 @@ public class LegacyESVersion extends Version {
     public static final LegacyESVersion V_6_2_2 = new LegacyESVersion(6020299, LUCENE_7_2_1);
     public static final LegacyESVersion V_6_2_4 = new LegacyESVersion(6020499, LUCENE_7_2_1);
     public static final LegacyESVersion V_6_3_0 = new LegacyESVersion(6030099, org.apache.lucene.util.Version.LUCENE_7_3_1);
-    public static final LegacyESVersion V_6_3_1 = new LegacyESVersion(6030199, org.apache.lucene.util.Version.LUCENE_7_3_1);
     public static final LegacyESVersion V_6_4_0 = new LegacyESVersion(6040099, org.apache.lucene.util.Version.LUCENE_7_4_0);
     public static final LegacyESVersion V_6_5_0 = new LegacyESVersion(6050099, org.apache.lucene.util.Version.LUCENE_7_5_0);
     public static final LegacyESVersion V_6_6_0 = new LegacyESVersion(6060099, org.apache.lucene.util.Version.LUCENE_7_6_0);

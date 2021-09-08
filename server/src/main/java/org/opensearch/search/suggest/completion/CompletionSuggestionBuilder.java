@@ -31,7 +31,6 @@
 
 package org.opensearch.search.suggest.completion;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.bytes.BytesReference;
@@ -146,9 +145,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         fuzzyOptions = in.readOptionalWriteable(FuzzyOptions::new);
         regexOptions = in.readOptionalWriteable(RegexOptions::new);
         contextBytes = in.readOptionalBytesReference();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            skipDuplicates = in.readBoolean();
-        }
+        skipDuplicates = in.readBoolean();
     }
 
     @Override
@@ -156,9 +153,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         out.writeOptionalWriteable(fuzzyOptions);
         out.writeOptionalWriteable(regexOptions);
         out.writeOptionalBytesReference(contextBytes);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            out.writeBoolean(skipDuplicates);
-        }
+        out.writeBoolean(skipDuplicates);
     }
 
     /**

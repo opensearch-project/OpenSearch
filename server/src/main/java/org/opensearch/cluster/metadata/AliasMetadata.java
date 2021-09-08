@@ -208,10 +208,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         } else {
             out.writeBoolean(false);
         }
-
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeOptionalBoolean(writeIndex());
-        }
+        out.writeOptionalBoolean(writeIndex());
 
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             out.writeOptionalBoolean(isHidden());
@@ -237,11 +234,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             searchRouting = null;
             searchRoutingValues = emptySet();
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            writeIndex = in.readOptionalBoolean();
-        } else {
-            writeIndex = null;
-        }
+        writeIndex = in.readOptionalBoolean();
 
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             isHidden = in.readOptionalBoolean();

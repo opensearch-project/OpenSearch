@@ -35,7 +35,6 @@ package org.opensearch.cluster.routing.allocation;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
@@ -238,7 +237,7 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
         Collections.addAll(roles, mustHaveRoles);
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
-            VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0_alpha1, null));
+            VersionUtils.randomIndexCompatibleVersion(random()));
     }
 
 }

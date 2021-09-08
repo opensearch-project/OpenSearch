@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
-import org.opensearch.action.admin.indices.shrink.ResizeAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;

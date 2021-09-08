@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -76,21 +75,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (in.readBoolean()) {
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            this.missingBucket = in.readBoolean();
-        } else {
-            this.missingBucket = false;
-        }
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            // skip missing value for BWC
-            in.readGenericValue();
-        }
+        this.missingBucket = in.readBoolean();
         this.order = SortOrder.readFromStream(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            this.format = in.readOptionalString();
-        } else {
-            this.format = null;
-        }
+        this.format = in.readOptionalString();
     }
 
     @Override
@@ -107,17 +94,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasValueType) {
             userValueTypeHint.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeBoolean(missingBucket);
-        }
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            // write missing value for BWC
-            out.writeGenericValue(null);
-        }
+        out.writeBoolean(missingBucket);
         order.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            out.writeOptionalString(format);
-        }
+        out.writeOptionalString(format);
         innerWriteTo(out);
     }
 
