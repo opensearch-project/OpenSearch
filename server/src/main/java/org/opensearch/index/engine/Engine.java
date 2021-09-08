@@ -1849,6 +1849,11 @@ public abstract class Engine implements Closeable {
     }
 
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+        onSettingsChanged(translogRetentionAge, translogRetentionSize, softDeletesRetentionOps, false);
+    }
+
+    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize,
+                                  long softDeletesRetentionOps, boolean translogPruningByRetentionLease) {
 
     }
 
