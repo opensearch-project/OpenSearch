@@ -261,6 +261,13 @@ public final class IndexSettings {
         Property.IndexScope, Property.Final);
 
     /**
+     * Specifies if the index translog should prune based on retention leases.
+     */
+    public static final Setting<Boolean> INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING =
+        Setting.boolSetting("index.plugins.replication.translog.retention_lease.pruning.enabled", false,
+            Property.IndexScope, Property.Dynamic);
+
+    /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
      * documents increases the chance of operation-based recoveries and allows querying a longer history of documents.
      * If soft-deletes is enabled, an engine by default will retain all operations up to the global checkpoint.
@@ -286,9 +293,11 @@ public final class IndexSettings {
      * the chance of ops based recoveries for indices with soft-deletes disabled.
      * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
      **/
+    private static final ByteSizeValue DEFAULT_TRANSLOG_RETENTION_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
+
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
         Setting.byteSizeSetting("index.translog.retention.size",
-            settings -> shouldDisableTranslogRetention(settings) ? "-1" : "512MB",
+            settings -> DEFAULT_TRANSLOG_RETENTION_SIZE.getStringRep(),
             Property.Dynamic, Property.IndexScope);
 
     /**
@@ -389,6 +398,7 @@ public final class IndexSettings {
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
+    private volatile boolean translogPruningByRetentionLease;
     private volatile long softDeleteRetentionOperations;
 
     private volatile long retentionLeaseMillis;
@@ -525,6 +535,9 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = version.onOrAfter(LegacyESVersion.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        translogPruningByRetentionLease = version.onOrAfter(Version.V_1_1_0) &&
+            softDeleteEnabled &&
+            scopedSettings.get(INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING);
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -593,6 +606,8 @@ public final class IndexSettings {
                 this::setGenerationThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING,
+            this::setTranslogPruningByRetentionLease);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
@@ -623,8 +638,14 @@ public final class IndexSettings {
         this.flushAfterMergeThresholdSize = byteSizeValue;
     }
 
+    private void setTranslogPruningByRetentionLease(boolean enabled) {
+        this.translogPruningByRetentionLease = INDEX_SOFT_DELETES_SETTING.get(settings) && enabled;
+    }
+
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
-        if (shouldDisableTranslogRetention(settings) && byteSizeValue.getBytes() >= 0) {
+        if (shouldDisableTranslogRetention(settings) &&
+            !shouldPruneTranslogByRetentionLease(settings) &&
+            byteSizeValue.getBytes() >= 0) {
             // ignore the translog retention settings if soft-deletes enabled
             this.translogRetentionSize = new ByteSizeValue(-1);
         } else {
@@ -826,7 +847,12 @@ public final class IndexSettings {
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
     public ByteSizeValue getTranslogRetentionSize() {
-        assert shouldDisableTranslogRetention(settings) == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
+        if(shouldDisableTranslogRetention(settings) && !shouldPruneTranslogByRetentionLease(settings)) {
+            return new ByteSizeValue(-1);
+        }
+        else if(shouldPruneTranslogByRetentionLease(settings) && translogRetentionSize.getBytes() == -1) {
+            return DEFAULT_TRANSLOG_RETENTION_SIZE;
+        }
         return translogRetentionSize;
     }
 
@@ -1069,6 +1095,20 @@ public final class IndexSettings {
 
     public void setRequiredPipeline(final String requiredPipeline) {
         this.requiredPipeline = requiredPipeline;
+    }
+
+    /**
+     * Returns <code>true</code> if translog ops should be pruned based on retention lease
+     */
+    public boolean shouldPruneTranslogByRetentionLease() {
+        return translogPruningByRetentionLease;
+    }
+
+    /**
+     * Returns <code>true</code> if translog ops should be pruned based on retention lease
+     */
+    public static boolean shouldPruneTranslogByRetentionLease(Settings settings) {
+        return INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.get(settings);
     }
 
     /**
