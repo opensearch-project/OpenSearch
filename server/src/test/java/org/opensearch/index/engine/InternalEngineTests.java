@@ -5417,6 +5417,48 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testHistoryBasedOnSource() throws Exception {
+        final List<Engine.Operation> operations = generateSingleDocHistory(false,
+            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "1");
+        final MergePolicy keepSoftDeleteDocsMP = new SoftDeletesRetentionMergePolicy(
+            Lucene.SOFT_DELETES_FIELD, () -> new MatchAllDocsQuery(), engine.config().getMergePolicy());
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+        Set<Long> expectedSeqNos = new HashSet<>();
+        try (Store store = createStore();
+             Engine engine = createEngine(config(indexSettings, store, createTempDir(), keepSoftDeleteDocsMP, null))) {
+            for (Engine.Operation op : operations) {
+                if (op instanceof Engine.Index) {
+                    Engine.IndexResult indexResult = engine.index((Engine.Index) op);
+                    assertThat(indexResult.getFailure(), nullValue());
+                    expectedSeqNos.add(indexResult.getSeqNo());
+                } else {
+                    Engine.DeleteResult deleteResult = engine.delete((Engine.Delete) op);
+                    assertThat(deleteResult.getFailure(), nullValue());
+                    expectedSeqNos.add(deleteResult.getSeqNo());
+                }
+                if (rarely()) {
+                    engine.refresh("test");
+                }
+                if (rarely()) {
+                    engine.flush();
+                }
+                if (rarely()) {
+                    engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
+                }
+            }
+            MapperService mapperService = createMapperService("test");
+            List<Translog.Operation> luceneOps = readAllOperationsBasedOnSource(engine, Engine.HistorySource.INDEX, mapperService);
+            List<Translog.Operation> translogOps = readAllOperationsBasedOnSource(engine, Engine.HistorySource.TRANSLOG, mapperService);
+            assertThat(luceneOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
+            assertThat(translogOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
+        }
+    }
+
     public void testLuceneHistoryOnPrimary() throws Exception {
         final List<Engine.Operation> operations = generateSingleDocHistory(false,
             randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "1");
