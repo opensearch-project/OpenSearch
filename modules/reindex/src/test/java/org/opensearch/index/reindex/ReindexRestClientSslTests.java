@@ -62,7 +62,6 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.security.cert.Certificate;
@@ -90,7 +89,7 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
 
     @BeforeClass
     public static void setupHttpServer() throws Exception {
-        InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
+        InetSocketAddress address = new InetSocketAddress("localhost", 0);
         SSLContext sslContext = buildServerSslContext();
         server = MockHttpServer.createHttps(address, 0);
         server.setHttpsConfigurator(new ClientAuthHttpsConfigurator(sslContext));
@@ -213,7 +212,7 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
     }
 
     private RemoteInfo getRemoteInfo() {
-        return new RemoteInfo("https", server.getAddress().getHostName(), server.getAddress().getPort(), "/",
+        return new RemoteInfo("https", "localhost", server.getAddress().getPort(), "/",
             new BytesArray("{\"match_all\":{}}"), "user", "password", Collections.emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
             RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
     }
