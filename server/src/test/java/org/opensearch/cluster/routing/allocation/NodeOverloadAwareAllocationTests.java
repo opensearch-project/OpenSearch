@@ -44,10 +44,10 @@ public class NodeOverloadAwareAllocationTests extends OpenSearchAllocationTestCa
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 20)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 20)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_TOTAL_CAPACITY_SETTING.getKey(), 15)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),15)
             .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_LIMIT_SETTING.getKey(), 20)
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey(),
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.getKey(), 20)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey(),
                 true)
             .build());
 
@@ -145,10 +145,10 @@ public class NodeOverloadAwareAllocationTests extends OpenSearchAllocationTestCa
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 20)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 20)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_TOTAL_CAPACITY_SETTING.getKey(), 5)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),5)
             .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_LIMIT_SETTING.getKey(), 20)
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey(),
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.getKey(), 20)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey(),
                 true)
             .build());
 
@@ -250,9 +250,9 @@ public class NodeOverloadAwareAllocationTests extends OpenSearchAllocationTestCa
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 20)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 20)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_TOTAL_CAPACITY_SETTING.getKey(), 5)
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_LIMIT_SETTING.getKey(), 20)
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey(),
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(), 5)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.getKey(), 20)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey(),
                 false)
             .build());
 
@@ -288,10 +288,10 @@ public class NodeOverloadAwareAllocationTests extends OpenSearchAllocationTestCa
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 20)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 20)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_TOTAL_CAPACITY_SETTING.getKey(), 15)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),15)
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "zone_1,zone_2,zone_3")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_LIMIT_SETTING.getKey(), 20)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.getKey(), 20)
             .build());
 
         logger.info("Building initial routing table for 'testThreeZoneTwoReplicaLimitsShardAllocationOnOverload'");
@@ -426,11 +426,11 @@ public class NodeOverloadAwareAllocationTests extends OpenSearchAllocationTestCa
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 20)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 20)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_TOTAL_CAPACITY_SETTING.getKey(), 15)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),15)
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "zone_1,zone_2,zone_3")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_LIMIT_SETTING.getKey(), 20)
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey(),
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.getKey(), 20)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey(),
                 true)
             .build());
 
@@ -558,8 +558,8 @@ public class NodeOverloadAwareAllocationTests extends OpenSearchAllocationTestCa
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 21)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 21)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_TOTAL_CAPACITY_SETTING.getKey(), 9)
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_LIMIT_SETTING.getKey(), 10)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),9)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.getKey(), 10)
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "zone_1,zone_2,zone_3")
             .build());
@@ -665,9 +665,9 @@ public class NodeOverloadAwareAllocationTests extends OpenSearchAllocationTestCa
             .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 10)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_TOTAL_CAPACITY_SETTING.getKey(), 3)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),3)
             .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_LIMIT_SETTING.getKey(), 10)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.getKey(), 10)
             .build());
 
         logger.info("Building initial routing table for 'testSingleZoneTwoReplicaLimitsReplicaAllocationOnOverload'");
@@ -732,10 +732,10 @@ public class NodeOverloadAwareAllocationTests extends OpenSearchAllocationTestCa
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 20)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 20)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_TOTAL_CAPACITY_SETTING.getKey(), 5)
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_LIMIT_SETTING.getKey(), 10)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),5)
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.getKey(), 10)
             .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey(),
+            .put(NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey(),
                 true)
             .build());
 

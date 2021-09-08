@@ -582,9 +582,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
             TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION,
             IndexingPressure.MAX_INDEXING_BYTES,
-            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_TOTAL_CAPACITY_SETTING,
-            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_LIMIT_SETTING,
-            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARE_ALLOW_UNASSIGNED_PRIMARIES_SETTING)));
+            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
+            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING,
+            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING)));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
