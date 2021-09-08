@@ -147,7 +147,18 @@ Follow links in the [Java Tutorial](https://code.visualstudio.com/docs/java/java
 
 ### Eclipse
 
-We would like to support Eclipse, but few of us use it and has fallen into disrepair. Please [contribute](CONTRIBUTING.md).
+When importing to Eclipse, you need to have [Eclipse Buildship](https://projects.eclipse.org/projects/tools.buildship) plugin installed and, preferrably, have JDK 11 set as default JRE in **Preferences -> Java -> Installed JREs**. Once this is done, generate Eclipse projects using Gradle wrapper:
+
+    ./gradlew eclipse
+
+You can now import the OpenSearch project into Eclipse as follows.
+
+1. Select **File > Import -> Existing Gradle Project**
+2. In the subsequent dialog navigate to the root of `build.gradle` file
+3. In the subsequent dialog, if JDK 11 is not set as default JRE, please make sure to check **[Override workpace settings]**, keep **[Gradle Wrapper]** and provide the correct path to JDK11 using **[Java Home]** property under **[Advanced Options]**. Otherwise, you may run into cryptic import failures and only top level project is going to be imported.
+4. In the subsequent dialog, you sould see **[Gradle project structure]** populated, please click **[Finish]** to complete the import
+
+**Note:** it may look non-intuitive why one needs to use Gradle wrapper and then import existing Gradle project (in general, **File > Import -> Existing Gradle Project** should be enough). Practially, as it stands now, Eclipse Buildship plugin does not import OpenSearch project dependencies correctly but does work in conjuction with Gradle wrapper.
 
 ## Project Layout
 
