@@ -743,6 +743,15 @@ public abstract class Engine implements Closeable {
                                                          long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
 
     /**
+     * Creates a new history snapshot from either Lucene/Translog for reading operations whose seqno in the requesting
+     * seqno range (both inclusive).
+     */
+    public Translog.Snapshot newChangesSnapshot(String source, HistorySource historySource, MapperService mapperService,
+                                                         long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
+    }
+
+    /**
      * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
      * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
@@ -1849,6 +1858,11 @@ public abstract class Engine implements Closeable {
     }
 
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+        onSettingsChanged(translogRetentionAge, translogRetentionSize, softDeletesRetentionOps, false);
+    }
+
+    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize,
+                                  long softDeletesRetentionOps, boolean translogPruningByRetentionLease) {
 
     }
 

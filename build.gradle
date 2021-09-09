@@ -193,7 +193,7 @@ tasks.register("verifyVersions") {
  */
 
 boolean bwc_tests_enabled = true
-/* place a PR link here when committing bwc changes */
+/* place an issue link here when committing bwc changes */
 final String bwc_tests_disabled_issue = ""
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {

@@ -363,7 +363,13 @@ These test tasks can use the `--tests`, `--info`, and `--debug` parameters just 
 
 # Testing backwards compatibility
 
-Backwards compatibility tests exist to test upgrading from each supported version to the current version. To run them all use:
+Backwards compatibility tests exist to test upgrading from each supported version to the current version. 
+
+The test can be run for any versions which the current version will be compatible with. Tests are run for released versions download the distributions from the artifact repository, see [DistributionDownloadPlugin](./buildSrc/src/main/java/org/opensearch/gradle/DistributionDownloadPlugin.java) for the repository location. Tests are run for versions that are not yet released automatically check out the branch and build from source to get the distributions, see [BwcVersions](./buildSrc/src/main/java/org/opensearch/gradle/BwcVersions.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
+
+The minimum JDK versions for runtime and compiling need to be installed, and environment variables `JAVAx_HOME`, such as `JAVA8_HOME`, pointing to the JDK installations are required to run the tests against unreleased versions, since the distributions are created by building from source. The required JDK versions for each branch are located at [.ci/java-versions.properties](.ci/java-versions.properties), see [BwcSetupExtension](./buildSrc/src/main/java/org/opensearch/gradle/internal/BwcSetupExtension.java) for more information. 
+
+To run all the backwards compatibility tests use:
 
     ./gradlew bwcTest
 
@@ -376,8 +382,6 @@ Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example 
     ./gradlew :qa:rolling-upgrade:v7.7.0#bwcTest \
      -Dtests.class=org.opensearch.upgrades.RecoveryIT \
      -Dtests.method=testHistoryUUIDIsGenerated
-
-Tests are run for versions that are not yet released but with which the current version will be compatible with. These are automatically checked out and built from source. See [BwcVersions](./buildSrc/src/main/java/org/opensearch/gradle/BwcVersions.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
 
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
 

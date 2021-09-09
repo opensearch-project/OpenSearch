@@ -227,7 +227,8 @@ public class InternalEngine extends Engine {
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
             engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
             engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
-            engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
+            engineConfig.getIndexSettings().getTranslogRetentionTotalFiles(),
+            engineConfig.retentionLeasesSupplier()
         );
         store.incRef();
         IndexWriter writer = null;
@@ -2572,7 +2573,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize,
+                                  long softDeletesRetentionOps, boolean translogPruningByRetentionLease) {
         mergeScheduler.refreshConfig();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
         maybePruneDeletes();
@@ -2585,6 +2587,7 @@ public class InternalEngine extends Engine {
         final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
         translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
+        translogDeletionPolicy.shouldPruneTranslogByRetentionLease(translogPruningByRetentionLease);
         softDeletesPolicy.setRetentionOperations(softDeletesRetentionOps);
     }
 
@@ -2698,6 +2701,17 @@ public class InternalEngine extends Engine {
             throw new IllegalStateException("index " + shardId.getIndex() + " does not have soft-deletes enabled");
         }
     }
+
+    @Override
+    public Translog.Snapshot newChangesSnapshot(String source, HistorySource historySource, MapperService mapperService,
+                                                long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        if(historySource == HistorySource.INDEX) {
+            return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
+        } else {
+            return getTranslog().newSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
+        }
+    }
+
 
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,

@@ -6,6 +6,15 @@ CDPATH=""
 
 SCRIPT="$0"
 
+UNAME=$(uname -s)
+if [ $UNAME = "FreeBSD" ]; then
+  OS="freebsd"
+elif [ $UNAME = "Darwin" ]; then
+  OS="darwin"
+else
+  OS="other"
+fi
+
 # SCRIPT might be an arbitrarily deep series of symbolic links; loop until we
 # have the concrete path
 while [ -h "$SCRIPT" ] ; do
@@ -40,9 +49,12 @@ if [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
   JAVA_TYPE="JAVA_HOME"
 else
-  if [ "$(uname -s)" = "Darwin" ]; then
-    # macOS has a different structure
+  if [ $OS = "darwin" ]; then
+    # macOS bundled Java
     JAVA="$OPENSEARCH_HOME/jdk.app/Contents/Home/bin/java"
+  elif [ $OS = "freebsd" ]; then
+    # using FreeBSD default java from ports if JAVA_HOME is not set
+    JAVA="/usr/local/bin/java"
   else
     JAVA="$OPENSEARCH_HOME/jdk/bin/java"
   fi

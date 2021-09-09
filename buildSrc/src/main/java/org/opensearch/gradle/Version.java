@@ -77,7 +77,7 @@ public final class Version implements Comparable<Version> {
         // currently snapshot is not taken into account
         int id = major * 10000000 + minor * 100000 + revision * 1000;
         // identify if new OpenSearch version 1
-        this.id = major == 1 ? id ^ MASK : id;
+        this.id = major == 1 || major == 2 ? id ^ MASK : id;
     }
 
     private static int parseSuffixNumber(String substring) {

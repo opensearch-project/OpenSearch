@@ -52,7 +52,6 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -107,7 +106,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     }
 
     private HttpServer createHttpServer() throws Exception {
-        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        HttpServer httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         //returns a different status code depending on the path
         for (int statusCode : getAllStatusCodes()) {

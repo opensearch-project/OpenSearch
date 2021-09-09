@@ -118,7 +118,7 @@ public class DiscoveryUpgradeService {
                                    BooleanSupplier isBootstrappedSupplier, JoinHelper joinHelper,
                                    Supplier<Iterable<DiscoveryNode>> peersSupplier,
                                    Consumer<VotingConfiguration> initialConfigurationConsumer) {
-        assert Version.CURRENT.major == 1 : "remove this service once unsafe upgrades are no longer needed";
+        assert Version.CURRENT.major == 1 || Version.CURRENT.major == 2 : "remove this service once unsafe upgrades are no longer needed";
         this.transportService = transportService;
         this.isBootstrappedSupplier = isBootstrappedSupplier;
         this.joinHelper = joinHelper;
