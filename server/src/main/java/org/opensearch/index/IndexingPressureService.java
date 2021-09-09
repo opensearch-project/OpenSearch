@@ -76,4 +76,9 @@ public class IndexingPressureService {
     private boolean isShardIndexingPressureEnabled() {
         return shardIndexingPressure.isShardIndexingPressureEnabled();
     }
+
+    // visible for testing
+    ShardIndexingPressure getShardIndexingPressure() {
+        return shardIndexingPressure;
+    }
 }
