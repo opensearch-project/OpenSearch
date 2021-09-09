@@ -935,8 +935,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                     String checksum = shaCalculator.apply(zipbytes);
                     Files.write(shaFile, checksum.getBytes(StandardCharsets.UTF_8));
                     return shaFile.toUri().toURL();
-                } else if ((url + ".asc").equals(urlString)) {
-                    final Path ascFile = temp.apply("asc").resolve("downloaded.zip" + ".asc");
+                } else if ((url + ".sig").equals(urlString)) {
+                    final Path ascFile = temp.apply("sig").resolve("downloaded.zip" + ".sig");
                     final byte[] zipBytes = Files.readAllBytes(pluginZip);
                     final String asc = signature.apply(zipBytes, secretKey);
                     Files.write(ascFile, asc.getBytes(StandardCharsets.UTF_8));
