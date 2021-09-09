@@ -33,7 +33,7 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.main.TransportMainAction;
-import org.opensearch.cluster.routing.allocation.decider.NodeOverloadAwareAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -582,9 +582,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
             TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION,
             IndexingPressure.MAX_INDEXING_BYTES,
-            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
-            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING,
-            NodeOverloadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING)));
+            NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
+            NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FACTOR_SETTING,
+            NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING)));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,

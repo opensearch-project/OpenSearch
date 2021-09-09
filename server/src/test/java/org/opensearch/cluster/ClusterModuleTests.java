@@ -48,7 +48,7 @@ import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
-import org.opensearch.cluster.routing.allocation.decider.NodeOverloadAwareAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
@@ -70,12 +70,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.test.gateway.TestGatewayAllocator;
-import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterModule;
-import org.opensearch.cluster.ClusterName;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.EmptyClusterInfoService;
-import org.opensearch.cluster.RestoreInProgress;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -232,7 +227,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             ThrottlingAllocationDecider.class,
             ShardsLimitAllocationDecider.class,
             AwarenessAllocationDecider.class,
-            NodeOverloadAwareAllocationDecider.class);
+            NodeLoadAwareAllocationDecider.class);
         Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), Collections.emptyList());
         Iterator<AllocationDecider> iter = deciders.iterator();

@@ -23,30 +23,31 @@ import org.opensearch.common.settings.Setting.Property;
 import java.util.function.BiPredicate;
 
 /**
- * This {@link NodeOverloadAwareAllocationDecider} controls shard over-allocation
- * due to node failures or otherwise on the surviving nodes
+ * This {@link NodeLoadAwareAllocationDecider} controls shard over-allocation
+ * due to node failures or otherwise on the surviving nodes. The allocation limits
+ * are decided by the user provisioned capacity, to determine if there were lost nodes
  * <pre>
  * cluster.routing.allocation.overload_awareness.provisioned_capacity: N
  * </pre>
  * <p>
  * and prevent allocation on the surviving nodes of the under capacity cluster
- * based on oveload factor defined as a percentage by
+ * based on overload factor defined as a percentage by
  * <pre>
  * cluster.routing.allocation.overload_awareness.factor: X
  * </pre>
  */
-public class NodeOverloadAwareAllocationDecider extends AllocationDecider {
+public class NodeLoadAwareAllocationDecider extends AllocationDecider {
 
-    public static final String NAME = "overload_awareness";
+    public static final String NAME = "load_awareness";
 
-    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING =
-        Setting.intSetting("cluster.routing.allocation.overload_awareness.provisioned_capacity", -1, -1,
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING =
+        Setting.intSetting("cluster.routing.allocation.load_awareness.provisioned_capacity", -1, -1,
             Property.Dynamic, Property.NodeScope);
-    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING =
-        Setting.intSetting("cluster.routing.allocation.overload_awareness.factor", 50, -1, Property.Dynamic,
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FACTOR_SETTING =
+        Setting.intSetting("cluster.routing.allocation.load_awareness.factor", 50, -1, Property.Dynamic,
             Property.NodeScope);
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.overload_awareness.allow_unassigned_primaries",
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING =
+        Setting.boolSetting("cluster.routing.allocation.load_awareness.allow_unassigned_primaries",
             true, Setting.Property.Dynamic, Property.NodeScope);
 
     private volatile int provisionedCapacity;
@@ -55,17 +56,17 @@ public class NodeOverloadAwareAllocationDecider extends AllocationDecider {
 
     private volatile boolean allowUnassignedPrimaries;
 
-    private static final Logger logger = LogManager.getLogger(NodeOverloadAwareAllocationDecider.class);
+    private static final Logger logger = LogManager.getLogger(NodeLoadAwareAllocationDecider.class);
 
-    public NodeOverloadAwareAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.overloadFactor = CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.get(settings);
-        this.provisionedCapacity = CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.get(settings);
-        this.allowUnassignedPrimaries = CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING,
+    public NodeLoadAwareAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
+        this.overloadFactor = CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FACTOR_SETTING.get(settings);
+        this.provisionedCapacity = CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.get(settings);
+        this.allowUnassignedPrimaries = CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FACTOR_SETTING,
             this::setOverloadFactor);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
             this::setProvisionedCapacity);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
             this::setAllowUnassignedPrimaries);
     }
 
@@ -95,14 +96,14 @@ public class NodeOverloadAwareAllocationDecider extends AllocationDecider {
                                    BiPredicate<Integer, Integer> decider) {
         if (provisionedCapacity <= 0 || overloadFactor < 0 ) {
             return allocation.decision(Decision.YES, NAME,
-                "overload awareness allocation is not enabled, set cluster setting [%s] and cluster se=tting [%s] to enable it",
-                CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.getKey(),
-                CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey());
+                "overload awareness allocation is not enabled, set cluster setting [%s] and cluster setting [%s] to enable it",
+                CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FACTOR_SETTING.getKey(),
+                CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey());
         }
         if (shardRouting.unassigned() && shardRouting.primary() && allowUnassignedPrimaries) {
             return allocation.decision(Decision.YES, NAME,
                 "overload allocation awareness is allowed for unassigned primaries, set cluster setting [%s] to disable it",
-                CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey());
+                CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey());
         }
         Metadata metadata = allocation.metadata();
         float expectedAvgShardsPerNode = (float) metadata.getTotalNumberOfShards() / provisionedCapacity;
@@ -112,7 +113,7 @@ public class NodeOverloadAwareAllocationDecider extends AllocationDecider {
         if (decider.test(nodeShardCount, (int) Math.ceil(expectedAvgShardsPerNode * (1 + overloadFactor / 100.0)))) {
             return allocation.decision(Decision.NO, NAME,
                 "too many shards [%d] allocated to this node, cluster setting [%s=%d] based on capacity [%s]",
-                nodeShardCount, CLUSTER_ROUTING_ALLOCATION_OVERLOAD_AWARENESS_FACTOR_SETTING.getKey(), overloadFactor, provisionedCapacity);
+                nodeShardCount, CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FACTOR_SETTING.getKey(), overloadFactor, provisionedCapacity);
         }
         return allocation.decision(Decision.YES, NAME, "node meets all skew awareness attribute requirements");
     }
