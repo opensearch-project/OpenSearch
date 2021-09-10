@@ -153,7 +153,7 @@ public class TranslogDeletionPolicy {
      * @param readers current translog readers
      * @param writer  current translog writer
      */
-    synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException {
+    protected synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException {
         long minByLocks = getMinTranslogGenRequiredByLocks();
         long minByAge = getMinTranslogGenByAge(readers, writer, retentionAgeInMillis, currentTime());
         long minBySize = getMinTranslogGenBySize(readers, writer, retentionSizeInBytes);
@@ -168,7 +168,7 @@ public class TranslogDeletionPolicy {
         return Math.min(Math.max(minByAgeAndSize, minByNumFiles), minByLocks);
     }
 
-    static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
+    protected static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
         if (retentionSizeInBytes >= 0) {
             long totalSize = writer.sizeInBytes();
             long minGen = writer.getGeneration();
@@ -183,7 +183,7 @@ public class TranslogDeletionPolicy {
         }
     }
 
-    static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now)
+    protected static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now)
         throws IOException {
         if (maxRetentionAgeInMillis >= 0) {
             for (TranslogReader reader: readers) {
@@ -197,7 +197,7 @@ public class TranslogDeletionPolicy {
         }
     }
 
-    static long getMinTranslogGenByTotalFiles(List<TranslogReader> readers, TranslogWriter writer, final int maxTotalFiles) {
+    protected static long getMinTranslogGenByTotalFiles(List<TranslogReader> readers, TranslogWriter writer, final int maxTotalFiles) {
         long minGen = writer.generation;
         int totalFiles = 1; // for the current writer
         for (int i = readers.size() - 1; i >= 0 && totalFiles < maxTotalFiles; i--) {
@@ -211,7 +211,7 @@ public class TranslogDeletionPolicy {
         return System.currentTimeMillis();
     }
 
-    private long getMinTranslogGenRequiredByLocks() {
+    protected long getMinTranslogGenRequiredByLocks() {
         return translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
     }
 
