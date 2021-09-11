@@ -1961,8 +1961,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final boolean disableTranslogRetention = indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery;
             engineOrNull.onSettingsChanged(
                 disableTranslogRetention ? TimeValue.MINUS_ONE : indexSettings.getTranslogRetentionAge(),
-                disableTranslogRetention ? new ByteSizeValue(-1) : indexSettings.getTranslogRetentionSize(),
-                indexSettings.getSoftDeleteRetentionOperations()
+                disableTranslogRetention && !indexSettings.shouldPruneTranslogByRetentionLease() ?
+                    new ByteSizeValue(-1) : indexSettings.getTranslogRetentionSize(),
+                indexSettings.getSoftDeleteRetentionOperations(),
+                indexSettings.shouldPruneTranslogByRetentionLease()
             );
         }
     }
@@ -2007,6 +2009,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Translog.Snapshot getHistoryOperations(String reason, Engine.HistorySource source, long startingSeqNo) throws IOException {
         return getEngine().readHistoryOperations(reason, source, mapperService, startingSeqNo);
+    }
+
+    /**
+     *
+     * Creates a new history snapshot for reading operations since
+     * the provided starting seqno (inclusive) and ending seqno (inclusive)
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
+     */
+    public Translog.Snapshot getHistoryOperations(String reason, Engine.HistorySource source,
+                                                  long startingSeqNo, long endSeqNo) throws IOException {
+        return getEngine().newChangesSnapshot(reason, source, mapperService, startingSeqNo, endSeqNo, true);
     }
 
     /**

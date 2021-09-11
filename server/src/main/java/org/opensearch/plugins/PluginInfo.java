@@ -100,6 +100,24 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
+     * Construct plugin info.
+     *
+     * @param name                  the name of the plugin
+     * @param description           a description of the plugin
+     * @param version               an opaque version identifier for the plugin
+     * @param opensearchVersion     the version of OpenSearch the plugin was built for
+     * @param javaVersion           the version of Java the plugin was built with
+     * @param classname             the entry point to the plugin
+     * @param extendedPlugins       other plugins this plugin extends through SPI
+     * @param hasNativeController   whether or not the plugin has a native controller
+     */
+    public PluginInfo(String name, String description, String version, Version opensearchVersion, String javaVersion,
+                      String classname, List<String> extendedPlugins, boolean hasNativeController) {
+        this(name, description, version, opensearchVersion, javaVersion, classname, null /* customFolderName */, 
+            extendedPlugins, hasNativeController);
+    }
+
+    /**
      * Construct plugin info from a stream.
      *
      * @param in the stream
