@@ -70,7 +70,12 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.EmptyClusterInfoService;
+import org.opensearch.cluster.RestoreInProgress;
 
 import java.util.Arrays;
 import java.util.Collection;
