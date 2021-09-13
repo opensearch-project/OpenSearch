@@ -605,7 +605,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
-     * ".asc" to the URL. It is expected that the plugin is signed with the OpenSearch signing key with ID 0934A65836A51424.
+     * ".sig" to the URL. It is expected that the plugin is signed with the OpenSearch signing key with ID C2EE2AF6542C03B4.
      *
      * @param zip       the path to the downloaded plugin ZIP
      * @param urlString the URL source of the downloade plugin ZIP
@@ -613,13 +613,13 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * @throws PGPException if the PGP implementation throws an internal exception during verification
      */
     void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
-        final String ascUrlString = urlString + ".asc";
-        final URL ascUrl = openUrl(ascUrlString);
+        final String sigUrlString = urlString + ".sig";
+        final URL sigUrl = openUrl(sigUrlString);
         try (
             // fin is a file stream over the downloaded plugin zip whose signature to verify
             InputStream fin = pluginZipInputStream(zip);
             // sin is a URL stream to the signature corresponding to the downloaded plugin zip
-            InputStream sin = urlOpenStream(ascUrl);
+            InputStream sin = urlOpenStream(sigUrl);
             // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
             InputStream ain = new ArmoredInputStream(getPublicKey())
         ) {
@@ -666,7 +666,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * @return the public key ID
      */
     String getPublicKeyId() {
-        return "0934A65836A51424";
+        return "C2EE2AF6542C03B4";
     }
 
     /**
@@ -675,7 +675,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * @return an input stream to the public key
      */
     InputStream getPublicKey() {
-        return InstallPluginCommand.class.getResourceAsStream("/public_key.asc");
+        return InstallPluginCommand.class.getResourceAsStream("/public_key.sig");
     }
 
     /**
