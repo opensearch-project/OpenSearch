@@ -31,13 +31,15 @@
 
 package org.opensearch.repositories.azure;
 
-import com.microsoft.azure.storage.Constants;
-import com.microsoft.azure.storage.RetryExponentialRetry;
-import com.microsoft.azure.storage.RetryPolicyFactory;
-import com.microsoft.azure.storage.blob.BlobRequestOptions;
+import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.models.ParallelTransferOptions;
+import com.azure.storage.common.policy.RequestRetryOptions;
+import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import fixture.azure.AzureHttpHandler;
+import reactor.core.scheduler.Schedulers;
+
 import org.apache.http.HttpStatus;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -63,6 +65,7 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
@@ -113,6 +116,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
 
     private HttpServer httpServer;
     private ThreadPool threadPool;
+    private AzureStorageService service;
 
     @Before
     public void setUp() throws Exception {
@@ -124,9 +128,19 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
 
     @After
     public void tearDown() throws Exception {
+        if (service != null) {
+            service.close();
+            service = null;
+        }
+        
         httpServer.stop(0);
         super.tearDown();
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
+    }
+
+    @AfterClass
+    public static void shutdownSchedulers() {
+        Schedulers.shutdownNow();
     }
 
     private BlobContainer createBlobContainer(final int maxRetries) {
@@ -135,10 +149,10 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
 
         final InetSocketAddress address = httpServer.getAddress();
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://"
-            + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+            + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/";
         clientSettings.put(ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
-        clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueMillis(500));
+        clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueMillis(1000));
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "account");
@@ -146,17 +160,16 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
         clientSettings.setSecureSettings(secureSettings);
 
-        final AzureStorageService service = new AzureStorageService(clientSettings.build()) {
+        service = new AzureStorageService(clientSettings.build()) {
             @Override
-            RetryPolicyFactory createRetryPolicy(final AzureStorageSettings azureStorageSettings) {
-                return new RetryExponentialRetry(1, 10, 100, azureStorageSettings.getMaxRetries());
+            RequestRetryOptions createRetryPolicy(final AzureStorageSettings azureStorageSettings, String secondaryHost) {
+                return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL, azureStorageSettings.getMaxRetries(), 
+                    1, 10L, 100L, secondaryHost);
             }
-
+            
             @Override
-            BlobRequestOptions getBlobRequestOptionsForWriteBlob() {
-                BlobRequestOptions options = new BlobRequestOptions();
-                options.setSingleBlobPutThresholdInBytes(Math.toIntExact(ByteSizeUnit.MB.toBytes(1)));
-                return options;
+            ParallelTransferOptions getBlobRequestOptionsForWriteBlob() {
+                return new ParallelTransferOptions().setMaxSingleUploadSizeLong(ByteSizeUnit.MB.toBytes(1));
             }
         };
 
@@ -181,13 +194,15 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                     blobContainer.readBlob("read_nonexistent_blob", position, length);
                 }
             });
-        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("not found"));
+        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("404"));
     }
 
     public void testReadBlobWithRetries() throws Exception {
-        final int maxRetries = randomIntBetween(1, 5);
-        final CountDown countDownHead = new CountDown(maxRetries);
-        final CountDown countDownGet = new CountDown(maxRetries);
+        // The request retry policy counts the first attempt as retry, so we need to 
+        // account for that and increase the max retry count by one.
+        final int maxRetries = randomIntBetween(2, 6);
+        final CountDown countDownHead = new CountDown(maxRetries - 1);
+        final CountDown countDownGet = new CountDown(maxRetries - 1);
         final byte[] bytes = randomBlobContent();
         httpServer.createContext("/container/read_blob_max_retries", exchange -> {
             try {
@@ -195,7 +210,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                 if ("HEAD".equals(exchange.getRequestMethod())) {
                     if (countDownHead.countDown()) {
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
+                        exchange.getResponseHeaders().add("Content-Length", String.valueOf(bytes.length));
                         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                         return;
@@ -206,7 +221,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                         assertThat(rangeStart, lessThan(bytes.length));
                         final int length = bytes.length - rangeStart;
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                        exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
                         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                         exchange.getResponseBody().write(bytes, rangeStart, length);
@@ -230,14 +245,20 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     }
 
     public void testReadRangeBlobWithRetries() throws Exception {
-        final int maxRetries = randomIntBetween(1, 5);
-        final CountDown countDownGet = new CountDown(maxRetries);
+        // The request retry policy counts the first attempt as retry, so we need to 
+        // account for that and increase the max retry count by one.
+        final int maxRetries = randomIntBetween(2, 6);
+        final CountDown countDownGet = new CountDown(maxRetries - 1);
         final byte[] bytes = randomBlobContent();
         httpServer.createContext("/container/read_range_blob_max_retries", exchange -> {
             try {
                 Streams.readFully(exchange.getRequestBody());
                 if ("HEAD".equals(exchange.getRequestMethod())) {
-                    throw new AssertionError("Should not HEAD blob for ranged reads");
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(bytes.length));
+                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    return;
                 } else if ("GET".equals(exchange.getRequestMethod())) {
                     if (countDownGet.countDown()) {
                         final int rangeStart = getRangeStart(exchange);
@@ -248,7 +269,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                         final int length = (rangeEnd.get() - rangeStart) + 1;
                         assertThat(length, lessThanOrEqualTo(bytes.length - rangeStart));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                        exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
                         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                         exchange.getResponseBody().write(bytes, rangeStart, length);
@@ -274,12 +295,16 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     }
 
     public void testWriteBlobWithRetries() throws Exception {
-        final int maxRetries =  randomIntBetween(1, 5);
-        final CountDown countDown = new CountDown(maxRetries);
+        // The request retry policy counts the first attempt as retry, so we need to 
+        // account for that and increase the max retry count by one.
+        final int maxRetries = randomIntBetween(2, 6);
+        final CountDown countDown = new CountDown(maxRetries - 1);
 
         final byte[] bytes = randomBlobContent();
         httpServer.createContext("/container/write_blob_max_retries", exchange -> {
             if ("PUT".equals(exchange.getRequestMethod())) {
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                
                 if (countDown.countDown()) {
                     final BytesReference body = Streams.readFully(exchange.getRequestBody());
                     if (Objects.deepEquals(bytes, BytesReference.toBytes(body))) {
@@ -311,10 +336,12 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     }
 
     public void testWriteLargeBlob() throws Exception {
-        final int maxRetries = randomIntBetween(1, 5);
+        // The request retry policy counts the first attempt as retry, so we need to 
+        // account for that and increase the max retry count by one.
+        final int maxRetries = randomIntBetween(3, 6);
 
         final int nbBlocks = randomIntBetween(1, 2);
-        final byte[] data = randomBytes(Constants.DEFAULT_STREAM_WRITE_IN_BYTES * nbBlocks);
+        final byte[] data = randomBytes(BlobClient.BLOB_DEFAULT_UPLOAD_BLOCK_SIZE * nbBlocks);
 
         final int nbErrors = 2; // we want all requests to fail at least once
         final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * nbBlocks);
@@ -322,14 +349,16 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
 
         final Map<String, BytesReference> blocks = new ConcurrentHashMap<>();
         httpServer.createContext("/container/write_large_blob", exchange -> {
-
             if ("PUT".equals(exchange.getRequestMethod())) {
                 final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                if (exchange.getRequestURI().getQuery() != null) {
+                    RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                }
 
                 final String blockId = params.get("blockid");
                 if (Strings.hasText(blockId) && (countDownUploads.decrementAndGet() % 2 == 0)) {
                     blocks.put(blockId, Streams.readFully(exchange.getRequestBody()));
+                    exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                     exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
                     exchange.close();
                     return;
@@ -350,6 +379,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                         block.writeTo(blob);
                     }
                     assertArrayEquals(data, blob.toByteArray());
+                    exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                     exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
                     exchange.close();
                     return;
@@ -365,7 +395,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
-            blobContainer.writeBlob("write_large_blob", stream, data.length * nbBlocks, false);
+            blobContainer.writeBlob("write_large_blob", stream, data.length, false);
         }
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
