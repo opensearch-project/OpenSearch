@@ -263,8 +263,8 @@ public final class IndexSettings {
     /**
      * Specifies if the index translog should prune based on retention leases.
      */
-    public static final Setting<Boolean> INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING =
-        Setting.boolSetting("index.translog.retention_lease.pruning.enabled", false,
+    public static final Setting<Boolean> PLUGINS_REPLICATION_INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING =
+        Setting.boolSetting("plugins.replication.index.translog.retention_lease.pruning.enabled", false,
             Property.IndexScope, Property.Dynamic);
 
     /**
@@ -537,7 +537,7 @@ public final class IndexSettings {
         softDeleteEnabled = version.onOrAfter(LegacyESVersion.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
         translogPruningByRetentionLease = version.onOrAfter(Version.V_1_1_0) &&
             softDeleteEnabled &&
-            scopedSettings.get(INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING);
+            scopedSettings.get(PLUGINS_REPLICATION_INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING);
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -606,7 +606,7 @@ public final class IndexSettings {
                 this::setGenerationThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING,
+        scopedSettings.addSettingsUpdateConsumer(PLUGINS_REPLICATION_INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING,
             this::setTranslogPruningByRetentionLease);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
@@ -1108,7 +1108,7 @@ public final class IndexSettings {
      * Returns <code>true</code> if translog ops should be pruned based on retention lease
      */
     public static boolean shouldPruneTranslogByRetentionLease(Settings settings) {
-        return INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.get(settings);
+        return PLUGINS_REPLICATION_INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.get(settings);
     }
 
     /**

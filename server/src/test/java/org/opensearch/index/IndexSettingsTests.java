@@ -662,7 +662,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
         ByteSizeValue retentionSize = new ByteSizeValue(512, ByteSizeUnit.MB);
         boolean translogPruningEnabled = randomBoolean();
-        settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.getKey(), translogPruningEnabled);
+        settings.put(IndexSettings.PLUGINS_REPLICATION_INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.getKey(),
+            translogPruningEnabled);
         IndexMetadata metadata = newIndexMeta("index", settings.build());
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         if(translogPruningEnabled) {
@@ -680,7 +681,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
         boolean translogPruningEnabled = randomBoolean();
         ByteSizeValue retentionSize = new ByteSizeValue(512, ByteSizeUnit.MB);
-        settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.getKey(), translogPruningEnabled);
+        settings.put(IndexSettings.PLUGINS_REPLICATION_INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.getKey(),
+            translogPruningEnabled);
         IndexMetadata metadata = newIndexMeta("index", settings.build());
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         assertFalse(indexSettings.shouldPruneTranslogByRetentionLease());
