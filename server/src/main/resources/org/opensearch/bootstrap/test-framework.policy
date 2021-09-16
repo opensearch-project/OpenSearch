@@ -73,11 +73,6 @@ grant codeBase "${codebase.junit}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.mocksocket}" {
-  // mocksocket makes and accepts socket connections
-  permission java.net.SocketPermission "*", "accept,connect";
-};
-
 grant codeBase "${codebase.opensearch-nio}" {
   // opensearch-nio makes and accepts socket connections
   permission java.net.SocketPermission "*", "accept,connect";

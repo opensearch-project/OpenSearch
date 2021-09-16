@@ -63,7 +63,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.IndexNotFoundException;
-import org.elasticsearch.mocksocket.MockServerSocket;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -180,7 +179,7 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
 
     @SuppressForbidden(reason = "calls getLocalHost here but it's fine in this case")
     public void testSlowNodeCanBeCancelled() throws IOException, InterruptedException {
-        try (ServerSocket socket = new MockServerSocket()) {
+        try (ServerSocket socket = new ServerSocket()) {
             socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
             socket.setReuseAddress(true);
             DiscoveryNode seedNode = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),

@@ -64,7 +64,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.mocksocket.MockServerSocket;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -1938,7 +1937,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
 
     public void testTimeoutPerConnection() throws IOException {
         assumeTrue("Works only on BSD network stacks", Constants.MAC_OS_X || Constants.FREE_BSD);
-        try (ServerSocket socket = new MockServerSocket()) {
+        try (ServerSocket socket = new ServerSocket()) {
             // note - this test uses backlog=1 which is implementation specific ie. it might not work on some TCP/IP stacks
             // on linux (at least newer ones) the listen(addr, backlog=1) should just ignore new connections if the queue is full which
             // means that once we received an ACK from the client we just drop the packet on the floor (which is what we want) and we run
@@ -2057,7 +2056,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
     }
 
     public void testTcpHandshakeTimeout() throws IOException {
-        try (ServerSocket socket = new MockServerSocket()) {
+        try (ServerSocket socket = new ServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode dummy = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
@@ -2078,7 +2077,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
     }
 
     public void testTcpHandshakeConnectionReset() throws IOException, InterruptedException {
-        try (ServerSocket socket = new MockServerSocket()) {
+        try (ServerSocket socket = new ServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode dummy = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),

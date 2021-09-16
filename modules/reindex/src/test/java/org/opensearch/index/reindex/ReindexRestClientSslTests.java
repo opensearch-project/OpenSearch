@@ -47,7 +47,6 @@ import org.opensearch.common.ssl.PemKeyConfig;
 import org.opensearch.common.ssl.PemTrustConfig;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matchers;
@@ -91,7 +90,7 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
     public static void setupHttpServer() throws Exception {
         InetSocketAddress address = new InetSocketAddress("localhost", 0);
         SSLContext sslContext = buildServerSslContext();
-        server = MockHttpServer.createHttps(address, 0);
+        server = HttpsServer.create(address, 0);
         server.setHttpsConfigurator(new ClientAuthHttpsConfigurator(sslContext));
         server.start();
         server.createContext("/", http -> {
