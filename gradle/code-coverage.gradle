@@ -78,11 +78,10 @@ tasks.withType(JacocoReport).configureEach {
   classDirectories.setFrom files(selectedProjects.sourceSets.main.output)
 
   reports {
-    xml.enabled true
-    // Code coverage report in HTML format is on demand， since it takes up 100+MB of disk space.
-    if (System.getProperty('tests.coverage.html_report')) {
-      html.enabled true
-    }
+    // Code coverage report in HTML and CSV formats are on demand, in case they take extra disk space.
+    xml.enabled System.getProperty('tests.coverage.report.xml', 'true').toBoolean()
+    html.enabled System.getProperty('tests.coverage.report.html', 'false').toBoolean()
+    csv.enabled System.getProperty('tests.coverage.report.csv', 'false').toBoolean()
   }
 }
 
