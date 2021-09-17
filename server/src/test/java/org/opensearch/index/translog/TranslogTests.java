@@ -75,6 +75,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.Operation.Origin;
+import org.opensearch.index.engine.MissingHistoryOperationsException;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -120,6 +121,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -734,6 +736,72 @@ public class TranslogTests extends OpenSearchTestCase {
                 }
             }
             assertThat(TestTranslog.drainSnapshot(snapshot, false), equalTo(expectedOps));
+        }
+    }
+
+    private Long populateTranslogOps(boolean withMissingOps) throws IOException {
+        long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        final int generations = between(2, 20);
+        long currentSeqNo = 0L;
+        List<Translog.Operation> firstGenOps = null;
+        Map<Long, List<Translog.Operation>> operationsByGen = new HashMap<>();
+        for (int gen = 0; gen < generations; gen++) {
+            List<Long> seqNos = new ArrayList<>();
+            int numOps = randomIntBetween(4, 10);
+            for (int i = 0; i < numOps; i++, currentSeqNo++) {
+                minSeqNo = SequenceNumbers.min(minSeqNo, currentSeqNo);
+                maxSeqNo = SequenceNumbers.max(maxSeqNo, currentSeqNo);
+                seqNos.add(currentSeqNo);
+            }
+            Collections.shuffle(seqNos, new Random(100));
+            List<Translog.Operation> ops = new ArrayList<>(seqNos.size());
+            for (long seqNo : seqNos) {
+                Translog.Index op = new Translog.Index("_doc", randomAlphaOfLength(10), seqNo, primaryTerm.get(), new byte[]{randomByte()});
+                boolean shouldAdd = !withMissingOps || seqNo % 4 != 0;
+                if(shouldAdd) {
+                    translog.add(op);
+                    ops.add(op);
+                }
+            }
+            operationsByGen.put(translog.currentFileGeneration(), ops);
+            if(firstGenOps == null) {
+                firstGenOps = ops;
+            }
+            translog.rollGeneration();
+            if (rarely()) {
+                translog.rollGeneration(); // empty generation
+            }
+        }
+        return currentSeqNo;
+    }
+
+    public void testFullRangeSnapshot() throws Exception {
+        // Successful snapshot
+        long nextSeqNo = populateTranslogOps(false);
+        long fromSeqNo = 0L;
+        long toSeqNo = Math.max(nextSeqNo - 1, fromSeqNo + 15);
+        try (Translog.Snapshot snapshot = translog.newSnapshot(fromSeqNo, toSeqNo, true)) {
+            int totOps = 0;
+            for (Translog.Operation op = snapshot.next(); op != null; op = snapshot.next()) {
+                totOps++;
+            }
+            assertEquals(totOps, toSeqNo - fromSeqNo + 1);
+        }
+    }
+
+    public void testFullRangeSnapshotWithFailures() throws Exception {
+        long nextSeqNo = populateTranslogOps(true);
+        long fromSeqNo = 0L;
+        long toSeqNo = Math.max(nextSeqNo-1, fromSeqNo + 15);
+        try (Translog.Snapshot snapshot = translog.newSnapshot(fromSeqNo, toSeqNo, true)) {
+            int totOps = 0;
+            for (Translog.Operation op = snapshot.next(); op != null; op = snapshot.next()) {
+                totOps++;
+            }
+            fail("Should throw exception for missing operations");
+        } catch(MissingHistoryOperationsException e) {
+            assertTrue(e.getMessage().contains("Not all operations between from_seqno"));
         }
     }
 

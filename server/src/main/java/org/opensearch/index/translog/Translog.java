@@ -53,6 +53,7 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.MissingHistoryOperationsException;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShardComponent;
@@ -614,7 +615,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     // for testing
     public Snapshot newSnapshot() throws IOException {
-        return newSnapshot(0, Long.MAX_VALUE);
+        return newSnapshot(0, Long.MAX_VALUE, false);
+    }
+
+    public Snapshot newSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
+        return newSnapshot(fromSeqNo, toSeqNo, false);
     }
 
     /**
@@ -624,7 +629,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @param toSeqNo   the upper bound of the range (inclusive)
      * @return the new snapshot
      */
-    public Snapshot newSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
+    public Snapshot newSnapshot(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         assert fromSeqNo <= toSeqNo : fromSeqNo + " > " + toSeqNo;
         assert fromSeqNo >= 0 : "from_seq_no must be non-negative " + fromSeqNo;
         try (ReleasableLock ignored = readLock.acquire()) {
@@ -633,7 +638,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 .filter(reader -> reader.getCheckpoint().minSeqNo <= toSeqNo && fromSeqNo <= reader.getCheckpoint().maxEffectiveSeqNo())
                 .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
             final Snapshot snapshot = newMultiSnapshot(snapshots);
-            return new SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo);
+            return new SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo, requiredFullRange);
         }
     }
 
@@ -959,14 +964,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private static final class SeqNoFilterSnapshot implements Snapshot {
         private final Snapshot delegate;
         private int filteredOpsCount;
+        private int opsCount;
+        private boolean requiredFullRange;
         private final long fromSeqNo; // inclusive
         private final long toSeqNo;   // inclusive
 
-        SeqNoFilterSnapshot(Snapshot delegate, long fromSeqNo, long toSeqNo) {
+        SeqNoFilterSnapshot(Snapshot delegate, long fromSeqNo, long toSeqNo, boolean requiredFullRange) {
             assert fromSeqNo <= toSeqNo : "from_seq_no[" + fromSeqNo + "] > to_seq_no[" + toSeqNo + "]";
             this.delegate = delegate;
             this.fromSeqNo = fromSeqNo;
             this.toSeqNo = toSeqNo;
+            this.requiredFullRange = requiredFullRange;
         }
 
         @Override
@@ -980,14 +988,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        public Operation next() throws IOException {
+        public Operation next() throws IOException, MissingHistoryOperationsException {
             Translog.Operation op;
             while ((op = delegate.next()) != null) {
                 if (fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo) {
+                    opsCount++;
                     return op;
                 } else {
                     filteredOpsCount++;
                 }
+            }
+            if(requiredFullRange && (toSeqNo - fromSeqNo +1) != opsCount) {
+                throw new MissingHistoryOperationsException("Not all operations between from_seqno [" + fromSeqNo + "] " +
+                    "and to_seqno [" + toSeqNo + "] found");
             }
             return null;
         }
