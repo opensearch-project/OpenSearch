@@ -25,7 +25,9 @@ import java.util.function.BiPredicate;
 /**
  * This {@link NodeLoadAwareAllocationDecider} controls shard over-allocation
  * due to node failures or otherwise on the surviving nodes. The allocation limits
- * are decided by the user provisioned capacity, to determine if there were lost nodes
+ * are decided by the user provisioned capacity, to determine if there were lost nodes.
+ * The provisioned capacity as defined by the below settings needs to updated one every
+ * cluster scale up and scale down operations.
  * <pre>
  * cluster.routing.allocation.overload_awareness.provisioned_capacity: N
  * </pre>
@@ -38,7 +40,10 @@ import java.util.function.BiPredicate;
  * The total limit per node based on skew_factor doesn't limit primaries that previously
  * existed on the disk as those shards are force allocated by
  * {@link AllocationDeciders#canForceAllocatePrimary(ShardRouting, RoutingNode, RoutingAllocation)}
- * however new primaries due to index creation, snapshot restore etc can be controlled via the below settings
+ * however new primaries due to index creation, snapshot restore etc can be controlled via the below settings.
+ * Setting the value to true allows newly created primaries to get assigned while preventing the replica allocation
+ * breaching the skew factor.
+ * Note that setting this to false can result in the primaries not get assigned and the cluster turning RED
  * <pre>
  * cluster.routing.allocation.load_awareness.allow_unassigned_primaries
  * </pre>
@@ -50,8 +55,8 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING =
         Setting.intSetting("cluster.routing.allocation.load_awareness.provisioned_capacity", -1, -1,
             Property.Dynamic, Property.NodeScope);
-    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING =
-        Setting.intSetting("cluster.routing.allocation.load_awareness.skew_factor", 50, -1, Property.Dynamic,
+    public static final Setting<Double> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING =
+        Setting.doubleSetting("cluster.routing.allocation.load_awareness.skew_factor", 50, -1, Property.Dynamic,
             Property.NodeScope);
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING =
         Setting.boolSetting("cluster.routing.allocation.load_awareness.allow_unassigned_primaries",
@@ -59,7 +64,7 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
 
     private volatile int provisionedCapacity;
 
-    private volatile int skewFactor;
+    private volatile double skewFactor;
 
     private volatile boolean allowUnassignedPrimaries;
 
@@ -81,7 +86,7 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
         this.allowUnassignedPrimaries = allowUnassignedPrimaries;
     }
 
-    private void setSkewFactor(int skewFactor) {
+    private void setSkewFactor(double skewFactor) {
         this.skewFactor = skewFactor;
     }
 
@@ -120,9 +125,8 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
             logger.debug(() -> new ParameterizedMessage("Too many shards [{}] allocated to this node [{}]. Expected average shards" +
                 " per node [{}], overload factor [{}], node limit [{}]", nodeShardCount, node.nodeId(), expectedAvgShardsPerNode,
                 skewFactor, limit));
-            return allocation.decision(Decision.NO, NAME,
-                "too many shards [%d] allocated to this node, limit per node [%d] for overload factor [%s] based on capacity [%d]",
-                nodeShardCount, limit, skewFactor, provisionedCapacity);
+            return allocation.decision(Decision.NO, NAME, "too many shards [%d] allocated to this node, limit per node [%d] considering" +
+                " overload factor [%.2f] based on capacity [%d]", nodeShardCount, limit, skewFactor, provisionedCapacity);
         }
         return allocation.decision(Decision.YES, NAME, "node meets all skew awareness attribute requirements");
     }
