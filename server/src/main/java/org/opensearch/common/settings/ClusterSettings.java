@@ -579,6 +579,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
+            FsHealthService.HEALTHY_TIMEOUT_SETTING,
             TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION,
             IndexingPressure.MAX_INDEXING_BYTES)));
 
