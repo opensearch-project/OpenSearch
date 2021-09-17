@@ -44,6 +44,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
@@ -63,6 +64,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
@@ -170,13 +172,67 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             }
 
             //disrupt file system
-            disruptFileSystemProvider.injectIOException.set(true);
+            disruptFileSystemProvider.injectIODelay.set(true);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(logger, mockAppender);
             mockAppender.stop();
+            PathUtilsForTesting.teardown();
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void testFailsHealthOnHungIOBeyondHealthyTimeout() throws Exception {
+        long healthyTimeoutThreshold = randomLongBetween(500, 1000);
+        long refreshInterval = randomLongBetween(500, 1000);
+        long slowLogThreshold = randomLongBetween(100, 200);
+        long delayBetweenChecks = 100;
+        final Settings settings = Settings.builder()
+            .put(FsHealthService.HEALTHY_TIMEOUT_SETTING.getKey(), healthyTimeoutThreshold + "ms")
+            .put(FsHealthService.REFRESH_INTERVAL_SETTING.getKey(), refreshInterval + "ms")
+            .put(FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING.getKey(), slowLogThreshold + "ms")
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)//we need to verify exact time
+            .build();
+        FileSystem fileSystem = PathUtils.getDefaultFileSystem();
+        TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
+        FileSystemFsyncHungProvider disruptFileSystemProvider = new FileSystemFsyncHungProvider(fileSystem, testThreadPool);
+        fileSystem = disruptFileSystemProvider.getFileSystem(null);
+        PathUtilsForTesting.installMock(fileSystem);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            logger.info("--> Initial health status prior to the first monitor run");
+            StatusInfo fsHealth = fsHealthService.getHealth();
+            assertEquals(HEALTHY, fsHealth.getStatus());
+            assertEquals("health check passed", fsHealth.getInfo());
+            logger.info("--> First monitor run");
+            fsHealthService.new FsHealthMonitor().run();
+            fsHealth = fsHealthService.getHealth();
+            assertEquals(HEALTHY, fsHealth.getStatus());
+            assertEquals("health check passed", fsHealth.getInfo());
+            logger.info("--> Disrupt file system");
+            disruptFileSystemProvider.injectIODelay.set(true);
+            final FsHealthService fsHealthSrvc = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthSrvc.doStart();
+            assertTrue(waitUntil(() -> fsHealthSrvc.getHealth().getStatus() == UNHEALTHY, healthyTimeoutThreshold + (2 *refreshInterval),
+                TimeUnit.MILLISECONDS));
+            fsHealth = fsHealthSrvc.getHealth();
+            assertEquals(UNHEALTHY, fsHealth.getStatus());
+            assertEquals("healthy threshold breached", fsHealth.getInfo());
+            int disruptedPathCount = disruptFileSystemProvider.getInjectedPathCount();
+            assertThat(disruptedPathCount, equalTo(1));
+            logger.info("--> Fix file system disruption");
+            disruptFileSystemProvider.injectIODelay.set(false);
+            assertTrue(waitUntil(() -> fsHealthSrvc.getHealth().getStatus() == HEALTHY, delayBetweenChecks + (2 * refreshInterval),
+                TimeUnit.MILLISECONDS));
+            fsHealth = fsHealthSrvc.getHealth();
+            assertEquals(HEALTHY, fsHealth.getStatus());
+            assertEquals("health check passed", fsHealth.getInfo());
+            assertEquals(disruptedPathCount, disruptFileSystemProvider.getInjectedPathCount());
+            fsHealthSrvc.doStop();
+        } finally {
             PathUtilsForTesting.teardown();
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }
@@ -347,16 +403,23 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
 
     private static class FileSystemFsyncHungProvider extends FilterFileSystemProvider {
 
-        AtomicBoolean injectIOException = new AtomicBoolean();
+        AtomicBoolean injectIODelay = new AtomicBoolean();
         AtomicInteger injectedPaths = new AtomicInteger();
 
         private final long delay;
         private final ThreadPool threadPool;
+        private static final long AWAIT_BUSY_THRESHOLD = 100L;
 
         FileSystemFsyncHungProvider(FileSystem inner, long delay, ThreadPool threadPool) {
             super("disrupt_fs_health://", inner);
             this.delay = delay;
             this.threadPool = threadPool;
+        }
+
+        FileSystemFsyncHungProvider(FileSystem inner, ThreadPool threadPool) {
+            super("disrupt_fs_health://", inner);
+            this.threadPool = threadPool;
+            this.delay = Long.MAX_VALUE;
         }
 
         public int getInjectedPathCount(){
@@ -368,17 +431,20 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             return new FilterFileChannel(super.newFileChannel(path, options, attrs)) {
                 @Override
                 public void force(boolean metaData) throws IOException {
-                    if (injectIOException.get()) {
+                    if (injectIODelay.get()) {
                         if (path.getFileName().toString().equals(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
                             injectedPaths.incrementAndGet();
                             final long startTimeMillis = threadPool.relativeTimeInMillis();
+                            long timeInMillis = 1;
+                            long maxWaitTimeMillis = startTimeMillis + delay >= 0 ? startTimeMillis + delay : Long.MAX_VALUE;//long overflow
                             do {
                                 try {
-                                    Thread.sleep(delay);
+                                    Thread.sleep(timeInMillis);
                                 } catch (InterruptedException e) {
                                     throw new AssertionError(e);
                                 }
-                            } while (threadPool.relativeTimeInMillis() <= startTimeMillis + delay);
+                                timeInMillis = Math.min(AWAIT_BUSY_THRESHOLD, timeInMillis * 2);
+                            } while (threadPool.relativeTimeInMillis() <= maxWaitTimeMillis && injectIODelay.get());
                         }
                     }
                     super.force(metaData);
