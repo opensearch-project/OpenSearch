@@ -26,7 +26,7 @@ import java.util.function.BiPredicate;
  * This {@link NodeLoadAwareAllocationDecider} controls shard over-allocation
  * due to node failures or otherwise on the surviving nodes. The allocation limits
  * are decided by the user provisioned capacity, to determine if there were lost nodes.
- * The provisioned capacity as defined by the below settings needs to updated one every
+ * The provisioned capacity as defined by the below settings needs to be updated on every
  * cluster scale up and scale down operations.
  * <pre>
  * cluster.routing.allocation.overload_awareness.provisioned_capacity: N

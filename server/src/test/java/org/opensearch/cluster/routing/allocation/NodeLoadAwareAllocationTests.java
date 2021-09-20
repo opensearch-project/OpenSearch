@@ -278,7 +278,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(newState.getRoutingNodes().node("node4").size(), equalTo(12));
 
         logger.info("--> Remove node4 from zone holding primaries");
-        newState = removeNodes(newState, strategy,"node4");
+        newState = removeNodes(newState, strategy, "node4");
 
         logger.info("--> change the overload load factor to zero and verify if unassigned primaries on disk get assigned despite overload");
         strategy = createAllocationServiceWithAdditionalSettings(org.opensearch.common.collect.Map.of(
@@ -470,7 +470,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
         assertThat(newState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(120));
         assertThat(newState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(25));
-        assertThat(newState.getRoutingNodes().shardsWithState(UNASSIGNED).stream().filter(x -> x.primary()).count(), equalTo(5L));
+        assertThat(newState.getRoutingNodes().shardsWithState(UNASSIGNED).stream().filter(ShardRouting::primary).count(), equalTo(5L));
     }
 
     public void testThreeZoneTwoReplicaLimitsShardAllocationOnOverload() {
