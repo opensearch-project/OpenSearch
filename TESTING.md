@@ -443,7 +443,37 @@ Multi-threaded tests are often not reproducible due to the fact that there is no
 
 # Test coverage analysis
 
-Generating test coverage reports for OpenSearch is currently not possible through Gradle. However, it *is* possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
+The code coverage report can be generated through Gradle with [JaCoCo plugin](https://docs.gradle.org/current/userguide/jacoco_plugin.html).
+
+For unit test:
+
+    ./gradlew codeCoverageReportForUnitTest
+
+For integration test:
+
+    ./gradlew codeCoverageReportForIntegrationTest
+
+For the combined tests (unit and integration):
+
+    ./gradlew codeCoverageReport
+
+To generate coverage report for the combined tests after `check` task:
+
+    ./gradlew check -Dtests.coverage=true
+
+The code coverage report will be generated in `build/codeCoverageReport`, `build/codeCoverageReportForUnitTest` or `build/codeCoverageReportForIntegrationTest` correspondingly.
+
+The report will be in XML format only by default, but you can add the following parameter for HTML and CSV format.
+
+- To generate report in HTML format: `-Dtests.coverage.report.html=true`
+- To generate report in CSV format: `-Dtests.coverage.report.csv=true`
+- To NOT generate report in XML format: `-Dtests.coverage.report.xml=false`
+
+For example, to generate code coverage report in HTML format and not in XML format:
+
+    ./gradlew codeCoverageReport -Dtests.coverage.report.html=true -Dtests.coverage.report.xml=false
+
+Apart from using Gradle, it is also possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
 
 Please read your IDE documentation for how to attach a debugger to a JVM process.
 
