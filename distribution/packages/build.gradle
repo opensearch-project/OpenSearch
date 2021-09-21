@@ -136,9 +136,9 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     // SystemPackagingTask overrides default archive task convention mappings, but doesn't provide a setter so we have to override the convention mapping itself
     // Deb convention uses a '_' for final separator before architecture, rpm uses a '.'
     if (type == 'deb') {
-      conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDirectory.get()}/${packageName}_${project.version}${jdkString}_${archString}.${type}")) }
+      conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDirectory.get()}/${packageName}-min_${project.version}${jdkString}_${archString}.${type}")) }
     } else {
-      conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDirectory.get()}/${packageName}-${project.version}${jdkString}.${archString}.${type}")) }
+      conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDirectory.get()}/${packageName}-min-${project.version}${jdkString}.${archString}.${type}")) }
     }
 
     String packagingFiles = "build/packaging/${jdk ? '' : 'no-jdk-'}${type}"
