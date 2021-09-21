@@ -50,6 +50,10 @@ import java.util.function.Supplier;
 public class TranslogDeletionPolicy {
 
     private final Map<Object, RuntimeException> openTranslogRef;
+    /**
+     * @Deprecated EXPERT: this supplier is specific to CCR and will be moved to a plugin in the next release
+     */
+    @Deprecated
     private Supplier<RetentionLeases> retentionLeasesSupplier;
 
     public void assertNoOpenTranslogRefs() {
@@ -73,6 +77,10 @@ public class TranslogDeletionPolicy {
 
     private int retentionTotalFiles;
 
+    /**
+     * @Deprecated EXPERT: this variable is specific to CCR and will be moved to a plugin in the next release
+     */
+    @Deprecated
     private boolean shouldPruneTranslogByRetentionLease;
 
     public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles) {
@@ -86,6 +94,11 @@ public class TranslogDeletionPolicy {
         }
     }
 
+    /**
+     * Construct a TranslogDeletionPolicy to include pruning by retention leases
+     * @Deprecated EXPERT: this ctor is specific to CCR and will be moved to a plugin in the next release
+     */
+    @Deprecated
     public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles,
                                   Supplier<RetentionLeases> retentionLeasesSupplier) {
         this(retentionSizeInBytes, retentionAgeInMillis, retentionTotalFiles);
@@ -112,6 +125,11 @@ public class TranslogDeletionPolicy {
         this.retentionTotalFiles = retentionTotalFiles;
     }
 
+    /**
+     * Should the translog be pruned by the retention lease heuristic
+     * @Deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
+     */
+    @Deprecated
     public synchronized void shouldPruneTranslogByRetentionLease(boolean translogPruneByRetentionLease) {
         this.shouldPruneTranslogByRetentionLease = translogPruneByRetentionLease;
     }
@@ -191,6 +209,11 @@ public class TranslogDeletionPolicy {
         return Math.min(minByTranslogGenSettings, minByRetentionLeasesAndSize);
     }
 
+    /**
+     * Find the minimum translog generation by minimum retaining sequence number
+     * @Deprecated EXPERT: this configuration is specific to CCR and will be moved to a plugin in the next release
+     */
+    @Deprecated
     static long getMinTranslogGenByRetentionLease(List<TranslogReader> readers, TranslogWriter writer,
                                                   Supplier<RetentionLeases> retentionLeasesSupplier) {
         long minGen = writer.getGeneration();
