@@ -316,6 +316,70 @@ Then, you need to apply patterns for git-secrets, you can install the AWS standa
 git secrets --register-aws
 ```
 
+## Components
+As you work in the OpenSearch repo you may notice issues getting labeled with component labels.  It's a housekeeping task to help group together similar pieces of work.  You can pretty much ignore it, but if you're curious, here's what the different labels mean:
+
+### Build libraries & interfaces
+Tasks to make sure the build tasks are useful and packaging and distribution are easy.
+
+Includes:
+
+- Gradle for the Core tasks
+- Groovy scripts
+- build-tools
+- Versioning interfaces
+- Compatibility
+- Javadoc enforcement
+
+
+### Clients & Libraries
+APIs and communication mechanisms for external connections to OpenSearch.  This includes the “library” directory in OpenSearch (a set of common functions).
+
+Includes:
+
+- Transport layer
+- High Level and low level Rest Client
+- CLI
+
+### Plugins
+Anything touching the plugin infrastructure within core OpenSearch.
+
+Includes:
+
+- API
+- SPI
+- Plugin interfaces
+
+
+### Indexing & search
+The critical path of indexing and search, including:  Measure index and search, performance, Improving the performance of indexing and search, ensure synchronization OpenSearch APIs with upstream Lucene change (e.g. new field types, changing doc values and codex).
+
+Includes:
+
+- Lucene Structures
+- FieldMappers
+- QueryBuilders
+- DocValues
+
+### Aggregations
+Making sure OpenSearch can be used as a compute engine.
+
+Includes:
+
+- APIs (suggest supporting a formal API)
+- Framework
+
+### Distributed Framework
+Work to make sure that OpenSearch can scale in a distributed manner.
+
+Includes:
+
+- Nodes (Master, Data, Compute, Ingest, Discovery, etc.)
+- Replication & Merge Policies (Document, Segment level)
+- Snapshot/Restore (repositories; S3, Azure, GCP, NFS)
+- Translog (e.g., OpenSearch, Kafka, Kinesis)
+- Shard Strategies
+- Circuit Breakers
 
 ## Submitting Changes
 
