@@ -1861,9 +1861,14 @@ public abstract class Engine implements Closeable {
         onSettingsChanged(translogRetentionAge, translogRetentionSize, softDeletesRetentionOps, false);
     }
 
+    /**
+     *
+     * @Deprecated EXPERT: this method is specific to CCR and will be moved to a plugin in the next release
+     */
+    @Deprecated
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize,
                                   long softDeletesRetentionOps, boolean translogPruningByRetentionLease) {
-
+        // @todo this is overly silent; make this abstract and force derived classes to noop in the next release
     }
 
     /**
