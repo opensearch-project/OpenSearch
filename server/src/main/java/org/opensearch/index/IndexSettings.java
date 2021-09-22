@@ -655,7 +655,7 @@ public final class IndexSettings {
 
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
         if (shouldDisableTranslogRetention(settings) &&
-            !shouldPruneTranslogByRetentionLease(settings) &&
+            shouldPruneTranslogByRetentionLease(settings) == false &&
             byteSizeValue.getBytes() >= 0) {
             // ignore the translog retention settings if soft-deletes enabled
             this.translogRetentionSize = new ByteSizeValue(-1);
@@ -858,7 +858,7 @@ public final class IndexSettings {
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
     public ByteSizeValue getTranslogRetentionSize() {
-        if(shouldDisableTranslogRetention(settings) && !shouldPruneTranslogByRetentionLease(settings)) {
+        if(shouldDisableTranslogRetention(settings) && shouldPruneTranslogByRetentionLease(settings) == false) {
             return new ByteSizeValue(-1);
         }
         else if(shouldPruneTranslogByRetentionLease(settings) && translogRetentionSize.getBytes() == -1) {
