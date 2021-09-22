@@ -78,7 +78,7 @@ public class TranslogDeletionPolicy {
     private int retentionTotalFiles;
 
     /**
-     * @Deprecated EXPERT: this variable is specific to CCR and will be moved to a plugin in the next release
+     * @deprecated EXPERT: this variable is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
     private boolean shouldPruneTranslogByRetentionLease;
@@ -96,7 +96,7 @@ public class TranslogDeletionPolicy {
 
     /**
      * Construct a TranslogDeletionPolicy to include pruning by retention leases
-     * @Deprecated EXPERT: this ctor is specific to CCR and will be moved to a plugin in the next release
+     * @deprecated EXPERT: this ctor is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
     public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles,
@@ -127,7 +127,7 @@ public class TranslogDeletionPolicy {
 
     /**
      * Should the translog be pruned by the retention lease heuristic
-     * @Deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
+     * @deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
     public synchronized void shouldPruneTranslogByRetentionLease(boolean translogPruneByRetentionLease) {
