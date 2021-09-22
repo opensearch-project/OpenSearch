@@ -615,7 +615,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     // for testing
     public Snapshot newSnapshot() throws IOException {
-        return newSnapshot(0, Long.MAX_VALUE, false);
+        return newSnapshot(0, Long.MAX_VALUE);
     }
 
     public Snapshot newSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
