@@ -1853,8 +1853,9 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * callback when index settings change
      *
-     * @Deprecated EXPERT: this method is specific to CCR and will be moved to a plugin in the next release
+     * @deprecated EXPERT: this method is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize,

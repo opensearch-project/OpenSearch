@@ -262,7 +262,7 @@ public final class IndexSettings {
 
     /**
      * Specifies if the index translog should prune based on retention leases.
-     * @Deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
+     * @deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
     public static final Setting<Boolean> INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING =
@@ -646,7 +646,7 @@ public final class IndexSettings {
     /**
      * Enable or disable translog pruning by retention lease requirement
      *
-     * @Deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
+     * @deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
     private void setTranslogPruningByRetentionLease(boolean enabled) {
@@ -1110,7 +1110,7 @@ public final class IndexSettings {
 
     /**
      * Returns <code>true</code> if translog ops should be pruned based on retention lease
-     * @Deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
+     * @deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
     public boolean shouldPruneTranslogByRetentionLease() {
@@ -1119,8 +1119,9 @@ public final class IndexSettings {
 
     /**
      * Returns <code>true</code> if translog ops should be pruned based on retention lease
-     * @Deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
+     * @deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
      */
+    @Deprecated
     public static boolean shouldPruneTranslogByRetentionLease(Settings settings) {
         return INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.get(settings);
     }
