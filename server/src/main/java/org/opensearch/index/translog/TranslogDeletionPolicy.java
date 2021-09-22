@@ -51,7 +51,7 @@ public class TranslogDeletionPolicy {
 
     private final Map<Object, RuntimeException> openTranslogRef;
     /**
-     * @Deprecated EXPERT: this supplier is specific to CCR and will be moved to a plugin in the next release
+     * @deprecated EXPERT: this supplier is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
     private Supplier<RetentionLeases> retentionLeasesSupplier;
@@ -211,7 +211,7 @@ public class TranslogDeletionPolicy {
 
     /**
      * Find the minimum translog generation by minimum retaining sequence number
-     * @Deprecated EXPERT: this configuration is specific to CCR and will be moved to a plugin in the next release
+     * @deprecated EXPERT: this configuration is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
     static long getMinTranslogGenByRetentionLease(List<TranslogReader> readers, TranslogWriter writer,
