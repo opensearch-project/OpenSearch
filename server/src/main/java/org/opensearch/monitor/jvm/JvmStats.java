@@ -472,7 +472,6 @@ public class JvmStats implements Writeable, ToXContentFragment {
             if (max == 0) {
                 return -1;
             }
-            
             return (short) (used * 100 / max);
         }
     }
@@ -557,8 +556,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
         private final long nonHeapUsed;
         private final List<MemoryPool> pools;
 
-        public Mem(long heapCommitted, long heapUsed, long heapMax, long nonHeapCommitted, long nonHeapUsed, 
-                List<MemoryPool> pools) {
+        public Mem(long heapCommitted, long heapUsed, long heapMax, long nonHeapCommitted, long nonHeapUsed, List<MemoryPool> pools) {
             this.heapCommitted = heapCommitted;
             this.heapUsed = heapUsed;
             this.heapMax = heapMax;
