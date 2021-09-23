@@ -33,6 +33,7 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.main.TransportMainAction;
+import org.opensearch.autorecover.IndexWriteShardAction;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -577,6 +578,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
             DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING,
             SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
+            IndexWriteShardAction.AUTO_RESTORE_RED_INDICES_ENABLE,
+            IndexWriteShardAction.AUTO_RESTORE_RED_INDICES_IF_NO_DATA_LOSS,
+            IndexWriteShardAction.AUTO_RESTORE_RED_INDICES_REPOSITORY,
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,

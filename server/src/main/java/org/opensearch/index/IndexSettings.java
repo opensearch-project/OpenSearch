@@ -361,6 +361,29 @@ public final class IndexSettings {
         Property.IndexScope, Property.PrivateIndex, Property.Dynamic);
 
     /**
+     * Marks an index is clean to be restored from past snapshots without any data loss
+     * This setting is realtime updateable
+     */
+    public static final Setting<Boolean> INDEX_CLEAN_TO_RESTORE_FROM_SNAPSHOT =
+        Setting.boolSetting(
+            "index.auto_restore.clean_to_restore_from_snapshot",
+            false,
+            Property.IndexScope,
+            Property.Dynamic);
+
+    /**
+     * Index setting to track whenever setting INDEX_CLEAN_TO_RESTORE_FROM_SNAPSHOT is updated
+     * This setting is realtime updateable
+     */
+    public static final Setting<Long> INDEX_CLEAN_TO_RESTORE_FROM_SNAPSHOT_UPDATE_TIME =
+        Setting.longSetting(
+            "index.auto_restore.setting_update_time",
+            -1L,
+            -1L,
+            Property.Dynamic,
+            Property.IndexScope);
+
+    /**
      * Determines a balance between file-based and operations-based peer recoveries. The number of operations that will be used in an
      * operations-based peer recovery is limited to this proportion of the total number of documents in the shard (including deleted
      * documents) on the grounds that a file-based peer recovery may copy all of the documents in the shard over to the new peer, but is

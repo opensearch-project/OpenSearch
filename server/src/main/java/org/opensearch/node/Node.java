@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.autorecover.RecoverRedIndexService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -607,8 +608,11 @@ public class Node implements Closeable {
                 recoverySettings);
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
+            RecoverRedIndexService recoverRedIndexService = new RecoverRedIndexService(transportService, clusterService,
+                actionModule.getActionFilters(), clusterModule.getIndexNameExpressionResolver(), client);
             SnapshotsService snapshotsService = new SnapshotsService(settings, clusterService,
-                    clusterModule.getIndexNameExpressionResolver(), repositoryService, transportService, actionModule.getActionFilters());
+                clusterModule.getIndexNameExpressionResolver(), repositoryService, transportService, actionModule.getActionFilters(),
+                recoverRedIndexService);
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, repositoryService,
                     transportService, indicesService);
             TransportNodesSnapshotsStatus nodesSnapshotsStatus = new TransportNodesSnapshotsStatus(threadPool, clusterService,
@@ -702,6 +706,7 @@ public class Node implements Closeable {
                     b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
                     b.bind(RepositoriesService.class).toInstance(repositoryService);
                     b.bind(SnapshotsService.class).toInstance(snapshotsService);
+                    b.bind(RecoverRedIndexService.class).toInstance(recoverRedIndexService);
                     b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
                     b.bind(TransportNodesSnapshotsStatus.class).toInstance(nodesSnapshotsStatus);
                     b.bind(RestoreService.class).toInstance(restoreService);
@@ -800,6 +805,7 @@ public class Node implements Closeable {
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(SnapshotsService.class).start();
+        injector.getInstance(RecoverRedIndexService.class).start();
         injector.getInstance(SnapshotShardsService.class).start();
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
@@ -930,6 +936,7 @@ public class Node implements Closeable {
         injector.getInstance(HttpServerTransport.class).stop();
 
         injector.getInstance(SnapshotsService.class).stop();
+        injector.getInstance(RecoverRedIndexService.class).stop();
         injector.getInstance(SnapshotShardsService.class).stop();
         injector.getInstance(RepositoriesService.class).stop();
         // stop any changes happening as a result of cluster state changes
@@ -979,6 +986,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(HttpServerTransport.class));
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));
         toClose.add(injector.getInstance(SnapshotsService.class));
+        toClose.add(injector.getInstance(RecoverRedIndexService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
         toClose.add(injector.getInstance(RepositoriesService.class));
         toClose.add(() -> stopWatch.stop().start("client"));

@@ -50,6 +50,7 @@ import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.autorecover.IndexWriteShardAction;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -237,6 +238,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final IndexWriteShardAction indexWriteShardAction;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
@@ -342,6 +344,7 @@ public class IndicesService extends AbstractLifecycleComponent
             threadPool.getThreadContext()) : null;
 
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
+        this.indexWriteShardAction = new IndexWriteShardAction(clusterService, client, threadPool);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
     }
 
@@ -575,7 +578,8 @@ public class IndicesService extends AbstractLifecycleComponent
                         indicesQueryCache,
                         indicesFieldDataCache,
                         finalListeners,
-                        indexingMemoryController);
+                        indexingMemoryController,
+                        indexWriteShardAction);
         boolean success = false;
         try {
             if (writeDanglingIndices && nodeWriteDanglingIndicesInfo) {

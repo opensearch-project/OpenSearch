@@ -49,6 +49,7 @@ import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReques
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.autorecover.RecoverRedIndexService;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
@@ -131,6 +132,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
+import static org.opensearch.autorecover.IndexWriteShardAction.AUTO_RESTORE_RED_INDICES_ENABLE;
 import static org.opensearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -197,6 +199,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
+    private final RecoverRedIndexService recoverRedIndexService;
+
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
      * cluster state. The number of concurrent operations in a cluster state is defined as the sum of the sizes of
@@ -208,12 +212,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                            RepositoriesService repositoriesService, TransportService transportService, ActionFilters actionFilters) {
+                            RepositoriesService repositoriesService, TransportService transportService, ActionFilters actionFilters,
+                            RecoverRedIndexService recoverRedIndexService) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
         this.threadPool = transportService.getThreadPool();
         this.transportService = transportService;
+        this.recoverRedIndexService = recoverRedIndexService;
 
         // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
         this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(
@@ -1526,16 +1532,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final Snapshot snapshot = entry.snapshot();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
             ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
+            Map<Index, Boolean> indicesSucessfullySnapshottedStatusMap = new HashMap<>();
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
                 ShardId shardId = shardStatus.key;
                 ShardSnapshotStatus status = shardStatus.value;
                 final ShardState state = status.state();
                 if (state.failed()) {
                     shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
+                    indicesSucessfullySnapshottedStatusMap.put(shardId.getIndex(), false);
                 } else if (state.completed() == false) {
                     shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, "skipped"));
+                    indicesSucessfullySnapshottedStatusMap.put(shardId.getIndex(), false);
                 } else {
                     assert state == ShardState.SUCCESS;
+                    Boolean indexSnapshotStatus = indicesSucessfullySnapshottedStatusMap.getOrDefault(shardId.getIndex(), true);
+                    indicesSucessfullySnapshottedStatusMap.put(shardId.getIndex(), indexSnapshotStatus);
                 }
             }
             final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
@@ -1560,6 +1571,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             } else {
                 metadataListener.onResponse(metadata);
             }
+
+            boolean autoRestoreRedIndexEnabled = clusterService.getClusterSettings().get(AUTO_RESTORE_RED_INDICES_ENABLE);
+            if (autoRestoreRedIndexEnabled) {
+                // Update index setting for index is clean to recover from snapshot
+                recoverRedIndexService.updateSnapshotIndicesStatus(indicesSucessfullySnapshottedStatusMap, entry.startTime(),
+                    new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void aVoid) {
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            handleFinalizationFailure(e, entry, repositoryData);
+                        }
+                    });
+            }
+
             metadataListener.whenComplete(meta -> repo.finalizeSnapshot(
                     shardGenerations,
                     repositoryData.getGenId(),

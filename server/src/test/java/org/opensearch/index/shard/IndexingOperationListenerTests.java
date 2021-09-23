@@ -40,6 +40,7 @@ import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -51,7 +52,8 @@ import static org.hamcrest.Matchers.is;
 public class IndexingOperationListenerTests extends OpenSearchTestCase {
 
     // this test also tests if calls are correct if one or more listeners throw exceptions
-    public void testListenersAreExecuted() {
+    // Excepts for postIndex() as exception is thrown if postIndex() fails
+    public void testListenersAreExecuted() throws Exception{
         AtomicInteger preIndex = new AtomicInteger();
         AtomicInteger postIndex = new AtomicInteger();
         AtomicInteger postIndexException = new AtomicInteger();
@@ -120,11 +122,6 @@ public class IndexingOperationListenerTests extends OpenSearchTestCase {
         IndexingOperationListener throwingListener = new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
-                throw new RuntimeException();
-            }
-
-            @Override
-            public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
                 throw new RuntimeException();
             }
 

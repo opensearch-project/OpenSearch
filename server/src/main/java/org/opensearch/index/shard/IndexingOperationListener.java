@@ -35,6 +35,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.index.engine.Engine;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -55,7 +56,7 @@ public interface IndexingOperationListener {
      * related failures. See {@link #postIndex(ShardId, Engine.Index, Exception)}
      * for engine level failures
      */
-    default void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {}
+    default void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) throws IOException {}
 
     /**
      * Called after the indexing operation occurred with engine level exception.
@@ -113,13 +114,14 @@ public interface IndexingOperationListener {
         }
 
         @Override
-        public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
+        public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) throws IOException {
             assert index != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.postIndex(shardId, index, result);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("postIndex listener [{}] failed", listener), e);
+                    throw e;
                 }
             }
         }
