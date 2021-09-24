@@ -267,7 +267,7 @@ public final class IndexSettings {
     @Deprecated
     public static final Setting<Boolean> INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING =
         Setting.boolSetting("index.plugins.replication.translog.retention_lease.pruning.enabled", false,
-            Property.IndexScope, Property.Dynamic, Property.Deprecated);
+            Property.IndexScope, Property.Dynamic);
 
     /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
