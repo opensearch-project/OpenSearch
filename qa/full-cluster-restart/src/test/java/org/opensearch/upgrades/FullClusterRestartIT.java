@@ -1688,4 +1688,27 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(extractTotalHits(resp), equalTo(numHits));
     }
 
+    public void testTranslogPruningBasedOnRetentionLease() throws IOException {
+        assumeTrue(getOldClusterVersion() + " does not support translog pruning based on retention leases",
+            getOldClusterVersion().onOrAfter(Version.V_1_0_0));
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.getKey(), true);
+            createIndex(index, settings.build());
+            ensureGreen(index);
+            int numDocs = randomIntBetween(0, 100);
+            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            refresh();
+            assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+            saveInfoDocument("doc_count", Integer.toString(numDocs));
+        } else {
+            openIndex(index);
+            ensureGreen(index);
+            final int expectedNumDocs = Integer.parseInt(loadInfoDocument("doc_count"));
+            assertTotalHits(expectedNumDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+        }
+    }
 }

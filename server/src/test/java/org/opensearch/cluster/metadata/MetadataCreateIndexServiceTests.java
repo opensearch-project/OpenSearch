@@ -1001,6 +1001,19 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             "or better performance, or other file systems instead.");
     }
 
+    public void testTranslogPruningBasedOnRetentionLeaseDeprecation() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(Settings.builder()
+            .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.getKey(), true).build());
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+            Collections.emptySet());
+        assertWarnings("[index.plugins.replication.translog.retention_lease.pruning.enabled] setting " +
+            "was deprecated in OpenSearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.");
+    }
+
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
         IndexTemplateMetadata.Builder builder = templateMetadataBuilder("template1", "te*");
         configurator.accept(builder);
