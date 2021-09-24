@@ -262,10 +262,12 @@ public final class IndexSettings {
 
     /**
      * Specifies if the index translog should prune based on retention leases.
+     * @deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
      */
-    public static final Setting<Boolean> INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING =
-        Setting.boolSetting("index.translog.retention_lease.pruning.enabled", false,
-            Property.IndexScope, Property.Dynamic);
+    @Deprecated
+    public static final Setting<Boolean> INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING =
+        Setting.boolSetting("index.plugins.replication.translog.retention_lease.pruning.enabled", false,
+            Property.IndexScope, Property.Dynamic, Property.Deprecated);
 
     /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
@@ -293,6 +295,7 @@ public final class IndexSettings {
      * the chance of ops based recoveries for indices with soft-deletes disabled.
      * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
      **/
+    @Deprecated
     private static final ByteSizeValue DEFAULT_TRANSLOG_RETENTION_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
 
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
@@ -398,6 +401,7 @@ public final class IndexSettings {
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
+    @Deprecated
     private volatile boolean translogPruningByRetentionLease;
     private volatile long softDeleteRetentionOperations;
 
@@ -535,9 +539,10 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = version.onOrAfter(LegacyESVersion.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
-        translogPruningByRetentionLease = version.onOrAfter(Version.V_1_1_0) &&
+        // @todo move to CCR plugin
+        this.translogPruningByRetentionLease = version.onOrAfter(Version.V_1_1_0) &&
             softDeleteEnabled &&
-            scopedSettings.get(INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING);
+            scopedSettings.get(INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING);
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -606,7 +611,7 @@ public final class IndexSettings {
                 this::setGenerationThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING,
+        scopedSettings.addSettingsUpdateConsumer(INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING,
             this::setTranslogPruningByRetentionLease);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
@@ -638,13 +643,19 @@ public final class IndexSettings {
         this.flushAfterMergeThresholdSize = byteSizeValue;
     }
 
+    /**
+     * Enable or disable translog pruning by retention lease requirement
+     *
+     * @deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
+     */
+    @Deprecated
     private void setTranslogPruningByRetentionLease(boolean enabled) {
         this.translogPruningByRetentionLease = INDEX_SOFT_DELETES_SETTING.get(settings) && enabled;
     }
 
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
         if (shouldDisableTranslogRetention(settings) &&
-            !shouldPruneTranslogByRetentionLease(settings) &&
+            shouldPruneTranslogByRetentionLease(settings) == false &&
             byteSizeValue.getBytes() >= 0) {
             // ignore the translog retention settings if soft-deletes enabled
             this.translogRetentionSize = new ByteSizeValue(-1);
@@ -847,7 +858,7 @@ public final class IndexSettings {
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
     public ByteSizeValue getTranslogRetentionSize() {
-        if(shouldDisableTranslogRetention(settings) && !shouldPruneTranslogByRetentionLease(settings)) {
+        if(shouldDisableTranslogRetention(settings) && shouldPruneTranslogByRetentionLease(settings) == false) {
             return new ByteSizeValue(-1);
         }
         else if(shouldPruneTranslogByRetentionLease(settings) && translogRetentionSize.getBytes() == -1) {
@@ -1099,16 +1110,20 @@ public final class IndexSettings {
 
     /**
      * Returns <code>true</code> if translog ops should be pruned based on retention lease
+     * @deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
      */
+    @Deprecated
     public boolean shouldPruneTranslogByRetentionLease() {
         return translogPruningByRetentionLease;
     }
 
     /**
      * Returns <code>true</code> if translog ops should be pruned based on retention lease
+     * @deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
      */
+    @Deprecated
     public static boolean shouldPruneTranslogByRetentionLease(Settings settings) {
-        return INDEX_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.get(settings);
+        return INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.get(settings);
     }
 
     /**
