@@ -102,7 +102,7 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
         List<BaseTranslogReader> allGens = new ArrayList<>(readersAndWriter.v1());
         allGens.add(readersAndWriter.v2());
         Supplier<RetentionLeases> retentionLeasesSupplier = createRetentionLeases(now, 0L,
-            readersAndWriter.v1().size() * TOTAL_OPS_IN_GEN - 1);
+            allGens.size() * TOTAL_OPS_IN_GEN - 1);
         try {
             final long minimumRetainingSequenceNumber = retentionLeasesSupplier.get()
                 .leases()
