@@ -12,6 +12,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
 import java.util.Iterator;
+import java.util.Objects;
 
 /**
  * This class contains all the settings which are required and owned by {TODO link ShardIndexingPressure}. These will be
@@ -77,10 +78,14 @@ public final class ShardIndexingPressureSettings {
     }
 
     public static boolean isShardIndexingPressureAttributeEnabled() {
-        Iterator<DiscoveryNode> nodes = clusterService.state().getNodes().getNodes().valuesIt();
-        while (nodes.hasNext()) {
-            if (Boolean.parseBoolean(nodes.next().getAttributes().get(SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY)) == false) {
-                return false;
+        // Null check is required only for bwc tests which start node without initializing cluster service.
+        // In actual run time, clusterService will never be null.
+        if (Objects.nonNull(clusterService)) {
+            Iterator<DiscoveryNode> nodes = clusterService.state().getNodes().getNodes().valuesIt();
+            while (nodes.hasNext()) {
+                if (Boolean.parseBoolean(nodes.next().getAttributes().get(SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY)) == false) {
+                    return false;
+                }
             }
         }
         return true;
