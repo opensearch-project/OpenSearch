@@ -40,7 +40,6 @@ import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
