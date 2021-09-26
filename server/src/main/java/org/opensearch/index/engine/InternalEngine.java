@@ -2703,6 +2703,17 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public Translog.Snapshot newChangesSnapshot(String source, HistorySource historySource, MapperService mapperService,
+                                                long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        if(historySource == HistorySource.INDEX) {
+            return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
+        } else {
+            return getTranslog().newSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
+        }
+    }
+
+
+    @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         ensureSoftDeletesEnabled();

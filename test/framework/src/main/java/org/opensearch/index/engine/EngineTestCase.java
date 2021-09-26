@@ -1082,6 +1082,22 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * Reads all engine operations that have been processed by the engine from Lucene index/Translog based on source.
+     */
+    public static List<Translog.Operation> readAllOperationsBasedOnSource(Engine engine, Engine.HistorySource historySource,
+                                                                          MapperService mapper) throws IOException {
+        final List<Translog.Operation> operations = new ArrayList<>();
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", historySource, mapper,
+            0, Long.MAX_VALUE, false)) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null){
+                operations.add(op);
+            }
+        }
+        return operations;
+    }
+
+    /**
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
     public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
