@@ -673,6 +673,9 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             assertFalse(indexSettings.shouldPruneTranslogByRetentionLease());
             assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(-1L));
         }
+        assertWarnings("[index.plugins.replication.translog.retention_lease.pruning.enabled] setting " +
+            "was deprecated in OpenSearch and will be removed in a future release! See the breaking changes documentation " +
+            "for the next major version.");
     }
 
     public void testTranslogPruningSettingsWithSoftDeletesDisabled() {
@@ -687,5 +690,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         assertFalse(indexSettings.shouldPruneTranslogByRetentionLease());
         assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(retentionSize.getBytes()));
+        assertWarnings("[index.plugins.replication.translog.retention_lease.pruning.enabled] setting " +
+            "was deprecated in OpenSearch and will be removed in a future release! See the breaking changes documentation " +
+            "for the next major version.");
     }
 }
