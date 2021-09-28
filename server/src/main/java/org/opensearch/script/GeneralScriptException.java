@@ -33,6 +33,7 @@
 package org.opensearch.script;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchWrapperException;
 import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ import java.io.IOException;
  *             from various abstractions)
  */
 @Deprecated
-public class GeneralScriptException extends OpenSearchException {
+public class GeneralScriptException extends OpenSearchException implements OpenSearchWrapperException {
 
     public GeneralScriptException(String msg) {
         super(msg);
