@@ -2,8 +2,7 @@
 version: 2
 updates:
   - package-ecosystem: gradle
-    directory: "/"
-    labels: dependency update
+    directory : "/"
     schedule:
       interval: daily
 
