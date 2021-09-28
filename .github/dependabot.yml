@@ -1,0 +1,10 @@
+# Docs: https://docs.github.com/en/github/administering-a-repository/configuration-options-for-dependency-updates
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: "/"
+    labels: dependency update
+    schedule:
+      interval: daily
+
+
