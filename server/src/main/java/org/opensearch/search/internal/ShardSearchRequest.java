@@ -90,6 +90,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final float indexBoost;
     private final Boolean requestCache;
     private final long nowInMillis;
+    private long inboundNetworkTime;
+    private long outboundNetworkTime;
     private final boolean allowPartialSearchResults;
     private final String[] indexRoutings;
     private final String preference;
@@ -188,6 +190,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.preference = preference;
         this.scroll = scroll;
         this.nowInMillis = nowInMillis;
+        this.inboundNetworkTime = 0;
+        this.outboundNetworkTime = 0;
         this.clusterAlias = clusterAlias;
         this.originalIndices = originalIndices;
         this.readerId = readerId;
@@ -206,6 +210,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         aliasFilter = new AliasFilter(in);
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
+        inboundNetworkTime = in.readVLong();
+        outboundNetworkTime = in.readVLong();
         requestCache = in.readOptionalBoolean();
         clusterAlias = in.readOptionalString();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
@@ -250,6 +256,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.aliasFilter = clone.aliasFilter;
         this.indexBoost = clone.indexBoost;
         this.nowInMillis = clone.nowInMillis;
+        this.inboundNetworkTime = clone.inboundNetworkTime;
+        this.outboundNetworkTime = clone.outboundNetworkTime;
         this.requestCache = clone.requestCache;
         this.clusterAlias = clone.clusterAlias;
         this.allowPartialSearchResults = clone.allowPartialSearchResults;
@@ -283,6 +291,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (asKey == false) {
             out.writeVLong(nowInMillis);
         }
+        out.writeVLong(inboundNetworkTime);
+        out.writeVLong(outboundNetworkTime);
         out.writeOptionalBoolean(requestCache);
         out.writeOptionalString(clusterAlias);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
@@ -361,6 +371,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     public long nowInMillis() {
         return nowInMillis;
     }
+
+    public long getInboundNetworkTime() { return inboundNetworkTime; }
+
+    public void setInboundNetworkTime(long newTime) { this.inboundNetworkTime = newTime; }
+
+    public long getOutboundNetworkTime() { return outboundNetworkTime; }
+
+    public void setOutboundNetworkTime(long newTime) { this.outboundNetworkTime = newTime; }
 
     public Boolean requestCache() {
         return requestCache;
