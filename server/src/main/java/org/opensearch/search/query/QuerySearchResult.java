@@ -245,6 +245,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
             throw new IllegalStateException("profile results already consumed");
         }
         ProfileShardResult result = profileShardResults;
+        result.setInboundNetworkTime(this.getShardSearchRequest().getInboundNetworkTime());
+        result.setOutboundNetworkTime(this.getShardSearchRequest().getOutboundNetworkTime());
         profileShardResults = null;
         return result;
     }

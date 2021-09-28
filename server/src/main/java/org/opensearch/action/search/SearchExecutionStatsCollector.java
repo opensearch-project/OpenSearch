@@ -67,6 +67,19 @@ public final class SearchExecutionStatsCollector implements ActionListener<Searc
     @Override
     public void onResponse(SearchPhaseResult response) {
         QuerySearchResult queryResult = response.queryResult();
+        if (response.getShardSearchRequest() != null) {
+            if (response.remoteAddress() != null) {
+                // update outbound network time for request sent over network for shard requests
+                response.getShardSearchRequest()
+                    .setOutboundNetworkTime(
+                        Math.max(0, System.currentTimeMillis() - response.getShardSearchRequest().getOutboundNetworkTime())
+                    );
+            } else {
+                // reset inbound and outbound network time to 0 for local request for shard requests
+                response.getShardSearchRequest().setOutboundNetworkTime(0);
+                response.getShardSearchRequest().setInboundNetworkTime(0);
+            }
+        }
         if (nodeId != null && queryResult != null) {
             final long serviceTimeEWMA = queryResult.serviceTimeEWMA();
             final int queueSize = queryResult.nodeQueueSize();

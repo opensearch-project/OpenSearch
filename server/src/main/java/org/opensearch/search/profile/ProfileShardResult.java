@@ -32,6 +32,7 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -49,9 +50,20 @@ public class ProfileShardResult implements Writeable {
 
     private final AggregationProfileShardResult aggProfileShardResult;
 
-    public ProfileShardResult(List<QueryProfileShardResult> queryProfileResults, AggregationProfileShardResult aggProfileShardResult) {
+    private long inboundNetworkTime;
+
+    private long outboundNetworkTime;
+
+    public ProfileShardResult(
+        List<QueryProfileShardResult> queryProfileResults,
+        AggregationProfileShardResult aggProfileShardResult,
+        long inboundNetworkTime,
+        long outboundNetworkTime
+    ) {
         this.aggProfileShardResult = aggProfileShardResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
+        this.inboundNetworkTime = inboundNetworkTime;
+        this.outboundNetworkTime = outboundNetworkTime;
     }
 
     public ProfileShardResult(StreamInput in) throws IOException {
@@ -63,6 +75,10 @@ public class ProfileShardResult implements Writeable {
         }
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.aggProfileShardResult = new AggregationProfileShardResult(in);
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            this.inboundNetworkTime = in.readVLong();
+            this.outboundNetworkTime = in.readVLong();
+        }
     }
 
     @Override
@@ -72,6 +88,10 @@ public class ProfileShardResult implements Writeable {
             queryShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            out.writeVLong(inboundNetworkTime);
+            out.writeVLong(outboundNetworkTime);
+        }
     }
 
     public List<QueryProfileShardResult> getQueryProfileResults() {
@@ -81,4 +101,21 @@ public class ProfileShardResult implements Writeable {
     public AggregationProfileShardResult getAggregationProfileResults() {
         return aggProfileShardResult;
     }
+
+    public long getInboundNetworkTime() {
+        return inboundNetworkTime;
+    }
+
+    public void setInboundNetworkTime(long newTime) {
+        this.inboundNetworkTime = newTime;
+    }
+
+    public long getOutboundNetworkTime() {
+        return outboundNetworkTime;
+    }
+
+    public void setOutboundNetworkTime(long newTime) {
+        this.outboundNetworkTime = newTime;
+    }
+
 }

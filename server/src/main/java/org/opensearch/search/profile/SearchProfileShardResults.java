@@ -38,6 +38,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
@@ -58,11 +59,13 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  * holds a map of shard ID -&gt; Profiled results
  */
 public final class SearchProfileShardResults implements Writeable, ToXContentFragment {
-
     private static final String SEARCHES_FIELD = "searches";
     private static final String ID_FIELD = "id";
     private static final String SHARDS_FIELD = "shards";
     public static final String PROFILE_FIELD = "profile";
+    public static final String INBOUND_NETWORK_FIELD = "inbound_network_time_in_millis";
+    public static final String OUTBOUND_NETWORK_FIELD = "outbound_network_time_in_millis";
+    public static final String ROUND_TRIP_NETWORK_FIELD = "round_trip_network_time_in_millis";
 
     private Map<String, ProfileShardResult> shardResults;
 
@@ -104,6 +107,12 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         for (String key : sortedKeys) {
             builder.startObject();
             builder.field(ID_FIELD, key);
+            builder.field(INBOUND_NETWORK_FIELD, shardResults.get(key).getInboundNetworkTime());
+            builder.field(OUTBOUND_NETWORK_FIELD, shardResults.get(key).getOutboundNetworkTime());
+            builder.field(
+                ROUND_TRIP_NETWORK_FIELD,
+                shardResults.get(key).getInboundNetworkTime() + shardResults.get(key).getOutboundNetworkTime()
+            );
             builder.startArray(SEARCHES_FIELD);
             ProfileShardResult profileShardResult = shardResults.get(key);
             for (QueryProfileShardResult result : profileShardResult.getQueryProfileResults()) {
@@ -145,12 +154,18 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         AggregationProfileShardResult aggProfileShardResult = null;
         String id = null;
         String currentFieldName = null;
+        long inboundNetworkTime = 0;
+        long outboundNetworkTime = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (ID_FIELD.equals(currentFieldName)) {
                     id = parser.text();
+                } else if (INBOUND_NETWORK_FIELD.equals(currentFieldName)) {
+                    inboundNetworkTime = parser.longValue();
+                } else if (OUTBOUND_NETWORK_FIELD.equals(currentFieldName)) {
+                    outboundNetworkTime = parser.longValue();
                 } else {
                     parser.skipChildren();
                 }
@@ -168,7 +183,10 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
                 parser.skipChildren();
             }
         }
-        searchProfileResults.put(id, new ProfileShardResult(queryProfileResults, aggProfileShardResult));
+        searchProfileResults.put(
+            id,
+            new ProfileShardResult(queryProfileResults, aggProfileShardResult, inboundNetworkTime, outboundNetworkTime)
+        );
     }
 
     /**
@@ -180,7 +198,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
      * @return A {@link ProfileShardResult} representing the results for this
      *         shard
      */
-    public static ProfileShardResult buildShardResults(Profilers profilers) {
+    public static ProfileShardResult buildShardResults(Profilers profilers, ShardSearchRequest request) {
         List<QueryProfiler> queryProfilers = profilers.getQueryProfilers();
         AggregationProfiler aggProfiler = profilers.getAggregationProfiler();
         List<QueryProfileShardResult> queryResults = new ArrayList<>(queryProfilers.size());
@@ -193,6 +211,9 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             queryResults.add(result);
         }
         AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
-        return new ProfileShardResult(queryResults, aggResults);
+        if (request != null) {
+            return new ProfileShardResult(queryResults, aggResults, request.getInboundNetworkTime(), request.getOutboundNetworkTime());
+        }
+        return new ProfileShardResult(queryResults, aggResults, 0, 0);
     }
 }
