@@ -5,5 +5,24 @@ updates:
     directory : "/"
     schedule:
       interval: daily
+    open-pull-requests-limit: 0
+
+    package-ecosystem: gradle
+      directory: "/modules"
+      schedule:
+        interval: daily
+      open-pull-requests-limit: 0
+
+    package-ecosystem: gradle
+      directory: "/server"
+      schedule:
+        interval: daily
+      open-pull-requests-limit: 0
+
+    package-ecosystem: gradle
+      directory: "/plugins"
+      schedule:
+        interval: daily
+      open-pull-requests-limit: 0
 
 
