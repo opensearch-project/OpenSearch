@@ -239,10 +239,17 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         DistributionProject(String name, String baseDir, Version version, String classifier, String extension, File checkoutDir) {
             this.name = name;
             this.projectPath = baseDir + "/" + name;
-            this.distFile = new File(
-                checkoutDir,
-                baseDir + "/" + name + "/build/distributions/opensearch-" + version + "-SNAPSHOT" + classifier + "." + extension
-            );
+            if (version.onOrAfter("1.1.0")) {
+                this.distFile = new File(
+                    checkoutDir,
+                    baseDir + "/" + name + "/build/distributions/opensearch-min-" + version + "-SNAPSHOT" + classifier + "." + extension
+                );
+            } else {
+                this.distFile = new File(
+                    checkoutDir,
+                    baseDir + "/" + name + "/build/distributions/opensearch-" + version + "-SNAPSHOT" + classifier + "." + extension
+                );
+            }
             // we only ported this down to the 7.x branch.
             if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
                 this.expandedDistDir = new File(checkoutDir, baseDir + "/" + name + "/build/install");
