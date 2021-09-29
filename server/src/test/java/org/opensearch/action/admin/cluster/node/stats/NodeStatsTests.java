@@ -54,7 +54,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
-import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,9 +62,15 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 public class NodeStatsTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
@@ -149,6 +154,34 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(mem.getNonHeapCommitted(), deserializedMem.getNonHeapCommitted());
                     assertEquals(mem.getNonHeapUsed(), deserializedMem.getNonHeapUsed());
                     assertEquals(mem.getHeapMax(), deserializedMem.getHeapMax());
+                    
+                    final Map<String, JvmStats.MemoryPool> pools = StreamSupport
+                        .stream(mem.spliterator(), false)
+                        .collect(Collectors.toMap(JvmStats.MemoryPool::getName, Function.identity()));
+                    
+                    final Map<String, JvmStats.MemoryPool> deserializedPools = StreamSupport
+                        .stream(deserializedMem.spliterator(), false)
+                        .collect(Collectors.toMap(JvmStats.MemoryPool::getName, Function.identity()));
+                    
+                    assertThat(pools.keySet(), not(empty()));
+                    assertThat(deserializedPools.keySet(), not(empty()));
+
+                    for (final Map.Entry<String, JvmStats.MemoryPool> entry: pools.entrySet()) {
+                        assertThat(deserializedPools.containsKey(entry.getKey()), is(true));
+                        assertEquals(entry.getValue().getName(), deserializedPools.get(entry.getKey()).getName());
+                        assertEquals(entry.getValue().getMax(), deserializedPools.get(entry.getKey()).getMax());
+                        assertEquals(entry.getValue().getPeakMax(), deserializedPools.get(entry.getKey()).getPeakMax());
+                        assertEquals(entry.getValue().getPeakUsed(), deserializedPools.get(entry.getKey()).getPeakUsed());
+                        assertEquals(entry.getValue().getUsed(), deserializedPools.get(entry.getKey()).getUsed());
+                        
+                        assertEquals(entry.getValue().getLastGcStats().getUsed(), 
+                                deserializedPools.get(entry.getKey()).getLastGcStats().getUsed());
+                        assertEquals(entry.getValue().getLastGcStats().getMax(), 
+                                deserializedPools.get(entry.getKey()).getLastGcStats().getMax());
+                        assertEquals(entry.getValue().getLastGcStats().getUsagePercent(), 
+                                deserializedPools.get(entry.getKey()).getLastGcStats().getUsagePercent());
+                    }
+                    
                     JvmStats.Classes classes = jvm.getClasses();
                     assertEquals(classes.getLoadedClassCount(), deserializedJvm.getClasses().getLoadedClassCount());
                     assertEquals(classes.getTotalLoadedClassCount(), deserializedJvm.getClasses().getTotalLoadedClassCount());
@@ -397,7 +430,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             List<JvmStats.MemoryPool> memoryPools = new ArrayList<>(numMemoryPools);
             for (int i = 0; i < numMemoryPools; i++) {
                 memoryPools.add(new JvmStats.MemoryPool(randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong(),
-                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()));
+                    randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        new JvmStats.MemoryPoolGcStats(randomNonNegativeLong(), randomNonNegativeLong())));
             }
             JvmStats.Threads threads = new JvmStats.Threads(randomIntBetween(1, 1000), randomIntBetween(1, 1000));
             int numGarbageCollectors = randomIntBetween(0, 10);
