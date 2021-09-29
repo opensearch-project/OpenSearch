@@ -1,25 +1,25 @@
 # Docs: https://docs.github.com/en/github/administering-a-repository/configuration-options-for-dependency-updates
 version: 2
 updates:
-  - package-ecosystem: gradle
+  - package-ecosystem : gradle
     directory : "/"
     schedule:
       interval: daily
     open-pull-requests-limit: 0
 
-  - package-ecosystem: gradle
+  - package-ecosystem : gradle
       directory: "/modules"
       schedule:
         interval: daily
       open-pull-requests-limit: 0
 
-  - package-ecosystem: gradle
+  - package-ecosystem : gradle
       directory: "/server"
       schedule:
         interval: daily
       open-pull-requests-limit: 0
 
-  - package-ecosystem: gradle
+  - package-ecosystem : gradle
       directory: "/plugins"
       schedule:
         interval: daily
