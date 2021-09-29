@@ -1,7 +1,20 @@
 # Docs: https://docs.github.com/en/github/administering-a-repository/configuration-options-for-dependency-updates
+---
 updates:
   -
     directory: /
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /build-tools
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /build-tools/reaper
     open-pull-requests-limit: 0
     package-ecosystem: gradle
     schedule:
@@ -20,6 +33,90 @@ updates:
       interval: daily
   -
     directory: /plugins
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /distribution
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /test
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /sandbox
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /rest-api-spec
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /qa
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /libs
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /doc-tools
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /client/rest
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /client/rest-high-level
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /client/sniffer
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /client/transport
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /client/test
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /client/client-benchmark-noop-api-plugin
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
+  -
+    directory: /client/benchmark
     open-pull-requests-limit: 0
     package-ecosystem: gradle
     schedule:
