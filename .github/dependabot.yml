@@ -121,4 +121,10 @@ updates:
     package-ecosystem: gradle
     schedule:
       interval: daily
+  -
+    directory: /plugins/repository-hdfs
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: daily
 version: 2
