@@ -234,8 +234,10 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
         assertTrue(nodeStats.getCurrentCombinedCoordinatingAndPrimaryBytes() < 50 * 200);
         assertTrue(shardStats.getIndexingPressureShardStats(shardId1).getCurrentCombinedCoordinatingAndPrimaryBytes() < 50 * 200);
 
-        for (int i = 0; i < NUM_THREADS - rejectionCount.get(); i++) {
-            releasables[i].close();
+        for (Releasable releasable : releasables) {
+            if (releasable != null) {
+                releasable.close();
+            }
         }
 
         nodeStats = shardIndexingPressure.stats();
