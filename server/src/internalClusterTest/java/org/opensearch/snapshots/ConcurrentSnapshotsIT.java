@@ -530,7 +530,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final String secondSnapshot = "snapshot-two";
         final ActionFuture<CreateSnapshotResponse> secondSnapshotResponse = startFullSnapshotFromMasterClient(repoName, secondSnapshot);
-
+        
+        // make sure second snapshot is in progress before restarting data node
+        waitUntilInprogress(repoName, secondSnapshot, TimeValue.timeValueSeconds(5L));
+        
         internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
 
         assertThat(firstSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
@@ -1381,5 +1384,18 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(blockedRepoName, snapshotName);
         waitForBlock(internalCluster().getMasterName(), blockedRepoName, TimeValue.timeValueSeconds(30L));
         return fut;
+    }
+    
+    private static void waitUntilInprogress(final String repoName, final String snapshotName, 
+            TimeValue timeout) throws InterruptedException {
+        waitUntil(() -> 
+            currentSnapshots(repoName)
+                .stream()
+                .filter(s -> s.snapshotId().getName().equals(snapshotName))
+                .filter(s -> s.state() == SnapshotState.IN_PROGRESS)
+                .findAny()
+                .isPresent(), 
+            timeout.millis(),
+            TimeUnit.MILLISECONDS);
     }
 }
