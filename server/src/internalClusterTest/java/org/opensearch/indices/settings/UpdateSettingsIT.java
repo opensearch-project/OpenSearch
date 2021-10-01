@@ -661,6 +661,33 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
     }
 
+    public void testTranslogPruningSetting() {
+        createIndex("test");
+        ensureGreen("test");
+        final String REPLICATION_TRANSLOG_SETTING = "index.plugins.replication.translog.retention_lease.pruning.enabled";
+        final long settingsVersion =
+            client().admin().cluster().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
+        boolean shouldPruneTranslogByRetentionLease = Boolean.parseBoolean(
+            settingsResponse.getSetting("test", REPLICATION_TRANSLOG_SETTING)
+        );
+
+        assertFalse(shouldPruneTranslogByRetentionLease);
+        assertAcked(client().admin().indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder()
+                .put("index.plugins.replication.translog.retention_lease.pruning.enabled", true)
+            ));
+        final long newSettingsVersion =
+            client().admin().cluster().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+        settingsResponse = client().admin().indices().prepareGetSettings("test").get();
+        shouldPruneTranslogByRetentionLease = Boolean.parseBoolean(
+            settingsResponse.getSetting("test", REPLICATION_TRANSLOG_SETTING)
+        );
+        assertTrue(shouldPruneTranslogByRetentionLease);
+    }
+
     /*
      * Test that we are able to set the setting index.number_of_replicas to the default.
      */
