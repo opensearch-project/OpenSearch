@@ -102,6 +102,7 @@ import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateHelper;
+import org.opensearch.autorecover.RecoverRedIndexService;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -1502,12 +1503,14 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)), emptyMap(), threadPool
                 );
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
+                client = new NodeClient(settings, threadPool);
+                RecoverRedIndexService recoverRedIndexService = new RecoverRedIndexService(transportService, clusterService, actionFilters,
+                    indexNameExpressionResolver, client);
                 snapshotsService = new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService,
-                        transportService, actionFilters);
+                        transportService, actionFilters, recoverRedIndexService);
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
                 final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
-                client = new NodeClient(settings, threadPool);
                 final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
                 final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(settings, clusterService,
                     () -> repositoriesService, rerouteServiceSetOnce::get);
