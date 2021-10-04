@@ -45,7 +45,9 @@ dependencies {
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "org.elasticsearch:securemock:${versions.securemock}"
+  api "org.mockito:mockito-core:${versions.mockito}"
+  api "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
+  api "org.objenesis:objenesis:${versions.objenesis}"
 }
 
 compileJava.options.compilerArgs -= '-Xlint:cast'
@@ -73,15 +75,14 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log4j.Level',
   'org.apache.log4j.Logger',
   'org.apache.log4j.Priority',
-  // TODO - OpenSearch remove this missing classes. Issue: https://github.com/opensearch-project/OpenSearch/issues/420
-  'org.apache.tools.ant.BuildException',
-  'org.apache.tools.ant.DirectoryScanner',
-  'org.apache.tools.ant.Task',
-  'org.apache.tools.ant.types.FileSet',
+  'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
+  'org.opentest4j.AssertionFailedError',
+  'net.bytebuddy.agent.ByteBuddyAgent'
 )
 // TODO - OpenSearch remove this violation. Issue: https://github.com/opensearch-project/OpenSearch/issues/420
 thirdPartyAudit.ignoreViolations(
-  'org.objenesis.instantiator.sun.UnsafeFactoryInstantiator'
+  'org.objenesis.instantiator.sun.UnsafeFactoryInstantiator',
+  'org.objenesis.instantiator.util.UnsafeUtils'
 )
 
 test {

@@ -77,7 +77,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
-import org.hamcrest.CustomTypeSafeMatcher;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
@@ -724,19 +723,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
         ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
             completionHandler, indexReq -> {}, Names.WRITE);
         verify(failureHandler, times(1)).accept(
-            argThat(new CustomTypeSafeMatcher<Integer>("failure handler was not called with the expected arguments") {
-                @Override
-                protected boolean matchesSafely(Integer item) {
-                    return item == 2;
-                }
-
-            }),
-            argThat(new CustomTypeSafeMatcher<IllegalArgumentException>("failure handler was not called with the expected arguments") {
-                @Override
-                protected boolean matchesSafely(IllegalArgumentException iae) {
-                    return "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage());
-                }
-            })
+            argThat((Integer item) -> item == 2),
+            argThat((IllegalArgumentException iae) -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage()))
         );
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
@@ -995,12 +983,9 @@ public class IngestServiceTests extends OpenSearchTestCase {
         ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {},
             Names.WRITE);
 
-        verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(new ArgumentMatcher<Exception>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((Exception)o).getCause().equals(error);
-            }
-        }));
+        verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), 
+            argThat(o -> o.getCause().equals(error)));
+
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
@@ -1499,7 +1484,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         return processor;
     }
 
-    private class IngestDocumentMatcher extends ArgumentMatcher<IngestDocument> {
+    private class IngestDocumentMatcher implements ArgumentMatcher<IngestDocument> {
 
         private final IngestDocument ingestDocument;
 
@@ -1512,13 +1497,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public boolean matches(Object o) {
-            if (o.getClass() == IngestDocument.class) {
-                IngestDocument otherIngestDocument = (IngestDocument) o;
-                //ingest metadata will not be the same (timestamp differs every time)
-                return Objects.equals(ingestDocument.getSourceAndMetadata(), otherIngestDocument.getSourceAndMetadata());
-            }
-            return false;
+        public boolean matches(IngestDocument o) {
+            return Objects.equals(ingestDocument.getSourceAndMetadata(), o.getSourceAndMetadata());
         }
     }
 

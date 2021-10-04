@@ -70,7 +70,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -420,6 +419,6 @@ public class SeedHostsResolverTests extends OpenSearchTestCase {
         assertThat(transportAddresses, hasSize(1)); // only one of the two is valid and will be used
         assertThat(transportAddresses.get(0).getAddress(), equalTo("127.0.0.1"));
         assertThat(transportAddresses.get(0).getPort(), equalTo(9301));
-        verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), Matchers.any(ExecutionException.class));
+        verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), Matchers.any(IllegalArgumentException.class));
     }
 }

@@ -55,9 +55,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RestRecoveryActionTests extends OpenSearchTestCase {
 
