@@ -33,6 +33,7 @@
     suppress the check there but enforce it everywhere else. This prevents the list from getting longer even if it is
     unfair. -->
   <module name="LineLength">
+      <property name="tabWidth" value="1"/>
       <property name="max" value="140"/>
       <property name="ignorePattern" value="^ *\* *https?://[^ ]+$"/>
   </module>
