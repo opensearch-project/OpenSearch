@@ -152,7 +152,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /** 
-     * get a deep copy of SearchRequest object
+     * Create a deep copy of SearchRequest object
+     * 
+     * @return deep copy of SearchRequest object
+     * @throws CloneNotSupportedException if there is an issue while cloning
      */
     public SearchRequest getCopy() throws CloneNotSupportedException {
         SearchRequest sq = (SearchRequest)super.clone();
