@@ -20,89 +20,89 @@ import java.util.Optional;
  * in the upgrade process.
  */
 class TaskInput {
-    private final Environment openSearchEnv;
-    private String node;
-    private String cluster;
-    private String baseUrl;
-    private boolean running;
-    private Version version;
-    private List<String> plugins;
-    private Path esHome;
-    private Path esConfig;
+	private final Environment openSearchEnv;
+	private String node;
+	private String cluster;
+	private String baseUrl;
+	private boolean running;
+	private Version version;
+	private List<String> plugins;
+	private Path esHome;
+	private Path esConfig;
 
-    TaskInput(Environment openSearchEnv) {
-        this.openSearchEnv = openSearchEnv;
-    }
+	TaskInput(Environment openSearchEnv) {
+		this.openSearchEnv = openSearchEnv;
+	}
 
-    public String getNode() {
-        return node;
-    }
+	public String getNode() {
+		return node;
+	}
 
-    public void setNode(String node) {
-        this.node = node;
-    }
+	public void setNode(String node) {
+		this.node = node;
+	}
 
-    public String getCluster() {
-        return cluster;
-    }
+	public String getCluster() {
+		return cluster;
+	}
 
-    public void setCluster(String cluster) {
-        this.cluster = cluster;
-    }
+	public void setCluster(String cluster) {
+		this.cluster = cluster;
+	}
 
-    public Optional<Version> getVersion() {
-        return Optional.ofNullable(version);
-    }
+	public Optional<Version> getVersion() {
+		return Optional.ofNullable(version);
+	}
 
-    public void setVersion(Version version) {
-        this.version = version;
-    }
+	public void setVersion(Version version) {
+		this.version = version;
+	}
 
-    public List<String> getPlugins() {
-        return plugins;
-    }
+	public List<String> getPlugins() {
+		return plugins;
+	}
 
-    public void setPlugins(List<String> plugins) {
-        this.plugins = plugins;
-    }
+	public void setPlugins(List<String> plugins) {
+		this.plugins = plugins;
+	}
 
-    public Path getEsConfig() {
-        return esConfig;
-    }
+	public Path getEsConfig() {
+		return esConfig;
+	}
 
-    public void setEsConfig(Path esConfig) {
-        this.esConfig = esConfig;
-    }
+	public void setEsConfig(Path esConfig) {
+		this.esConfig = esConfig;
+	}
 
-    public Path getEsHome() {
-        return esHome;
-    }
+	public Path getEsHome() {
+		return esHome;
+	}
 
-    public void setEsHome(Path esHome) {
-        this.esHome = esHome;
-    }
+	public void setEsHome(Path esHome) {
+		this.esHome = esHome;
+	}
 
-    public Path getOpenSearchConfig() {
-        return openSearchEnv.configFile();
-    }
+	public Path getOpenSearchConfig() {
+		return openSearchEnv.configFile();
+	}
 
-    public Path getOpenSearchBin() {
-        return openSearchEnv.binFile();
-    }
+	public Path getOpenSearchBin() {
+		return openSearchEnv.binFile();
+	}
 
-    public boolean isRunning() {
-        return running;
-    }
+	public boolean isRunning() {
+		return running;
+	}
 
-    public void setRunning(boolean running) {
-        this.running = running;
-    }
+	public void setRunning(boolean running) {
+		this.running = running;
+	}
 
-    public String getBaseUrl() {
-        return baseUrl;
-    }
+	public String getBaseUrl() {
+		return baseUrl;
+	}
 
-    public void setBaseUrl(String baseUrl) {
-        this.baseUrl = baseUrl;
-    }
+	public void setBaseUrl(String baseUrl) {
+		this.baseUrl = baseUrl;
+	}
 }

@@ -42,14 +42,14 @@ import java.util.List;
  * arguments as inputs, so this is useful for passing arguments that should not be used for the purposes of input snapshotting.
  */
 public class SimpleCommandLineArgumentProvider implements CommandLineArgumentProvider {
-    private final List<String> arguments;
+	private final List<String> arguments;
 
-    public SimpleCommandLineArgumentProvider(String... arguments) {
-        this.arguments = Arrays.asList(arguments);
-    }
+	public SimpleCommandLineArgumentProvider(String... arguments) {
+		this.arguments = Arrays.asList(arguments);
+	}
 
-    @Override
-    public Iterable<String> asArguments() {
-        return arguments;
-    }
+	@Override
+	public Iterable<String> asArguments() {
+		return arguments;
+	}
 }

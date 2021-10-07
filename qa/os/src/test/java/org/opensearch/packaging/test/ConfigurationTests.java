@@ -44,27 +44,27 @@ import static org.junit.Assume.assumeFalse;
 
 public class ConfigurationTests extends PackagingTestCase {
 
-    @Before
-    public void filterDistros() {
-        assumeFalse("no docker", distribution.isDocker());
-    }
+	@Before
+	public void filterDistros() {
+		assumeFalse("no docker", distribution.isDocker());
+	}
 
-    public void test10Install() throws Exception {
-        install();
-    }
+	public void test10Install() throws Exception {
+		install();
+	}
 
-    public void test60HostnameSubstitution() throws Exception {
-        String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
-        sh.getEnv().put(hostnameKey, "mytesthost");
-        withCustomConfig(confPath -> {
-            FileUtils.append(confPath.resolve("opensearch.yml"), "node.name: ${HOSTNAME}");
-            if (distribution.isPackage()) {
-                append(installation.envFile, "HOSTNAME=mytesthost");
-            }
-            assertWhileRunning(() -> {
-                final String nameResponse = makeRequest(Request.Get("http://localhost:9200/_cat/nodes?h=name")).trim();
-                assertThat(nameResponse, equalTo("mytesthost"));
-            });
-        });
-    }
+	public void test60HostnameSubstitution() throws Exception {
+		String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
+		sh.getEnv().put(hostnameKey, "mytesthost");
+		withCustomConfig(confPath -> {
+			FileUtils.append(confPath.resolve("opensearch.yml"), "node.name: ${HOSTNAME}");
+			if (distribution.isPackage()) {
+				append(installation.envFile, "HOSTNAME=mytesthost");
+			}
+			assertWhileRunning(() -> {
+				final String nameResponse = makeRequest(Request.Get("http://localhost:9200/_cat/nodes?h=name")).trim();
+				assertThat(nameResponse, equalTo("mytesthost"));
+			});
+		});
+	}
 }

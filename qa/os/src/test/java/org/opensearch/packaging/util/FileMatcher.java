@@ -56,107 +56,107 @@ import static org.opensearch.packaging.util.FileUtils.getPosixFileAttributes;
  */
 public class FileMatcher extends TypeSafeMatcher<Path> {
 
-    public enum Fileness {
-        File,
-        Directory
-    }
+	public enum Fileness {
+		File,
+		Directory
+	}
 
-    public static final Set<PosixFilePermission> p775 = fromString("rwxrwxr-x");
-    public static final Set<PosixFilePermission> p770 = fromString("rwxrwx---");
-    public static final Set<PosixFilePermission> p755 = fromString("rwxr-xr-x");
-    public static final Set<PosixFilePermission> p750 = fromString("rwxr-x---");
-    public static final Set<PosixFilePermission> p660 = fromString("rw-rw----");
-    public static final Set<PosixFilePermission> p644 = fromString("rw-r--r--");
-    public static final Set<PosixFilePermission> p600 = fromString("rw-------");
+	public static final Set<PosixFilePermission> p775 = fromString("rwxrwxr-x");
+	public static final Set<PosixFilePermission> p770 = fromString("rwxrwx---");
+	public static final Set<PosixFilePermission> p755 = fromString("rwxr-xr-x");
+	public static final Set<PosixFilePermission> p750 = fromString("rwxr-x---");
+	public static final Set<PosixFilePermission> p660 = fromString("rw-rw----");
+	public static final Set<PosixFilePermission> p644 = fromString("rw-r--r--");
+	public static final Set<PosixFilePermission> p600 = fromString("rw-------");
 
-    private final Fileness fileness;
-    private final String owner;
-    private final String group;
-    private final Set<PosixFilePermission> posixPermissions;
+	private final Fileness fileness;
+	private final String owner;
+	private final String group;
+	private final Set<PosixFilePermission> posixPermissions;
 
-    private String mismatch;
+	private String mismatch;
 
-    public FileMatcher(Fileness fileness, String owner, String group, Set<PosixFilePermission> posixPermissions) {
-        this.fileness = Objects.requireNonNull(fileness);
-        this.owner = owner;
-        this.group = group;
-        this.posixPermissions = posixPermissions;
-    }
+	public FileMatcher(Fileness fileness, String owner, String group, Set<PosixFilePermission> posixPermissions) {
+		this.fileness = Objects.requireNonNull(fileness);
+		this.owner = owner;
+		this.group = group;
+		this.posixPermissions = posixPermissions;
+	}
 
-    @Override
-    protected boolean matchesSafely(Path path) {
-        if (Files.exists(path) == false) {
-            mismatch = "Does not exist";
-            return false;
-        }
+	@Override
+	protected boolean matchesSafely(Path path) {
+		if (Files.exists(path) == false) {
+			mismatch = "Does not exist";
+			return false;
+		}
 
-        if (Platforms.WINDOWS) {
-            final BasicFileAttributes attributes = getBasicFileAttributes(path);
+		if (Platforms.WINDOWS) {
+			final BasicFileAttributes attributes = getBasicFileAttributes(path);
 
-            if (fileness.equals(Fileness.Directory) != attributes.isDirectory()) {
-                mismatch = "Is " + (attributes.isDirectory() ? "a directory" : "a file");
-                return false;
-            }
+			if (fileness.equals(Fileness.Directory) != attributes.isDirectory()) {
+				mismatch = "Is " + (attributes.isDirectory() ? "a directory" : "a file");
+				return false;
+			}
 
-            if (owner != null) {
-                final String attributeViewOwner = getFileOwner(path);
-                if (attributeViewOwner.contains(owner) == false) {
-                    mismatch = "Owned by " + attributeViewOwner;
-                    return false;
-                }
-            }
-        } else {
-            final PosixFileAttributes attributes = getPosixFileAttributes(path);
+			if (owner != null) {
+				final String attributeViewOwner = getFileOwner(path);
+				if (attributeViewOwner.contains(owner) == false) {
+					mismatch = "Owned by " + attributeViewOwner;
+					return false;
+				}
+			}
+		} else {
+			final PosixFileAttributes attributes = getPosixFileAttributes(path);
 
-            if (fileness.equals(Fileness.Directory) != attributes.isDirectory()) {
-                mismatch = "Is " + (attributes.isDirectory() ? "a directory" : "a file");
-                return false;
-            }
+			if (fileness.equals(Fileness.Directory) != attributes.isDirectory()) {
+				mismatch = "Is " + (attributes.isDirectory() ? "a directory" : "a file");
+				return false;
+			}
 
-            if (owner != null && owner.equals(attributes.owner().getName()) == false) {
-                mismatch = "Owned by " + attributes.owner().getName();
-                return false;
-            }
+			if (owner != null && owner.equals(attributes.owner().getName()) == false) {
+				mismatch = "Owned by " + attributes.owner().getName();
+				return false;
+			}
 
-            if (group != null && group.equals(attributes.group().getName()) == false) {
-                mismatch = "Owned by group " + attributes.group().getName();
-                return false;
-            }
+			if (group != null && group.equals(attributes.group().getName()) == false) {
+				mismatch = "Owned by group " + attributes.group().getName();
+				return false;
+			}
 
-            if (posixPermissions != null && posixPermissions.equals(attributes.permissions()) == false) {
-                mismatch = "Has permissions " + attributes.permissions();
-                return false;
-            }
-        }
+			if (posixPermissions != null && posixPermissions.equals(attributes.permissions()) == false) {
+				mismatch = "Has permissions " + attributes.permissions();
+				return false;
+			}
+		}
 
-        return true;
-    }
+		return true;
+	}
 
-    @Override
-    public void describeMismatchSafely(Path path, Description description) {
-        description.appendText("path ").appendValue(path);
-        if (mismatch != null) {
-            description.appendText(mismatch);
-        }
-    }
+	@Override
+	public void describeMismatchSafely(Path path, Description description) {
+		description.appendText("path ").appendValue(path);
+		if (mismatch != null) {
+			description.appendText(mismatch);
+		}
+	}
 
-    @Override
-    public void describeTo(Description description) {
-        description.appendValue("file/directory: ")
-            .appendValue(fileness)
-            .appendText(" with owner ")
-            .appendValue(owner)
-            .appendText(" with group ")
-            .appendValue(group)
-            .appendText(" with posix permissions ")
-            .appendValueList("[", ",", "]", posixPermissions);
-    }
+	@Override
+	public void describeTo(Description description) {
+		description.appendValue("file/directory: ")
+			.appendValue(fileness)
+			.appendText(" with owner ")
+			.appendValue(owner)
+			.appendText(" with group ")
+			.appendValue(group)
+			.appendText(" with posix permissions ")
+			.appendValueList("[", ",", "]", posixPermissions);
+	}
 
-    public static FileMatcher file(Fileness fileness, String owner) {
-        return file(fileness, owner, null, null);
-    }
+	public static FileMatcher file(Fileness fileness, String owner) {
+		return file(fileness, owner, null, null);
+	}
 
-    public static FileMatcher file(Fileness fileness, String owner, String group, Set<PosixFilePermission> permissions) {
-        return new FileMatcher(fileness, owner, group, permissions);
-    }
+	public static FileMatcher file(Fileness fileness, String owner, String group, Set<PosixFilePermission> permissions) {
+		return new FileMatcher(fileness, owner, group, permissions);
+	}
 }

@@ -35,9 +35,9 @@ import org.junit.Test;
 
 public class LooksLikeATestWithoutNamingConvention1 {
 
-    @Test
-    public void annotatedTestMethod() {
+	@Test
+	public void annotatedTestMethod() {
 
-    }
+	}
 
 }

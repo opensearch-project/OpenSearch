@@ -63,79 +63,79 @@ import java.util.stream.Stream;
  */
 public class Reaper implements Closeable {
 
-    private Path inputDir;
-    private boolean failed;
+	private Path inputDir;
+	private boolean failed;
 
-    private Reaper(Path inputDir) {
-        this.inputDir = inputDir;
-        this.failed = false;
-    }
+	private Reaper(Path inputDir) {
+		this.inputDir = inputDir;
+		this.failed = false;
+	}
 
-    public static void main(String[] args) throws Exception {
-        if (args.length != 1) {
-            System.err.println("Expected one argument.\nUsage: java -jar reaper.jar <DIR_OF_REAPING_COMMANDS>");
-            System.exit(1);
-        }
-        Path inputDir = Paths.get(args[0]);
+	public static void main(String[] args) throws Exception {
+		if (args.length != 1) {
+			System.err.println("Expected one argument.\nUsage: java -jar reaper.jar <DIR_OF_REAPING_COMMANDS>");
+			System.exit(1);
+		}
+		Path inputDir = Paths.get(args[0]);
 
-        try (Reaper reaper = new Reaper(inputDir)) {
-            System.in.read();
-            reaper.reap();
-        }
-    }
+		try (Reaper reaper = new Reaper(inputDir)) {
+			System.in.read();
+			reaper.reap();
+		}
+	}
 
-    private void reap() {
-        try (Stream<Path> stream = Files.list(inputDir)) {
-            final List<Path> inputFiles = stream.filter(p -> p.getFileName().toString().endsWith(".cmd")).collect(Collectors.toList());
+	private void reap() {
+		try (Stream<Path> stream = Files.list(inputDir)) {
+			final List<Path> inputFiles = stream.filter(p -> p.getFileName().toString().endsWith(".cmd")).collect(Collectors.toList());
 
-            for (Path inputFile : inputFiles) {
-                System.out.println("Process file: " + inputFile);
-                String line = Files.readString(inputFile);
-                System.out.println("Running command: " + line);
-                String[] command = line.split(" ");
-                Process process = Runtime.getRuntime().exec(command);
-                int ret = process.waitFor();
+			for (Path inputFile : inputFiles) {
+				System.out.println("Process file: " + inputFile);
+				String line = Files.readString(inputFile);
+				System.out.println("Running command: " + line);
+				String[] command = line.split(" ");
+				Process process = Runtime.getRuntime().exec(command);
+				int ret = process.waitFor();
 
-                System.out.print("Stdout: ");
-                process.getInputStream().transferTo(System.out);
-                System.out.print("\nStderr: ");
-                process.getErrorStream().transferTo(System.out);
-                System.out.println(); // end the stream
-                if (ret != 0) {
-                    logFailure("Command [" + line + "] failed with exit code " + ret, null);
-                } else {
-                    delete(inputFile);
-                }
-            }
-        } catch (Exception e) {
-            logFailure("Failed to reap inputs", e);
-        }
-    }
+				System.out.print("Stdout: ");
+				process.getInputStream().transferTo(System.out);
+				System.out.print("\nStderr: ");
+				process.getErrorStream().transferTo(System.out);
+				System.out.println(); // end the stream
+				if (ret != 0) {
+					logFailure("Command [" + line + "] failed with exit code " + ret, null);
+				} else {
+					delete(inputFile);
+				}
+			}
+		} catch (Exception e) {
+			logFailure("Failed to reap inputs", e);
+		}
+	}
 
-    private void logFailure(String message, Exception e) {
-        System.err.println(message);
-        if (e != null) {
-            e.printStackTrace(System.err);
-        }
-        failed = true;
-    }
+	private void logFailure(String message, Exception e) {
+		System.err.println(message);
+		if (e != null) {
+			e.printStackTrace(System.err);
+		}
+		failed = true;
+	}
 
-    private void delete(Path toDelete) {
-        try {
-            Files.delete(toDelete);
-        } catch (IOException e) {
-            logFailure("Failed to delete [" + toDelete + "]", e);
-        }
-    }
+	private void delete(Path toDelete) {
+		try {
+			Files.delete(toDelete);
+		} catch (IOException e) {
+			logFailure("Failed to delete [" + toDelete + "]", e);
+		}
+	}
 
-    @Override
-    public void close() {
-        if (failed == false) {
-            try (Stream<Path> stream = Files.walk(inputDir)) {
-                stream.sorted(Comparator.reverseOrder()).forEach(this::delete);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-    }
+	@Override
+	public void close() {
+		if (failed == false) {
+			try (Stream<Path> stream = Files.walk(inputDir)) {
+				stream.sorted(Comparator.reverseOrder()).forEach(this::delete);
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+		}
+	}
 }

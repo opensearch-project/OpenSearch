@@ -93,151 +93,151 @@ import static java.util.Collections.emptyList;
 @State(Scope.Thread)
 @Fork(value = 1)
 public class TermsReduceBenchmark {
-    private final SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
-    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-    private final SearchPhaseController controller = new SearchPhaseController(
-        namedWriteableRegistry,
-        req -> new InternalAggregation.ReduceContextBuilder() {
-            @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY);
-            }
+	private final SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+	private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+	private final SearchPhaseController controller = new SearchPhaseController(
+		namedWriteableRegistry,
+		req -> new InternalAggregation.ReduceContextBuilder() {
+			@Override
+			public InternalAggregation.ReduceContext forPartialReduction() {
+				return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY);
+			}
 
-            @Override
-            public InternalAggregation.ReduceContext forFinalReduction() {
-                final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
-                    Integer.MAX_VALUE,
-                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-                );
-                return InternalAggregation.ReduceContext.forFinalReduction(
-                    null,
-                    null,
-                    bucketConsumer,
-                    PipelineAggregator.PipelineTree.EMPTY
-                );
-            }
-        }
-    );
+			@Override
+			public InternalAggregation.ReduceContext forFinalReduction() {
+				final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+					Integer.MAX_VALUE,
+					new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+				);
+				return InternalAggregation.ReduceContext.forFinalReduction(
+					null,
+					null,
+					bucketConsumer,
+					PipelineAggregator.PipelineTree.EMPTY
+				);
+			}
+		}
+	);
 
-    @State(Scope.Benchmark)
-    public static class TermsList extends AbstractList<InternalAggregations> {
-        @Param({ "1600172297" })
-        long seed;
+	@State(Scope.Benchmark)
+	public static class TermsList extends AbstractList<InternalAggregations> {
+		@Param({ "1600172297" })
+		long seed;
 
-        @Param({ "64", "128", "512" })
-        int numShards;
+		@Param({ "64", "128", "512" })
+		int numShards;
 
-        @Param({ "100" })
-        int topNSize;
+		@Param({ "100" })
+		int topNSize;
 
-        @Param({ "1", "10", "100" })
-        int cardinalityFactor;
+		@Param({ "1", "10", "100" })
+		int cardinalityFactor;
 
-        List<InternalAggregations> aggsList;
+		List<InternalAggregations> aggsList;
 
-        @Setup
-        public void setup() {
-            this.aggsList = new ArrayList<>();
-            Random rand = new Random(seed);
-            int cardinality = cardinalityFactor * topNSize;
-            BytesRef[] dict = new BytesRef[cardinality];
-            for (int i = 0; i < dict.length; i++) {
-                dict[i] = new BytesRef(Long.toString(rand.nextLong()));
-            }
-            for (int i = 0; i < numShards; i++) {
-                aggsList.add(InternalAggregations.from(Collections.singletonList(newTerms(rand, dict, true))));
-            }
-        }
+		@Setup
+		public void setup() {
+			this.aggsList = new ArrayList<>();
+			Random rand = new Random(seed);
+			int cardinality = cardinalityFactor * topNSize;
+			BytesRef[] dict = new BytesRef[cardinality];
+			for (int i = 0; i < dict.length; i++) {
+				dict[i] = new BytesRef(Long.toString(rand.nextLong()));
+			}
+			for (int i = 0; i < numShards; i++) {
+				aggsList.add(InternalAggregations.from(Collections.singletonList(newTerms(rand, dict, true))));
+			}
+		}
 
-        private StringTerms newTerms(Random rand, BytesRef[] dict, boolean withNested) {
-            Set<BytesRef> randomTerms = new HashSet<>();
-            for (int i = 0; i < topNSize; i++) {
-                randomTerms.add(dict[rand.nextInt(dict.length)]);
-            }
-            List<StringTerms.Bucket> buckets = new ArrayList<>();
-            for (BytesRef term : randomTerms) {
-                InternalAggregations subAggs;
-                if (withNested) {
-                    subAggs = InternalAggregations.from(Collections.singletonList(newTerms(rand, dict, false)));
-                } else {
-                    subAggs = InternalAggregations.EMPTY;
-                }
-                buckets.add(new StringTerms.Bucket(term, rand.nextInt(10000), subAggs, true, 0L, DocValueFormat.RAW));
-            }
+		private StringTerms newTerms(Random rand, BytesRef[] dict, boolean withNested) {
+			Set<BytesRef> randomTerms = new HashSet<>();
+			for (int i = 0; i < topNSize; i++) {
+				randomTerms.add(dict[rand.nextInt(dict.length)]);
+			}
+			List<StringTerms.Bucket> buckets = new ArrayList<>();
+			for (BytesRef term : randomTerms) {
+				InternalAggregations subAggs;
+				if (withNested) {
+					subAggs = InternalAggregations.from(Collections.singletonList(newTerms(rand, dict, false)));
+				} else {
+					subAggs = InternalAggregations.EMPTY;
+				}
+				buckets.add(new StringTerms.Bucket(term, rand.nextInt(10000), subAggs, true, 0L, DocValueFormat.RAW));
+			}
 
-            Collections.sort(buckets, (a, b) -> a.compareKey(b));
-            return new StringTerms(
-                "terms",
-                BucketOrder.key(true),
-                BucketOrder.count(false),
-                topNSize,
-                1,
-                Collections.emptyMap(),
-                DocValueFormat.RAW,
-                numShards,
-                true,
-                0,
-                buckets,
-                0
-            );
-        }
+			Collections.sort(buckets, (a, b) -> a.compareKey(b));
+			return new StringTerms(
+				"terms",
+				BucketOrder.key(true),
+				BucketOrder.count(false),
+				topNSize,
+				1,
+				Collections.emptyMap(),
+				DocValueFormat.RAW,
+				numShards,
+				true,
+				0,
+				buckets,
+				0
+			);
+		}
 
-        @Override
-        public InternalAggregations get(int index) {
-            return aggsList.get(index);
-        }
+		@Override
+		public InternalAggregations get(int index) {
+			return aggsList.get(index);
+		}
 
-        @Override
-        public int size() {
-            return aggsList.size();
-        }
-    }
+		@Override
+		public int size() {
+			return aggsList.size();
+		}
+	}
 
-    @Param({ "32", "512" })
-    private int bufferSize;
+	@Param({ "32", "512" })
+	private int bufferSize;
 
-    @Benchmark
-    public SearchPhaseController.ReducedQueryPhase reduceAggs(TermsList candidateList) throws Exception {
-        List<QuerySearchResult> shards = new ArrayList<>();
-        for (int i = 0; i < candidateList.size(); i++) {
-            QuerySearchResult result = new QuerySearchResult();
-            result.setShardIndex(i);
-            result.from(0);
-            result.size(0);
-            result.topDocs(
-                new TopDocsAndMaxScore(
-                    new TopDocs(new TotalHits(1000, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), new ScoreDoc[0]),
-                    Float.NaN
-                ),
-                new DocValueFormat[] { DocValueFormat.RAW }
-            );
-            result.aggregations(candidateList.get(i));
-            result.setSearchShardTarget(
-                new SearchShardTarget("node", new ShardId(new Index("index", "index"), i), null, OriginalIndices.NONE)
-            );
-            shards.add(result);
-        }
-        SearchRequest request = new SearchRequest();
-        request.source(new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.terms("test")));
-        request.setBatchedReduceSize(bufferSize);
-        ExecutorService executor = Executors.newFixedThreadPool(1);
-        QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
-            request,
-            executor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            controller,
-            SearchProgressListener.NOOP,
-            namedWriteableRegistry,
-            shards.size(),
-            exc -> {}
-        );
-        CountDownLatch latch = new CountDownLatch(shards.size());
-        for (int i = 0; i < shards.size(); i++) {
-            consumer.consumeResult(shards.get(i), () -> latch.countDown());
-        }
-        latch.await();
-        SearchPhaseController.ReducedQueryPhase phase = consumer.reduce();
-        executor.shutdownNow();
-        return phase;
-    }
+	@Benchmark
+	public SearchPhaseController.ReducedQueryPhase reduceAggs(TermsList candidateList) throws Exception {
+		List<QuerySearchResult> shards = new ArrayList<>();
+		for (int i = 0; i < candidateList.size(); i++) {
+			QuerySearchResult result = new QuerySearchResult();
+			result.setShardIndex(i);
+			result.from(0);
+			result.size(0);
+			result.topDocs(
+				new TopDocsAndMaxScore(
+					new TopDocs(new TotalHits(1000, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), new ScoreDoc[0]),
+					Float.NaN
+				),
+				new DocValueFormat[] { DocValueFormat.RAW }
+			);
+			result.aggregations(candidateList.get(i));
+			result.setSearchShardTarget(
+				new SearchShardTarget("node", new ShardId(new Index("index", "index"), i), null, OriginalIndices.NONE)
+			);
+			shards.add(result);
+		}
+		SearchRequest request = new SearchRequest();
+		request.source(new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.terms("test")));
+		request.setBatchedReduceSize(bufferSize);
+		ExecutorService executor = Executors.newFixedThreadPool(1);
+		QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+			request,
+			executor,
+			new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+			controller,
+			SearchProgressListener.NOOP,
+			namedWriteableRegistry,
+			shards.size(),
+			exc -> {}
+		);
+		CountDownLatch latch = new CountDownLatch(shards.size());
+		for (int i = 0; i < shards.size(); i++) {
+			consumer.consumeResult(shards.get(i), () -> latch.countDown());
+		}
+		latch.await();
+		SearchPhaseController.ReducedQueryPhase phase = consumer.reduce();
+		executor.shutdownNow();
+		return phase;
+	}
 }

@@ -23,6 +23,30 @@
   <!-- Intentionally has long example curl commands to coincide with sibling Painless tests. -->
   <suppress files="modules[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]opensearch[/\\]painless[/\\]ContextExampleTests.java" checks="LineLength" />
 
+  <!-- Intentionally has long return statements to coincide with sibling Painless tests. -->
+  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]opensearch[/\\]cluster[/\\]service[/\\]MasterService.java" checks="LineLength" />
+  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]opensearch[/\\]cluster[/\\]routing[/\\]ShardRouting.java" checks="LineLength" />
+  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]opensearch[/\\]snapshots[/\\]SnapshotsService.java" checks="LineLength" />
+  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]opensearch[/\\]gateway[/\\]PrimaryShardAllocator.java" checks="LineLength" />
+  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]opensearch[/\\]index[/\\]mapper[/\\]DocumentParser.java" checks="LineLength" />
+  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]opensearch[/\\]index[/\\]translog[/\\]Translog.java" checks="LineLength" />
+  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]opensearch[/\\]search[/\\]aggregations[/\\]InternalAggregation.java" checks="LineLength" />
+
+  <!-- Suppression for long annotations -->
+  <suppress files="server[/\\]src[/\\]internalClusterTest/[/\\]java[/\\]org[/\\]opensearch[/\\]action[/\\]admin[/\\]indices[/\\]exists[/\\]IndicesExistsIT.java" checks="LineLength" />
+  <suppress files="server[/\\]src[/\\]internalClusterTest/[/\\]java[/\\]org[/\\]opensearch[/\\]bwcompat[/\\]RecoveryWithUnsupportedIndicesIT.java" checks="LineLength" /> 
+  <suppress files="server[/\\]src[/\\]internalClusterTest/[/\\]java[/\\]org[/\\]opensearch[/\\]cluster[/\\]coordination[/\\]RareClusterStateIT.java" checks="LineLength"/>
+  <suppress files="server[/\\]src[/\\]internalClusterTest/[/\\]java[/\\]org[/\\]opensearch[/\\]discovery[/\\]ClusterDisruptionIT.java" checks="LineLength"/>
+  <suppress files="server[/\\]src[/\\]internalClusterTest/[/\\]java[/\\]org[/\\]opensearch[/\\]discovery[/\\]single[/\\]SingleNodeDiscoveryIT.java" checks="LineLength"/>
+  <suppress files="server[/\\]src[/\\]internalClusterTest/[/\\]java[/\\]org[/\\]opensearch[/\\]index[/\\]IndexingPressureIT.java" checks="LineLength"/>
+  <suppress files="server[/\\]src[/\\]internalClusterTest/[/\\]java[/\\]org[/\\]opensearch[/\\]index[/\\]store[/\\]ExceptionRetryIT.java" checks="LineLength"/>
+  <suppress files="server[/\\]src[/\\]internalClusterTest/[/\\]java[/\\]org[/\\]opensearch[/\\]search[/\\]query[/\\]SearchQueryIT.java" checks="LineLength"/>
+  <suppress files="server[/\\]src[/\\]internalClusterTest/[/\\]java[/\\]org[/\\]opensearch[/\\]versioning[/\\]ConcurrentSeqNoVersioningIT.java" checks="LineLength"/>
+
+  <!-- Intentionally has long assert tests to coincide with sibling Painless tests. -->
+  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]opensearch[/\\]common[/\\]settings[/\\]SettingTests.java" checks="LineLength" />
+  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]opensearch[/\\]transport[/\\]RemoteClusterClientTests.java" checks="LineLength" />
+
   <!--
     Truly temporary suppressions suppression of snippets included in
     documentation that are so wide that they scroll.

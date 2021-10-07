@@ -77,103 +77,103 @@ import static java.util.Collections.unmodifiableList;
 
 public class OpenSearchDashboardsPlugin extends Plugin implements SystemIndexPlugin {
 
-    public static final Setting<List<String>> OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING = Setting.listSetting(
-        "opensearch_dashboards.system_indices",
-        unmodifiableList(
-            Arrays.asList(
-                ".opensearch_dashboards",
-                ".opensearch_dashboards_*",
-                ".reporting-*",
-                ".apm-agent-configuration",
-                ".apm-custom-link"
-            )
-        ),
-        Function.identity(),
-        Property.NodeScope
-    );
+	public static final Setting<List<String>> OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING = Setting.listSetting(
+		"opensearch_dashboards.system_indices",
+		unmodifiableList(
+			Arrays.asList(
+				".opensearch_dashboards",
+				".opensearch_dashboards_*",
+				".reporting-*",
+				".apm-agent-configuration",
+				".apm-custom-link"
+			)
+		),
+		Function.identity(),
+		Property.NodeScope
+	);
 
-    @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return unmodifiableList(
-            OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING.get(settings)
-                .stream()
-                .map(pattern -> new SystemIndexDescriptor(pattern, "System index used by OpenSearch Dashboards"))
-                .collect(Collectors.toList())
-        );
-    }
+	@Override
+	public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+		return unmodifiableList(
+			OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING.get(settings)
+				.stream()
+				.map(pattern -> new SystemIndexDescriptor(pattern, "System index used by OpenSearch Dashboards"))
+				.collect(Collectors.toList())
+		);
+	}
 
-    @Override
-    public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
-    ) {
-        // TODO need to figure out what subset of system indices OpenSearch Dashboards should have access to via these APIs
-        return unmodifiableList(
-            Arrays.asList(
-                // Based on https://github.com/elastic/kibana/issues/49764
-                // apis needed to perform migrations... ideally these will go away
-                new OpenSearchDashboardsWrappedRestHandler(new RestCreateIndexAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new RestGetAliasesAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new RestIndexPutAliasAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new RestRefreshAction()),
+	@Override
+	public List<RestHandler> getRestHandlers(
+		Settings settings,
+		RestController restController,
+		ClusterSettings clusterSettings,
+		IndexScopedSettings indexScopedSettings,
+		SettingsFilter settingsFilter,
+		IndexNameExpressionResolver indexNameExpressionResolver,
+		Supplier<DiscoveryNodes> nodesInCluster
+	) {
+		// TODO need to figure out what subset of system indices OpenSearch Dashboards should have access to via these APIs
+		return unmodifiableList(
+			Arrays.asList(
+				// Based on https://github.com/elastic/kibana/issues/49764
+				// apis needed to perform migrations... ideally these will go away
+				new OpenSearchDashboardsWrappedRestHandler(new RestCreateIndexAction()),
+				new OpenSearchDashboardsWrappedRestHandler(new RestGetAliasesAction()),
+				new OpenSearchDashboardsWrappedRestHandler(new RestIndexPutAliasAction()),
+				new OpenSearchDashboardsWrappedRestHandler(new RestRefreshAction()),
 
-                // apis needed to access saved objects
-                new OpenSearchDashboardsWrappedRestHandler(new RestGetAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new RestMultiGetAction(settings)),
-                new OpenSearchDashboardsWrappedRestHandler(new RestSearchAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new RestBulkAction(settings)),
-                new OpenSearchDashboardsWrappedRestHandler(new RestDeleteAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new RestDeleteByQueryAction()),
+				// apis needed to access saved objects
+				new OpenSearchDashboardsWrappedRestHandler(new RestGetAction()),
+				new OpenSearchDashboardsWrappedRestHandler(new RestMultiGetAction(settings)),
+				new OpenSearchDashboardsWrappedRestHandler(new RestSearchAction()),
+				new OpenSearchDashboardsWrappedRestHandler(new RestBulkAction(settings)),
+				new OpenSearchDashboardsWrappedRestHandler(new RestDeleteAction()),
+				new OpenSearchDashboardsWrappedRestHandler(new RestDeleteByQueryAction()),
 
-                // api used for testing
-                new OpenSearchDashboardsWrappedRestHandler(new RestUpdateSettingsAction()),
+				// api used for testing
+				new OpenSearchDashboardsWrappedRestHandler(new RestUpdateSettingsAction()),
 
-                // apis used specifically by reporting
-                new OpenSearchDashboardsWrappedRestHandler(new RestGetIndicesAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new RestIndexAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new CreateHandler()),
-                new OpenSearchDashboardsWrappedRestHandler(new AutoIdHandler(nodesInCluster)),
-                new OpenSearchDashboardsWrappedRestHandler(new RestUpdateAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new RestSearchScrollAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new RestClearScrollAction())
-            )
-        );
+				// apis used specifically by reporting
+				new OpenSearchDashboardsWrappedRestHandler(new RestGetIndicesAction()),
+				new OpenSearchDashboardsWrappedRestHandler(new RestIndexAction()),
+				new OpenSearchDashboardsWrappedRestHandler(new CreateHandler()),
+				new OpenSearchDashboardsWrappedRestHandler(new AutoIdHandler(nodesInCluster)),
+				new OpenSearchDashboardsWrappedRestHandler(new RestUpdateAction()),
+				new OpenSearchDashboardsWrappedRestHandler(new RestSearchScrollAction()),
+				new OpenSearchDashboardsWrappedRestHandler(new RestClearScrollAction())
+			)
+		);
 
-    }
+	}
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Collections.singletonList(OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING);
-    }
+	@Override
+	public List<Setting<?>> getSettings() {
+		return Collections.singletonList(OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING);
+	}
 
-    static class OpenSearchDashboardsWrappedRestHandler extends BaseRestHandler.Wrapper {
+	static class OpenSearchDashboardsWrappedRestHandler extends BaseRestHandler.Wrapper {
 
-        OpenSearchDashboardsWrappedRestHandler(BaseRestHandler delegate) {
-            super(delegate);
-        }
+		OpenSearchDashboardsWrappedRestHandler(BaseRestHandler delegate) {
+			super(delegate);
+		}
 
-        @Override
-        public String getName() {
-            return "opensearch_dashboards_" + super.getName();
-        }
+		@Override
+		public String getName() {
+			return "opensearch_dashboards_" + super.getName();
+		}
 
-        @Override
-        public boolean allowSystemIndexAccessByDefault() {
-            return true;
-        }
+		@Override
+		public boolean allowSystemIndexAccessByDefault() {
+			return true;
+		}
 
-        @Override
-        public List<Route> routes() {
-            return unmodifiableList(
-                super.routes().stream()
-                    .map(route -> new Route(route.getMethod(), "/_opensearch_dashboards" + route.getPath()))
-                    .collect(Collectors.toList())
-            );
-        }
-    }
+		@Override
+		public List<Route> routes() {
+			return unmodifiableList(
+				super.routes().stream()
+					.map(route -> new Route(route.getMethod(), "/_opensearch_dashboards" + route.getPath()))
+					.collect(Collectors.toList())
+			);
+		}
+	}
 }

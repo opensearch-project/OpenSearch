@@ -38,7 +38,7 @@ package org.opensearch.gradle.test;
  */
 public interface Fixture {
 
-    /** A task which will stop this fixture. This should be used as a finalizedBy for any tasks that use the fixture. */
-    Object getStopTask();
+	/** A task which will stop this fixture. This should be used as a finalizedBy for any tasks that use the fixture. */
+	Object getStopTask();
 
 }

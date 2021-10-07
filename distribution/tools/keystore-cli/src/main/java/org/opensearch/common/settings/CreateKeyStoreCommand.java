@@ -49,28 +49,28 @@ import org.opensearch.env.Environment;
  */
 class CreateKeyStoreCommand extends KeyStoreAwareCommand {
 
-    private final OptionSpec<Void> passwordOption;
+	private final OptionSpec<Void> passwordOption;
 
-    CreateKeyStoreCommand() {
-        super("Creates a new opensearch keystore");
-        this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"), "Prompt for password to encrypt the keystore");
-    }
+	CreateKeyStoreCommand() {
+		super("Creates a new opensearch keystore");
+		this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"), "Prompt for password to encrypt the keystore");
+	}
 
-    @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        try (SecureString password = options.has(passwordOption) ? readPassword(terminal, true) : new SecureString(new char[0])) {
-            Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
-            if (Files.exists(keystoreFile)) {
-                if (terminal.promptYesNo("An opensearch keystore already exists. Overwrite?", false) == false) {
-                    terminal.println("Exiting without creating keystore.");
-                    return;
-                }
-            }
-            KeyStoreWrapper keystore = KeyStoreWrapper.create();
-            keystore.save(env.configFile(), password.getChars());
-            terminal.println("Created opensearch keystore in " + KeyStoreWrapper.keystorePath(env.configFile()));
-        } catch (SecurityException e) {
-            throw new UserException(ExitCodes.IO_ERROR, "Error creating the opensearch keystore.");
-        }
-    }
+	@Override
+	protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+		try (SecureString password = options.has(passwordOption) ? readPassword(terminal, true) : new SecureString(new char[0])) {
+			Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
+			if (Files.exists(keystoreFile)) {
+				if (terminal.promptYesNo("An opensearch keystore already exists. Overwrite?", false) == false) {
+					terminal.println("Exiting without creating keystore.");
+					return;
+				}
+			}
+			KeyStoreWrapper keystore = KeyStoreWrapper.create();
+			keystore.save(env.configFile(), password.getChars());
+			terminal.println("Created opensearch keystore in " + KeyStoreWrapper.keystorePath(env.configFile()));
+		} catch (SecurityException e) {
+			throw new UserException(ExitCodes.IO_ERROR, "Error creating the opensearch keystore.");
+		}
+	}
 }

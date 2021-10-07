@@ -32,15 +32,15 @@
 package org.opensearch.gradle.testclusters;
 
 class TestClustersException extends RuntimeException {
-    TestClustersException(String message) {
-        super(message);
-    }
+	TestClustersException(String message) {
+		super(message);
+	}
 
-    TestClustersException(String message, Throwable cause) {
-        super(message, cause);
-    }
+	TestClustersException(String message, Throwable cause) {
+		super(message, cause);
+	}
 
-    TestClustersException(Throwable cause) {
-        super(cause);
-    }
+	TestClustersException(Throwable cause) {
+		super(cause);
+	}
 }

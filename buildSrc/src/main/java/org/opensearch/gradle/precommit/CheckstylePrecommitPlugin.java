@@ -52,69 +52,69 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
 public class CheckstylePrecommitPlugin extends PrecommitPlugin {
-    @Override
-    public TaskProvider<? extends Task> createTask(Project project) {
-        // Always copy the checkstyle configuration files to 'buildDir/checkstyle' since the resources could be located in a jar
-        // file. If the resources are located in a jar, Gradle will fail when it tries to turn the URL into a file
-        URL checkstyleConfUrl = CheckstylePrecommitPlugin.class.getResource("/checkstyle.xml");
-        URL checkstyleSuppressionsUrl = CheckstylePrecommitPlugin.class.getResource("/checkstyle_suppressions.xml");
-        File checkstyleDir = new File(project.getBuildDir(), "checkstyle");
-        File checkstyleSuppressions = new File(checkstyleDir, "checkstyle_suppressions.xml");
-        File checkstyleConf = new File(checkstyleDir, "checkstyle.xml");
-        TaskProvider<Task> copyCheckstyleConf = project.getTasks().register("copyCheckstyleConf");
+	@Override
+	public TaskProvider<? extends Task> createTask(Project project) {
+		// Always copy the checkstyle configuration files to 'buildDir/checkstyle' since the resources could be located in a jar
+		// file. If the resources are located in a jar, Gradle will fail when it tries to turn the URL into a file
+		URL checkstyleConfUrl = CheckstylePrecommitPlugin.class.getResource("/checkstyle.xml");
+		URL checkstyleSuppressionsUrl = CheckstylePrecommitPlugin.class.getResource("/checkstyle_suppressions.xml");
+		File checkstyleDir = new File(project.getBuildDir(), "checkstyle");
+		File checkstyleSuppressions = new File(checkstyleDir, "checkstyle_suppressions.xml");
+		File checkstyleConf = new File(checkstyleDir, "checkstyle.xml");
+		TaskProvider<Task> copyCheckstyleConf = project.getTasks().register("copyCheckstyleConf");
 
-        // configure inputs and outputs so up to date works properly
-        copyCheckstyleConf.configure(t -> t.getOutputs().files(checkstyleSuppressions, checkstyleConf));
-        if ("jar".equals(checkstyleConfUrl.getProtocol())) {
-            try {
-                JarURLConnection jarURLConnection = (JarURLConnection) checkstyleConfUrl.openConnection();
-                copyCheckstyleConf.configure(t -> t.getInputs().file(jarURLConnection.getJarFileURL()));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        } else if ("file".equals(checkstyleConfUrl.getProtocol())) {
-            copyCheckstyleConf.configure(t -> t.getInputs().files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile()));
-        }
+		// configure inputs and outputs so up to date works properly
+		copyCheckstyleConf.configure(t -> t.getOutputs().files(checkstyleSuppressions, checkstyleConf));
+		if ("jar".equals(checkstyleConfUrl.getProtocol())) {
+			try {
+				JarURLConnection jarURLConnection = (JarURLConnection) checkstyleConfUrl.openConnection();
+				copyCheckstyleConf.configure(t -> t.getInputs().file(jarURLConnection.getJarFileURL()));
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+		} else if ("file".equals(checkstyleConfUrl.getProtocol())) {
+			copyCheckstyleConf.configure(t -> t.getInputs().files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile()));
+		}
 
-        // Explicitly using an Action interface as java lambdas
-        // are not supported by Gradle up-to-date checks
-        copyCheckstyleConf.configure(t -> t.doLast(new Action<Task>() {
-            @Override
-            public void execute(Task task) {
-                checkstyleDir.mkdirs();
-                try (InputStream stream = checkstyleConfUrl.openStream()) {
-                    Files.copy(stream, checkstyleConf.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                try (InputStream stream = checkstyleSuppressionsUrl.openStream()) {
-                    Files.copy(stream, checkstyleSuppressions.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        }));
+		// Explicitly using an Action interface as java lambdas
+		// are not supported by Gradle up-to-date checks
+		copyCheckstyleConf.configure(t -> t.doLast(new Action<Task>() {
+			@Override
+			public void execute(Task task) {
+				checkstyleDir.mkdirs();
+				try (InputStream stream = checkstyleConfUrl.openStream()) {
+					Files.copy(stream, checkstyleConf.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				} catch (IOException e) {
+					throw new UncheckedIOException(e);
+				}
+				try (InputStream stream = checkstyleSuppressionsUrl.openStream()) {
+					Files.copy(stream, checkstyleSuppressions.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				} catch (IOException e) {
+					throw new UncheckedIOException(e);
+				}
+			}
+		}));
 
-        TaskProvider<Task> checkstyleTask = project.getTasks().register("checkstyle");
-        checkstyleTask.configure(t -> t.dependsOn(project.getTasks().withType(Checkstyle.class)));
+		TaskProvider<Task> checkstyleTask = project.getTasks().register("checkstyle");
+		checkstyleTask.configure(t -> t.dependsOn(project.getTasks().withType(Checkstyle.class)));
 
-        // Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
-        // creates them if there is main or test code to check and it makes `check` depend
-        // on them. We also want `precommit` to depend on `checkstyle`.
-        project.getPluginManager().apply("checkstyle");
-        CheckstyleExtension checkstyle = project.getExtensions().getByType(CheckstyleExtension.class);
-        checkstyle.getConfigDirectory().set(checkstyleDir);
+		// Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
+		// creates them if there is main or test code to check and it makes `check` depend
+		// on them. We also want `precommit` to depend on `checkstyle`.
+		project.getPluginManager().apply("checkstyle");
+		CheckstyleExtension checkstyle = project.getExtensions().getByType(CheckstyleExtension.class);
+		checkstyle.getConfigDirectory().set(checkstyleDir);
 
-        DependencyHandler dependencies = project.getDependencies();
-        String checkstyleVersion = VersionProperties.getVersions().get("checkstyle");
-        dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
-        dependencies.add("checkstyle", project.files(Util.getBuildSrcCodeSource()));
+		DependencyHandler dependencies = project.getDependencies();
+		String checkstyleVersion = VersionProperties.getVersions().get("checkstyle");
+		dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
+		dependencies.add("checkstyle", project.files(Util.getBuildSrcCodeSource()));
 
-        project.getTasks().withType(Checkstyle.class).configureEach(t -> {
-            t.dependsOn(copyCheckstyleConf);
-            t.reports(r -> r.getHtml().setEnabled(false));
-        });
+		project.getTasks().withType(Checkstyle.class).configureEach(t -> {
+			t.dependsOn(copyCheckstyleConf);
+			t.reports(r -> r.getHtml().setEnabled(false));
+		});
 
-        return checkstyleTask;
-    }
+		return checkstyleTask;
+	}
 }

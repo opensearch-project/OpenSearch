@@ -58,111 +58,111 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class UpdateShasTaskTests extends GradleUnitTestCase {
 
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
+	@Rule
+	public ExpectedException expectedException = ExpectedException.none();
 
-    private UpdateShasTask task;
+	private UpdateShasTask task;
 
-    private Project project;
+	private Project project;
 
-    private Dependency dependency;
+	private Dependency dependency;
 
-    @Before
-    public void prepare() throws IOException {
-        project = createProject();
-        task = createUpdateShasTask(project);
-        dependency = project.getDependencies().localGroovy();
+	@Before
+	public void prepare() throws IOException {
+		project = createProject();
+		task = createUpdateShasTask(project);
+		dependency = project.getDependencies().localGroovy();
 
-    }
+	}
 
-    @Test
-    public void whenDependencyDoesntExistThenShouldDeleteDependencySha() throws IOException, NoSuchAlgorithmException {
+	@Test
+	public void whenDependencyDoesntExistThenShouldDeleteDependencySha() throws IOException, NoSuchAlgorithmException {
 
-        File unusedSha = createFileIn(getLicensesDir(project), "test.sha1", "");
-        task.updateShas();
+		File unusedSha = createFileIn(getLicensesDir(project), "test.sha1", "");
+		task.updateShas();
 
-        assertFalse(unusedSha.exists());
-    }
+		assertFalse(unusedSha.exists());
+	}
 
-    @Test
-    public void whenDependencyExistsButShaNotThenShouldCreateNewShaFile() throws IOException, NoSuchAlgorithmException {
-        project.getDependencies().add("compile", dependency);
+	@Test
+	public void whenDependencyExistsButShaNotThenShouldCreateNewShaFile() throws IOException, NoSuchAlgorithmException {
+		project.getDependencies().add("compile", dependency);
 
-        getLicensesDir(project).mkdir();
-        task.updateShas();
+		getLicensesDir(project).mkdir();
+		task.updateShas();
 
-        Path groovySha = Files.list(getLicensesDir(project).toPath()).findFirst().get();
+		Path groovySha = Files.list(getLicensesDir(project).toPath()).findFirst().get();
 
-        assertTrue(groovySha.toFile().getName().startsWith("groovy-all"));
-    }
+		assertTrue(groovySha.toFile().getName().startsWith("groovy-all"));
+	}
 
-    @Test
-    public void whenDependencyAndWrongShaExistsThenShouldNotOverwriteShaFile() throws IOException, NoSuchAlgorithmException {
-        project.getDependencies().add("compile", dependency);
+	@Test
+	public void whenDependencyAndWrongShaExistsThenShouldNotOverwriteShaFile() throws IOException, NoSuchAlgorithmException {
+		project.getDependencies().add("compile", dependency);
 
-        File groovyJar = task.getParentTask().getDependencies().getFiles().iterator().next();
-        String groovyShaName = groovyJar.getName() + ".sha1";
+		File groovyJar = task.getParentTask().getDependencies().getFiles().iterator().next();
+		String groovyShaName = groovyJar.getName() + ".sha1";
 
-        File groovySha = createFileIn(getLicensesDir(project), groovyShaName, "content");
-        task.updateShas();
+		File groovySha = createFileIn(getLicensesDir(project), groovyShaName, "content");
+		task.updateShas();
 
-        assertThat(FileUtils.readFileToString(groovySha), equalTo("content"));
-    }
+		assertThat(FileUtils.readFileToString(groovySha), equalTo("content"));
+	}
 
-    @Test
-    public void whenLicensesDirDoesntExistThenShouldThrowException() throws IOException, NoSuchAlgorithmException {
-        expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("isn't a valid directory"));
+	@Test
+	public void whenLicensesDirDoesntExistThenShouldThrowException() throws IOException, NoSuchAlgorithmException {
+		expectedException.expect(GradleException.class);
+		expectedException.expectMessage(containsString("isn't a valid directory"));
 
-        task.updateShas();
-    }
+		task.updateShas();
+	}
 
-    private Project createProject() {
-        Project project = ProjectBuilder.builder().build();
-        project.getPlugins().apply(JavaPlugin.class);
+	private Project createProject() {
+		Project project = ProjectBuilder.builder().build();
+		project.getPlugins().apply(JavaPlugin.class);
 
-        return project;
-    }
+		return project;
+	}
 
-    private File getLicensesDir(Project project) {
-        return getFile(project, "licenses");
-    }
+	private File getLicensesDir(Project project) {
+		return getFile(project, "licenses");
+	}
 
-    private File getFile(Project project, String fileName) {
-        return project.getProjectDir().toPath().resolve(fileName).toFile();
-    }
+	private File getFile(Project project, String fileName) {
+		return project.getProjectDir().toPath().resolve(fileName).toFile();
+	}
 
-    private File createFileIn(File parent, String name, String content) throws IOException {
-        parent.mkdir();
+	private File createFileIn(File parent, String name, String content) throws IOException {
+		parent.mkdir();
 
-        Path path = parent.toPath().resolve(name);
-        File file = path.toFile();
+		Path path = parent.toPath().resolve(name);
+		File file = path.toFile();
 
-        Files.write(path, content.getBytes(), StandardOpenOption.CREATE);
+		Files.write(path, content.getBytes(), StandardOpenOption.CREATE);
 
-        return file;
-    }
+		return file;
+	}
 
-    private UpdateShasTask createUpdateShasTask(Project project) {
-        UpdateShasTask task = project.getTasks().register("updateShas", UpdateShasTask.class).get();
+	private UpdateShasTask createUpdateShasTask(Project project) {
+		UpdateShasTask task = project.getTasks().register("updateShas", UpdateShasTask.class).get();
 
-        task.setParentTask(createDependencyLicensesTask(project));
-        return task;
-    }
+		task.setParentTask(createDependencyLicensesTask(project));
+		return task;
+	}
 
-    private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
-        TaskProvider<DependencyLicensesTask> task = project.getTasks()
-            .register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
-                @Override
-                public void execute(DependencyLicensesTask dependencyLicensesTask) {
-                    dependencyLicensesTask.setDependencies(getDependencies(project));
-                }
-            });
+	private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
+		TaskProvider<DependencyLicensesTask> task = project.getTasks()
+			.register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
+				@Override
+				public void execute(DependencyLicensesTask dependencyLicensesTask) {
+					dependencyLicensesTask.setDependencies(getDependencies(project));
+				}
+			});
 
-        return task;
-    }
+		return task;
+	}
 
-    private FileCollection getDependencies(Project project) {
-        return project.getConfigurations().getByName("compile");
-    }
+	private FileCollection getDependencies(Project project) {
+		return project.getConfigurations().getByName("compile");
+	}
 }

@@ -66,115 +66,114 @@ import java.util.stream.Stream;
  */
 public class ForbiddenPatternsTask extends DefaultTask {
 
-    /*
-     * A pattern set of which files should be checked.
-     */
-    private final PatternFilterable filesFilter = new PatternSet()
-        // we always include all source files, and exclude what should not be checked
-        .include("**")
-        // exclude known binary extensions
-        .exclude("**/*.gz")
-        .exclude("**/*.ico")
-        .exclude("**/*.jar")
-        .exclude("**/*.zip")
-        .exclude("**/*.jks")
-        .exclude("**/*.crt")
-        .exclude("**/*.keystore")
-        .exclude("**/*.png");
+	/*
+	 * A pattern set of which files should be checked.
+	 */
+	private final PatternFilterable filesFilter = new PatternSet()
+		// we always include all source files, and exclude what should not be checked
+		.include("**")
+		// exclude known binary extensions
+		.exclude("**/*.gz")
+		.exclude("**/*.ico")
+		.exclude("**/*.jar")
+		.exclude("**/*.zip")
+		.exclude("**/*.jks")
+		.exclude("**/*.crt")
+		.exclude("**/*.keystore")
+		.exclude("**/*.png");
 
-    /*
-     * The rules: a map from the rule name, to a rule regex pattern.
-     */
-    private final Map<String, String> patterns = new HashMap<>();
+	/*
+	 * The rules: a map from the rule name, to a rule regex pattern.
+	 */
+	private final Map<String, String> patterns = new HashMap<>();
 
-    public ForbiddenPatternsTask() {
-        setDescription("Checks source files for invalid patterns like nocommits or tabs");
-        getInputs().property("excludes", filesFilter.getExcludes());
-        getInputs().property("rules", patterns);
+	public ForbiddenPatternsTask() {
+		setDescription("Checks source files for invalid patterns like nocommits or tabs");
+		getInputs().property("excludes", filesFilter.getExcludes());
+		getInputs().property("rules", patterns);
 
-        // add mandatory rules
-        patterns.put("nocommit", "nocommit|NOCOMMIT");
-        patterns.put("nocommit should be all lowercase or all uppercase", "((?i)nocommit)(?<!(nocommit|NOCOMMIT))");
-        patterns.put("tab", "\t");
-    }
+		// add mandatory rules
+		patterns.put("nocommit", "nocommit|NOCOMMIT");
+		patterns.put("nocommit should be all lowercase or all uppercase", "((?i)nocommit)(?<!(nocommit|NOCOMMIT))");
+	}
 
-    @InputFiles
-    @SkipWhenEmpty
-    public FileCollection getFiles() {
-        return getProject().getConvention()
-            .getPlugin(JavaPluginConvention.class)
-            .getSourceSets()
-            .stream()
-            .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
-            .reduce(FileTree::plus)
-            .orElse(getProject().files().getAsFileTree());
-    }
+	@InputFiles
+	@SkipWhenEmpty
+	public FileCollection getFiles() {
+		return getProject().getConvention()
+			.getPlugin(JavaPluginConvention.class)
+			.getSourceSets()
+			.stream()
+			.map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
+			.reduce(FileTree::plus)
+			.orElse(getProject().files().getAsFileTree());
+	}
 
-    @TaskAction
-    public void checkInvalidPatterns() throws IOException {
-        Pattern allPatterns = Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
-        List<String> failures = new ArrayList<>();
-        for (File f : getFiles()) {
-            List<String> lines;
-            try (Stream<String> stream = Files.lines(f.toPath(), StandardCharsets.UTF_8)) {
-                lines = stream.collect(Collectors.toList());
-            } catch (UncheckedIOException e) {
-                throw new IllegalArgumentException("Failed to read " + f + " as UTF_8", e);
-            }
-            List<Integer> invalidLines = IntStream.range(0, lines.size())
-                .filter(i -> allPatterns.matcher(lines.get(i)).find())
-                .boxed()
-                .collect(Collectors.toList());
+	@TaskAction
+	public void checkInvalidPatterns() throws IOException {
+		Pattern allPatterns = Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
+		List<String> failures = new ArrayList<>();
+		for (File f : getFiles()) {
+			List<String> lines;
+			try (Stream<String> stream = Files.lines(f.toPath(), StandardCharsets.UTF_8)) {
+				lines = stream.collect(Collectors.toList());
+			} catch (UncheckedIOException e) {
+				throw new IllegalArgumentException("Failed to read " + f + " as UTF_8", e);
+			}
+			List<Integer> invalidLines = IntStream.range(0, lines.size())
+				.filter(i -> allPatterns.matcher(lines.get(i)).find())
+				.boxed()
+				.collect(Collectors.toList());
 
-            String path = getProject().getRootProject().getProjectDir().toURI().relativize(f.toURI()).toString();
-            failures.addAll(
-                invalidLines.stream()
-                    .map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
-                    .flatMap(
-                        kv -> patterns.entrySet()
-                            .stream()
-                            .filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
-                            .map(p -> "- " + p.getKey() + " on line " + kv.getKey() + " of " + path)
-                    )
-                    .collect(Collectors.toList())
-            );
-        }
-        if (failures.isEmpty() == false) {
-            throw new GradleException("Found invalid patterns:\n" + String.join("\n", failures));
-        }
+			String path = getProject().getRootProject().getProjectDir().toURI().relativize(f.toURI()).toString();
+			failures.addAll(
+				invalidLines.stream()
+					.map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
+					.flatMap(
+						kv -> patterns.entrySet()
+							.stream()
+							.filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
+							.map(p -> "- " + p.getKey() + " on line " + kv.getKey() + " of " + path)
+					)
+					.collect(Collectors.toList())
+			);
+		}
+		if (failures.isEmpty() == false) {
+			throw new GradleException("Found invalid patterns:\n" + String.join("\n", failures));
+		}
 
-        File outputMarker = getOutputMarker();
-        outputMarker.getParentFile().mkdirs();
-        Files.write(outputMarker.toPath(), "done".getBytes(StandardCharsets.UTF_8));
-    }
+		File outputMarker = getOutputMarker();
+		outputMarker.getParentFile().mkdirs();
+		Files.write(outputMarker.toPath(), "done".getBytes(StandardCharsets.UTF_8));
+	}
 
-    @OutputFile
-    public File getOutputMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + getName());
-    }
+	@OutputFile
+	public File getOutputMarker() {
+		return new File(getProject().getBuildDir(), "markers/" + getName());
+	}
 
-    @Input
-    public Map<String, String> getPatterns() {
-        return Collections.unmodifiableMap(patterns);
-    }
+	@Input
+	public Map<String, String> getPatterns() {
+		return Collections.unmodifiableMap(patterns);
+	}
 
-    public void exclude(String... excludes) {
-        filesFilter.exclude(excludes);
-    }
+	public void exclude(String... excludes) {
+		filesFilter.exclude(excludes);
+	}
 
-    public void rule(Map<String, String> props) {
-        String name = props.remove("name");
-        if (name == null) {
-            throw new InvalidUserDataException("Missing [name] for invalid pattern rule");
-        }
-        String pattern = props.remove("pattern");
-        if (pattern == null) {
-            throw new InvalidUserDataException("Missing [pattern] for invalid pattern rule");
-        }
-        if (props.isEmpty() == false) {
-            throw new InvalidUserDataException("Unknown arguments for ForbiddenPatterns rule mapping: " + props.keySet().toString());
-        }
-        // TODO: fail if pattern contains a newline, it won't work (currently)
-        patterns.put(name, pattern);
-    }
+	public void rule(Map<String, String> props) {
+		String name = props.remove("name");
+		if (name == null) {
+			throw new InvalidUserDataException("Missing [name] for invalid pattern rule");
+		}
+		String pattern = props.remove("pattern");
+		if (pattern == null) {
+			throw new InvalidUserDataException("Missing [pattern] for invalid pattern rule");
+		}
+		if (props.isEmpty() == false) {
+			throw new InvalidUserDataException("Unknown arguments for ForbiddenPatterns rule mapping: " + props.keySet().toString());
+		}
+		// TODO: fail if pattern contains a newline, it won't work (currently)
+		patterns.put(name, pattern);
+	}
 }

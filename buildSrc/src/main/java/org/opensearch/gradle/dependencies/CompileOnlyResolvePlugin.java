@@ -39,20 +39,20 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.plugins.JavaPlugin;
 
 public class CompileOnlyResolvePlugin implements Plugin<Project> {
-    public static final String RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME = "resolveableCompileOnly";
+	public static final String RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME = "resolveableCompileOnly";
 
-    @Override
-    public void apply(Project project) {
-        project.getConfigurations().all(configuration -> {
-            if (configuration.getName().equals(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)) {
-                NamedDomainObjectProvider<Configuration> resolvableCompileOnly = project.getConfigurations()
-                    .register(RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
-                resolvableCompileOnly.configure((c) -> {
-                    c.setCanBeResolved(true);
-                    c.setCanBeConsumed(false);
-                    c.extendsFrom(configuration);
-                });
-            }
-        });
-    }
+	@Override
+	public void apply(Project project) {
+		project.getConfigurations().all(configuration -> {
+			if (configuration.getName().equals(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)) {
+				NamedDomainObjectProvider<Configuration> resolvableCompileOnly = project.getConfigurations()
+					.register(RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+				resolvableCompileOnly.configure((c) -> {
+					c.setCanBeResolved(true);
+					c.setCanBeConsumed(false);
+					c.extendsFrom(configuration);
+				});
+			}
+		});
+	}
 }

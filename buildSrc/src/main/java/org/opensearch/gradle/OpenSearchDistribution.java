@@ -47,229 +47,229 @@ import java.util.Locale;
 
 public class OpenSearchDistribution implements Buildable, Iterable<File> {
 
-    public enum Platform {
-        LINUX,
-        WINDOWS,
-        DARWIN;
+	public enum Platform {
+		LINUX,
+		WINDOWS,
+		DARWIN;
 
-        @Override
-        public String toString() {
-            return super.toString().toLowerCase(Locale.ROOT);
-        }
-    }
+		@Override
+		public String toString() {
+			return super.toString().toLowerCase(Locale.ROOT);
+		}
+	}
 
-    public enum Type {
-        INTEG_TEST_ZIP,
-        ARCHIVE,
-        RPM,
-        DEB,
-        DOCKER;
+	public enum Type {
+		INTEG_TEST_ZIP,
+		ARCHIVE,
+		RPM,
+		DEB,
+		DOCKER;
 
-        @Override
-        public String toString() {
-            return super.toString().toLowerCase(Locale.ROOT);
-        }
+		@Override
+		public String toString() {
+			return super.toString().toLowerCase(Locale.ROOT);
+		}
 
-        public boolean shouldExtract() {
-            switch (this) {
-                case DEB:
-                case DOCKER:
-                case RPM:
-                    return false;
+		public boolean shouldExtract() {
+			switch (this) {
+				case DEB:
+				case DOCKER:
+				case RPM:
+					return false;
 
-                default:
-                    return true;
-            }
-        }
-    }
+				default:
+					return true;
+			}
+		}
+	}
 
-    // package private to tests can use
-    public static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
-        .onLinux(() -> Platform.LINUX)
-        .onWindows(() -> Platform.WINDOWS)
-        .onMac(() -> Platform.DARWIN)
-        .supply();
+	// package private to tests can use
+	public static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
+		.onLinux(() -> Platform.LINUX)
+		.onWindows(() -> Platform.WINDOWS)
+		.onMac(() -> Platform.DARWIN)
+		.supply();
 
-    private final String name;
-    private final Provider<DockerSupportService> dockerSupport;
-    // pkg private so plugin can configure
-    final Configuration configuration;
+	private final String name;
+	private final Provider<DockerSupportService> dockerSupport;
+	// pkg private so plugin can configure
+	final Configuration configuration;
 
-    private final Property<Architecture> architecture;
-    private final Property<String> version;
-    private final Property<Type> type;
-    private final Property<Platform> platform;
-    private final Property<Boolean> bundledJdk;
-    private final Property<Boolean> failIfUnavailable;
-    private final Configuration extracted;
+	private final Property<Architecture> architecture;
+	private final Property<String> version;
+	private final Property<Type> type;
+	private final Property<Platform> platform;
+	private final Property<Boolean> bundledJdk;
+	private final Property<Boolean> failIfUnavailable;
+	private final Configuration extracted;
 
-    OpenSearchDistribution(
-        String name,
-        ObjectFactory objectFactory,
-        Provider<DockerSupportService> dockerSupport,
-        Configuration fileConfiguration,
-        Configuration extractedConfiguration
-    ) {
-        this.name = name;
-        this.dockerSupport = dockerSupport;
-        this.configuration = fileConfiguration;
-        this.architecture = objectFactory.property(Architecture.class);
-        this.version = objectFactory.property(String.class).convention(VersionProperties.getOpenSearch());
-        this.type = objectFactory.property(Type.class);
-        this.type.convention(Type.ARCHIVE);
-        this.platform = objectFactory.property(Platform.class);
-        this.bundledJdk = objectFactory.property(Boolean.class);
-        this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
-        this.extracted = extractedConfiguration;
-    }
+	OpenSearchDistribution(
+		String name,
+		ObjectFactory objectFactory,
+		Provider<DockerSupportService> dockerSupport,
+		Configuration fileConfiguration,
+		Configuration extractedConfiguration
+	) {
+		this.name = name;
+		this.dockerSupport = dockerSupport;
+		this.configuration = fileConfiguration;
+		this.architecture = objectFactory.property(Architecture.class);
+		this.version = objectFactory.property(String.class).convention(VersionProperties.getOpenSearch());
+		this.type = objectFactory.property(Type.class);
+		this.type.convention(Type.ARCHIVE);
+		this.platform = objectFactory.property(Platform.class);
+		this.bundledJdk = objectFactory.property(Boolean.class);
+		this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
+		this.extracted = extractedConfiguration;
+	}
 
-    public String getName() {
-        return name;
-    }
+	public String getName() {
+		return name;
+	}
 
-    public String getVersion() {
-        return version.get();
-    }
+	public String getVersion() {
+		return version.get();
+	}
 
-    public void setVersion(String version) {
-        Version.fromString(version); // ensure the version parses, but don't store as Version since that removes -SNAPSHOT
-        this.version.set(version);
-    }
+	public void setVersion(String version) {
+		Version.fromString(version); // ensure the version parses, but don't store as Version since that removes -SNAPSHOT
+		this.version.set(version);
+	}
 
-    public Platform getPlatform() {
-        return platform.getOrNull();
-    }
+	public Platform getPlatform() {
+		return platform.getOrNull();
+	}
 
-    public void setPlatform(Platform platform) {
-        this.platform.set(platform);
-    }
+	public void setPlatform(Platform platform) {
+		this.platform.set(platform);
+	}
 
-    public Type getType() {
-        return type.get();
-    }
+	public Type getType() {
+		return type.get();
+	}
 
-    public void setType(Type type) {
-        this.type.set(type);
-    }
+	public void setType(Type type) {
+		this.type.set(type);
+	}
 
-    public boolean getBundledJdk() {
-        return bundledJdk.getOrElse(true);
-    }
+	public boolean getBundledJdk() {
+		return bundledJdk.getOrElse(true);
+	}
 
-    public boolean isDocker() {
-        final Type type = this.type.get();
-        return type == Type.DOCKER;
-    }
+	public boolean isDocker() {
+		final Type type = this.type.get();
+		return type == Type.DOCKER;
+	}
 
-    public void setBundledJdk(Boolean bundledJdk) {
-        this.bundledJdk.set(bundledJdk);
-    }
+	public void setBundledJdk(Boolean bundledJdk) {
+		this.bundledJdk.set(bundledJdk);
+	}
 
-    public boolean getFailIfUnavailable() {
-        return this.failIfUnavailable.get();
-    }
+	public boolean getFailIfUnavailable() {
+		return this.failIfUnavailable.get();
+	}
 
-    public void setFailIfUnavailable(boolean failIfUnavailable) {
-        this.failIfUnavailable.set(failIfUnavailable);
-    }
+	public void setFailIfUnavailable(boolean failIfUnavailable) {
+		this.failIfUnavailable.set(failIfUnavailable);
+	}
 
-    public void setArchitecture(Architecture architecture) {
-        this.architecture.set(architecture);
-    }
+	public void setArchitecture(Architecture architecture) {
+		this.architecture.set(architecture);
+	}
 
-    public Architecture getArchitecture() {
-        return this.architecture.get();
-    }
+	public Architecture getArchitecture() {
+		return this.architecture.get();
+	}
 
-    @Override
-    public String toString() {
-        return getName() + "_" + getType() + "_" + getVersion();
-    }
+	@Override
+	public String toString() {
+		return getName() + "_" + getType() + "_" + getVersion();
+	}
 
-    public String getFilepath() {
-        return configuration.getSingleFile().toString();
-    }
+	public String getFilepath() {
+		return configuration.getSingleFile().toString();
+	}
 
-    public Configuration getExtracted() {
-        switch (getType()) {
-            case DEB:
-            case DOCKER:
-            case RPM:
-                throw new UnsupportedOperationException(
-                    "distribution type [" + getType() + "] for " + "opensearch distribution [" + name + "] cannot be extracted"
-                );
+	public Configuration getExtracted() {
+		switch (getType()) {
+			case DEB:
+			case DOCKER:
+			case RPM:
+				throw new UnsupportedOperationException(
+					"distribution type [" + getType() + "] for " + "opensearch distribution [" + name + "] cannot be extracted"
+				);
 
-            default:
-                return extracted;
-        }
-    }
+			default:
+				return extracted;
+		}
+	}
 
-    @Override
-    public TaskDependency getBuildDependencies() {
-        // For non-required Docker distributions, skip building the distribution is Docker is unavailable
-        if (isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false) {
-            return task -> Collections.emptySet();
-        }
+	@Override
+	public TaskDependency getBuildDependencies() {
+		// For non-required Docker distributions, skip building the distribution is Docker is unavailable
+		if (isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false) {
+			return task -> Collections.emptySet();
+		}
 
-        return configuration.getBuildDependencies();
-    }
+		return configuration.getBuildDependencies();
+	}
 
-    @Override
-    public Iterator<File> iterator() {
-        return configuration.iterator();
-    }
+	@Override
+	public Iterator<File> iterator() {
+		return configuration.iterator();
+	}
 
-    // internal, make this distribution's configuration unmodifiable
-    void finalizeValues() {
+	// internal, make this distribution's configuration unmodifiable
+	void finalizeValues() {
 
-        if (getType() == Type.INTEG_TEST_ZIP) {
-            if (platform.getOrNull() != null) {
-                throw new IllegalArgumentException(
-                    "platform cannot be set on opensearch distribution [" + name + "] of type [integ_test_zip]"
-                );
-            }
+		if (getType() == Type.INTEG_TEST_ZIP) {
+			if (platform.getOrNull() != null) {
+				throw new IllegalArgumentException(
+					"platform cannot be set on opensearch distribution [" + name + "] of type [integ_test_zip]"
+				);
+			}
 
-            if (bundledJdk.getOrNull() != null) {
-                throw new IllegalArgumentException(
-                    "bundledJdk cannot be set on opensearch distribution [" + name + "] of type [integ_test_zip]"
-                );
-            }
-            return;
-        }
+			if (bundledJdk.getOrNull() != null) {
+				throw new IllegalArgumentException(
+					"bundledJdk cannot be set on opensearch distribution [" + name + "] of type [integ_test_zip]"
+				);
+			}
+			return;
+		}
 
-        if (isDocker() == false && failIfUnavailable.get() == false) {
-            throw new IllegalArgumentException(
-                "failIfUnavailable cannot be 'false' on opensearch distribution [" + name + "] of type [" + getType() + "]"
-            );
-        }
+		if (isDocker() == false && failIfUnavailable.get() == false) {
+			throw new IllegalArgumentException(
+				"failIfUnavailable cannot be 'false' on opensearch distribution [" + name + "] of type [" + getType() + "]"
+			);
+		}
 
-        if (getType() == Type.ARCHIVE) {
-            // defaults for archive, set here instead of via convention so integ-test-zip can verify they are not set
-            if (platform.isPresent() == false) {
-                platform.set(CURRENT_PLATFORM);
-            }
-        } else { // rpm, deb or docker
-            if (platform.isPresent()) {
-                throw new IllegalArgumentException(
-                    "platform cannot be set on opensearch distribution [" + name + "] of type [" + getType() + "]"
-                );
-            }
-            if (isDocker()) {
-                if (bundledJdk.isPresent()) {
-                    throw new IllegalArgumentException(
-                        "bundledJdk cannot be set on opensearch distribution [" + name + "] of type " + "[docker]"
-                    );
-                }
-            }
-        }
+		if (getType() == Type.ARCHIVE) {
+			// defaults for archive, set here instead of via convention so integ-test-zip can verify they are not set
+			if (platform.isPresent() == false) {
+				platform.set(CURRENT_PLATFORM);
+			}
+		} else { // rpm, deb or docker
+			if (platform.isPresent()) {
+				throw new IllegalArgumentException(
+					"platform cannot be set on opensearch distribution [" + name + "] of type [" + getType() + "]"
+				);
+			}
+			if (isDocker()) {
+				if (bundledJdk.isPresent()) {
+					throw new IllegalArgumentException(
+						"bundledJdk cannot be set on opensearch distribution [" + name + "] of type " + "[docker]"
+					);
+				}
+			}
+		}
 
-        if (bundledJdk.isPresent() == false) {
-            bundledJdk.set(true);
-        }
+		if (bundledJdk.isPresent() == false) {
+			bundledJdk.set(true);
+		}
 
-        version.finalizeValue();
-        platform.finalizeValue();
-        type.finalizeValue();
-        bundledJdk.finalizeValue();
-    }
+		version.finalizeValue();
+		platform.finalizeValue();
+		type.finalizeValue();
+		bundledJdk.finalizeValue();
+	}
 }

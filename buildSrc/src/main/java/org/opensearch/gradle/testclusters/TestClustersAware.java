@@ -41,24 +41,24 @@ import java.util.concurrent.Callable;
 
 public interface TestClustersAware extends Task {
 
-    @Nested
-    Collection<OpenSearchCluster> getClusters();
+	@Nested
+	Collection<OpenSearchCluster> getClusters();
 
-    default void useCluster(OpenSearchCluster cluster) {
-        if (cluster.getPath().equals(getProject().getPath()) == false) {
-            throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
-        }
+	default void useCluster(OpenSearchCluster cluster) {
+		if (cluster.getPath().equals(getProject().getPath()) == false) {
+			throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
+		}
 
-        // Add configured distributions as task dependencies so they are built before starting the cluster
-        cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach(distro -> dependsOn(distro.getExtracted()));
+		// Add configured distributions as task dependencies so they are built before starting the cluster
+		cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach(distro -> dependsOn(distro.getExtracted()));
 
-        // Add legacy BWC JDK runtime as a dependency so it's downloaded before starting the cluster if necessary
-        cluster.getNodes().stream().map(node -> (Callable<Jdk>) node::getBwcJdk).forEach(this::dependsOn);
+		// Add legacy BWC JDK runtime as a dependency so it's downloaded before starting the cluster if necessary
+		cluster.getNodes().stream().map(node -> (Callable<Jdk>) node::getBwcJdk).forEach(this::dependsOn);
 
-        cluster.getNodes().forEach(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
-        getClusters().add(cluster);
-    }
+		cluster.getNodes().forEach(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
+		getClusters().add(cluster);
+	}
 
-    default void beforeStart() {}
+	default void beforeStart() {}
 
 }

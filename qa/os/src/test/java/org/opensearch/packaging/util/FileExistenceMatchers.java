@@ -45,67 +45,67 @@ import java.nio.file.attribute.BasicFileAttributes;
 
 public class FileExistenceMatchers {
 
-    private static class FileExistsMatcher extends TypeSafeMatcher<Path> {
+	private static class FileExistsMatcher extends TypeSafeMatcher<Path> {
 
-        @Override
-        protected boolean matchesSafely(final Path path) {
-            return Files.exists(path);
-        }
+		@Override
+		protected boolean matchesSafely(final Path path) {
+			return Files.exists(path);
+		}
 
-        @Override
-        public void describeTo(final Description description) {
-            description.appendText("expected path to exist");
-        }
+		@Override
+		public void describeTo(final Description description) {
+			description.appendText("expected path to exist");
+		}
 
-        @Override
-        protected void describeMismatchSafely(final Path path, final Description mismatchDescription) {
-            mismatchDescription.appendText("path " + path + " does not exist");
-        }
+		@Override
+		protected void describeMismatchSafely(final Path path, final Description mismatchDescription) {
+			mismatchDescription.appendText("path " + path + " does not exist");
+		}
 
-    }
+	}
 
-    public static FileExistsMatcher fileExists() {
-        return new FileExistsMatcher();
-    }
+	public static FileExistsMatcher fileExists() {
+		return new FileExistsMatcher();
+	}
 
-    private static class FileDoesNotExistMatcher extends TypeSafeMatcher<Path> {
+	private static class FileDoesNotExistMatcher extends TypeSafeMatcher<Path> {
 
-        @Override
-        protected boolean matchesSafely(final Path path) {
-            return Files.exists(path) == false;
-        }
+		@Override
+		protected boolean matchesSafely(final Path path) {
+			return Files.exists(path) == false;
+		}
 
-        @Override
-        public void describeTo(final Description description) {
-            description.appendText("expected path to not exist");
-        }
+		@Override
+		public void describeTo(final Description description) {
+			description.appendText("expected path to not exist");
+		}
 
-        @Override
-        protected void describeMismatchSafely(final Path path, final Description mismatchDescription) {
-            if (Files.isDirectory(path)) {
-                mismatchDescription.appendText("path " + path + " is a directory with contents\n");
-                try {
-                    Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+		@Override
+		protected void describeMismatchSafely(final Path path, final Description mismatchDescription) {
+			if (Files.isDirectory(path)) {
+				mismatchDescription.appendText("path " + path + " is a directory with contents\n");
+				try {
+					Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
 
-                        @Override
-                        public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
-                            mismatchDescription.appendValue(path.relativize(file)).appendText("\n");
-                            return FileVisitResult.CONTINUE;
-                        }
+						@Override
+						public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
+							mismatchDescription.appendValue(path.relativize(file)).appendText("\n");
+							return FileVisitResult.CONTINUE;
+						}
 
-                    });
-                } catch (final IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            } else {
-                mismatchDescription.appendText("path " + path + " exists");
-            }
-        }
+					});
+				} catch (final IOException e) {
+					throw new UncheckedIOException(e);
+				}
+			} else {
+				mismatchDescription.appendText("path " + path + " exists");
+			}
+		}
 
-    }
+	}
 
-    public static FileDoesNotExistMatcher fileDoesNotExist() {
-        return new FileDoesNotExistMatcher();
-    }
+	public static FileDoesNotExistMatcher fileDoesNotExist() {
+		return new FileDoesNotExistMatcher();
+	}
 
 }

@@ -23,19 +23,19 @@ import java.util.function.Consumer;
  *
  */
 interface UpgradeTask extends Consumer<Tuple<TaskInput, Terminal>> {
-    /**
-     * Composes the individual tasks to create a pipeline for the overall upgrade task.
-     *
-     * @return an instance of {@link java.util.function.Consumer} that takes a tuple of
-     * task input and the current terminal. The composed task fails if any of the
-     * individual tasks fails.
-     */
-    static Consumer<Tuple<TaskInput, Terminal>> getTask() {
-        return new DetectEsInstallationTask().andThen(new ValidateInputTask())
-            .andThen(new ImportYmlConfigTask())
-            .andThen(new ImportJvmOptionsTask())
-            .andThen(new ImportLog4jPropertiesTask())
-            .andThen(new InstallPluginsTask())
-            .andThen(new ImportKeystoreTask());
-    }
+	/**
+	 * Composes the individual tasks to create a pipeline for the overall upgrade task.
+	 *
+	 * @return an instance of {@link java.util.function.Consumer} that takes a tuple of
+	 * task input and the current terminal. The composed task fails if any of the
+	 * individual tasks fails.
+	 */
+	static Consumer<Tuple<TaskInput, Terminal>> getTask() {
+		return new DetectEsInstallationTask().andThen(new ValidateInputTask())
+			.andThen(new ImportYmlConfigTask())
+			.andThen(new ImportJvmOptionsTask())
+			.andThen(new ImportLog4jPropertiesTask())
+			.andThen(new InstallPluginsTask())
+			.andThen(new ImportKeystoreTask());
+	}
 }

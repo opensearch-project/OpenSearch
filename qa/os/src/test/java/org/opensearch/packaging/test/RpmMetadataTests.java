@@ -45,21 +45,21 @@ import static org.junit.Assume.assumeTrue;
 
 public class RpmMetadataTests extends PackagingTestCase {
 
-    @Before
-    public void filterDistros() {
-        assumeTrue("only rpm", distribution.packaging == Distribution.Packaging.RPM);
-    }
+	@Before
+	public void filterDistros() {
+		assumeTrue("only rpm", distribution.packaging == Distribution.Packaging.RPM);
+	}
 
-    public void test11Dependencies() {
-        // TODO: rewrite this test to not use a real second distro to try and install
-        assumeTrue(Platforms.isRPM());
+	public void test11Dependencies() {
+		// TODO: rewrite this test to not use a real second distro to try and install
+		assumeTrue(Platforms.isRPM());
 
-        final Shell sh = new Shell();
+		final Shell sh = new Shell();
 
-        final Shell.Result deps = sh.run("rpm -qpR " + getDistributionFile(distribution()));
+		final Shell.Result deps = sh.run("rpm -qpR " + getDistributionFile(distribution()));
 
-        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(deps.stdout).find());
+		TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(deps.stdout).find());
 
-        final Shell.Result conflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(distribution()));
-    }
+		final Shell.Result conflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(distribution()));
+	}
 }

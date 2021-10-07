@@ -59,155 +59,155 @@ import static org.opensearch.gradle.util.GradleUtils.projectDependency;
  */
 public class InternalDistributionDownloadPlugin implements Plugin<Project> {
 
-    private BwcVersions bwcVersions = null;
+	private BwcVersions bwcVersions = null;
 
-    @Override
-    public void apply(Project project) {
-        // this is needed for isInternal
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        if (!BuildParams.isInternal()) {
-            throw new GradleException(
-                "Plugin 'opensearch.internal-distribution-download' is not supported. "
-                    + "Use 'opensearch.distribution-download' plugin instead."
-            );
-        }
-        project.getPluginManager().apply(DistributionDownloadPlugin.class);
-        this.bwcVersions = BuildParams.getBwcVersions();
-        registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
-    }
+	@Override
+	public void apply(Project project) {
+		// this is needed for isInternal
+		project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+		if (!BuildParams.isInternal()) {
+			throw new GradleException(
+				"Plugin 'opensearch.internal-distribution-download' is not supported. "
+					+ "Use 'opensearch.distribution-download' plugin instead."
+			);
+		}
+		project.getPluginManager().apply(DistributionDownloadPlugin.class);
+		this.bwcVersions = BuildParams.getBwcVersions();
+		registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
+	}
 
-    /**
-     * Registers internal distribution resolutions.
-     * <p>
-     * OpenSearch distributions are resolved as project dependencies either representing
-     * the current version pointing to a project either under `:distribution:archives` or :distribution:packages`.
-     * <p>
-     * BWC versions are resolved as project to projects under `:distribution:bwc`.
-     */
-    private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
+	/**
+	 * Registers internal distribution resolutions.
+	 * <p>
+	 * OpenSearch distributions are resolved as project dependencies either representing
+	 * the current version pointing to a project either under `:distribution:archives` or :distribution:packages`.
+	 * <p>
+	 * BWC versions are resolved as project to projects under `:distribution:bwc`.
+	 */
+	private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
 
-        resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
-            if (VersionProperties.getOpenSearch().equals(distribution.getVersion())) {
-                // non-external project, so depend on local build
-                return new ProjectBasedDistributionDependency(
-                    config -> projectDependency(project, distributionProjectPath(distribution), config)
-                );
-            }
-            return null;
-        }));
+		resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
+			if (VersionProperties.getOpenSearch().equals(distribution.getVersion())) {
+				// non-external project, so depend on local build
+				return new ProjectBasedDistributionDependency(
+					config -> projectDependency(project, distributionProjectPath(distribution), config)
+				);
+			}
+			return null;
+		}));
 
-        resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
-            BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
-            if (unreleasedInfo != null) {
-                if (!distribution.getBundledJdk()) {
-                    throw new GradleException(
-                        "Configuring a snapshot bwc distribution ('"
-                            + distribution.getName()
-                            + "') "
-                            + "without a bundled JDK is not supported."
-                    );
-                }
-                String projectConfig = getProjectConfig(distribution, unreleasedInfo);
-                return new ProjectBasedDistributionDependency(
-                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, projectConfig)
-                );
-            }
-            return null;
-        }));
-    }
+		resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
+			BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
+			if (unreleasedInfo != null) {
+				if (!distribution.getBundledJdk()) {
+					throw new GradleException(
+						"Configuring a snapshot bwc distribution ('"
+							+ distribution.getName()
+							+ "') "
+							+ "without a bundled JDK is not supported."
+					);
+				}
+				String projectConfig = getProjectConfig(distribution, unreleasedInfo);
+				return new ProjectBasedDistributionDependency(
+					(config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, projectConfig)
+				);
+			}
+			return null;
+		}));
+	}
 
-    /**
-     * Will be removed once this is backported to all unreleased branches.
-     */
-    private static String getProjectConfig(OpenSearchDistribution distribution, BwcVersions.UnreleasedVersionInfo info) {
-        String distributionProjectName = distributionProjectName(distribution);
-        if (distribution.getType().shouldExtract()) {
-            return (info.gradleProjectPath.equals(":distribution") || info.version.before("7.10.0"))
-                ? distributionProjectName
-                : "expanded-" + distributionProjectName;
-        } else {
-            return distributionProjectName;
+	/**
+	 * Will be removed once this is backported to all unreleased branches.
+	 */
+	private static String getProjectConfig(OpenSearchDistribution distribution, BwcVersions.UnreleasedVersionInfo info) {
+		String distributionProjectName = distributionProjectName(distribution);
+		if (distribution.getType().shouldExtract()) {
+			return (info.gradleProjectPath.equals(":distribution") || info.version.before("7.10.0"))
+				? distributionProjectName
+				: "expanded-" + distributionProjectName;
+		} else {
+			return distributionProjectName;
 
-        }
+		}
 
-    }
+	}
 
-    private static String distributionProjectPath(OpenSearchDistribution distribution) {
-        String projectPath = ":distribution";
-        switch (distribution.getType()) {
-            case INTEG_TEST_ZIP:
-                projectPath += ":archives:integ-test-zip";
-                break;
+	private static String distributionProjectPath(OpenSearchDistribution distribution) {
+		String projectPath = ":distribution";
+		switch (distribution.getType()) {
+			case INTEG_TEST_ZIP:
+				projectPath += ":archives:integ-test-zip";
+				break;
 
-            case DOCKER:
-                projectPath += ":docker:";
-                projectPath += distributionProjectName(distribution);
-                break;
+			case DOCKER:
+				projectPath += ":docker:";
+				projectPath += distributionProjectName(distribution);
+				break;
 
-            default:
-                projectPath += distribution.getType() == OpenSearchDistribution.Type.ARCHIVE ? ":archives:" : ":packages:";
-                projectPath += distributionProjectName(distribution);
-                break;
-        }
-        return projectPath;
-    }
+			default:
+				projectPath += distribution.getType() == OpenSearchDistribution.Type.ARCHIVE ? ":archives:" : ":packages:";
+				projectPath += distributionProjectName(distribution);
+				break;
+		}
+		return projectPath;
+	}
 
-    /**
-     * Works out the gradle project name that provides a distribution artifact.
-     *
-     * @param distribution the distribution from which to derive a project name
-     * @return the name of a project. It is not the full project path, only the name.
-     */
-    private static String distributionProjectName(OpenSearchDistribution distribution) {
-        OpenSearchDistribution.Platform platform = distribution.getPlatform();
-        Architecture architecture = distribution.getArchitecture();
-        String projectName = "";
+	/**
+	 * Works out the gradle project name that provides a distribution artifact.
+	 *
+	 * @param distribution the distribution from which to derive a project name
+	 * @return the name of a project. It is not the full project path, only the name.
+	 */
+	private static String distributionProjectName(OpenSearchDistribution distribution) {
+		OpenSearchDistribution.Platform platform = distribution.getPlatform();
+		Architecture architecture = distribution.getArchitecture();
+		String projectName = "";
 
-        final String archString = platform == OpenSearchDistribution.Platform.WINDOWS || architecture == Architecture.X64
-            ? ""
-            : "-" + architecture.toString().toLowerCase();
+		final String archString = platform == OpenSearchDistribution.Platform.WINDOWS || architecture == Architecture.X64
+			? ""
+			: "-" + architecture.toString().toLowerCase();
 
-        if (distribution.getBundledJdk() == false) {
-            projectName += "no-jdk-";
-        }
-        switch (distribution.getType()) {
-            case ARCHIVE:
-                if (Version.fromString(distribution.getVersion()).onOrAfter("7.0.0")) {
-                    projectName += platform.toString() + archString + (platform == OpenSearchDistribution.Platform.WINDOWS
-                        ? "-zip"
-                        : "-tar");
-                } else {
-                    projectName = "zip";
-                }
-                break;
+		if (distribution.getBundledJdk() == false) {
+			projectName += "no-jdk-";
+		}
+		switch (distribution.getType()) {
+			case ARCHIVE:
+				if (Version.fromString(distribution.getVersion()).onOrAfter("7.0.0")) {
+					projectName += platform.toString() + archString + (platform == OpenSearchDistribution.Platform.WINDOWS
+						? "-zip"
+						: "-tar");
+				} else {
+					projectName = "zip";
+				}
+				break;
 
-            case DOCKER:
-                projectName += "docker" + archString + "-export";
-                break;
+			case DOCKER:
+				projectName += "docker" + archString + "-export";
+				break;
 
-            default:
-                projectName += distribution.getType();
-                break;
-        }
-        return projectName;
-    }
+			default:
+				projectName += distribution.getType();
+				break;
+		}
+		return projectName;
+	}
 
-    private static class ProjectBasedDistributionDependency implements DistributionDependency {
+	private static class ProjectBasedDistributionDependency implements DistributionDependency {
 
-        private Function<String, Dependency> function;
+		private Function<String, Dependency> function;
 
-        ProjectBasedDistributionDependency(Function<String, Dependency> function) {
-            this.function = function;
-        }
+		ProjectBasedDistributionDependency(Function<String, Dependency> function) {
+			this.function = function;
+		}
 
-        @Override
-        public Object getDefaultNotation() {
-            return function.apply("default");
-        }
+		@Override
+		public Object getDefaultNotation() {
+			return function.apply("default");
+		}
 
-        @Override
-        public Object getExtractedNotation() {
-            return function.apply("extracted");
-        }
-    }
+		@Override
+		public Object getExtractedNotation() {
+			return function.apply("extracted");
+		}
+	}
 }

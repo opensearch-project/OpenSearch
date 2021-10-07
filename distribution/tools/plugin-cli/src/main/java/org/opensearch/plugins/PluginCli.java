@@ -46,23 +46,23 @@ import java.util.Collections;
  */
 public class PluginCli extends LoggingAwareMultiCommand {
 
-    private final Collection<Command> commands;
+	private final Collection<Command> commands;
 
-    private PluginCli() {
-        super("A tool for managing installed opensearch plugins");
-        subcommands.put("list", new ListPluginsCommand());
-        subcommands.put("install", new InstallPluginCommand());
-        subcommands.put("remove", new RemovePluginCommand());
-        commands = Collections.unmodifiableCollection(subcommands.values());
-    }
+	private PluginCli() {
+		super("A tool for managing installed opensearch plugins");
+		subcommands.put("list", new ListPluginsCommand());
+		subcommands.put("install", new InstallPluginCommand());
+		subcommands.put("remove", new RemovePluginCommand());
+		commands = Collections.unmodifiableCollection(subcommands.values());
+	}
 
-    public static void main(String[] args) throws Exception {
-        exit(new PluginCli().main(args, Terminal.DEFAULT));
-    }
+	public static void main(String[] args) throws Exception {
+		exit(new PluginCli().main(args, Terminal.DEFAULT));
+	}
 
-    @Override
-    public void close() throws IOException {
-        IOUtils.close(commands);
-    }
+	@Override
+	public void close() throws IOException {
+		IOUtils.close(commands);
+	}
 
 }

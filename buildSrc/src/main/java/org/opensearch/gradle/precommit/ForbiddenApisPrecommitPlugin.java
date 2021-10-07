@@ -52,94 +52,94 @@ import java.util.List;
 import java.util.Set;
 
 public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
-    @Override
-    public TaskProvider<? extends Task> createTask(Project project) {
-        project.getPluginManager().apply(ForbiddenApisPlugin.class);
+	@Override
+	public TaskProvider<? extends Task> createTask(Project project) {
+		project.getPluginManager().apply(ForbiddenApisPlugin.class);
 
-        TaskProvider<ExportOpenSearchBuildResourcesTask> resourcesTask = project.getTasks()
-            .register("forbiddenApisResources", ExportOpenSearchBuildResourcesTask.class);
-        Path resourcesDir = project.getBuildDir().toPath().resolve("forbidden-apis-config");
-        resourcesTask.configure(t -> {
-            t.setOutputDir(resourcesDir.toFile());
-            t.copy("forbidden/jdk-signatures.txt");
-            t.copy("forbidden/opensearch-all-signatures.txt");
-            t.copy("forbidden/opensearch-test-signatures.txt");
-            t.copy("forbidden/http-signatures.txt");
-            t.copy("forbidden/opensearch-server-signatures.txt");
-        });
-        project.getTasks().withType(CheckForbiddenApis.class).configureEach(t -> {
-            t.dependsOn(resourcesTask);
+		TaskProvider<ExportOpenSearchBuildResourcesTask> resourcesTask = project.getTasks()
+			.register("forbiddenApisResources", ExportOpenSearchBuildResourcesTask.class);
+		Path resourcesDir = project.getBuildDir().toPath().resolve("forbidden-apis-config");
+		resourcesTask.configure(t -> {
+			t.setOutputDir(resourcesDir.toFile());
+			t.copy("forbidden/jdk-signatures.txt");
+			t.copy("forbidden/opensearch-all-signatures.txt");
+			t.copy("forbidden/opensearch-test-signatures.txt");
+			t.copy("forbidden/http-signatures.txt");
+			t.copy("forbidden/opensearch-server-signatures.txt");
+		});
+		project.getTasks().withType(CheckForbiddenApis.class).configureEach(t -> {
+			t.dependsOn(resourcesTask);
 
-            assert t.getName().startsWith(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME);
-            String sourceSetName;
-            if (ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.equals(t.getName())) {
-                sourceSetName = "main";
-            } else {
-                // parse out the sourceSetName
-                char[] chars = t.getName().substring(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.length()).toCharArray();
-                chars[0] = Character.toLowerCase(chars[0]);
-                sourceSetName = new String(chars);
-            }
+			assert t.getName().startsWith(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME);
+			String sourceSetName;
+			if (ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.equals(t.getName())) {
+				sourceSetName = "main";
+			} else {
+				// parse out the sourceSetName
+				char[] chars = t.getName().substring(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.length()).toCharArray();
+				chars[0] = Character.toLowerCase(chars[0]);
+				sourceSetName = new String(chars);
+			}
 
-            SourceSetContainer sourceSets = GradleUtils.getJavaSourceSets(project);
-            SourceSet sourceSet = sourceSets.getByName(sourceSetName);
-            t.setClasspath(project.files(sourceSet.getRuntimeClasspath()).plus(sourceSet.getCompileClasspath()));
+			SourceSetContainer sourceSets = GradleUtils.getJavaSourceSets(project);
+			SourceSet sourceSet = sourceSets.getByName(sourceSetName);
+			t.setClasspath(project.files(sourceSet.getRuntimeClasspath()).plus(sourceSet.getCompileClasspath()));
 
-            t.setTargetCompatibility(BuildParams.getRuntimeJavaVersion().getMajorVersion());
-            if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_14) > 0) {
-                // TODO: forbidden apis does not yet support java 15, rethink using runtime version
-                t.setTargetCompatibility(JavaVersion.VERSION_14.getMajorVersion());
-            }
-            t.setBundledSignatures(Set.of("jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"));
-            t.setSignaturesFiles(
-                project.files(
-                    resourcesDir.resolve("forbidden/jdk-signatures.txt"),
-                    resourcesDir.resolve("forbidden/opensearch-all-signatures.txt")
-                )
-            );
-            t.setSuppressAnnotations(Set.of("**.SuppressForbidden"));
-            if (t.getName().endsWith("Test")) {
-                t.setSignaturesFiles(
-                    t.getSignaturesFiles()
-                        .plus(
-                            project.files(
-                                resourcesDir.resolve("forbidden/opensearch-test-signatures.txt"),
-                                resourcesDir.resolve("forbidden/http-signatures.txt")
-                            )
-                        )
-                );
-            } else {
-                t.setSignaturesFiles(
-                    t.getSignaturesFiles().plus(project.files(resourcesDir.resolve("forbidden/opensearch-server-signatures.txt")))
-                );
-            }
-            ExtraPropertiesExtension ext = t.getExtensions().getExtraProperties();
-            ext.set("replaceSignatureFiles", new Closure<Void>(t) {
-                @Override
-                public Void call(Object... names) {
-                    List<Path> resources = new ArrayList<>(names.length);
-                    for (Object name : names) {
-                        resources.add(resourcesDir.resolve("forbidden/" + name + ".txt"));
-                    }
-                    t.setSignaturesFiles(project.files(resources));
-                    return null;
-                }
+			t.setTargetCompatibility(BuildParams.getRuntimeJavaVersion().getMajorVersion());
+			if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_14) > 0) {
+				// TODO: forbidden apis does not yet support java 15, rethink using runtime version
+				t.setTargetCompatibility(JavaVersion.VERSION_14.getMajorVersion());
+			}
+			t.setBundledSignatures(Set.of("jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"));
+			t.setSignaturesFiles(
+				project.files(
+					resourcesDir.resolve("forbidden/jdk-signatures.txt"),
+					resourcesDir.resolve("forbidden/opensearch-all-signatures.txt")
+				)
+			);
+			t.setSuppressAnnotations(Set.of("**.SuppressForbidden"));
+			if (t.getName().endsWith("Test")) {
+				t.setSignaturesFiles(
+					t.getSignaturesFiles()
+						.plus(
+							project.files(
+								resourcesDir.resolve("forbidden/opensearch-test-signatures.txt"),
+								resourcesDir.resolve("forbidden/http-signatures.txt")
+							)
+						)
+				);
+			} else {
+				t.setSignaturesFiles(
+					t.getSignaturesFiles().plus(project.files(resourcesDir.resolve("forbidden/opensearch-server-signatures.txt")))
+				);
+			}
+			ExtraPropertiesExtension ext = t.getExtensions().getExtraProperties();
+			ext.set("replaceSignatureFiles", new Closure<Void>(t) {
+				@Override
+				public Void call(Object... names) {
+					List<Path> resources = new ArrayList<>(names.length);
+					for (Object name : names) {
+						resources.add(resourcesDir.resolve("forbidden/" + name + ".txt"));
+					}
+					t.setSignaturesFiles(project.files(resources));
+					return null;
+				}
 
-            });
-            ext.set("addSignatureFiles", new Closure<Void>(t) {
-                @Override
-                public Void call(Object... names) {
-                    List<Path> resources = new ArrayList<>(names.length);
-                    for (Object name : names) {
-                        resources.add(resourcesDir.resolve("forbidden/" + name + ".txt"));
-                    }
-                    t.setSignaturesFiles(t.getSignaturesFiles().plus(project.files(resources)));
-                    return null;
-                }
-            });
-        });
-        TaskProvider<Task> forbiddenApis = project.getTasks().named("forbiddenApis");
-        forbiddenApis.configure(t -> t.setGroup(""));
-        return forbiddenApis;
-    }
+			});
+			ext.set("addSignatureFiles", new Closure<Void>(t) {
+				@Override
+				public Void call(Object... names) {
+					List<Path> resources = new ArrayList<>(names.length);
+					for (Object name : names) {
+						resources.add(resourcesDir.resolve("forbidden/" + name + ".txt"));
+					}
+					t.setSignaturesFiles(t.getSignaturesFiles().plus(project.files(resources)));
+					return null;
+				}
+			});
+		});
+		TaskProvider<Task> forbiddenApis = project.getTasks().named("forbiddenApis");
+		forbiddenApis.configure(t -> t.setGroup(""));
+		return forbiddenApis;
+	}
 }

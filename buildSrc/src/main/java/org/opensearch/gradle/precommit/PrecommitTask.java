@@ -42,14 +42,14 @@ import java.nio.file.StandardOpenOption;
 
 public class PrecommitTask extends DefaultTask {
 
-    @OutputFile
-    public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + this.getName());
-    }
+	@OutputFile
+	public File getSuccessMarker() {
+		return new File(getProject().getBuildDir(), "markers/" + this.getName());
+	}
 
-    @TaskAction
-    public void writeMarker() throws IOException {
-        Files.write(getSuccessMarker().toPath(), new byte[] {}, StandardOpenOption.CREATE);
-    }
+	@TaskAction
+	public void writeMarker() throws IOException {
+		Files.write(getSuccessMarker().toPath(), new byte[] {}, StandardOpenOption.CREATE);
+	}
 
 }

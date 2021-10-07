@@ -45,25 +45,25 @@ import static org.junit.Assume.assumeTrue;
 
 public class DebMetadataTests extends PackagingTestCase {
 
-    @BeforeClass
-    public static void filterDistros() {
-        assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
-    }
+	@BeforeClass
+	public static void filterDistros() {
+		assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
+	}
 
-    public void test05CheckLintian() {
-        String extraArgs = "";
-        if (sh.run("lintian --help").stdout.contains("fail-on-warnings")) {
-            extraArgs = "--fail-on-warnings ";
-        }
-        sh.run("lintian " + extraArgs + FileUtils.getDistributionFile(distribution()));
-    }
+	public void test05CheckLintian() {
+		String extraArgs = "";
+		if (sh.run("lintian --help").stdout.contains("fail-on-warnings")) {
+			extraArgs = "--fail-on-warnings ";
+		}
+		sh.run("lintian " + extraArgs + FileUtils.getDistributionFile(distribution()));
+	}
 
-    public void test06Dependencies() {
+	public void test06Dependencies() {
 
-        final Shell sh = new Shell();
+		final Shell sh = new Shell();
 
-        final Shell.Result result = sh.run("dpkg -I " + getDistributionFile(distribution()));
+		final Shell.Result result = sh.run("dpkg -I " + getDistributionFile(distribution()));
 
-        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(result.stdout).find());
-    }
+		TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(result.stdout).find());
+	}
 }

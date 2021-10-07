@@ -51,41 +51,41 @@ import static org.junit.Assume.assumeTrue;
 
 public class DebPreservationTests extends PackagingTestCase {
 
-    @BeforeClass
-    public static void filterDistros() {
-        assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
-        assumeTrue("only bundled jdk", distribution.hasJdk);
-    }
+	@BeforeClass
+	public static void filterDistros() {
+		assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
+		assumeTrue("only bundled jdk", distribution.hasJdk);
+	}
 
-    public void test10Install() throws Exception {
-        assertRemoved(distribution());
-        installation = installPackage(sh, distribution());
-        assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), sh);
-    }
+	public void test10Install() throws Exception {
+		assertRemoved(distribution());
+		installation = installPackage(sh, distribution());
+		assertInstalled(distribution());
+		verifyPackageInstallation(installation, distribution(), sh);
+	}
 
-    public void test20Remove() throws Exception {
-        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
+	public void test20Remove() throws Exception {
+		append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
 
-        remove(distribution());
+		remove(distribution());
 
-        // some config files were not removed
-        assertPathsExist(
-            installation.config,
-            installation.config("opensearch.yml"),
-            installation.config("jvm.options"),
-            installation.config("log4j2.properties"),
-            installation.config(Paths.get("jvm.options.d", "heap.options"))
-        );
+		// some config files were not removed
+		assertPathsExist(
+			installation.config,
+			installation.config("opensearch.yml"),
+			installation.config("jvm.options"),
+			installation.config("log4j2.properties"),
+			installation.config(Paths.get("jvm.options.d", "heap.options"))
+		);
 
-        // keystore was removed
+		// keystore was removed
 
-        assertPathsDoNotExist(installation.config("opensearch.keystore"), installation.config(".opensearch.keystore.initial_md5sum"));
+		assertPathsDoNotExist(installation.config("opensearch.keystore"), installation.config(".opensearch.keystore.initial_md5sum"));
 
-        // sysvinit service file was not removed
-        assertThat(SYSVINIT_SCRIPT, fileExists());
+		// sysvinit service file was not removed
+		assertThat(SYSVINIT_SCRIPT, fileExists());
 
-        // defaults file was not removed
-        assertThat(installation.envFile, fileExists());
-    }
+		// defaults file was not removed
+		assertThat(installation.envFile, fileExists());
+	}
 }

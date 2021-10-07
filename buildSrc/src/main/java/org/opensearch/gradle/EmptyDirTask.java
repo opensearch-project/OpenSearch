@@ -46,57 +46,57 @@ import org.gradle.internal.file.Chmod;
  */
 public class EmptyDirTask extends DefaultTask {
 
-    private File dir;
-    private int dirMode = 0755;
+	private File dir;
+	private int dirMode = 0755;
 
-    /**
-     * Creates an empty directory with the configured permissions.
-     */
-    @TaskAction
-    public void create() {
-        dir.mkdirs();
-        getChmod().chmod(dir, dirMode);
-    }
+	/**
+	 * Creates an empty directory with the configured permissions.
+	 */
+	@TaskAction
+	public void create() {
+		dir.mkdirs();
+		getChmod().chmod(dir, dirMode);
+	}
 
-    @Inject
-    public Chmod getChmod() {
-        throw new UnsupportedOperationException();
-    }
+	@Inject
+	public Chmod getChmod() {
+		throw new UnsupportedOperationException();
+	}
 
-    @Internal
-    public File getDir() {
-        return dir;
-    }
+	@Internal
+	public File getDir() {
+		return dir;
+	}
 
-    @Input
-    public String getDirPath() {
-        return dir.getPath();
-    }
+	@Input
+	public String getDirPath() {
+		return dir.getPath();
+	}
 
-    /**
-     * @param dir The directory to create
-     */
-    public void setDir(File dir) {
-        this.dir = dir;
-    }
+	/**
+	 * @param dir The directory to create
+	 */
+	public void setDir(File dir) {
+		this.dir = dir;
+	}
 
-    /**
-     * @param dir The path of the directory to create. Takes a String and coerces it to a file.
-     */
-    public void setDir(String dir) {
-        this.dir = getProject().file(dir);
-    }
+	/**
+	 * @param dir The path of the directory to create. Takes a String and coerces it to a file.
+	 */
+	public void setDir(String dir) {
+		this.dir = getProject().file(dir);
+	}
 
-    @Input
-    public int getDirMode() {
-        return dirMode;
-    }
+	@Input
+	public int getDirMode() {
+		return dirMode;
+	}
 
-    /**
-     * @param dirMode The permissions to apply to the new directory
-     */
-    public void setDirMode(int dirMode) {
-        this.dirMode = dirMode;
-    }
+	/**
+	 * @param dirMode The permissions to apply to the new directory
+	 */
+	public void setDirMode(int dirMode) {
+		this.dirMode = dirMode;
+	}
 
 }

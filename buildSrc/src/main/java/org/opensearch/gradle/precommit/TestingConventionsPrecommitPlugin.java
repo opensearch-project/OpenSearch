@@ -37,17 +37,17 @@ import org.gradle.api.Task;
 import org.gradle.api.tasks.TaskProvider;
 
 public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
-    @Override
-    public TaskProvider<? extends Task> createTask(Project project) {
-        TaskProvider<TestingConventionsTasks> testingConventions = project.getTasks()
-            .register("testingConventions", TestingConventionsTasks.class);
-        testingConventions.configure(t -> {
-            TestingConventionRule testsRule = t.getNaming().maybeCreate("Tests");
-            testsRule.baseClass("org.apache.lucene.util.LuceneTestCase");
-            TestingConventionRule itRule = t.getNaming().maybeCreate("IT");
-            itRule.baseClass("org.opensearch.test.OpenSearchIntegTestCase");
-            itRule.baseClass("org.opensearch.test.rest.OpenSearchRestTestCase");
-        });
-        return testingConventions;
-    }
+	@Override
+	public TaskProvider<? extends Task> createTask(Project project) {
+		TaskProvider<TestingConventionsTasks> testingConventions = project.getTasks()
+			.register("testingConventions", TestingConventionsTasks.class);
+		testingConventions.configure(t -> {
+			TestingConventionRule testsRule = t.getNaming().maybeCreate("Tests");
+			testsRule.baseClass("org.apache.lucene.util.LuceneTestCase");
+			TestingConventionRule itRule = t.getNaming().maybeCreate("IT");
+			itRule.baseClass("org.opensearch.test.OpenSearchIntegTestCase");
+			itRule.baseClass("org.opensearch.test.rest.OpenSearchRestTestCase");
+		});
+		return testingConventions;
+	}
 }

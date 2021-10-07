@@ -72,60 +72,60 @@ import java.util.Map;
  */
 public class RestResourcesPlugin implements Plugin<Project> {
 
-    private static final String EXTENSION_NAME = "restResources";
+	private static final String EXTENSION_NAME = "restResources";
 
-    @Override
-    public void apply(Project project) {
-        RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
+	@Override
+	public void apply(Project project) {
+		RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
 
-        // tests
-        Configuration testConfig = project.getConfigurations().create("restTestConfig");
-        project.getConfigurations().create("restTests");
-        Provider<CopyRestTestsTask> copyRestYamlTestTask = project.getTasks()
-            .register("copyYamlTestsTask", CopyRestTestsTask.class, task -> {
-                task.includeCore.set(extension.restTests.getIncludeCore());
-                task.coreConfig = testConfig;
-                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
-                if (BuildParams.isInternal()) {
-                    // core
-                    Dependency restTestdependency = project.getDependencies()
-                        .project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
-                    project.getDependencies().add(task.coreConfig.getName(), restTestdependency);
-                } else {
-                    Dependency dependency = project.getDependencies()
-                        .create("org.opensearch:rest-api-spec:" + VersionProperties.getOpenSearch());
-                    project.getDependencies().add(task.coreConfig.getName(), dependency);
-                }
-                task.dependsOn(task.coreConfig);
-            });
+		// tests
+		Configuration testConfig = project.getConfigurations().create("restTestConfig");
+		project.getConfigurations().create("restTests");
+		Provider<CopyRestTestsTask> copyRestYamlTestTask = project.getTasks()
+			.register("copyYamlTestsTask", CopyRestTestsTask.class, task -> {
+				task.includeCore.set(extension.restTests.getIncludeCore());
+				task.coreConfig = testConfig;
+				task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
+				if (BuildParams.isInternal()) {
+					// core
+					Dependency restTestdependency = project.getDependencies()
+						.project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
+					project.getDependencies().add(task.coreConfig.getName(), restTestdependency);
+				} else {
+					Dependency dependency = project.getDependencies()
+						.create("org.opensearch:rest-api-spec:" + VersionProperties.getOpenSearch());
+					project.getDependencies().add(task.coreConfig.getName(), dependency);
+				}
+				task.dependsOn(task.coreConfig);
+			});
 
-        // api
-        Configuration specConfig = project.getConfigurations().create("restSpec"); // name chosen for passivity
-        project.getConfigurations().create("restSpecs");
-        Provider<CopyRestApiTask> copyRestYamlSpecTask = project.getTasks()
-            .register("copyRestApiSpecsTask", CopyRestApiTask.class, task -> {
-                task.includeCore.set(extension.restApi.getIncludeCore());
-                task.dependsOn(copyRestYamlTestTask);
-                task.coreConfig = specConfig;
-                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
-                if (BuildParams.isInternal()) {
-                    Dependency restSpecDependency = project.getDependencies()
-                        .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
-                    project.getDependencies().add(task.coreConfig.getName(), restSpecDependency);
-                } else {
-                    Dependency dependency = project.getDependencies()
-                        .create("org.opensearch:rest-api-spec:" + VersionProperties.getOpenSearch());
-                    project.getDependencies().add(task.coreConfig.getName(), dependency);
-                }
-                task.dependsOn(task.coreConfig);
-            });
+		// api
+		Configuration specConfig = project.getConfigurations().create("restSpec"); // name chosen for passivity
+		project.getConfigurations().create("restSpecs");
+		Provider<CopyRestApiTask> copyRestYamlSpecTask = project.getTasks()
+			.register("copyRestApiSpecsTask", CopyRestApiTask.class, task -> {
+				task.includeCore.set(extension.restApi.getIncludeCore());
+				task.dependsOn(copyRestYamlTestTask);
+				task.coreConfig = specConfig;
+				task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
+				if (BuildParams.isInternal()) {
+					Dependency restSpecDependency = project.getDependencies()
+						.project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
+					project.getDependencies().add(task.coreConfig.getName(), restSpecDependency);
+				} else {
+					Dependency dependency = project.getDependencies()
+						.create("org.opensearch:rest-api-spec:" + VersionProperties.getOpenSearch());
+					project.getDependencies().add(task.coreConfig.getName(), dependency);
+				}
+				task.dependsOn(task.coreConfig);
+			});
 
-        project.afterEvaluate(p -> {
-            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-            SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
-            if (testSourceSet != null) {
-                project.getTasks().named(testSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestYamlSpecTask));
-            }
-        });
-    }
+		project.afterEvaluate(p -> {
+			SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+			SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
+			if (testSourceSet != null) {
+				project.getTasks().named(testSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestYamlSpecTask));
+			}
+		});
+	}
 }

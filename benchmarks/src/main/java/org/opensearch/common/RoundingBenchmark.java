@@ -59,82 +59,82 @@ import java.util.function.Supplier;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
 public class RoundingBenchmark {
-    private static final DateFormatter FORMATTER = DateFormatter.forPattern("date_optional_time");
+	private static final DateFormatter FORMATTER = DateFormatter.forPattern("date_optional_time");
 
-    @Param({
-        "2000-01-01 to 2020-01-01", // A super long range
-        "2000-10-01 to 2000-11-01", // A whole month which is pretty believable
-        "2000-10-29 to 2000-10-30", // A date right around daylight savings time.
-        "2000-06-01 to 2000-06-02"  // A date fully in one time zone. Should be much faster than above.
-    })
-    public String range;
+	@Param({
+		"2000-01-01 to 2020-01-01", // A super long range
+		"2000-10-01 to 2000-11-01", // A whole month which is pretty believable
+		"2000-10-29 to 2000-10-30", // A date right around daylight savings time.
+		"2000-06-01 to 2000-06-02"  // A date fully in one time zone. Should be much faster than above.
+	})
+	public String range;
 
-    @Param({ "java time", "es" })
-    public String rounder;
+	@Param({ "java time", "es" })
+	public String rounder;
 
-    @Param({ "UTC", "America/New_York" })
-    public String zone;
+	@Param({ "UTC", "America/New_York" })
+	public String zone;
 
-    @Param({ "calendar year", "calendar hour", "10d", "5d", "1h" })
-    public String interval;
+	@Param({ "calendar year", "calendar hour", "10d", "5d", "1h" })
+	public String interval;
 
-    @Param({ "1", "10000", "1000000", "100000000" })
-    public int count;
+	@Param({ "1", "10000", "1000000", "100000000" })
+	public int count;
 
-    private long min;
-    private long max;
-    private long[] dates;
-    private Supplier<Rounding.Prepared> rounderBuilder;
+	private long min;
+	private long max;
+	private long[] dates;
+	private Supplier<Rounding.Prepared> rounderBuilder;
 
-    @Setup
-    public void buildDates() {
-        String[] r = range.split(" to ");
-        min = FORMATTER.parseMillis(r[0]);
-        max = FORMATTER.parseMillis(r[1]);
-        dates = new long[count];
-        long date = min;
-        long diff = (max - min) / dates.length;
-        for (int i = 0; i < dates.length; i++) {
-            if (date >= max) {
-                throw new IllegalStateException("made a bad date [" + date + "]");
-            }
-            dates[i] = date;
-            date += diff;
-        }
-        Rounding.Builder roundingBuilder;
-        if (interval.startsWith("calendar ")) {
-            roundingBuilder = Rounding.builder(
-                DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.substring("calendar ".length()))
-            );
-        } else {
-            roundingBuilder = Rounding.builder(TimeValue.parseTimeValue(interval, "interval"));
-        }
-        Rounding rounding = roundingBuilder.timeZone(ZoneId.of(zone)).build();
-        switch (rounder) {
-            case "java time":
-                rounderBuilder = rounding::prepareJavaTime;
-                break;
-            case "es":
-                rounderBuilder = () -> rounding.prepare(min, max);
-                break;
-            default:
-                throw new IllegalArgumentException("Expectd rounder to be [java time] or [es]");
-        }
-    }
+	@Setup
+	public void buildDates() {
+		String[] r = range.split(" to ");
+		min = FORMATTER.parseMillis(r[0]);
+		max = FORMATTER.parseMillis(r[1]);
+		dates = new long[count];
+		long date = min;
+		long diff = (max - min) / dates.length;
+		for (int i = 0; i < dates.length; i++) {
+			if (date >= max) {
+				throw new IllegalStateException("made a bad date [" + date + "]");
+			}
+			dates[i] = date;
+			date += diff;
+		}
+		Rounding.Builder roundingBuilder;
+		if (interval.startsWith("calendar ")) {
+			roundingBuilder = Rounding.builder(
+				DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.substring("calendar ".length()))
+			);
+		} else {
+			roundingBuilder = Rounding.builder(TimeValue.parseTimeValue(interval, "interval"));
+		}
+		Rounding rounding = roundingBuilder.timeZone(ZoneId.of(zone)).build();
+		switch (rounder) {
+			case "java time":
+				rounderBuilder = rounding::prepareJavaTime;
+				break;
+			case "es":
+				rounderBuilder = () -> rounding.prepare(min, max);
+				break;
+			default:
+				throw new IllegalArgumentException("Expectd rounder to be [java time] or [es]");
+		}
+	}
 
-    @Benchmark
-    public void round(Blackhole bh) {
-        Rounding.Prepared rounder = rounderBuilder.get();
-        for (int i = 0; i < dates.length; i++) {
-            bh.consume(rounder.round(dates[i]));
-        }
-    }
+	@Benchmark
+	public void round(Blackhole bh) {
+		Rounding.Prepared rounder = rounderBuilder.get();
+		for (int i = 0; i < dates.length; i++) {
+			bh.consume(rounder.round(dates[i]));
+		}
+	}
 
-    @Benchmark
-    public void nextRoundingValue(Blackhole bh) {
-        Rounding.Prepared rounder = rounderBuilder.get();
-        for (int i = 0; i < dates.length; i++) {
-            bh.consume(rounder.nextRoundingValue(dates[i]));
-        }
-    }
+	@Benchmark
+	public void nextRoundingValue(Blackhole bh) {
+		Rounding.Prepared rounder = rounderBuilder.get();
+		for (int i = 0; i < dates.length; i++) {
+			bh.consume(rounder.nextRoundingValue(dates[i]));
+		}
+	}
 }

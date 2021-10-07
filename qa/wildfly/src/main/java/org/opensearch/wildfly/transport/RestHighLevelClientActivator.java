@@ -41,9 +41,9 @@ import java.util.Set;
 @ApplicationPath("/transport")
 public class RestHighLevelClientActivator extends Application {
 
-    @Override
-    public Set<Class<?>> getClasses() {
-        return Collections.singleton(RestHighLevelClientEmployeeResource.class);
-    }
+	@Override
+	public Set<Class<?>> getClasses() {
+		return Collections.singleton(RestHighLevelClientEmployeeResource.class);
+	}
 
 }

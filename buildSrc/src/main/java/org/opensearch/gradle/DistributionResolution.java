@@ -35,35 +35,35 @@ package org.opensearch.gradle;
 import org.gradle.api.Project;
 
 public class DistributionResolution {
-    private Resolver resolver;
-    private String name;
-    private int priority;
+	private Resolver resolver;
+	private String name;
+	private int priority;
 
-    public DistributionResolution(String name) {
-        this.name = name;
-    }
+	public DistributionResolution(String name) {
+		this.name = name;
+	}
 
-    public String getName() {
-        return name;
-    }
+	public String getName() {
+		return name;
+	}
 
-    public Resolver getResolver() {
-        return resolver;
-    }
+	public Resolver getResolver() {
+		return resolver;
+	}
 
-    public void setResolver(Resolver resolver) {
-        this.resolver = resolver;
-    }
+	public void setResolver(Resolver resolver) {
+		this.resolver = resolver;
+	}
 
-    public void setPriority(int priority) {
-        this.priority = priority;
-    }
+	public void setPriority(int priority) {
+		this.priority = priority;
+	}
 
-    public int getPriority() {
-        return priority;
-    }
+	public int getPriority() {
+		return priority;
+	}
 
-    public interface Resolver {
-        DistributionDependency resolve(Project project, OpenSearchDistribution distribution);
-    }
+	public interface Resolver {
+		DistributionDependency resolve(Project project, OpenSearchDistribution distribution);
+	}
 }

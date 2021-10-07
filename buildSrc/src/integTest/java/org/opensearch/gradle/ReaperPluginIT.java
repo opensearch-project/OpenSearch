@@ -37,16 +37,16 @@ import org.gradle.testkit.runner.GradleRunner;
 import org.junit.Before;
 
 public class ReaperPluginIT extends GradleIntegrationTestCase {
-    private GradleRunner runner;
+	private GradleRunner runner;
 
-    @Before
-    public void setup() {
-        runner = getGradleRunner("reaper");
-    }
+	@Before
+	public void setup() {
+		runner = getGradleRunner("reaper");
+	}
 
-    public void testCanLaunchReaper() {
-        BuildResult result = runner.withArguments(":launchReaper", "-S", "--info").build();
-        assertTaskSuccessful(result, ":launchReaper");
-        assertOutputContains(result.getOutput(), "Copying reaper.jar...");
-    }
+	public void testCanLaunchReaper() {
+		BuildResult result = runner.withArguments(":launchReaper", "-S", "--info").build();
+		assertTaskSuccessful(result, ":launchReaper");
+		assertOutputContains(result.getOutput(), "Copying reaper.jar...");
+	}
 }

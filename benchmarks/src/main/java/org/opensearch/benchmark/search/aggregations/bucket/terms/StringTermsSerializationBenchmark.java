@@ -63,47 +63,47 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
 public class StringTermsSerializationBenchmark {
-    private static final NamedWriteableRegistry REGISTRY = new NamedWriteableRegistry(
-        org.opensearch.common.collect.List.of(
-            new NamedWriteableRegistry.Entry(InternalAggregation.class, StringTerms.NAME, StringTerms::new)
-        )
-    );
-    @Param(value = { "1000" })
-    private int buckets;
+	private static final NamedWriteableRegistry REGISTRY = new NamedWriteableRegistry(
+		org.opensearch.common.collect.List.of(
+			new NamedWriteableRegistry.Entry(InternalAggregation.class, StringTerms.NAME, StringTerms::new)
+		)
+	);
+	@Param(value = { "1000" })
+	private int buckets;
 
-    private DelayableWriteable<InternalAggregations> results;
+	private DelayableWriteable<InternalAggregations> results;
 
-    @Setup
-    public void initResults() {
-        results = DelayableWriteable.referencing(InternalAggregations.from(org.opensearch.common.collect.List.of(newTerms(true))));
-    }
+	@Setup
+	public void initResults() {
+		results = DelayableWriteable.referencing(InternalAggregations.from(org.opensearch.common.collect.List.of(newTerms(true))));
+	}
 
-    private StringTerms newTerms(boolean withNested) {
-        List<StringTerms.Bucket> resultBuckets = new ArrayList<>(buckets);
-        for (int i = 0; i < buckets; i++) {
-            InternalAggregations inner = withNested
-                ? InternalAggregations.from(org.opensearch.common.collect.List.of(newTerms(false)))
-                : InternalAggregations.EMPTY;
-            resultBuckets.add(new StringTerms.Bucket(new BytesRef("test" + i), i, inner, false, 0, DocValueFormat.RAW));
-        }
-        return new StringTerms(
-            "test",
-            BucketOrder.key(true),
-            BucketOrder.key(true),
-            buckets,
-            1,
-            null,
-            DocValueFormat.RAW,
-            buckets,
-            false,
-            100000,
-            resultBuckets,
-            0
-        );
-    }
+	private StringTerms newTerms(boolean withNested) {
+		List<StringTerms.Bucket> resultBuckets = new ArrayList<>(buckets);
+		for (int i = 0; i < buckets; i++) {
+			InternalAggregations inner = withNested
+				? InternalAggregations.from(org.opensearch.common.collect.List.of(newTerms(false)))
+				: InternalAggregations.EMPTY;
+			resultBuckets.add(new StringTerms.Bucket(new BytesRef("test" + i), i, inner, false, 0, DocValueFormat.RAW));
+		}
+		return new StringTerms(
+			"test",
+			BucketOrder.key(true),
+			BucketOrder.key(true),
+			buckets,
+			1,
+			null,
+			DocValueFormat.RAW,
+			buckets,
+			false,
+			100000,
+			resultBuckets,
+			0
+		);
+	}
 
-    @Benchmark
-    public DelayableWriteable<InternalAggregations> serialize() {
-        return results.asSerialized(InternalAggregations::readFrom, REGISTRY);
-    }
+	@Benchmark
+	public DelayableWriteable<InternalAggregations> serialize() {
+		return results.asSerialized(InternalAggregations::readFrom, REGISTRY);
+	}
 }

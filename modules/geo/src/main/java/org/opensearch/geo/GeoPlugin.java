@@ -42,8 +42,8 @@ import java.util.Map;
 
 public class GeoPlugin extends Plugin implements MapperPlugin {
 
-    @Override
-    public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
-    }
+	@Override
+	public Map<String, Mapper.TypeParser> getMappers() {
+		return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
+	}
 }

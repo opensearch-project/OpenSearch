@@ -39,31 +39,31 @@ import java.io.File;
 
 public class BwcGitExtension {
 
-    private Provider<Version> bwcVersion;
-    private Provider<String> bwcBranch;
-    private Provider<File> checkoutDir;
+	private Provider<Version> bwcVersion;
+	private Provider<String> bwcBranch;
+	private Provider<File> checkoutDir;
 
-    public Provider<Version> getBwcVersion() {
-        return bwcVersion;
-    }
+	public Provider<Version> getBwcVersion() {
+		return bwcVersion;
+	}
 
-    public void setBwcVersion(Provider<Version> bwcVersion) {
-        this.bwcVersion = bwcVersion;
-    }
+	public void setBwcVersion(Provider<Version> bwcVersion) {
+		this.bwcVersion = bwcVersion;
+	}
 
-    public Provider<String> getBwcBranch() {
-        return bwcBranch;
-    }
+	public Provider<String> getBwcBranch() {
+		return bwcBranch;
+	}
 
-    public void setBwcBranch(Provider<String> bwcBranch) {
-        this.bwcBranch = bwcBranch;
-    }
+	public void setBwcBranch(Provider<String> bwcBranch) {
+		this.bwcBranch = bwcBranch;
+	}
 
-    public Provider<File> getCheckoutDir() {
-        return checkoutDir;
-    }
+	public Provider<File> getCheckoutDir() {
+		return checkoutDir;
+	}
 
-    public void setCheckoutDir(Provider<File> checkoutDir) {
-        this.checkoutDir = checkoutDir;
-    }
+	public void setCheckoutDir(Provider<File> checkoutDir) {
+		this.checkoutDir = checkoutDir;
+	}
 }

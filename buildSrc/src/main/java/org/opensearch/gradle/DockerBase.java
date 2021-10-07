@@ -36,15 +36,15 @@ package org.opensearch.gradle;
  * This class models the different Docker base images that are used to build Docker distributions of OpenSearch.
  */
 public enum DockerBase {
-    CENTOS("centos:8");
+	CENTOS("centos:8");
 
-    private final String image;
+	private final String image;
 
-    DockerBase(String image) {
-        this.image = image;
-    }
+	DockerBase(String image) {
+		this.image = image;
+	}
 
-    public String getImage() {
-        return image;
-    }
+	public String getImage() {
+		return image;
+	}
 }

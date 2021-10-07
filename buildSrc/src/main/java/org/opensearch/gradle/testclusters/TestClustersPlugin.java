@@ -63,174 +63,174 @@ import static org.opensearch.gradle.util.GradleUtils.noop;
 
 public class TestClustersPlugin implements Plugin<Project> {
 
-    public static final String EXTENSION_NAME = "testClusters";
-    public static final String THROTTLE_SERVICE_NAME = "testClustersThrottle";
+	public static final String EXTENSION_NAME = "testClusters";
+	public static final String THROTTLE_SERVICE_NAME = "testClustersThrottle";
 
-    private static final String LIST_TASK_NAME = "listTestClusters";
-    private static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
-    private static final String LEGACY_JAVA_VENDOR = "adoptopenjdk";
-    private static final String LEGACY_JAVA_VERSION = "8u242+b08";
-    private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
+	private static final String LIST_TASK_NAME = "listTestClusters";
+	private static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
+	private static final String LEGACY_JAVA_VENDOR = "adoptopenjdk";
+	private static final String LEGACY_JAVA_VERSION = "8u242+b08";
+	private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
 
-    @Inject
-    protected FileSystemOperations getFileSystemOperations() {
-        throw new UnsupportedOperationException();
-    }
+	@Inject
+	protected FileSystemOperations getFileSystemOperations() {
+		throw new UnsupportedOperationException();
+	}
 
-    @Inject
-    protected ArchiveOperations getArchiveOperations() {
-        throw new UnsupportedOperationException();
-    }
+	@Inject
+	protected ArchiveOperations getArchiveOperations() {
+		throw new UnsupportedOperationException();
+	}
 
-    @Override
-    public void apply(Project project) {
-        project.getPluginManager().apply(JdkDownloadPlugin.class);
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        if (BuildParams.isInternal()) {
-            project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
-        } else {
-            project.getPlugins().apply(DistributionDownloadPlugin.class);
-        }
-        project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
+	@Override
+	public void apply(Project project) {
+		project.getPluginManager().apply(JdkDownloadPlugin.class);
+		project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+		if (BuildParams.isInternal()) {
+			project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
+		} else {
+			project.getPlugins().apply(DistributionDownloadPlugin.class);
+		}
+		project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
 
-        ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
+		ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
 
-        // register legacy jdk distribution for testing pre-7.0 BWC clusters
-        Jdk bwcJdk = JdkDownloadPlugin.getContainer(project).create("bwc_jdk", jdk -> {
-            jdk.setVendor(LEGACY_JAVA_VENDOR);
-            jdk.setVersion(LEGACY_JAVA_VERSION);
-            jdk.setPlatform(OS.current().name().toLowerCase());
-            jdk.setArchitecture(Architecture.current().name().toLowerCase());
-        });
+		// register legacy jdk distribution for testing pre-7.0 BWC clusters
+		Jdk bwcJdk = JdkDownloadPlugin.getContainer(project).create("bwc_jdk", jdk -> {
+			jdk.setVendor(LEGACY_JAVA_VENDOR);
+			jdk.setVersion(LEGACY_JAVA_VERSION);
+			jdk.setPlatform(OS.current().name().toLowerCase());
+			jdk.setArchitecture(Architecture.current().name().toLowerCase());
+		});
 
-        // enable the DSL to describe clusters
-        NamedDomainObjectContainer<OpenSearchCluster> container = createTestClustersContainerExtension(project, reaper, bwcJdk);
+		// enable the DSL to describe clusters
+		NamedDomainObjectContainer<OpenSearchCluster> container = createTestClustersContainerExtension(project, reaper, bwcJdk);
 
-        // provide a task to be able to list defined clusters.
-        createListClustersTask(project, container);
+		// provide a task to be able to list defined clusters.
+		createListClustersTask(project, container);
 
-        // register cluster registry as a global build service
-        project.getGradle().getSharedServices().registerIfAbsent(REGISTRY_SERVICE_NAME, TestClustersRegistry.class, noop());
+		// register cluster registry as a global build service
+		project.getGradle().getSharedServices().registerIfAbsent(REGISTRY_SERVICE_NAME, TestClustersRegistry.class, noop());
 
-        // register throttle so we only run at most max-workers/2 nodes concurrently
-        project.getGradle()
-            .getSharedServices()
-            .registerIfAbsent(
-                THROTTLE_SERVICE_NAME,
-                TestClustersThrottle.class,
-                spec -> spec.getMaxParallelUsages().set(Math.max(1, project.getGradle().getStartParameter().getMaxWorkerCount() / 2))
-            );
+		// register throttle so we only run at most max-workers/2 nodes concurrently
+		project.getGradle()
+			.getSharedServices()
+			.registerIfAbsent(
+				THROTTLE_SERVICE_NAME,
+				TestClustersThrottle.class,
+				spec -> spec.getMaxParallelUsages().set(Math.max(1, project.getGradle().getStartParameter().getMaxWorkerCount() / 2))
+			);
 
-        // register cluster hooks
-        project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
-    }
+		// register cluster hooks
+		project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
+	}
 
-    private NamedDomainObjectContainer<OpenSearchCluster> createTestClustersContainerExtension(
-        Project project,
-        ReaperService reaper,
-        Jdk bwcJdk
-    ) {
-        // Create an extensions that allows describing clusters
-        NamedDomainObjectContainer<OpenSearchCluster> container = project.container(
-            OpenSearchCluster.class,
-            name -> new OpenSearchCluster(
-                name,
-                project,
-                reaper,
-                new File(project.getBuildDir(), "testclusters"),
-                getFileSystemOperations(),
-                getArchiveOperations(),
-                bwcJdk
-            )
-        );
-        project.getExtensions().add(EXTENSION_NAME, container);
-        return container;
-    }
+	private NamedDomainObjectContainer<OpenSearchCluster> createTestClustersContainerExtension(
+		Project project,
+		ReaperService reaper,
+		Jdk bwcJdk
+	) {
+		// Create an extensions that allows describing clusters
+		NamedDomainObjectContainer<OpenSearchCluster> container = project.container(
+			OpenSearchCluster.class,
+			name -> new OpenSearchCluster(
+				name,
+				project,
+				reaper,
+				new File(project.getBuildDir(), "testclusters"),
+				getFileSystemOperations(),
+				getArchiveOperations(),
+				bwcJdk
+			)
+		);
+		project.getExtensions().add(EXTENSION_NAME, container);
+		return container;
+	}
 
-    private void createListClustersTask(Project project, NamedDomainObjectContainer<OpenSearchCluster> container) {
-        // Task is never up to date so we can pass an lambda for the task action
-        project.getTasks().register(LIST_TASK_NAME, task -> {
-            task.setGroup("OpenSearch cluster formation");
-            task.setDescription("Lists all OpenSearch clusters configured for this project");
-            task.doLast(
-                (Task t) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
-            );
-        });
+	private void createListClustersTask(Project project, NamedDomainObjectContainer<OpenSearchCluster> container) {
+		// Task is never up to date so we can pass an lambda for the task action
+		project.getTasks().register(LIST_TASK_NAME, task -> {
+			task.setGroup("OpenSearch cluster formation");
+			task.setDescription("Lists all OpenSearch clusters configured for this project");
+			task.doLast(
+				(Task t) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
+			);
+		});
 
-    }
+	}
 
-    static class TestClustersHookPlugin implements Plugin<Project> {
-        @Override
-        public void apply(Project project) {
-            if (project != project.getRootProject()) {
-                throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
-            }
+	static class TestClustersHookPlugin implements Plugin<Project> {
+		@Override
+		public void apply(Project project) {
+			if (project != project.getRootProject()) {
+				throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
+			}
 
-            Provider<TestClustersRegistry> registryProvider = GradleUtils.getBuildService(
-                project.getGradle().getSharedServices(),
-                REGISTRY_SERVICE_NAME
-            );
-            TestClustersRegistry registry = registryProvider.get();
+			Provider<TestClustersRegistry> registryProvider = GradleUtils.getBuildService(
+				project.getGradle().getSharedServices(),
+				REGISTRY_SERVICE_NAME
+			);
+			TestClustersRegistry registry = registryProvider.get();
 
-            // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
-            // that are defined in the build script and the ones that will actually be used in this invocation of gradle
-            // we use this information to determine when the last task that required the cluster executed so that we can
-            // terminate the cluster right away and free up resources.
-            configureClaimClustersHook(project.getGradle(), registry);
+			// When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
+			// that are defined in the build script and the ones that will actually be used in this invocation of gradle
+			// we use this information to determine when the last task that required the cluster executed so that we can
+			// terminate the cluster right away and free up resources.
+			configureClaimClustersHook(project.getGradle(), registry);
 
-            // Before each task, we determine if a cluster needs to be started for that task.
-            configureStartClustersHook(project.getGradle(), registry);
+			// Before each task, we determine if a cluster needs to be started for that task.
+			configureStartClustersHook(project.getGradle(), registry);
 
-            // After each task we determine if there are clusters that are no longer needed.
-            configureStopClustersHook(project.getGradle(), registry);
-        }
+			// After each task we determine if there are clusters that are no longer needed.
+			configureStopClustersHook(project.getGradle(), registry);
+		}
 
-        private static void configureClaimClustersHook(Gradle gradle, TestClustersRegistry registry) {
-            // Once we know all the tasks that need to execute, we claim all the clusters that belong to those and count the
-            // claims so we'll know when it's safe to stop them.
-            gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
-                taskExecutionGraph.getAllTasks()
-                    .stream()
-                    .filter(task -> task instanceof TestClustersAware)
-                    .map(task -> (TestClustersAware) task)
-                    .flatMap(task -> task.getClusters().stream())
-                    .forEach(registry::claimCluster);
-            });
-        }
+		private static void configureClaimClustersHook(Gradle gradle, TestClustersRegistry registry) {
+			// Once we know all the tasks that need to execute, we claim all the clusters that belong to those and count the
+			// claims so we'll know when it's safe to stop them.
+			gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
+				taskExecutionGraph.getAllTasks()
+					.stream()
+					.filter(task -> task instanceof TestClustersAware)
+					.map(task -> (TestClustersAware) task)
+					.flatMap(task -> task.getClusters().stream())
+					.forEach(registry::claimCluster);
+			});
+		}
 
-        private static void configureStartClustersHook(Gradle gradle, TestClustersRegistry registry) {
-            gradle.addListener(new TaskActionListener() {
-                @Override
-                public void beforeActions(Task task) {
-                    if (task instanceof TestClustersAware == false) {
-                        return;
-                    }
-                    // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    TestClustersAware awareTask = (TestClustersAware) task;
-                    awareTask.beforeStart();
-                    awareTask.getClusters().forEach(registry::maybeStartCluster);
-                }
+		private static void configureStartClustersHook(Gradle gradle, TestClustersRegistry registry) {
+			gradle.addListener(new TaskActionListener() {
+				@Override
+				public void beforeActions(Task task) {
+					if (task instanceof TestClustersAware == false) {
+						return;
+					}
+					// we only start the cluster before the actions, so we'll not start it if the task is up-to-date
+					TestClustersAware awareTask = (TestClustersAware) task;
+					awareTask.beforeStart();
+					awareTask.getClusters().forEach(registry::maybeStartCluster);
+				}
 
-                @Override
-                public void afterActions(Task task) {}
-            });
-        }
+				@Override
+				public void afterActions(Task task) {}
+			});
+		}
 
-        private static void configureStopClustersHook(Gradle gradle, TestClustersRegistry registry) {
-            gradle.addListener(new TaskExecutionListener() {
-                @Override
-                public void afterExecute(Task task, TaskState state) {
-                    if (task instanceof TestClustersAware == false) {
-                        return;
-                    }
-                    // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
-                    // and caused the cluster to start.
-                    ((TestClustersAware) task).getClusters().forEach(cluster -> registry.stopCluster(cluster, state.getFailure() != null));
-                }
+		private static void configureStopClustersHook(Gradle gradle, TestClustersRegistry registry) {
+			gradle.addListener(new TaskExecutionListener() {
+				@Override
+				public void afterExecute(Task task, TaskState state) {
+					if (task instanceof TestClustersAware == false) {
+						return;
+					}
+					// always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
+					// and caused the cluster to start.
+					((TestClustersAware) task).getClusters().forEach(cluster -> registry.stopCluster(cluster, state.getFailure() != null));
+				}
 
-                @Override
-                public void beforeExecute(Task task) {}
-            });
-        }
-    }
+				@Override
+				public void beforeExecute(Task task) {}
+			});
+		}
+	}
 }

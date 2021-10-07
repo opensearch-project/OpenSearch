@@ -40,20 +40,20 @@ import org.opensearch.cli.Terminal;
  */
 public class KeyStoreCli extends LoggingAwareMultiCommand {
 
-    private KeyStoreCli() {
-        super("A tool for managing settings stored in the opensearch keystore");
-        subcommands.put("create", new CreateKeyStoreCommand());
-        subcommands.put("list", new ListKeyStoreCommand());
-        subcommands.put("add", new AddStringKeyStoreCommand());
-        subcommands.put("add-file", new AddFileKeyStoreCommand());
-        subcommands.put("remove", new RemoveSettingKeyStoreCommand());
-        subcommands.put("upgrade", new UpgradeKeyStoreCommand());
-        subcommands.put("passwd", new ChangeKeyStorePasswordCommand());
-        subcommands.put("has-passwd", new HasPasswordKeyStoreCommand());
-    }
+	private KeyStoreCli() {
+		super("A tool for managing settings stored in the opensearch keystore");
+		subcommands.put("create", new CreateKeyStoreCommand());
+		subcommands.put("list", new ListKeyStoreCommand());
+		subcommands.put("add", new AddStringKeyStoreCommand());
+		subcommands.put("add-file", new AddFileKeyStoreCommand());
+		subcommands.put("remove", new RemoveSettingKeyStoreCommand());
+		subcommands.put("upgrade", new UpgradeKeyStoreCommand());
+		subcommands.put("passwd", new ChangeKeyStorePasswordCommand());
+		subcommands.put("has-passwd", new HasPasswordKeyStoreCommand());
+	}
 
-    public static void main(String[] args) throws Exception {
-        exit(new KeyStoreCli().main(args, Terminal.DEFAULT));
-    }
+	public static void main(String[] args) throws Exception {
+		exit(new KeyStoreCli().main(args, Terminal.DEFAULT));
+	}
 
 }

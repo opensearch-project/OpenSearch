@@ -42,35 +42,35 @@ import java.util.function.Supplier;
 
 public class DistributionArchive implements Named {
 
-    private TaskProvider<? extends AbstractArchiveTask> archiveTask;
-    private TaskProvider<Sync> expandedDistTask;
-    private final String name;
+	private TaskProvider<? extends AbstractArchiveTask> archiveTask;
+	private TaskProvider<Sync> expandedDistTask;
+	private final String name;
 
-    public DistributionArchive(TaskProvider<? extends AbstractArchiveTask> archiveTask, TaskProvider<Sync> expandedDistTask, String name) {
-        this.archiveTask = archiveTask;
-        this.expandedDistTask = expandedDistTask;
-        this.name = name;
-    }
+	public DistributionArchive(TaskProvider<? extends AbstractArchiveTask> archiveTask, TaskProvider<Sync> expandedDistTask, String name) {
+		this.archiveTask = archiveTask;
+		this.expandedDistTask = expandedDistTask;
+		this.name = name;
+	}
 
-    public void setArchiveClassifier(String classifier) {
-        this.archiveTask.configure(abstractArchiveTask -> abstractArchiveTask.getArchiveClassifier().set(classifier));
-    }
+	public void setArchiveClassifier(String classifier) {
+		this.archiveTask.configure(abstractArchiveTask -> abstractArchiveTask.getArchiveClassifier().set(classifier));
+	}
 
-    public void content(Supplier<CopySpec> p) {
-        this.archiveTask.configure(t -> t.with(p.get()));
-        this.expandedDistTask.configure(t -> t.with(p.get()));
-    }
+	public void content(Supplier<CopySpec> p) {
+		this.archiveTask.configure(t -> t.with(p.get()));
+		this.expandedDistTask.configure(t -> t.with(p.get()));
+	}
 
-    @Override
-    public String getName() {
-        return name;
-    }
+	@Override
+	public String getName() {
+		return name;
+	}
 
-    public TaskProvider<? extends AbstractArchiveTask> getArchiveTask() {
-        return archiveTask;
-    }
+	public TaskProvider<? extends AbstractArchiveTask> getArchiveTask() {
+		return archiveTask;
+	}
 
-    public TaskProvider<Sync> getExpandedDistTask() {
-        return expandedDistTask;
-    }
+	public TaskProvider<Sync> getExpandedDistTask() {
+		return expandedDistTask;
+	}
 }

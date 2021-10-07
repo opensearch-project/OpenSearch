@@ -50,50 +50,50 @@ import static org.opensearch.gradle.util.PermissionUtils.chmod;
 
 public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTransform {
 
-    private static final Path CURRENT_DIR_PATH = Paths.get(".");
+	private static final Path CURRENT_DIR_PATH = Paths.get(".");
 
-    public void unpack(File tarFile, File targetDir) throws IOException {
-        Logging.getLogger(SymbolicLinkPreservingUntarTransform.class)
-            .info("Unpacking " + tarFile.getName() + " using " + SymbolicLinkPreservingUntarTransform.class.getSimpleName() + ".");
-        Function<String, Path> pathModifier = pathResolver();
+	public void unpack(File tarFile, File targetDir) throws IOException {
+		Logging.getLogger(SymbolicLinkPreservingUntarTransform.class)
+			.info("Unpacking " + tarFile.getName() + " using " + SymbolicLinkPreservingUntarTransform.class.getSimpleName() + ".");
+		Function<String, Path> pathModifier = pathResolver();
 
-        try (
-            FileInputStream fis = new FileInputStream(tarFile);
-            GzipCompressorInputStream gzip = new GzipCompressorInputStream(fis);
-            TarArchiveInputStream tar = new TarArchiveInputStream(gzip)
-        ) {
-            final Path destinationPath = targetDir.toPath();
-            TarArchiveEntry entry = tar.getNextTarEntry();
-            while (entry != null) {
-                final Path relativePath = pathModifier.apply(entry.getName());
-                if (relativePath == null || relativePath.getFileName().equals(CURRENT_DIR_PATH)) {
-                    entry = tar.getNextTarEntry();
-                    continue;
-                }
+		try (
+			FileInputStream fis = new FileInputStream(tarFile);
+			GzipCompressorInputStream gzip = new GzipCompressorInputStream(fis);
+			TarArchiveInputStream tar = new TarArchiveInputStream(gzip)
+		) {
+			final Path destinationPath = targetDir.toPath();
+			TarArchiveEntry entry = tar.getNextTarEntry();
+			while (entry != null) {
+				final Path relativePath = pathModifier.apply(entry.getName());
+				if (relativePath == null || relativePath.getFileName().equals(CURRENT_DIR_PATH)) {
+					entry = tar.getNextTarEntry();
+					continue;
+				}
 
-                final Path destination = destinationPath.resolve(relativePath);
-                final Path parent = destination.getParent();
-                if (Files.exists(parent) == false) {
-                    Files.createDirectories(parent);
-                }
-                if (entry.isDirectory()) {
-                    Files.createDirectory(destination);
-                } else if (entry.isSymbolicLink()) {
-                    Files.createSymbolicLink(destination, Paths.get(entry.getLinkName()));
-                } else {
-                    // copy the file from the archive using a small buffer to avoid heaping
-                    Files.createFile(destination);
-                    try (FileOutputStream fos = new FileOutputStream(destination.toFile())) {
-                        tar.transferTo(fos);
-                    }
-                }
-                if (entry.isSymbolicLink() == false) {
-                    // check if the underlying file system supports POSIX permissions
-                    chmod(destination, entry.getMode());
-                }
-                entry = tar.getNextTarEntry();
-            }
-        }
+				final Path destination = destinationPath.resolve(relativePath);
+				final Path parent = destination.getParent();
+				if (Files.exists(parent) == false) {
+					Files.createDirectories(parent);
+				}
+				if (entry.isDirectory()) {
+					Files.createDirectory(destination);
+				} else if (entry.isSymbolicLink()) {
+					Files.createSymbolicLink(destination, Paths.get(entry.getLinkName()));
+				} else {
+					// copy the file from the archive using a small buffer to avoid heaping
+					Files.createFile(destination);
+					try (FileOutputStream fos = new FileOutputStream(destination.toFile())) {
+						tar.transferTo(fos);
+					}
+				}
+				if (entry.isSymbolicLink() == false) {
+					// check if the underlying file system supports POSIX permissions
+					chmod(destination, entry.getMode());
+				}
+				entry = tar.getNextTarEntry();
+			}
+		}
 
-    }
+	}
 }

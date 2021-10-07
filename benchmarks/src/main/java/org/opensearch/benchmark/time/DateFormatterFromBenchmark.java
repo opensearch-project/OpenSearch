@@ -55,12 +55,12 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("unused") // invoked by benchmarking framework
 public class DateFormatterFromBenchmark {
 
-    private final TemporalAccessor accessor = DateFormatter.forPattern("epoch_millis").parse("1234567890");
+	private final TemporalAccessor accessor = DateFormatter.forPattern("epoch_millis").parse("1234567890");
 
-    @Benchmark
-    public TemporalAccessor benchmarkFrom() {
-        // benchmark an accessor that does not contain a timezone
-        // this used to throw an exception earlier and thus was very very slow
-        return DateFormatters.from(accessor);
-    }
+	@Benchmark
+	public TemporalAccessor benchmarkFrom() {
+		// benchmark an accessor that does not contain a timezone
+		// this used to throw an exception earlier and thus was very very slow
+		return DateFormatters.from(accessor);
+	}
 }

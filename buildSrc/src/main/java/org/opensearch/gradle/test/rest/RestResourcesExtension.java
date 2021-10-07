@@ -42,37 +42,37 @@ import javax.inject.Inject;
  */
 public class RestResourcesExtension {
 
-    final RestResourcesSpec restApi;
-    final RestResourcesSpec restTests;
+	final RestResourcesSpec restApi;
+	final RestResourcesSpec restTests;
 
-    @Inject
-    public RestResourcesExtension(ObjectFactory objects) {
-        restApi = new RestResourcesSpec(objects);
-        restTests = new RestResourcesSpec(objects);
-    }
+	@Inject
+	public RestResourcesExtension(ObjectFactory objects) {
+		restApi = new RestResourcesSpec(objects);
+		restTests = new RestResourcesSpec(objects);
+	}
 
-    void restApi(Action<? super RestResourcesSpec> spec) {
-        spec.execute(restApi);
-    }
+	void restApi(Action<? super RestResourcesSpec> spec) {
+		spec.execute(restApi);
+	}
 
-    void restTests(Action<? super RestResourcesSpec> spec) {
-        spec.execute(restTests);
-    }
+	void restTests(Action<? super RestResourcesSpec> spec) {
+		spec.execute(restTests);
+	}
 
-    static class RestResourcesSpec {
+	static class RestResourcesSpec {
 
-        private final ListProperty<String> includeCore;
+		private final ListProperty<String> includeCore;
 
-        RestResourcesSpec(ObjectFactory objects) {
-            includeCore = objects.listProperty(String.class);
-        }
+		RestResourcesSpec(ObjectFactory objects) {
+			includeCore = objects.listProperty(String.class);
+		}
 
-        public void includeCore(String... include) {
-            this.includeCore.addAll(include);
-        }
+		public void includeCore(String... include) {
+			this.includeCore.addAll(include);
+		}
 
-        public ListProperty<String> getIncludeCore() {
-            return includeCore;
-        }
-    }
+		public ListProperty<String> getIncludeCore() {
+			return includeCore;
+		}
+	}
 }

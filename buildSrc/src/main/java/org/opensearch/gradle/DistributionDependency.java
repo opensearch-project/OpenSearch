@@ -33,29 +33,29 @@
 package org.opensearch.gradle;
 
 public interface DistributionDependency {
-    static DistributionDependency of(String dependencyNotation) {
-        return new StringBasedDistributionDependency(dependencyNotation);
-    }
+	static DistributionDependency of(String dependencyNotation) {
+		return new StringBasedDistributionDependency(dependencyNotation);
+	}
 
-    Object getDefaultNotation();
+	Object getDefaultNotation();
 
-    Object getExtractedNotation();
+	Object getExtractedNotation();
 
-    class StringBasedDistributionDependency implements DistributionDependency {
-        private final String notation;
+	class StringBasedDistributionDependency implements DistributionDependency {
+		private final String notation;
 
-        public StringBasedDistributionDependency(String notation) {
-            this.notation = notation;
-        }
+		public StringBasedDistributionDependency(String notation) {
+			this.notation = notation;
+		}
 
-        @Override
-        public Object getDefaultNotation() {
-            return notation;
-        }
+		@Override
+		public Object getDefaultNotation() {
+			return notation;
+		}
 
-        @Override
-        public Object getExtractedNotation() {
-            return notation;
-        }
-    }
+		@Override
+		public Object getExtractedNotation() {
+			return notation;
+		}
+	}
 }

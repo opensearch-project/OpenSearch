@@ -51,43 +51,43 @@ import java.util.List;
  */
 class ListPluginsCommand extends EnvironmentAwareCommand {
 
-    ListPluginsCommand() {
-        super("Lists installed opensearch plugins");
-    }
+	ListPluginsCommand() {
+		super("Lists installed opensearch plugins");
+	}
 
-    @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        if (Files.exists(env.pluginsFile()) == false) {
-            throw new IOException("Plugins directory missing: " + env.pluginsFile());
-        }
+	@Override
+	protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+		if (Files.exists(env.pluginsFile()) == false) {
+			throw new IOException("Plugins directory missing: " + env.pluginsFile());
+		}
 
-        terminal.println(Terminal.Verbosity.VERBOSE, "Plugins directory: " + env.pluginsFile());
-        final List<Path> plugins = new ArrayList<>();
-        try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
-            for (Path plugin : paths) {
-                plugins.add(plugin);
-            }
-        }
-        Collections.sort(plugins);
-        for (final Path plugin : plugins) {
-            printPlugin(env, terminal, plugin, "");
-        }
-    }
+		terminal.println(Terminal.Verbosity.VERBOSE, "Plugins directory: " + env.pluginsFile());
+		final List<Path> plugins = new ArrayList<>();
+		try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
+			for (Path plugin : paths) {
+				plugins.add(plugin);
+			}
+		}
+		Collections.sort(plugins);
+		for (final Path plugin : plugins) {
+			printPlugin(env, terminal, plugin, "");
+		}
+	}
 
-    private void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
-        PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin));
-        terminal.println(Terminal.Verbosity.SILENT, prefix + info.getName());
-        terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
-        if (info.getOpenSearchVersion().equals(Version.CURRENT) == false) {
-            terminal.errorPrintln(
-                "WARNING: plugin ["
-                    + info.getName()
-                    + "] was built for OpenSearch version "
-                    + info.getVersion()
-                    + " but version "
-                    + Version.CURRENT
-                    + " is required"
-            );
-        }
-    }
+	private void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
+		PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin));
+		terminal.println(Terminal.Verbosity.SILENT, prefix + info.getName());
+		terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
+		if (info.getOpenSearchVersion().equals(Version.CURRENT) == false) {
+			terminal.errorPrintln(
+				"WARNING: plugin ["
+					+ info.getName()
+					+ "] was built for OpenSearch version "
+					+ info.getVersion()
+					+ " but version "
+					+ Version.CURRENT
+					+ " is required"
+			);
+		}
+	}
 }

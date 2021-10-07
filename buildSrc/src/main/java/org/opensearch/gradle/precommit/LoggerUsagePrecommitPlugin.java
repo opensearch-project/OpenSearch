@@ -40,17 +40,17 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.TaskProvider;
 
 public class LoggerUsagePrecommitPlugin extends PrecommitPlugin {
-    @Override
-    public TaskProvider<? extends Task> createTask(Project project) {
-        Object dependency = BuildParams.isInternal()
-            ? project.project(":test:logger-usage")
-            : ("org.opensearch.test:logger-usage:" + VersionProperties.getOpenSearch());
+	@Override
+	public TaskProvider<? extends Task> createTask(Project project) {
+		Object dependency = BuildParams.isInternal()
+			? project.project(":test:logger-usage")
+			: ("org.opensearch.test:logger-usage:" + VersionProperties.getOpenSearch());
 
-        Configuration loggerUsageConfig = project.getConfigurations().create("loggerUsagePlugin");
-        project.getDependencies().add("loggerUsagePlugin", dependency);
-        TaskProvider<LoggerUsageTask> loggerUsage = project.getTasks().register("loggerUsageCheck", LoggerUsageTask.class);
-        loggerUsage.configure(t -> t.setClasspath(loggerUsageConfig));
+		Configuration loggerUsageConfig = project.getConfigurations().create("loggerUsagePlugin");
+		project.getDependencies().add("loggerUsagePlugin", dependency);
+		TaskProvider<LoggerUsageTask> loggerUsage = project.getTasks().register("loggerUsageCheck", LoggerUsageTask.class);
+		loggerUsage.configure(t -> t.setClasspath(loggerUsageConfig));
 
-        return loggerUsage;
-    }
+		return loggerUsage;
+	}
 }

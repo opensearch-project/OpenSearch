@@ -46,51 +46,51 @@ import java.io.InputStream;
  */
 abstract class ProgressInputStream extends FilterInputStream {
 
-    private final int expectedTotalSize;
-    private int currentPercent;
-    private int count = 0;
+	private final int expectedTotalSize;
+	private int currentPercent;
+	private int count = 0;
 
-    ProgressInputStream(InputStream is, int expectedTotalSize) {
-        super(is);
-        this.expectedTotalSize = expectedTotalSize;
-        this.currentPercent = 0;
-    }
+	ProgressInputStream(InputStream is, int expectedTotalSize) {
+		super(is);
+		this.expectedTotalSize = expectedTotalSize;
+		this.currentPercent = 0;
+	}
 
-    @Override
-    public int read() throws IOException {
-        int read = in.read();
-        checkProgress(read == -1 ? -1 : 1);
-        return read;
-    }
+	@Override
+	public int read() throws IOException {
+		int read = in.read();
+		checkProgress(read == -1 ? -1 : 1);
+		return read;
+	}
 
-    @Override
-    public int read(byte[] b, int off, int len) throws IOException {
-        int byteCount = super.read(b, off, len);
-        checkProgress(byteCount);
-        return byteCount;
-    }
+	@Override
+	public int read(byte[] b, int off, int len) throws IOException {
+		int byteCount = super.read(b, off, len);
+		checkProgress(byteCount);
+		return byteCount;
+	}
 
-    @Override
-    public int read(byte b[]) throws IOException {
-        return read(b, 0, b.length);
-    }
+	@Override
+	public int read(byte b[]) throws IOException {
+		return read(b, 0, b.length);
+	}
 
-    void checkProgress(int byteCount) {
-        // are we done?
-        if (byteCount == -1) {
-            currentPercent = 100;
-            onProgress(currentPercent);
-        } else {
-            count += byteCount;
-            // rounding up to 100% would mean we say we are done, before we are...
-            // this also catches issues, when expectedTotalSize was guessed wrong
-            int percent = Math.min(99, (int) Math.floor(100.0 * count / expectedTotalSize));
-            if (percent > currentPercent) {
-                currentPercent = percent;
-                onProgress(percent);
-            }
-        }
-    }
+	void checkProgress(int byteCount) {
+		// are we done?
+		if (byteCount == -1) {
+			currentPercent = 100;
+			onProgress(currentPercent);
+		} else {
+			count += byteCount;
+			// rounding up to 100% would mean we say we are done, before we are...
+			// this also catches issues, when expectedTotalSize was guessed wrong
+			int percent = Math.min(99, (int) Math.floor(100.0 * count / expectedTotalSize));
+			if (percent > currentPercent) {
+				currentPercent = percent;
+				onProgress(percent);
+			}
+		}
+	}
 
-    public void onProgress(int percent) {}
+	public void onProgress(int percent) {}
 }

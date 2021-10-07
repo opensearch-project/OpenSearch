@@ -43,23 +43,23 @@ import static org.opensearch.gradle.DistributionDownloadPlugin.DISTRO_EXTRACTED_
 
 public class ResolveAllDependencies extends DefaultTask {
 
-    Collection<Configuration> configs;
+	Collection<Configuration> configs;
 
-    @TaskAction
-    void resolveAll() {
-        configs.stream().filter(it -> canBeResolved(it)).forEach(it -> it.resolve());
-    }
+	@TaskAction
+	void resolveAll() {
+		configs.stream().filter(it -> canBeResolved(it)).forEach(it -> it.resolve());
+	}
 
-    static boolean canBeResolved(Configuration configuration) {
-        if (configuration.isCanBeResolved() == false) {
-            return false;
-        }
-        if (configuration instanceof org.gradle.internal.deprecation.DeprecatableConfiguration) {
-            var deprecatableConfiguration = (DeprecatableConfiguration) configuration;
-            if (deprecatableConfiguration.canSafelyBeResolved() == false) {
-                return false;
-            }
-        }
-        return configuration.getName().startsWith(DISTRO_EXTRACTED_CONFIG_PREFIX) == false;
-    }
+	static boolean canBeResolved(Configuration configuration) {
+		if (configuration.isCanBeResolved() == false) {
+			return false;
+		}
+		if (configuration instanceof org.gradle.internal.deprecation.DeprecatableConfiguration) {
+			var deprecatableConfiguration = (DeprecatableConfiguration) configuration;
+			if (deprecatableConfiguration.canSafelyBeResolved() == false) {
+				return false;
+			}
+		}
+		return configuration.getName().startsWith(DISTRO_EXTRACTED_CONFIG_PREFIX) == false;
+	}
 }

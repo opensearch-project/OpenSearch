@@ -51,32 +51,32 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class DelayedShardAggregationIT extends OpenSearchIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(DelayedShardAggregationPlugin.class);
-    }
+	@Override
+	protected Collection<Class<? extends Plugin>> nodePlugins() {
+		return Arrays.asList(DelayedShardAggregationPlugin.class);
+	}
 
-    public void testSimple() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("index"));
-        float expectedMax = Float.MIN_VALUE;
-        List<IndexRequestBuilder> reqs = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            float rand = randomFloat();
-            expectedMax = Math.max(rand, expectedMax);
-            reqs.add(client().prepareIndex("index").setSource("number", rand));
-        }
-        indexRandom(true, reqs);
-        SearchResponse response = client().prepareSearch("index")
-            .addAggregation(
-                new DelayedShardAggregationBuilder("delay", TimeValue.timeValueMillis(10)).subAggregation(
-                    new MaxAggregationBuilder("max").field("number")
-                )
-            )
-            .get();
-        Aggregations aggs = response.getAggregations();
-        assertThat(aggs.get("delay"), instanceOf(InternalFilter.class));
-        InternalFilter filter = aggs.get("delay");
-        InternalMax max = filter.getAggregations().get("max");
-        assertThat((float) max.getValue(), equalTo(expectedMax));
-    }
+	public void testSimple() throws Exception {
+		assertAcked(client().admin().indices().prepareCreate("index"));
+		float expectedMax = Float.MIN_VALUE;
+		List<IndexRequestBuilder> reqs = new ArrayList<>();
+		for (int i = 0; i < 5; i++) {
+			float rand = randomFloat();
+			expectedMax = Math.max(rand, expectedMax);
+			reqs.add(client().prepareIndex("index").setSource("number", rand));
+		}
+		indexRandom(true, reqs);
+		SearchResponse response = client().prepareSearch("index")
+			.addAggregation(
+				new DelayedShardAggregationBuilder("delay", TimeValue.timeValueMillis(10)).subAggregation(
+					new MaxAggregationBuilder("max").field("number")
+				)
+			)
+			.get();
+		Aggregations aggs = response.getAggregations();
+		assertThat(aggs.get("delay"), instanceOf(InternalFilter.class));
+		InternalFilter filter = aggs.get("delay");
+		InternalMax max = filter.getAggregations().get("max");
+		assertThat((float) max.getValue(), equalTo(expectedMax));
+	}
 }

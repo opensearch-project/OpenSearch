@@ -36,42 +36,42 @@ import org.junit.Test;
 
 public class NastyInnerClasses {
 
-    public static class NamingConventionTests {
+	public static class NamingConventionTests {
 
-    }
+	}
 
-    public static class NamingConventionIT {
+	public static class NamingConventionIT {
 
-    }
+	}
 
-    public static class LooksLikeATestWithoutNamingConvention1 {
-        @Test
-        public void annotatedTestMethod() {
+	public static class LooksLikeATestWithoutNamingConvention1 {
+		@Test
+		public void annotatedTestMethod() {
 
-        }
-    }
+		}
+	}
 
-    public static class LooksLikeATestWithoutNamingConvention2 extends Assert {
+	public static class LooksLikeATestWithoutNamingConvention2 extends Assert {
 
-    }
+	}
 
-    public static class LooksLikeATestWithoutNamingConvention3 {
+	public static class LooksLikeATestWithoutNamingConvention3 {
 
-        public void testMethod() {
+		public void testMethod() {
 
-        }
+		}
 
-    }
+	}
 
-    static abstract public class NonOffendingAbstractTests {
+	static abstract public class NonOffendingAbstractTests {
 
-    }
+	}
 
-    private static class NonOffendingPrivateTests {
+	private static class NonOffendingPrivateTests {
 
-    }
+	}
 
-    static class NonOffendingPackageTests {
+	static class NonOffendingPackageTests {
 
-    }
+	}
 }

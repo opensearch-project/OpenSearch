@@ -37,73 +37,73 @@ import java.util.Locale;
 
 public class Distribution {
 
-    public final Path path;
-    public final Packaging packaging;
-    public final Platform platform;
-    public final boolean hasJdk;
-    public final String version;
+	public final Path path;
+	public final Packaging packaging;
+	public final Platform platform;
+	public final boolean hasJdk;
+	public final String version;
 
-    public Distribution(Path path) {
-        this.path = path;
-        String filename = path.getFileName().toString();
+	public Distribution(Path path) {
+		this.path = path;
+		String filename = path.getFileName().toString();
 
-        if (filename.endsWith(".gz")) {
-            this.packaging = Packaging.TAR;
-        } else if (filename.endsWith(".docker.tar")) {
-            this.packaging = Packaging.DOCKER;
-        } else {
-            int lastDot = filename.lastIndexOf('.');
-            this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
-        }
+		if (filename.endsWith(".gz")) {
+			this.packaging = Packaging.TAR;
+		} else if (filename.endsWith(".docker.tar")) {
+			this.packaging = Packaging.DOCKER;
+		} else {
+			int lastDot = filename.lastIndexOf('.');
+			this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
+		}
 
-        this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
-        this.hasJdk = filename.contains("no-jdk") == false;
-        String version = filename.split("-", 3)[1];
-        if (filename.contains("-SNAPSHOT")) {
-            version += "-SNAPSHOT";
-        }
-        this.version = version;
-    }
+		this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
+		this.hasJdk = filename.contains("no-jdk") == false;
+		String version = filename.split("-", 3)[1];
+		if (filename.contains("-SNAPSHOT")) {
+			version += "-SNAPSHOT";
+		}
+		this.version = version;
+	}
 
-    public boolean isArchive() {
-        return packaging == Packaging.TAR || packaging == Packaging.ZIP;
-    }
+	public boolean isArchive() {
+		return packaging == Packaging.TAR || packaging == Packaging.ZIP;
+	}
 
-    public boolean isPackage() {
-        return packaging == Packaging.RPM || packaging == Packaging.DEB;
-    }
+	public boolean isPackage() {
+		return packaging == Packaging.RPM || packaging == Packaging.DEB;
+	}
 
-    public boolean isDocker() {
-        return packaging == Packaging.DOCKER;
-    }
+	public boolean isDocker() {
+		return packaging == Packaging.DOCKER;
+	}
 
-    public enum Packaging {
+	public enum Packaging {
 
-        TAR(".tar.gz", Platforms.LINUX || Platforms.DARWIN),
-        ZIP(".zip", Platforms.WINDOWS),
-        DEB(".deb", Platforms.isDPKG()),
-        RPM(".rpm", Platforms.isRPM()),
-        DOCKER(".docker.tar", Platforms.isDocker());
+		TAR(".tar.gz", Platforms.LINUX || Platforms.DARWIN),
+		ZIP(".zip", Platforms.WINDOWS),
+		DEB(".deb", Platforms.isDPKG()),
+		RPM(".rpm", Platforms.isRPM()),
+		DOCKER(".docker.tar", Platforms.isDocker());
 
-        /** The extension of this distribution's file */
-        public final String extension;
+		/** The extension of this distribution's file */
+		public final String extension;
 
-        /** Whether the distribution is intended for use on the platform the current JVM is running on */
-        public final boolean compatible;
+		/** Whether the distribution is intended for use on the platform the current JVM is running on */
+		public final boolean compatible;
 
-        Packaging(String extension, boolean compatible) {
-            this.extension = extension;
-            this.compatible = compatible;
-        }
-    }
+		Packaging(String extension, boolean compatible) {
+			this.extension = extension;
+			this.compatible = compatible;
+		}
+	}
 
-    public enum Platform {
-        LINUX,
-        WINDOWS,
-        DARWIN;
+	public enum Platform {
+		LINUX,
+		WINDOWS,
+		DARWIN;
 
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-    }
+		public String toString() {
+			return name().toLowerCase(Locale.ROOT);
+		}
+	}
 }

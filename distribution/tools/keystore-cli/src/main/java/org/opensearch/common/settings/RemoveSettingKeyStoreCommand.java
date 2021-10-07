@@ -46,26 +46,26 @@ import java.util.List;
  */
 class RemoveSettingKeyStoreCommand extends BaseKeyStoreCommand {
 
-    private final OptionSpec<String> arguments;
+	private final OptionSpec<String> arguments;
 
-    RemoveSettingKeyStoreCommand() {
-        super("Remove settings from the keystore", true);
-        arguments = parser.nonOptions("setting names");
-    }
+	RemoveSettingKeyStoreCommand() {
+		super("Remove settings from the keystore", true);
+		arguments = parser.nonOptions("setting names");
+	}
 
-    @Override
-    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        List<String> settings = arguments.values(options);
-        if (settings.isEmpty()) {
-            throw new UserException(ExitCodes.USAGE, "Must supply at least one setting to remove");
-        }
-        final KeyStoreWrapper keyStore = getKeyStore();
-        for (String setting : arguments.values(options)) {
-            if (keyStore.getSettingNames().contains(setting) == false) {
-                throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
-            }
-            keyStore.remove(setting);
-        }
-        keyStore.save(env.configFile(), getKeyStorePassword().getChars());
-    }
+	@Override
+	protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+		List<String> settings = arguments.values(options);
+		if (settings.isEmpty()) {
+			throw new UserException(ExitCodes.USAGE, "Must supply at least one setting to remove");
+		}
+		final KeyStoreWrapper keyStore = getKeyStore();
+		for (String setting : arguments.values(options)) {
+			if (keyStore.getSettingNames().contains(setting) == false) {
+				throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
+			}
+			keyStore.remove(setting);
+		}
+		keyStore.save(env.configFile(), getKeyStorePassword().getChars());
+	}
 }

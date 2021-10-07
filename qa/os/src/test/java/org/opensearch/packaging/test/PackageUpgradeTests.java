@@ -47,77 +47,77 @@ import static org.hamcrest.Matchers.containsString;
 
 public class PackageUpgradeTests extends PackagingTestCase {
 
-    // the distribution being upgraded
-    protected static final Distribution bwcDistribution;
-    static {
-        bwcDistribution = new Distribution(Paths.get(System.getProperty("tests.bwc-distribution")));
-    }
+	// the distribution being upgraded
+	protected static final Distribution bwcDistribution;
+	static {
+		bwcDistribution = new Distribution(Paths.get(System.getProperty("tests.bwc-distribution")));
+	}
 
-    public void test10InstallBwcVersion() throws Exception {
-        installation = installPackage(sh, bwcDistribution);
-        assertInstalled(bwcDistribution);
-        verifyPackageInstallation(installation, bwcDistribution, sh);
-    }
+	public void test10InstallBwcVersion() throws Exception {
+		installation = installPackage(sh, bwcDistribution);
+		assertInstalled(bwcDistribution);
+		verifyPackageInstallation(installation, bwcDistribution, sh);
+	}
 
-    public void test11ModifyKeystore() throws Exception {
-        // deliberately modify the keystore to force it to be preserved during package upgrade
-        installation.executables().keystoreTool.run("remove keystore.seed");
-        installation.executables().keystoreTool.run("add -x keystore.seed", "keystore_seed");
-    }
+	public void test11ModifyKeystore() throws Exception {
+		// deliberately modify the keystore to force it to be preserved during package upgrade
+		installation.executables().keystoreTool.run("remove keystore.seed");
+		installation.executables().keystoreTool.run("add -x keystore.seed", "keystore_seed");
+	}
 
-    public void test12SetupBwcVersion() throws Exception {
-        startOpenSearch();
+	public void test12SetupBwcVersion() throws Exception {
+		startOpenSearch();
 
-        // create indexes explicitly with 0 replicas so when restarting we can reach green state
-        makeRequest(
-            Request.Put("http://localhost:9200/library")
-                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
-        );
-        makeRequest(
-            Request.Put("http://localhost:9200/library2")
-                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
-        );
+		// create indexes explicitly with 0 replicas so when restarting we can reach green state
+		makeRequest(
+			Request.Put("http://localhost:9200/library")
+				.bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
+		);
+		makeRequest(
+			Request.Put("http://localhost:9200/library2")
+				.bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
+		);
 
-        // add some docs
-        makeRequest(
-            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
-                .bodyString("{ \"title\": \"OpenSearch\"}", ContentType.APPLICATION_JSON)
-        );
-        makeRequest(
-            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Brave New World\"}", ContentType.APPLICATION_JSON)
-        );
-        makeRequest(
-            Request.Post("http://localhost:9200/library2/_doc/1?refresh=true&pretty")
-                .bodyString("{ \"title\": \"The Left Hand of Darkness\"}", ContentType.APPLICATION_JSON)
-        );
+		// add some docs
+		makeRequest(
+			Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
+				.bodyString("{ \"title\": \"OpenSearch\"}", ContentType.APPLICATION_JSON)
+		);
+		makeRequest(
+			Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
+				.bodyString("{ \"title\": \"Brave New World\"}", ContentType.APPLICATION_JSON)
+		);
+		makeRequest(
+			Request.Post("http://localhost:9200/library2/_doc/1?refresh=true&pretty")
+				.bodyString("{ \"title\": \"The Left Hand of Darkness\"}", ContentType.APPLICATION_JSON)
+		);
 
-        assertDocsExist();
+		assertDocsExist();
 
-        stopOpenSearch();
-    }
+		stopOpenSearch();
+	}
 
-    public void test20InstallUpgradedVersion() throws Exception {
-        if (bwcDistribution.path.equals(distribution.path)) {
-            // the old and new distributions are the same, so we are testing force upgrading
-            Packages.forceUpgradePackage(sh, distribution);
-        } else {
-            Packages.upgradePackage(sh, distribution);
-        }
-        assertInstalled(distribution);
-        verifyPackageInstallation(installation, distribution, sh);
-    }
+	public void test20InstallUpgradedVersion() throws Exception {
+		if (bwcDistribution.path.equals(distribution.path)) {
+			// the old and new distributions are the same, so we are testing force upgrading
+			Packages.forceUpgradePackage(sh, distribution);
+		} else {
+			Packages.upgradePackage(sh, distribution);
+		}
+		assertInstalled(distribution);
+		verifyPackageInstallation(installation, distribution, sh);
+	}
 
-    public void test21CheckUpgradedVersion() throws Exception {
-        assertWhileRunning(() -> { assertDocsExist(); });
-    }
+	public void test21CheckUpgradedVersion() throws Exception {
+		assertWhileRunning(() -> { assertDocsExist(); });
+	}
 
-    private void assertDocsExist() throws Exception {
-        String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
-        assertThat(response1, containsString("OpenSearch"));
-        String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
-        assertThat(response2, containsString("World"));
-        String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
-        assertThat(response3, containsString("Darkness"));
-    }
+	private void assertDocsExist() throws Exception {
+		String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
+		assertThat(response1, containsString("OpenSearch"));
+		String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
+		assertThat(response2, containsString("World"));
+		String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
+		assertThat(response3, containsString("Darkness"));
+	}
 }

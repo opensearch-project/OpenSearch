@@ -67,103 +67,103 @@ import static org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORM
  */
 public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
-    public static final String DEFAULT_CONFIGURATION_NAME = "default";
-    public static final String EXTRACTED_CONFIGURATION_NAME = "extracted";
-    private NamedDomainObjectContainer<DistributionArchive> container;
+	public static final String DEFAULT_CONFIGURATION_NAME = "default";
+	public static final String EXTRACTED_CONFIGURATION_NAME = "extracted";
+	private NamedDomainObjectContainer<DistributionArchive> container;
 
-    @Override
-    public void apply(Project project) {
-        project.getPlugins().apply(BasePlugin.class);
-        registerAndConfigureDistributionArchivesExtension(project);
-        registerEmptyDirectoryTasks(project);
-        configureGeneralTaskDefaults(project);
-        configureTarDefaults(project);
-    }
+	@Override
+	public void apply(Project project) {
+		project.getPlugins().apply(BasePlugin.class);
+		registerAndConfigureDistributionArchivesExtension(project);
+		registerEmptyDirectoryTasks(project);
+		configureGeneralTaskDefaults(project);
+		configureTarDefaults(project);
+	}
 
-    private void registerAndConfigureDistributionArchivesExtension(Project project) {
-        container = project.container(DistributionArchive.class, name -> {
-            var subProjectDir = archiveToSubprojectName(name);
-            var copyDistributionTaskName = "build" + capitalize(name.substring(0, name.length() - 3));
-            TaskContainer tasks = project.getTasks();
-            var explodedDist = tasks.register(copyDistributionTaskName, Sync.class, sync -> sync.into(subProjectDir + "/build/install/"));
-            var archiveTaskName = "build" + capitalize(name);
-            return name.endsWith("Tar")
-                ? new DistributionArchive(tasks.register(archiveTaskName, SymbolicLinkPreservingTar.class), explodedDist, name)
-                : new DistributionArchive(tasks.register(archiveTaskName, Zip.class), explodedDist, name);
-        });
-        // Each defined distribution archive is linked to a subproject.
-        // A distribution archive definition not matching a sub project will result in build failure.
-        container.whenObjectAdded(distributionArchive -> {
-            var subProjectName = archiveToSubprojectName(distributionArchive.getName());
-            project.project(subProjectName, sub -> {
-                sub.getPlugins().apply(BasePlugin.class);
-                sub.getArtifacts().add(DEFAULT_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
-                var extractedConfiguration = sub.getConfigurations().create("extracted");
-                extractedConfiguration.setCanBeResolved(false);
-                extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
-                sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());
+	private void registerAndConfigureDistributionArchivesExtension(Project project) {
+		container = project.container(DistributionArchive.class, name -> {
+			var subProjectDir = archiveToSubprojectName(name);
+			var copyDistributionTaskName = "build" + capitalize(name.substring(0, name.length() - 3));
+			TaskContainer tasks = project.getTasks();
+			var explodedDist = tasks.register(copyDistributionTaskName, Sync.class, sync -> sync.into(subProjectDir + "/build/install/"));
+			var archiveTaskName = "build" + capitalize(name);
+			return name.endsWith("Tar")
+				? new DistributionArchive(tasks.register(archiveTaskName, SymbolicLinkPreservingTar.class), explodedDist, name)
+				: new DistributionArchive(tasks.register(archiveTaskName, Zip.class), explodedDist, name);
+		});
+		// Each defined distribution archive is linked to a subproject.
+		// A distribution archive definition not matching a sub project will result in build failure.
+		container.whenObjectAdded(distributionArchive -> {
+			var subProjectName = archiveToSubprojectName(distributionArchive.getName());
+			project.project(subProjectName, sub -> {
+				sub.getPlugins().apply(BasePlugin.class);
+				sub.getArtifacts().add(DEFAULT_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
+				var extractedConfiguration = sub.getConfigurations().create("extracted");
+				extractedConfiguration.setCanBeResolved(false);
+				extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+				sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());
 
-            });
-        });
-        project.getExtensions().add("distribution_archives", container);
-    }
+			});
+		});
+		project.getExtensions().add("distribution_archives", container);
+	}
 
-    private void configureGeneralTaskDefaults(Project project) {
-        // common config across all copy / archive tasks
-        project.getTasks().withType(AbstractCopyTask.class).configureEach(t -> {
-            t.dependsOn(project.getTasks().withType(EmptyDirTask.class));
-            t.setIncludeEmptyDirs(true);
-            t.setDirMode(0755);
-            t.setFileMode(0644);
-        });
+	private void configureGeneralTaskDefaults(Project project) {
+		// common config across all copy / archive tasks
+		project.getTasks().withType(AbstractCopyTask.class).configureEach(t -> {
+			t.dependsOn(project.getTasks().withType(EmptyDirTask.class));
+			t.setIncludeEmptyDirs(true);
+			t.setDirMode(0755);
+			t.setFileMode(0644);
+		});
 
-        // common config across all archives
-        project.getTasks().withType(AbstractArchiveTask.class).configureEach(t -> {
-            String subdir = archiveTaskToSubprojectName(t.getName());
-            t.getDestinationDirectory().set(project.file(subdir + "/build/distributions"));
-            t.getArchiveBaseName().set("opensearch-min");
-        });
-    }
+		// common config across all archives
+		project.getTasks().withType(AbstractArchiveTask.class).configureEach(t -> {
+			String subdir = archiveTaskToSubprojectName(t.getName());
+			t.getDestinationDirectory().set(project.file(subdir + "/build/distributions"));
+			t.getArchiveBaseName().set("opensearch-min");
+		});
+	}
 
-    private void configureTarDefaults(Project project) {
-        // common config across all tars
-        project.getTasks().withType(SymbolicLinkPreservingTar.class).configureEach(t -> {
-            t.getArchiveExtension().set("tar.gz");
-            t.setCompression(Compression.GZIP);
-        });
-    }
+	private void configureTarDefaults(Project project) {
+		// common config across all tars
+		project.getTasks().withType(SymbolicLinkPreservingTar.class).configureEach(t -> {
+			t.getArchiveExtension().set("tar.gz");
+			t.setCompression(Compression.GZIP);
+		});
+	}
 
-    private void registerEmptyDirectoryTasks(Project project) {
-        // CopySpec does not make it easy to create an empty directory so we
-        // create the directory that we want, and then point CopySpec to its
-        // parent to copy to the root of the distribution
-        File logsDir = new File(project.getBuildDir(), "logs-hack/logs");
-        project.getExtensions().getExtraProperties().set("logsDir", new File(project.getBuildDir(), "logs-hack/logs"));
-        project.getTasks().register("createLogsDir", EmptyDirTask.class, t -> {
-            t.setDir(logsDir);
-            t.setDirMode(0755);
-        });
+	private void registerEmptyDirectoryTasks(Project project) {
+		// CopySpec does not make it easy to create an empty directory so we
+		// create the directory that we want, and then point CopySpec to its
+		// parent to copy to the root of the distribution
+		File logsDir = new File(project.getBuildDir(), "logs-hack/logs");
+		project.getExtensions().getExtraProperties().set("logsDir", new File(project.getBuildDir(), "logs-hack/logs"));
+		project.getTasks().register("createLogsDir", EmptyDirTask.class, t -> {
+			t.setDir(logsDir);
+			t.setDirMode(0755);
+		});
 
-        File pluginsDir = new File(project.getBuildDir(), "plugins-hack/plugins");
-        project.getExtensions().add("pluginsDir", pluginsDir);
-        project.getTasks().register("createPluginsDir", EmptyDirTask.class, t -> {
-            t.setDir(pluginsDir);
-            t.setDirMode(0755);
-        });
+		File pluginsDir = new File(project.getBuildDir(), "plugins-hack/plugins");
+		project.getExtensions().add("pluginsDir", pluginsDir);
+		project.getTasks().register("createPluginsDir", EmptyDirTask.class, t -> {
+			t.setDir(pluginsDir);
+			t.setDirMode(0755);
+		});
 
-        File jvmOptionsDir = new File(project.getBuildDir(), "jvm-options-hack/jvm.options.d");
-        project.getExtensions().add("jvmOptionsDir", jvmOptionsDir);
-        project.getTasks().register("createJvmOptionsDir", EmptyDirTask.class, t -> {
-            t.setDir(jvmOptionsDir);
-            t.setDirMode(0750);
-        });
-    }
+		File jvmOptionsDir = new File(project.getBuildDir(), "jvm-options-hack/jvm.options.d");
+		project.getExtensions().add("jvmOptionsDir", jvmOptionsDir);
+		project.getTasks().register("createJvmOptionsDir", EmptyDirTask.class, t -> {
+			t.setDir(jvmOptionsDir);
+			t.setDirMode(0750);
+		});
+	}
 
-    private static String archiveTaskToSubprojectName(String taskName) {
-        return archiveToSubprojectName(taskName).substring("build".length() + 1);
-    }
+	private static String archiveTaskToSubprojectName(String taskName) {
+		return archiveToSubprojectName(taskName).substring("build".length() + 1);
+	}
 
-    private static String archiveToSubprojectName(String taskName) {
-        return taskName.replaceAll("[A-Z]", "-$0").toLowerCase();
-    }
+	private static String archiveToSubprojectName(String taskName) {
+		return taskName.replaceAll("[A-Z]", "-$0").toLowerCase();
+	}
 }

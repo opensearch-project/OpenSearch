@@ -61,118 +61,118 @@ import static org.opensearch.gradle.util.GradleUtils.maybeConfigure;
 
 public class PublishPlugin implements Plugin<Project> {
 
-    @Override
-    public void apply(Project project) {
-        project.getPluginManager().apply("nebula.maven-base-publish");
-        project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
+	@Override
+	public void apply(Project project) {
+		project.getPluginManager().apply("nebula.maven-base-publish");
+		project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
 
-        configureJavadocJar(project);
-        configureSourcesJar(project);
-        configurePomGeneration(project);
-    }
+		configureJavadocJar(project);
+		configureSourcesJar(project);
+		configurePomGeneration(project);
+	}
 
-    private static String getArchivesBaseName(Project project) {
-        return project.getConvention().getPlugin(BasePluginConvention.class).getArchivesBaseName();
-    }
+	private static String getArchivesBaseName(Project project) {
+		return project.getConvention().getPlugin(BasePluginConvention.class).getArchivesBaseName();
+	}
 
-    /**Configuration generation of maven poms. */
-    private static void configurePomGeneration(Project project) {
+	/**Configuration generation of maven poms. */
+	private static void configurePomGeneration(Project project) {
 
-        TaskProvider<Task> generatePomTask = project.getTasks().register("generatePom");
+		TaskProvider<Task> generatePomTask = project.getTasks().register("generatePom");
 
-        maybeConfigure(project.getTasks(), LifecycleBasePlugin.ASSEMBLE_TASK_NAME, assemble -> assemble.dependsOn(generatePomTask));
+		maybeConfigure(project.getTasks(), LifecycleBasePlugin.ASSEMBLE_TASK_NAME, assemble -> assemble.dependsOn(generatePomTask));
 
-        project.getTasks().withType(GenerateMavenPom.class).configureEach(pomTask -> pomTask.setDestination(new Callable<String>() {
-            @Override
-            public String call() throws Exception {
-                return String.format(
-                    "%s/distributions/%s-%s.pom",
-                    project.getBuildDir(),
-                    getArchivesBaseName(project),
-                    project.getVersion()
-                );
-            }
-        }));
+		project.getTasks().withType(GenerateMavenPom.class).configureEach(pomTask -> pomTask.setDestination(new Callable<String>() {
+			@Override
+			public String call() throws Exception {
+				return String.format(
+					"%s/distributions/%s-%s.pom",
+					project.getBuildDir(),
+					getArchivesBaseName(project),
+					project.getVersion()
+				);
+			}
+		}));
 
-        PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
+		PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
 
-        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> {
-            MavenPublication publication = publishing.getPublications().maybeCreate("shadow", MavenPublication.class);
-            ShadowExtension shadow = project.getExtensions().getByType(ShadowExtension.class);
-            shadow.component(publication);
-            // Workaround for https://github.com/johnrengelman/shadow/issues/334
-            // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
-            publication.getPom().withXml(xml -> {
-                Node root = xml.asNode();
-                root.appendNode("name", project.getName());
-                root.appendNode("description", project.getDescription());
-                Node dependenciesNode = (Node) ((NodeList) root.get("dependencies")).get(0);
-                project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME()).getAllDependencies().all(dependency -> {
-                    if (dependency instanceof ProjectDependency) {
-                        Node dependencyNode = dependenciesNode.appendNode("dependency");
-                        dependencyNode.appendNode("groupId", dependency.getGroup());
-                        ProjectDependency projectDependency = (ProjectDependency) dependency;
-                        String artifactId = getArchivesBaseName(projectDependency.getDependencyProject());
-                        dependencyNode.appendNode("artifactId", artifactId);
-                        dependencyNode.appendNode("version", dependency.getVersion());
-                        dependencyNode.appendNode("scope", "compile");
-                    }
-                });
-            });
-        });
+		project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> {
+			MavenPublication publication = publishing.getPublications().maybeCreate("shadow", MavenPublication.class);
+			ShadowExtension shadow = project.getExtensions().getByType(ShadowExtension.class);
+			shadow.component(publication);
+			// Workaround for https://github.com/johnrengelman/shadow/issues/334
+			// Here we manually add any project dependencies in the "shadow" configuration to our generated POM
+			publication.getPom().withXml(xml -> {
+				Node root = xml.asNode();
+				root.appendNode("name", project.getName());
+				root.appendNode("description", project.getDescription());
+				Node dependenciesNode = (Node) ((NodeList) root.get("dependencies")).get(0);
+				project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME()).getAllDependencies().all(dependency -> {
+					if (dependency instanceof ProjectDependency) {
+						Node dependencyNode = dependenciesNode.appendNode("dependency");
+						dependencyNode.appendNode("groupId", dependency.getGroup());
+						ProjectDependency projectDependency = (ProjectDependency) dependency;
+						String artifactId = getArchivesBaseName(projectDependency.getDependencyProject());
+						dependencyNode.appendNode("artifactId", artifactId);
+						dependencyNode.appendNode("version", dependency.getVersion());
+						dependencyNode.appendNode("scope", "compile");
+					}
+				});
+			});
+		});
 
-        publishing.getPublications().withType(MavenPublication.class, publication -> {
-            // Add git origin info to generated POM files
-            publication.getPom().withXml(PublishPlugin::addScmInfo);
+		publishing.getPublications().withType(MavenPublication.class, publication -> {
+			// Add git origin info to generated POM files
+			publication.getPom().withXml(PublishPlugin::addScmInfo);
 
-            // have to defer this until archivesBaseName is set
-            project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
+			// have to defer this until archivesBaseName is set
+			project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
 
-            // publish sources and javadoc for Java projects.
-            if (project.getPluginManager().hasPlugin("opensearch.java")) {
-                publication.artifact(project.getTasks().getByName("sourcesJar"));
-                publication.artifact(project.getTasks().getByName("javadocJar"));
-            }
+			// publish sources and javadoc for Java projects.
+			if (project.getPluginManager().hasPlugin("opensearch.java")) {
+				publication.artifact(project.getTasks().getByName("sourcesJar"));
+				publication.artifact(project.getTasks().getByName("javadocJar"));
+			}
 
-            generatePomTask.configure(
-                t -> t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName())))
-            );
-        });
+			generatePomTask.configure(
+				t -> t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName())))
+			);
+		});
 
-    }
+	}
 
-    private static void addScmInfo(XmlProvider xml) {
-        Node root = xml.asNode();
-        root.appendNode("url", Util.urlFromOrigin(BuildParams.getGitOrigin()));
-        Node scmNode = root.appendNode("scm");
-        scmNode.appendNode("url", BuildParams.getGitOrigin());
-    }
+	private static void addScmInfo(XmlProvider xml) {
+		Node root = xml.asNode();
+		root.appendNode("url", Util.urlFromOrigin(BuildParams.getGitOrigin()));
+		Node scmNode = root.appendNode("scm");
+		scmNode.appendNode("url", BuildParams.getGitOrigin());
+	}
 
-    /** Adds a javadocJar task to generate a jar containing javadocs. */
-    private static void configureJavadocJar(Project project) {
-        project.getPlugins().withId("opensearch.java", p -> {
-            TaskProvider<Jar> javadocJarTask = project.getTasks().register("javadocJar", Jar.class);
-            javadocJarTask.configure(jar -> {
-                jar.getArchiveClassifier().set("javadoc");
-                jar.setGroup("build");
-                jar.setDescription("Assembles a jar containing javadocs.");
-                jar.from(project.getTasks().named(JavaPlugin.JAVADOC_TASK_NAME));
-            });
-            maybeConfigure(project.getTasks(), BasePlugin.ASSEMBLE_TASK_NAME, t -> t.dependsOn(javadocJarTask));
-        });
-    }
+	/** Adds a javadocJar task to generate a jar containing javadocs. */
+	private static void configureJavadocJar(Project project) {
+		project.getPlugins().withId("opensearch.java", p -> {
+			TaskProvider<Jar> javadocJarTask = project.getTasks().register("javadocJar", Jar.class);
+			javadocJarTask.configure(jar -> {
+				jar.getArchiveClassifier().set("javadoc");
+				jar.setGroup("build");
+				jar.setDescription("Assembles a jar containing javadocs.");
+				jar.from(project.getTasks().named(JavaPlugin.JAVADOC_TASK_NAME));
+			});
+			maybeConfigure(project.getTasks(), BasePlugin.ASSEMBLE_TASK_NAME, t -> t.dependsOn(javadocJarTask));
+		});
+	}
 
-    static void configureSourcesJar(Project project) {
-        project.getPlugins().withId("opensearch.java", p -> {
-            TaskProvider<Jar> sourcesJarTask = project.getTasks().register("sourcesJar", Jar.class);
-            sourcesJarTask.configure(jar -> {
-                jar.getArchiveClassifier().set("sources");
-                jar.setGroup("build");
-                jar.setDescription("Assembles a jar containing source files.");
-                SourceSet mainSourceSet = Util.getJavaMainSourceSet(project).get();
-                jar.from(mainSourceSet.getAllSource());
-            });
-            maybeConfigure(project.getTasks(), BasePlugin.ASSEMBLE_TASK_NAME, t -> t.dependsOn(sourcesJarTask));
-        });
-    }
+	static void configureSourcesJar(Project project) {
+		project.getPlugins().withId("opensearch.java", p -> {
+			TaskProvider<Jar> sourcesJarTask = project.getTasks().register("sourcesJar", Jar.class);
+			sourcesJarTask.configure(jar -> {
+				jar.getArchiveClassifier().set("sources");
+				jar.setGroup("build");
+				jar.setDescription("Assembles a jar containing source files.");
+				SourceSet mainSourceSet = Util.getJavaMainSourceSet(project).get();
+				jar.from(mainSourceSet.getAllSource());
+			});
+			maybeConfigure(project.getTasks(), BasePlugin.ASSEMBLE_TASK_NAME, t -> t.dependsOn(sourcesJarTask));
+		});
+	}
 }

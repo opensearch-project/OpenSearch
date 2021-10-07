@@ -44,15 +44,15 @@ import java.nio.file.Path;
 @SuppressWarnings("unused")
 public final class RestHighLevelClientProducer {
 
-    @Produces
-    public RestHighLevelClient createRestHighLevelClient() {
-        String httpUri = System.getProperty("opensearch.uri");
+	@Produces
+	public RestHighLevelClient createRestHighLevelClient() {
+		String httpUri = System.getProperty("opensearch.uri");
 
-        return new RestHighLevelClient(RestClient.builder(HttpHost.create(httpUri)));
-    }
+		return new RestHighLevelClient(RestClient.builder(HttpHost.create(httpUri)));
+	}
 
-    @SuppressForbidden(reason = "get path not configured in environment")
-    private Path getPath(final String OpenSearchProperties) {
-        return PathUtils.get(OpenSearchProperties);
-    }
+	@SuppressForbidden(reason = "get path not configured in environment")
+	private Path getPath(final String OpenSearchProperties) {
+		return PathUtils.get(OpenSearchProperties);
+	}
 }

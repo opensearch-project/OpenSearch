@@ -47,22 +47,22 @@ import java.util.Map;
  * copy of org.apache.lucene.util.LuceneJUnit3MethodProvider to avoid a dependency between build and test fw.
  */
 public final class JUnit3MethodProvider implements TestMethodProvider {
-    @Override
-    public Collection<Method> getTestMethods(Class<?> suiteClass, ClassModel classModel) {
-        Map<Method, MethodModel> methods = classModel.getMethods();
-        ArrayList<Method> result = new ArrayList<>();
-        for (MethodModel mm : methods.values()) {
-            // Skip any methods that have overrieds/ shadows.
-            if (mm.getDown() != null) continue;
+	@Override
+	public Collection<Method> getTestMethods(Class<?> suiteClass, ClassModel classModel) {
+		Map<Method, MethodModel> methods = classModel.getMethods();
+		ArrayList<Method> result = new ArrayList<>();
+		for (MethodModel mm : methods.values()) {
+			// Skip any methods that have overrieds/ shadows.
+			if (mm.getDown() != null) continue;
 
-            Method m = mm.element;
-            if (m.getName().startsWith("test")
-                && Modifier.isPublic(m.getModifiers())
-                && !Modifier.isStatic(m.getModifiers())
-                && m.getParameterTypes().length == 0) {
-                result.add(m);
-            }
-        }
-        return result;
-    }
+			Method m = mm.element;
+			if (m.getName().startsWith("test")
+				&& Modifier.isPublic(m.getModifiers())
+				&& !Modifier.isStatic(m.getModifiers())
+				&& m.getParameterTypes().length == 0) {
+				result.add(m);
+			}
+		}
+		return result;
+	}
 }

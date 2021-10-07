@@ -45,24 +45,24 @@ import static org.junit.Assert.fail;
 
 public class TestClasspathUtils {
 
-    public static void setupJarJdkClasspath(File projectRoot) {
-        try {
-            URL originLocation = TestClasspathUtils.class.getClassLoader()
-                .loadClass("org.opensearch.bootstrap.JdkJarHellCheck")
-                .getProtectionDomain()
-                .getCodeSource()
-                .getLocation();
-            File targetFile = new File(
-                projectRoot,
-                "sample_jars/build/testrepo/org/opensearch/opensearch-core/current/opensearch-core-current.jar"
-            );
-            targetFile.getParentFile().mkdirs();
-            Path originalPath = Paths.get(originLocation.toURI());
-            Files.copy(originalPath, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        } catch (ClassNotFoundException | URISyntaxException | IOException e) {
-            e.printStackTrace();
-            fail("Cannot setup jdk jar hell classpath");
-        }
-    }
+	public static void setupJarJdkClasspath(File projectRoot) {
+		try {
+			URL originLocation = TestClasspathUtils.class.getClassLoader()
+				.loadClass("org.opensearch.bootstrap.JdkJarHellCheck")
+				.getProtectionDomain()
+				.getCodeSource()
+				.getLocation();
+			File targetFile = new File(
+				projectRoot,
+				"sample_jars/build/testrepo/org/opensearch/opensearch-core/current/opensearch-core-current.jar"
+			);
+			targetFile.getParentFile().mkdirs();
+			Path originalPath = Paths.get(originLocation.toURI());
+			Files.copy(originalPath, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+		} catch (ClassNotFoundException | URISyntaxException | IOException e) {
+			e.printStackTrace();
+			fail("Cannot setup jdk jar hell classpath");
+		}
+	}
 
 }

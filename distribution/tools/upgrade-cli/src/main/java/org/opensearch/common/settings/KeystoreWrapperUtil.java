@@ -13,19 +13,19 @@ package org.opensearch.common.settings;
  * saving a setting.
  */
 public final class KeystoreWrapperUtil {
-    /**
-     * No public constructor. Contains only static functions.
-     */
-    private KeystoreWrapperUtil() {}
+	/**
+	 * No public constructor. Contains only static functions.
+	 */
+	private KeystoreWrapperUtil() {}
 
-    /**
-     * Save a secure setting using the wrapper.
-     *
-     * @param keystore an instance of {@link KeyStoreWrapper}
-     * @param setting  setting to save
-     * @param bytes    value of the setting in bytes
-     */
-    public static void saveSetting(KeyStoreWrapper keystore, String setting, byte[] bytes) {
-        keystore.setFile(setting, bytes);
-    }
+	/**
+	 * Save a secure setting using the wrapper.
+	 *
+	 * @param keystore an instance of {@link KeyStoreWrapper}
+	 * @param setting  setting to save
+	 * @param bytes    value of the setting in bytes
+	 */
+	public static void saveSetting(KeyStoreWrapper keystore, String setting, byte[] bytes) {
+		keystore.setFile(setting, bytes);
+	}
 }

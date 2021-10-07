@@ -33,8 +33,8 @@ package org.opensearch.gradle.testkit;
 
 public class LooksLikeATestWithoutNamingConvention3 {
 
-    public void testMethod() {
+	public void testMethod() {
 
-    }
+	}
 
 }

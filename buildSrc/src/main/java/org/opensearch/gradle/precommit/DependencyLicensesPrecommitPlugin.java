@@ -42,24 +42,24 @@ import org.gradle.api.tasks.TaskProvider;
 
 public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
 
-    @Override
-    public TaskProvider<? extends Task> createTask(Project project) {
-        project.getPlugins().apply(CompileOnlyResolvePlugin.class);
-        TaskProvider<DependencyLicensesTask> dependencyLicenses = project.getTasks()
-            .register("dependencyLicenses", DependencyLicensesTask.class);
+	@Override
+	public TaskProvider<? extends Task> createTask(Project project) {
+		project.getPlugins().apply(CompileOnlyResolvePlugin.class);
+		TaskProvider<DependencyLicensesTask> dependencyLicenses = project.getTasks()
+			.register("dependencyLicenses", DependencyLicensesTask.class);
 
-        // only require dependency licenses for non-opensearch deps
-        dependencyLicenses.configure(t -> {
-            Configuration runtimeClasspath = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
-            Configuration compileOnly = project.getConfigurations()
-                .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
-            t.setDependencies(
-                runtimeClasspath.fileCollection(dependency -> dependency instanceof ProjectDependency == false).minus(compileOnly)
-            );
-        });
+		// only require dependency licenses for non-opensearch deps
+		dependencyLicenses.configure(t -> {
+			Configuration runtimeClasspath = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
+			Configuration compileOnly = project.getConfigurations()
+				.getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+			t.setDependencies(
+				runtimeClasspath.fileCollection(dependency -> dependency instanceof ProjectDependency == false).minus(compileOnly)
+			);
+		});
 
-        // we also create the updateShas helper task that is associated with dependencyLicenses
-        project.getTasks().register("updateShas", UpdateShasTask.class, t -> t.setParentTask(dependencyLicenses));
-        return dependencyLicenses;
-    }
+		// we also create the updateShas helper task that is associated with dependencyLicenses
+		project.getTasks().register("updateShas", UpdateShasTask.class, t -> t.setParentTask(dependencyLicenses));
+		return dependencyLicenses;
+	}
 }

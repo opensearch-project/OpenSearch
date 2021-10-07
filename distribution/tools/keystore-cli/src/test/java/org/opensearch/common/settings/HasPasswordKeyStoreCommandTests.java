@@ -44,38 +44,38 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class HasPasswordKeyStoreCommandTests extends KeyStoreCommandTestCase {
-    @Override
-    protected Command newCommand() {
-        return new HasPasswordKeyStoreCommand() {
-            @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
-                return env;
-            }
-        };
-    }
+	@Override
+	protected Command newCommand() {
+		return new HasPasswordKeyStoreCommand() {
+			@Override
+			protected Environment createEnv(Map<String, String> settings) throws UserException {
+				return env;
+			}
+		};
+	}
 
-    public void testFailsWithNoKeystore() throws Exception {
-        UserException e = expectThrows(UserException.class, this::execute);
-        assertEquals("Unexpected exit code", HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
-        assertThat("Exception should have null message", e.getMessage(), is(nullValue()));
-    }
+	public void testFailsWithNoKeystore() throws Exception {
+		UserException e = expectThrows(UserException.class, this::execute);
+		assertEquals("Unexpected exit code", HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
+		assertThat("Exception should have null message", e.getMessage(), is(nullValue()));
+	}
 
-    public void testFailsWhenKeystoreLacksPassword() throws Exception {
-        createKeystore("");
-        UserException e = expectThrows(UserException.class, this::execute);
-        assertEquals("Unexpected exit code", HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
-        assertThat("Exception should have null message", e.getMessage(), is(nullValue()));
-    }
+	public void testFailsWhenKeystoreLacksPassword() throws Exception {
+		createKeystore("");
+		UserException e = expectThrows(UserException.class, this::execute);
+		assertEquals("Unexpected exit code", HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
+		assertThat("Exception should have null message", e.getMessage(), is(nullValue()));
+	}
 
-    public void testSucceedsWhenKeystoreHasPassword() throws Exception {
-        createKeystore("password");
-        String output = execute();
-        assertThat(output, containsString("Keystore is password-protected"));
-    }
+	public void testSucceedsWhenKeystoreHasPassword() throws Exception {
+		createKeystore("password");
+		String output = execute();
+		assertThat(output, containsString("Keystore is password-protected"));
+	}
 
-    public void testSilentSucceedsWhenKeystoreHasPassword() throws Exception {
-        createKeystore("password");
-        String output = execute("--silent");
-        assertThat(output, is(emptyString()));
-    }
+	public void testSilentSucceedsWhenKeystoreHasPassword() throws Exception {
+		createKeystore("password");
+		String output = execute("--silent");
+		assertThat(output, is(emptyString()));
+	}
 }

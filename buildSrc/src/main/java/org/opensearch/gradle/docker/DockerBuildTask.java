@@ -56,157 +56,157 @@ import java.io.IOException;
 import java.util.Arrays;
 
 public class DockerBuildTask extends DefaultTask {
-    private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
+	private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
 
-    private final WorkerExecutor workerExecutor;
-    private final RegularFileProperty markerFile = getProject().getObjects().fileProperty();
-    private final DirectoryProperty dockerContext = getProject().getObjects().directoryProperty();
+	private final WorkerExecutor workerExecutor;
+	private final RegularFileProperty markerFile = getProject().getObjects().fileProperty();
+	private final DirectoryProperty dockerContext = getProject().getObjects().directoryProperty();
 
-    private String[] tags;
-    private boolean pull = true;
-    private boolean noCache = true;
-    private String[] baseImages;
+	private String[] tags;
+	private boolean pull = true;
+	private boolean noCache = true;
+	private String[] baseImages;
 
-    @Inject
-    public DockerBuildTask(WorkerExecutor workerExecutor) {
-        this.workerExecutor = workerExecutor;
-        this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
-    }
+	@Inject
+	public DockerBuildTask(WorkerExecutor workerExecutor) {
+		this.workerExecutor = workerExecutor;
+		this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+	}
 
-    @TaskAction
-    public void build() {
-        workerExecutor.noIsolation().submit(DockerBuildAction.class, params -> {
-            params.getDockerContext().set(dockerContext);
-            params.getMarkerFile().set(markerFile);
-            params.getTags().set(Arrays.asList(tags));
-            params.getPull().set(pull);
-            params.getNoCache().set(noCache);
-            params.getBaseImages().set(baseImages);
-        });
-    }
+	@TaskAction
+	public void build() {
+		workerExecutor.noIsolation().submit(DockerBuildAction.class, params -> {
+			params.getDockerContext().set(dockerContext);
+			params.getMarkerFile().set(markerFile);
+			params.getTags().set(Arrays.asList(tags));
+			params.getPull().set(pull);
+			params.getNoCache().set(noCache);
+			params.getBaseImages().set(baseImages);
+		});
+	}
 
-    @InputDirectory
-    @PathSensitive(PathSensitivity.RELATIVE)
-    public DirectoryProperty getDockerContext() {
-        return dockerContext;
-    }
+	@InputDirectory
+	@PathSensitive(PathSensitivity.RELATIVE)
+	public DirectoryProperty getDockerContext() {
+		return dockerContext;
+	}
 
-    @Input
-    public String[] getTags() {
-        return tags;
-    }
+	@Input
+	public String[] getTags() {
+		return tags;
+	}
 
-    public void setTags(String[] tags) {
-        this.tags = tags;
-    }
+	public void setTags(String[] tags) {
+		this.tags = tags;
+	}
 
-    @Input
-    public boolean isPull() {
-        return pull;
-    }
+	@Input
+	public boolean isPull() {
+		return pull;
+	}
 
-    public void setPull(boolean pull) {
-        this.pull = pull;
-    }
+	public void setPull(boolean pull) {
+		this.pull = pull;
+	}
 
-    @Input
-    public boolean isNoCache() {
-        return noCache;
-    }
+	@Input
+	public boolean isNoCache() {
+		return noCache;
+	}
 
-    public void setNoCache(boolean noCache) {
-        this.noCache = noCache;
-    }
+	public void setNoCache(boolean noCache) {
+		this.noCache = noCache;
+	}
 
-    @Input
-    public String[] getBaseImages() {
-        return baseImages;
-    }
+	@Input
+	public String[] getBaseImages() {
+		return baseImages;
+	}
 
-    public void setBaseImages(String[] baseImages) {
-        this.baseImages = baseImages;
-    }
+	public void setBaseImages(String[] baseImages) {
+		this.baseImages = baseImages;
+	}
 
-    @OutputFile
-    public RegularFileProperty getMarkerFile() {
-        return markerFile;
-    }
+	@OutputFile
+	public RegularFileProperty getMarkerFile() {
+		return markerFile;
+	}
 
-    public abstract static class DockerBuildAction implements WorkAction<Parameters> {
-        private final ExecOperations execOperations;
+	public abstract static class DockerBuildAction implements WorkAction<Parameters> {
+		private final ExecOperations execOperations;
 
-        @Inject
-        public DockerBuildAction(ExecOperations execOperations) {
-            this.execOperations = execOperations;
-        }
+		@Inject
+		public DockerBuildAction(ExecOperations execOperations) {
+			this.execOperations = execOperations;
+		}
 
-        /**
-         * Wraps `docker pull` in a retry loop, to try and provide some resilience against
-         * transient errors
-         * @param baseImage the image to pull.
-         */
-        private void pullBaseImage(String baseImage) {
-            final int maxAttempts = 10;
+		/**
+		 * Wraps `docker pull` in a retry loop, to try and provide some resilience against
+		 * transient errors
+		 * @param baseImage the image to pull.
+		 */
+		private void pullBaseImage(String baseImage) {
+			final int maxAttempts = 10;
 
-            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-                try {
-                    LoggedExec.exec(execOperations, spec -> {
-                        spec.executable("docker");
-                        spec.args("pull");
-                        spec.args(baseImage);
-                    });
+			for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+				try {
+					LoggedExec.exec(execOperations, spec -> {
+						spec.executable("docker");
+						spec.args("pull");
+						spec.args(baseImage);
+					});
 
-                    return;
-                } catch (Exception e) {
-                    LOGGER.warn("Attempt {}/{} to pull Docker base image {} failed", attempt, maxAttempts, baseImage);
-                }
-            }
+					return;
+				} catch (Exception e) {
+					LOGGER.warn("Attempt {}/{} to pull Docker base image {} failed", attempt, maxAttempts, baseImage);
+				}
+			}
 
-            // If we successfully ran `docker pull` above, we would have returned before this point.
-            throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
-        }
+			// If we successfully ran `docker pull` above, we would have returned before this point.
+			throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
+		}
 
-        @Override
-        public void execute() {
-            final Parameters parameters = getParameters();
+		@Override
+		public void execute() {
+			final Parameters parameters = getParameters();
 
-            if (parameters.getPull().get()) {
-                for (String baseImage : parameters.getBaseImages().get()) {
-                    pullBaseImage(baseImage);
-                }
-            }
+			if (parameters.getPull().get()) {
+				for (String baseImage : parameters.getBaseImages().get()) {
+					pullBaseImage(baseImage);
+				}
+			}
 
-            LoggedExec.exec(execOperations, spec -> {
-                spec.executable("docker");
+			LoggedExec.exec(execOperations, spec -> {
+				spec.executable("docker");
 
-                spec.args("build", parameters.getDockerContext().get().getAsFile().getAbsolutePath());
+				spec.args("build", parameters.getDockerContext().get().getAsFile().getAbsolutePath());
 
-                if (parameters.getNoCache().get()) {
-                    spec.args("--no-cache");
-                }
+				if (parameters.getNoCache().get()) {
+					spec.args("--no-cache");
+				}
 
-                parameters.getTags().get().forEach(tag -> spec.args("--tag", tag));
-            });
+				parameters.getTags().get().forEach(tag -> spec.args("--tag", tag));
+			});
 
-            try {
-                parameters.getMarkerFile().getAsFile().get().createNewFile();
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to create marker file", e);
-            }
-        }
-    }
+			try {
+				parameters.getMarkerFile().getAsFile().get().createNewFile();
+			} catch (IOException e) {
+				throw new RuntimeException("Failed to create marker file", e);
+			}
+		}
+	}
 
-    interface Parameters extends WorkParameters {
-        DirectoryProperty getDockerContext();
+	interface Parameters extends WorkParameters {
+		DirectoryProperty getDockerContext();
 
-        RegularFileProperty getMarkerFile();
+		RegularFileProperty getMarkerFile();
 
-        ListProperty<String> getTags();
+		ListProperty<String> getTags();
 
-        Property<Boolean> getPull();
+		Property<Boolean> getPull();
 
-        Property<Boolean> getNoCache();
+		Property<Boolean> getNoCache();
 
-        Property<String[]> getBaseImages();
-    }
+		Property<String[]> getBaseImages();
+	}
 }

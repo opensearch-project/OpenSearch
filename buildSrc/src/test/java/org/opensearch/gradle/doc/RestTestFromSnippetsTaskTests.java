@@ -39,34 +39,34 @@ import org.junit.rules.ExpectedException;
 import static org.opensearch.gradle.doc.RestTestsFromSnippetsTask.replaceBlockQuote;
 
 public class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
-    @Rule
-    public ExpectedException expectedEx = ExpectedException.none();
+	@Rule
+	public ExpectedException expectedEx = ExpectedException.none();
 
-    public void testInvalidBlockQuote() {
-        String input = "\"foo\": \"\"\"bar\"";
-        expectedEx.expect(InvalidUserDataException.class);
-        expectedEx.expectMessage("Invalid block quote starting at 7 in:\n" + input);
-        replaceBlockQuote(input);
-    }
+	public void testInvalidBlockQuote() {
+		String input = "\"foo\": \"\"\"bar\"";
+		expectedEx.expect(InvalidUserDataException.class);
+		expectedEx.expectMessage("Invalid block quote starting at 7 in:\n" + input);
+		replaceBlockQuote(input);
+	}
 
-    public void testSimpleBlockQuote() {
-        assertEquals("\"foo\": \"bort baz\"", replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\""));
-    }
+	public void testSimpleBlockQuote() {
+		assertEquals("\"foo\": \"bort baz\"", replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\""));
+	}
 
-    public void testMultipleBlockQuotes() {
-        assertEquals(
-            "\"foo\": \"bort baz\", \"bar\": \"other\"",
-            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\", \"bar\": \"\"\"other\"\"\"")
-        );
-    }
+	public void testMultipleBlockQuotes() {
+		assertEquals(
+			"\"foo\": \"bort baz\", \"bar\": \"other\"",
+			replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\", \"bar\": \"\"\"other\"\"\"")
+		);
+	}
 
-    public void testEscapingInBlockQuote() {
-        assertEquals("\"foo\": \"bort\\\" baz\"", replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\""));
-        assertEquals("\"foo\": \"bort\\n baz\"", replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\""));
-    }
+	public void testEscapingInBlockQuote() {
+		assertEquals("\"foo\": \"bort\\\" baz\"", replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\""));
+		assertEquals("\"foo\": \"bort\\n baz\"", replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\""));
+	}
 
-    public void testIsDocWriteRequest() {
-        assertTrue((boolean) RestTestsFromSnippetsTask.shouldAddShardFailureCheck("doc-index/_search"));
-        assertFalse((boolean) RestTestsFromSnippetsTask.shouldAddShardFailureCheck("_cat"));
-    }
+	public void testIsDocWriteRequest() {
+		assertTrue((boolean) RestTestsFromSnippetsTask.shouldAddShardFailureCheck("doc-index/_search"));
+		assertFalse((boolean) RestTestsFromSnippetsTask.shouldAddShardFailureCheck("_cat"));
+	}
 }

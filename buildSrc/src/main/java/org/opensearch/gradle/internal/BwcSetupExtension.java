@@ -60,131 +60,131 @@ import static org.opensearch.gradle.util.JavaUtil.getJavaHome;
  * */
 public class BwcSetupExtension {
 
-    private final Project project;
+	private final Project project;
 
-    private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
-    private Provider<File> checkoutDir;
+	private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
+	private Provider<File> checkoutDir;
 
-    public BwcSetupExtension(
-        Project project,
-        Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
-        Provider<File> checkoutDir
-    ) {
-        this.project = project;
-        this.unreleasedVersionInfo = unreleasedVersionInfo;
-        this.checkoutDir = checkoutDir;
-    }
+	public BwcSetupExtension(
+		Project project,
+		Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
+		Provider<File> checkoutDir
+	) {
+		this.project = project;
+		this.unreleasedVersionInfo = unreleasedVersionInfo;
+		this.checkoutDir = checkoutDir;
+	}
 
-    TaskProvider<LoggedExec> bwcTask(String name, Action<LoggedExec> configuration) {
-        return createRunBwcGradleTask(project, name, configuration);
-    }
+	TaskProvider<LoggedExec> bwcTask(String name, Action<LoggedExec> configuration) {
+		return createRunBwcGradleTask(project, name, configuration);
+	}
 
-    private TaskProvider<LoggedExec> createRunBwcGradleTask(Project project, String name, Action<LoggedExec> configAction) {
-        return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
-            // TODO revisit
-            loggedExec.dependsOn("checkoutBwcBranch");
-            loggedExec.setSpoolOutput(true);
-            loggedExec.setWorkingDir(checkoutDir.get());
-            loggedExec.doFirst(t -> {
-                // Execution time so that the checkouts are available
-                String javaVersionsString = readFromFile(new File(checkoutDir.get(), ".ci/java-versions.properties"));
-                loggedExec.environment(
-                    "JAVA_HOME",
-                    getJavaHome(
-                        Integer.parseInt(
-                            Arrays.asList(javaVersionsString.split("\n"))
-                                .stream()
-                                .filter(l -> l.trim().startsWith("OPENSEARCH_BUILD_JAVA="))
-                                .map(l -> l.replace("OPENSEARCH_BUILD_JAVA=java", "").trim())
-                                .map(l -> l.replace("OPENSEARCH_BUILD_JAVA=openjdk", "").trim())
-                                .collect(Collectors.joining("!!"))
-                        )
-                    )
-                );
-                loggedExec.environment(
-                    "RUNTIME_JAVA_HOME",
-                    getJavaHome(
-                        Integer.parseInt(
-                            Arrays.asList(javaVersionsString.split("\n"))
-                                .stream()
-                                .filter(l -> l.trim().startsWith("OPENSEARCH_RUNTIME_JAVA="))
-                                .map(l -> l.replace("OPENSEARCH_RUNTIME_JAVA=java", "").trim())
-                                .map(l -> l.replace("OPENSEARCH_RUNTIME_JAVA=openjdk", "").trim())
-                                .collect(Collectors.joining("!!"))
-                        )
-                    )
-                );
-            });
+	private TaskProvider<LoggedExec> createRunBwcGradleTask(Project project, String name, Action<LoggedExec> configAction) {
+		return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
+			// TODO revisit
+			loggedExec.dependsOn("checkoutBwcBranch");
+			loggedExec.setSpoolOutput(true);
+			loggedExec.setWorkingDir(checkoutDir.get());
+			loggedExec.doFirst(t -> {
+				// Execution time so that the checkouts are available
+				String javaVersionsString = readFromFile(new File(checkoutDir.get(), ".ci/java-versions.properties"));
+				loggedExec.environment(
+					"JAVA_HOME",
+					getJavaHome(
+						Integer.parseInt(
+							Arrays.asList(javaVersionsString.split("\n"))
+								.stream()
+								.filter(l -> l.trim().startsWith("OPENSEARCH_BUILD_JAVA="))
+								.map(l -> l.replace("OPENSEARCH_BUILD_JAVA=java", "").trim())
+								.map(l -> l.replace("OPENSEARCH_BUILD_JAVA=openjdk", "").trim())
+								.collect(Collectors.joining("!!"))
+						)
+					)
+				);
+				loggedExec.environment(
+					"RUNTIME_JAVA_HOME",
+					getJavaHome(
+						Integer.parseInt(
+							Arrays.asList(javaVersionsString.split("\n"))
+								.stream()
+								.filter(l -> l.trim().startsWith("OPENSEARCH_RUNTIME_JAVA="))
+								.map(l -> l.replace("OPENSEARCH_RUNTIME_JAVA=java", "").trim())
+								.map(l -> l.replace("OPENSEARCH_RUNTIME_JAVA=openjdk", "").trim())
+								.collect(Collectors.joining("!!"))
+						)
+					)
+				);
+			});
 
-            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                loggedExec.executable("cmd");
-                loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
-            } else {
-                loggedExec.executable(new File(checkoutDir.get(), "gradlew").toString());
-            }
-            if (project.getGradle().getStartParameter().isOffline()) {
-                loggedExec.args("--offline");
-            }
-            // TODO resolve
-            String buildCacheUrl = System.getProperty("org.opensearch.build.cache.url");
-            if (buildCacheUrl != null) {
-                loggedExec.args("-Dorg.opensearch.build.cache.url=" + buildCacheUrl);
-            }
+			if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+				loggedExec.executable("cmd");
+				loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
+			} else {
+				loggedExec.executable(new File(checkoutDir.get(), "gradlew").toString());
+			}
+			if (project.getGradle().getStartParameter().isOffline()) {
+				loggedExec.args("--offline");
+			}
+			// TODO resolve
+			String buildCacheUrl = System.getProperty("org.opensearch.build.cache.url");
+			if (buildCacheUrl != null) {
+				loggedExec.args("-Dorg.opensearch.build.cache.url=" + buildCacheUrl);
+			}
 
-            loggedExec.args("-Dbuild.snapshot=true");
-            loggedExec.args("-Dscan.tag.NESTED");
-            final LogLevel logLevel = project.getGradle().getStartParameter().getLogLevel();
-            List<LogLevel> nonDefaultLogLevels = Arrays.asList(LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG);
-            if (nonDefaultLogLevels.contains(logLevel)) {
-                loggedExec.args("--" + logLevel.name().toLowerCase(Locale.ENGLISH));
-            }
-            final String showStacktraceName = project.getGradle().getStartParameter().getShowStacktrace().name();
-            assert Arrays.asList("INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL").contains(showStacktraceName);
-            if (showStacktraceName.equals("ALWAYS")) {
-                loggedExec.args("--stacktrace");
-            } else if (showStacktraceName.equals("ALWAYS_FULL")) {
-                loggedExec.args("--full-stacktrace");
-            }
-            if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
-                loggedExec.args("--parallel");
-            }
-            loggedExec.setStandardOutput(new IndentingOutputStream(System.out, unreleasedVersionInfo.get().version));
-            loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version));
-            configAction.execute(loggedExec);
-        });
-    }
+			loggedExec.args("-Dbuild.snapshot=true");
+			loggedExec.args("-Dscan.tag.NESTED");
+			final LogLevel logLevel = project.getGradle().getStartParameter().getLogLevel();
+			List<LogLevel> nonDefaultLogLevels = Arrays.asList(LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG);
+			if (nonDefaultLogLevels.contains(logLevel)) {
+				loggedExec.args("--" + logLevel.name().toLowerCase(Locale.ENGLISH));
+			}
+			final String showStacktraceName = project.getGradle().getStartParameter().getShowStacktrace().name();
+			assert Arrays.asList("INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL").contains(showStacktraceName);
+			if (showStacktraceName.equals("ALWAYS")) {
+				loggedExec.args("--stacktrace");
+			} else if (showStacktraceName.equals("ALWAYS_FULL")) {
+				loggedExec.args("--full-stacktrace");
+			}
+			if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
+				loggedExec.args("--parallel");
+			}
+			loggedExec.setStandardOutput(new IndentingOutputStream(System.out, unreleasedVersionInfo.get().version));
+			loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version));
+			configAction.execute(loggedExec);
+		});
+	}
 
-    private static class IndentingOutputStream extends OutputStream {
+	private static class IndentingOutputStream extends OutputStream {
 
-        public final byte[] indent;
-        private final OutputStream delegate;
+		public final byte[] indent;
+		private final OutputStream delegate;
 
-        IndentingOutputStream(OutputStream delegate, Object version) {
-            this.delegate = delegate;
-            indent = (" [" + version + "] ").getBytes(StandardCharsets.UTF_8);
-        }
+		IndentingOutputStream(OutputStream delegate, Object version) {
+			this.delegate = delegate;
+			indent = (" [" + version + "] ").getBytes(StandardCharsets.UTF_8);
+		}
 
-        @Override
-        public void write(int b) throws IOException {
-            int[] arr = { b };
-            write(arr, 0, 1);
-        }
+		@Override
+		public void write(int b) throws IOException {
+			int[] arr = { b };
+			write(arr, 0, 1);
+		}
 
-        public void write(int[] bytes, int offset, int length) throws IOException {
-            for (int i = 0; i < bytes.length; i++) {
-                delegate.write(bytes[i]);
-                if (bytes[i] == '\n') {
-                    delegate.write(indent);
-                }
-            }
-        }
-    }
+		public void write(int[] bytes, int offset, int length) throws IOException {
+			for (int i = 0; i < bytes.length; i++) {
+				delegate.write(bytes[i]);
+				if (bytes[i] == '\n') {
+					delegate.write(indent);
+				}
+			}
+		}
+	}
 
-    private static String readFromFile(File file) {
-        try {
-            return FileUtils.readFileToString(file).trim();
-        } catch (IOException ioException) {
-            throw new GradleException("Cannot read java properties file.", ioException);
-        }
-    }
+	private static String readFromFile(File file) {
+		try {
+			return FileUtils.readFileToString(file).trim();
+		} catch (IOException ioException) {
+			throw new GradleException("Cannot read java properties file.", ioException);
+		}
+	}
 }

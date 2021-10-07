@@ -37,9 +37,9 @@ import org.gradle.api.provider.ListProperty;
 
 public class DistributionArchiveCheckExtension {
 
-    ListProperty<String> expectedMlLicenses;
+	ListProperty<String> expectedMlLicenses;
 
-    public DistributionArchiveCheckExtension(ObjectFactory factory) {
-        this.expectedMlLicenses = factory.listProperty(String.class);
-    }
+	public DistributionArchiveCheckExtension(ObjectFactory factory) {
+		this.expectedMlLicenses = factory.listProperty(String.class);
+	}
 }

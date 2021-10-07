@@ -39,5 +39,5 @@ import org.gradle.api.tasks.WorkResult;
  * Methods will be added as needed.
  */
 public interface FileSystemOperationsAware {
-    WorkResult delete(Object... objects);
+	WorkResult delete(Object... objects);
 }

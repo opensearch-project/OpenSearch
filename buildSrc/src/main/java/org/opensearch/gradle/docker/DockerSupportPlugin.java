@@ -45,37 +45,37 @@ import java.util.stream.Collectors;
  * OpenSearch build tasks.
  */
 public class DockerSupportPlugin implements Plugin<Project> {
-    public static final String DOCKER_SUPPORT_SERVICE_NAME = "dockerSupportService";
-    public static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
+	public static final String DOCKER_SUPPORT_SERVICE_NAME = "dockerSupportService";
+	public static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
 
-    @Override
-    public void apply(Project project) {
-        if (project != project.getRootProject()) {
-            throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
-        }
+	@Override
+	public void apply(Project project) {
+		if (project != project.getRootProject()) {
+			throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
+		}
 
-        Provider<DockerSupportService> dockerSupportServiceProvider = project.getGradle()
-            .getSharedServices()
-            .registerIfAbsent(
-                DOCKER_SUPPORT_SERVICE_NAME,
-                DockerSupportService.class,
-                spec -> spec.parameters(
-                    params -> { params.setExclusionsFile(new File(project.getRootDir(), DOCKER_ON_LINUX_EXCLUSIONS_FILE)); }
-                )
-            );
+		Provider<DockerSupportService> dockerSupportServiceProvider = project.getGradle()
+			.getSharedServices()
+			.registerIfAbsent(
+				DOCKER_SUPPORT_SERVICE_NAME,
+				DockerSupportService.class,
+				spec -> spec.parameters(
+					params -> { params.setExclusionsFile(new File(project.getRootDir(), DOCKER_ON_LINUX_EXCLUSIONS_FILE)); }
+				)
+			);
 
-        // Ensure that if we are trying to run any DockerBuildTask tasks, we assert an available Docker installation exists
-        project.getGradle().getTaskGraph().whenReady(graph -> {
-            List<String> dockerTasks = graph.getAllTasks()
-                .stream()
-                .filter(task -> task instanceof DockerBuildTask)
-                .map(Task::getPath)
-                .collect(Collectors.toList());
+		// Ensure that if we are trying to run any DockerBuildTask tasks, we assert an available Docker installation exists
+		project.getGradle().getTaskGraph().whenReady(graph -> {
+			List<String> dockerTasks = graph.getAllTasks()
+				.stream()
+				.filter(task -> task instanceof DockerBuildTask)
+				.map(Task::getPath)
+				.collect(Collectors.toList());
 
-            if (dockerTasks.isEmpty() == false) {
-                dockerSupportServiceProvider.get().failIfDockerUnavailable(dockerTasks);
-            }
-        });
-    }
+			if (dockerTasks.isEmpty() == false) {
+				dockerSupportServiceProvider.get().failIfDockerUnavailable(dockerTasks);
+			}
+		});
+	}
 
 }

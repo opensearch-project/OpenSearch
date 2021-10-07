@@ -57,80 +57,80 @@ import static org.junit.Assume.assumeTrue;
 
 public class RpmPreservationTests extends PackagingTestCase {
 
-    @BeforeClass
-    public static void filterDistros() {
-        assumeTrue("only rpm", distribution.packaging == Distribution.Packaging.RPM);
-        assumeTrue("only bundled jdk", distribution().hasJdk);
-    }
+	@BeforeClass
+	public static void filterDistros() {
+		assumeTrue("only rpm", distribution.packaging == Distribution.Packaging.RPM);
+		assumeTrue("only bundled jdk", distribution().hasJdk);
+	}
 
-    public void test10Install() throws Exception {
-        assertRemoved(distribution());
-        installation = installPackage(sh, distribution());
-        assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), sh);
-    }
+	public void test10Install() throws Exception {
+		assertRemoved(distribution());
+		installation = installPackage(sh, distribution());
+		assertInstalled(distribution());
+		verifyPackageInstallation(installation, distribution(), sh);
+	}
 
-    public void test20Remove() throws Exception {
-        remove(distribution());
+	public void test20Remove() throws Exception {
+		remove(distribution());
 
-        // config was removed
-        assertThat(installation.config, fileDoesNotExist());
+		// config was removed
+		assertThat(installation.config, fileDoesNotExist());
 
-        // sysvinit service file was removed
-        assertThat(SYSVINIT_SCRIPT, fileDoesNotExist());
+		// sysvinit service file was removed
+		assertThat(SYSVINIT_SCRIPT, fileDoesNotExist());
 
-        // defaults file was removed
-        assertThat(installation.envFile, fileDoesNotExist());
-    }
+		// defaults file was removed
+		assertThat(installation.envFile, fileDoesNotExist());
+	}
 
-    public void test30PreserveConfig() throws Exception {
-        final Shell sh = new Shell();
+	public void test30PreserveConfig() throws Exception {
+		final Shell sh = new Shell();
 
-        installation = installPackage(sh, distribution());
-        assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), sh);
+		installation = installPackage(sh, distribution());
+		assertInstalled(distribution());
+		verifyPackageInstallation(installation, distribution(), sh);
 
-        sh.run("echo foobar | " + installation.executables().keystoreTool + " add --stdin foo.bar");
-        Stream.of("opensearch.yml", "jvm.options", "log4j2.properties")
-            .map(each -> installation.config(each))
-            .forEach(path -> append(path, "# foo"));
-        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
+		sh.run("echo foobar | " + installation.executables().keystoreTool + " add --stdin foo.bar");
+		Stream.of("opensearch.yml", "jvm.options", "log4j2.properties")
+			.map(each -> installation.config(each))
+			.forEach(path -> append(path, "# foo"));
+		append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
 
-        remove(distribution());
-        assertRemoved(distribution());
+		remove(distribution());
+		assertRemoved(distribution());
 
-        if (isSystemd()) {
-            assertThat(sh.runIgnoreExitCode("systemctl is-enabled opensearch.service").exitCode, is(1));
-        }
+		if (isSystemd()) {
+			assertThat(sh.runIgnoreExitCode("systemctl is-enabled opensearch.service").exitCode, is(1));
+		}
 
-        assertPathsDoNotExist(
-            installation.bin,
-            installation.lib,
-            installation.modules,
-            installation.plugins,
-            installation.logs,
-            installation.pidDir,
-            installation.envFile,
-            SYSVINIT_SCRIPT,
-            SYSTEMD_SERVICE
-        );
+		assertPathsDoNotExist(
+			installation.bin,
+			installation.lib,
+			installation.modules,
+			installation.plugins,
+			installation.logs,
+			installation.pidDir,
+			installation.envFile,
+			SYSVINIT_SCRIPT,
+			SYSTEMD_SERVICE
+		);
 
-        assertThat(installation.config, fileExists());
-        assertThat(installation.config("opensearch.keystore"), fileExists());
+		assertThat(installation.config, fileExists());
+		assertThat(installation.config("opensearch.keystore"), fileExists());
 
-        Stream.of("opensearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
-        assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());
-    }
+		Stream.of("opensearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
+		assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());
+	}
 
-    private void assertConfFilePreserved(String configFile) {
-        final Path original = installation.config(configFile);
-        final Path saved = installation.config(configFile + ".rpmsave");
-        assertConfFilePreserved(original, saved);
-    }
+	private void assertConfFilePreserved(String configFile) {
+		final Path original = installation.config(configFile);
+		final Path saved = installation.config(configFile + ".rpmsave");
+		assertConfFilePreserved(original, saved);
+	}
 
-    private void assertConfFilePreserved(final Path original, final Path saved) {
-        assertThat(original, fileDoesNotExist());
-        assertThat(saved, fileExists());
-    }
+	private void assertConfFilePreserved(final Path original, final Path saved) {
+		assertThat(original, fileDoesNotExist());
+		assertThat(saved, fileExists());
+	}
 
 }

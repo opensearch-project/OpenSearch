@@ -41,41 +41,41 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
 public class RestTestBasePlugin implements Plugin<Project> {
-    private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
-    private static final String TESTS_CLUSTER = "tests.cluster";
-    private static final String TESTS_CLUSTER_NAME = "tests.clustername";
+	private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
+	private static final String TESTS_CLUSTER = "tests.cluster";
+	private static final String TESTS_CLUSTER_NAME = "tests.clustername";
 
-    @Override
-    public void apply(Project project) {
-        project.getPluginManager().apply(TestClustersPlugin.class);
-        project.getPluginManager().apply(OpenSearchTestBasePlugin.class);
-        project.getTasks().withType(RestIntegTestTask.class).configureEach(restIntegTestTask -> {
-            @SuppressWarnings("unchecked")
-            NamedDomainObjectContainer<OpenSearchCluster> testClusters = (NamedDomainObjectContainer<OpenSearchCluster>) project
-                .getExtensions()
-                .getByName(TestClustersPlugin.EXTENSION_NAME);
-            OpenSearchCluster cluster = testClusters.maybeCreate(restIntegTestTask.getName());
-            restIntegTestTask.useCluster(cluster);
-            restIntegTestTask.include("**/*IT.class");
-            restIntegTestTask.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());
-            if (System.getProperty(TESTS_REST_CLUSTER) == null) {
-                if (System.getProperty(TESTS_CLUSTER) != null || System.getProperty(TESTS_CLUSTER_NAME) != null) {
-                    throw new IllegalArgumentException(
-                        String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
-                    );
-                }
-                SystemPropertyCommandLineArgumentProvider runnerNonInputProperties =
-                    (SystemPropertyCommandLineArgumentProvider) restIntegTestTask.getExtensions().getByName("nonInputProperties");
-                runnerNonInputProperties.systemProperty(TESTS_REST_CLUSTER, () -> String.join(",", cluster.getAllHttpSocketURI()));
-                runnerNonInputProperties.systemProperty(TESTS_CLUSTER, () -> String.join(",", cluster.getAllTransportPortURI()));
-                runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, cluster::getName);
-            } else {
-                if (System.getProperty(TESTS_CLUSTER) == null || System.getProperty(TESTS_CLUSTER_NAME) == null) {
-                    throw new IllegalArgumentException(
-                        String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
-                    );
-                }
-            }
-        });
-    }
+	@Override
+	public void apply(Project project) {
+		project.getPluginManager().apply(TestClustersPlugin.class);
+		project.getPluginManager().apply(OpenSearchTestBasePlugin.class);
+		project.getTasks().withType(RestIntegTestTask.class).configureEach(restIntegTestTask -> {
+			@SuppressWarnings("unchecked")
+			NamedDomainObjectContainer<OpenSearchCluster> testClusters = (NamedDomainObjectContainer<OpenSearchCluster>) project
+				.getExtensions()
+				.getByName(TestClustersPlugin.EXTENSION_NAME);
+			OpenSearchCluster cluster = testClusters.maybeCreate(restIntegTestTask.getName());
+			restIntegTestTask.useCluster(cluster);
+			restIntegTestTask.include("**/*IT.class");
+			restIntegTestTask.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());
+			if (System.getProperty(TESTS_REST_CLUSTER) == null) {
+				if (System.getProperty(TESTS_CLUSTER) != null || System.getProperty(TESTS_CLUSTER_NAME) != null) {
+					throw new IllegalArgumentException(
+						String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
+					);
+				}
+				SystemPropertyCommandLineArgumentProvider runnerNonInputProperties =
+					(SystemPropertyCommandLineArgumentProvider) restIntegTestTask.getExtensions().getByName("nonInputProperties");
+				runnerNonInputProperties.systemProperty(TESTS_REST_CLUSTER, () -> String.join(",", cluster.getAllHttpSocketURI()));
+				runnerNonInputProperties.systemProperty(TESTS_CLUSTER, () -> String.join(",", cluster.getAllTransportPortURI()));
+				runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, cluster::getName);
+			} else {
+				if (System.getProperty(TESTS_CLUSTER) == null || System.getProperty(TESTS_CLUSTER_NAME) == null) {
+					throw new IllegalArgumentException(
+						String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
+					);
+				}
+			}
+		});
+	}
 }

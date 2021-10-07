@@ -41,8 +41,8 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
  */
 public class GradleThreadsFilter implements ThreadFilter {
 
-    @Override
-    public boolean reject(Thread t) {
-        return t.getName().startsWith("Exec process") || t.getName().startsWith("File watcher consumer");
-    }
+	@Override
+	public boolean reject(Thread t) {
+		return t.getName().startsWith("Exec process") || t.getName().startsWith("File watcher consumer");
+	}
 }

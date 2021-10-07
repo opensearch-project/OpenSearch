@@ -39,33 +39,33 @@ import org.gradle.testfixtures.ProjectBuilder;
 
 public class PluginPropertiesExtensionTests extends GradleUnitTestCase {
 
-    public void testCreatingPluginPropertiesExtensionWithNameAndVersion() {
-        String projectName = "Test";
-        String projectVersion = "5.0";
+	public void testCreatingPluginPropertiesExtensionWithNameAndVersion() {
+		String projectName = "Test";
+		String projectVersion = "5.0";
 
-        PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(
-            this.createProject(projectName, projectVersion)
-        );
+		PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(
+			this.createProject(projectName, projectVersion)
+		);
 
-        assertEquals(projectName, pluginPropertiesExtension.getName());
-        assertEquals(projectVersion, pluginPropertiesExtension.getVersion());
-    }
+		assertEquals(projectName, pluginPropertiesExtension.getName());
+		assertEquals(projectVersion, pluginPropertiesExtension.getVersion());
+	}
 
-    public void testCreatingPluginPropertiesExtensionWithNameWithoutVersion() {
-        String projectName = "Test";
+	public void testCreatingPluginPropertiesExtensionWithNameWithoutVersion() {
+		String projectName = "Test";
 
-        PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(this.createProject(projectName, null));
+		PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(this.createProject(projectName, null));
 
-        assertEquals(projectName, pluginPropertiesExtension.getName());
-        assertEquals("unspecified", pluginPropertiesExtension.getVersion());
-    }
+		assertEquals(projectName, pluginPropertiesExtension.getName());
+		assertEquals("unspecified", pluginPropertiesExtension.getVersion());
+	}
 
-    private Project createProject(String projectName, String version) {
-        Project project = ProjectBuilder.builder().withName(projectName).build();
-        project.setVersion(version);
+	private Project createProject(String projectName, String version) {
+		Project project = ProjectBuilder.builder().withName(projectName).build();
+		project.setVersion(version);
 
-        project.getPlugins().apply(JavaPlugin.class);
+		project.getPlugins().apply(JavaPlugin.class);
 
-        return project;
-    }
+		return project;
+	}
 }

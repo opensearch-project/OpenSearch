@@ -26,42 +26,42 @@ import static org.hamcrest.Matchers.is;
 
 public class DetectEsInstallationTaskTests extends OpenSearchTestCase {
 
-    private final MockTerminal terminal = new MockTerminal();
-    private DetectEsInstallationTask task;
-    private Environment env;
+	private final MockTerminal terminal = new MockTerminal();
+	private DetectEsInstallationTask task;
+	private Environment env;
 
-    @Before
-    public void setUpTask() {
-        task = new DetectEsInstallationTask();
-        env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", "").build());
-    }
+	@Before
+	public void setUpTask() {
+		task = new DetectEsInstallationTask();
+		env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", "").build());
+	}
 
-    @SuppressForbidden(reason = "Read config directory from test resources.")
-    public void testTaskExecution() throws Exception {
-        Path esConfig = new File(getClass().getResource("/config").getPath()).toPath();
-        // path for es_home
-        terminal.addTextInput(esConfig.getParent().toString());
-        // path for es_config
-        terminal.addTextInput(esConfig.toString());
-        TaskInput taskInput = new TaskInput(env);
-        Tuple<TaskInput, Terminal> input = new Tuple<>(taskInput, terminal);
+	@SuppressForbidden(reason = "Read config directory from test resources.")
+	public void testTaskExecution() throws Exception {
+		Path esConfig = new File(getClass().getResource("/config").getPath()).toPath();
+		// path for es_home
+		terminal.addTextInput(esConfig.getParent().toString());
+		// path for es_config
+		terminal.addTextInput(esConfig.toString());
+		TaskInput taskInput = new TaskInput(env);
+		Tuple<TaskInput, Terminal> input = new Tuple<>(taskInput, terminal);
 
-        task.accept(input);
+		task.accept(input);
 
-        assertThat(taskInput.getEsConfig(), is(esConfig));
-        assertThat(taskInput.getBaseUrl(), is("http://localhost:9200"));
-        assertThat(taskInput.getPlugins(), hasSize(0));
-        assertThat(taskInput.getNode(), is("node-x"));
-        assertThat(taskInput.getCluster(), is("my-cluster"));
-    }
+		assertThat(taskInput.getEsConfig(), is(esConfig));
+		assertThat(taskInput.getBaseUrl(), is("http://localhost:9200"));
+		assertThat(taskInput.getPlugins(), hasSize(0));
+		assertThat(taskInput.getNode(), is("node-x"));
+		assertThat(taskInput.getCluster(), is("my-cluster"));
+	}
 
-    public void testRetrieveUrlFromSettings() {
-        Settings esSettings = Settings.builder().put("http.port", "9201").build();
+	public void testRetrieveUrlFromSettings() {
+		Settings esSettings = Settings.builder().put("http.port", "9201").build();
 
-        assertThat(task.retrieveUrl(esSettings), is("http://localhost:9201"));
-    }
+		assertThat(task.retrieveUrl(esSettings), is("http://localhost:9201"));
+	}
 
-    public void testRetrieveDefaultUrlFromConfig() {
-        assertThat(task.retrieveUrl(Settings.EMPTY), is("http://localhost:9200"));
-    }
+	public void testRetrieveDefaultUrlFromConfig() {
+		assertThat(task.retrieveUrl(Settings.EMPTY), is("http://localhost:9200"));
+	}
 }

@@ -44,30 +44,30 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 public class PrecommitTaskPlugin implements Plugin<Project> {
 
-    @Override
-    public void apply(Project project) {
-        TaskProvider<Task> precommit = project.getTasks().register(PrecommitPlugin.PRECOMMIT_TASK_NAME, t -> {
-            t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-            t.setDescription("Runs all non-test checks");
-        });
+	@Override
+	public void apply(Project project) {
+		TaskProvider<Task> precommit = project.getTasks().register(PrecommitPlugin.PRECOMMIT_TASK_NAME, t -> {
+			t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+			t.setDescription("Runs all non-test checks");
+		});
 
-        project.getPluginManager()
-            .withPlugin(
-                "lifecycle-base",
-                p -> project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit))
-            );
-        project.getPluginManager()
-            .withPlugin(
-                "java",
-                p -> {
-                    // run compilation as part of precommit
-                    for (SourceSet sourceSet : GradleUtils.getJavaSourceSets(project)) {
-                        precommit.configure(t -> t.dependsOn(sourceSet.getClassesTaskName()));
-                    }
+		project.getPluginManager()
+			.withPlugin(
+				"lifecycle-base",
+				p -> project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit))
+			);
+		project.getPluginManager()
+			.withPlugin(
+				"java",
+				p -> {
+					// run compilation as part of precommit
+					for (SourceSet sourceSet : GradleUtils.getJavaSourceSets(project)) {
+						precommit.configure(t -> t.dependsOn(sourceSet.getClassesTaskName()));
+					}
 
-                    // make sure tests run after all precommit tasks
-                    project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));
-                }
-            );
-    }
+					// make sure tests run after all precommit tasks
+					project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));
+				}
+			);
+	}
 }

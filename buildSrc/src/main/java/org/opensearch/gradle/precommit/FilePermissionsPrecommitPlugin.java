@@ -37,8 +37,8 @@ import org.gradle.api.Task;
 import org.gradle.api.tasks.TaskProvider;
 
 public class FilePermissionsPrecommitPlugin extends PrecommitPlugin {
-    @Override
-    public TaskProvider<? extends Task> createTask(Project project) {
-        return project.getTasks().register("filepermissions", FilePermissionsTask.class);
-    }
+	@Override
+	public TaskProvider<? extends Task> createTask(Project project) {
+		return project.getTasks().register("filepermissions", FilePermissionsTask.class);
+	}
 }

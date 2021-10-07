@@ -46,77 +46,77 @@ import static org.junit.Assume.assumeTrue;
 
 public class SysVInitTests extends PackagingTestCase {
 
-    @BeforeClass
-    public static void filterDistros() {
-        assumeTrue("rpm or deb", distribution.isPackage());
-        assumeTrue(Platforms.isSysVInit());
-        assumeFalse(Platforms.isSystemd());
-    }
+	@BeforeClass
+	public static void filterDistros() {
+		assumeTrue("rpm or deb", distribution.isPackage());
+		assumeTrue(Platforms.isSysVInit());
+		assumeFalse(Platforms.isSystemd());
+	}
 
-    @Override
-    public void startOpenSearch() throws Exception {
-        sh.run("service opensearch start");
-        ServerUtils.waitForOpenSearch(installation);
-        sh.run("service opensearch status");
-    }
+	@Override
+	public void startOpenSearch() throws Exception {
+		sh.run("service opensearch start");
+		ServerUtils.waitForOpenSearch(installation);
+		sh.run("service opensearch status");
+	}
 
-    @Override
-    public void stopOpenSearch() {
-        sh.run("service opensearch stop");
-    }
+	@Override
+	public void stopOpenSearch() {
+		sh.run("service opensearch stop");
+	}
 
-    public void test10Install() throws Exception {
-        install();
-    }
+	public void test10Install() throws Exception {
+		install();
+	}
 
-    public void test20Start() throws Exception {
-        startOpenSearch();
-        assertThat(installation.logs, fileWithGlobExist("gc.log*"));
-        ServerUtils.runOpenSearchTests();
-        sh.run("service opensearch status"); // returns 0 exit status when ok
-    }
+	public void test20Start() throws Exception {
+		startOpenSearch();
+		assertThat(installation.logs, fileWithGlobExist("gc.log*"));
+		ServerUtils.runOpenSearchTests();
+		sh.run("service opensearch status"); // returns 0 exit status when ok
+	}
 
-    public void test21Restart() throws Exception {
-        sh.run("service opensearch restart");
-        sh.run("service opensearch status"); // returns 0 exit status when ok
-    }
+	public void test21Restart() throws Exception {
+		sh.run("service opensearch restart");
+		sh.run("service opensearch status"); // returns 0 exit status when ok
+	}
 
-    public void test22Stop() throws Exception {
-        stopOpenSearch();
-        Shell.Result status = sh.runIgnoreExitCode("service opensearch status");
-        assertThat(status.exitCode, anyOf(equalTo(3), equalTo(4)));
-    }
+	public void test22Stop() throws Exception {
+		stopOpenSearch();
+		Shell.Result status = sh.runIgnoreExitCode("service opensearch status");
+		assertThat(status.exitCode, anyOf(equalTo(3), equalTo(4)));
+	}
 
-    public void test30PidDirCreation() throws Exception {
-        // Simulates the behavior of a system restart:
-        // the PID directory is deleted by the operating system
-        // but it should not block ES from starting
-        // see https://github.com/elastic/elasticsearch/issues/11594
+	public void test30PidDirCreation() throws Exception {
+		// Simulates the behavior of a system restart:
+		// the PID directory is deleted by the operating system
+		// but it should not block ES from starting
+		// see https://github.com/elastic/elasticsearch/issues/11594
 
-        sh.run("rm -rf " + installation.pidDir);
-        startOpenSearch();
-        assertPathsExist(installation.pidDir.resolve("opensearch.pid"));
-        stopOpenSearch();
-    }
+		sh.run("rm -rf " + installation.pidDir);
+		startOpenSearch();
+		assertPathsExist(installation.pidDir.resolve("opensearch.pid"));
+		stopOpenSearch();
+	}
 
-    public void test31MaxMapTooSmall() throws Exception {
-        sh.run("sysctl -q -w vm.max_map_count=262140");
-        startOpenSearch();
-        Shell.Result result = sh.run("sysctl -n vm.max_map_count");
-        String maxMapCount = result.stdout.trim();
-        sh.run("service opensearch stop");
-        assertThat(maxMapCount, equalTo("262144"));
-    }
+	public void test31MaxMapTooSmall() throws Exception {
+		sh.run("sysctl -q -w vm.max_map_count=262140");
+		startOpenSearch();
+		Shell.Result result = sh.run("sysctl -n vm.max_map_count");
+		String maxMapCount = result.stdout.trim();
+		sh.run("service opensearch stop");
+		assertThat(maxMapCount, equalTo("262144"));
+	}
 
-    public void test32MaxMapBigEnough() throws Exception {
-        // Ensures that if $MAX_MAP_COUNT is greater than the set
-        // value on the OS we do not attempt to update it.
-        sh.run("sysctl -q -w vm.max_map_count=262145");
-        startOpenSearch();
-        Shell.Result result = sh.run("sysctl -n vm.max_map_count");
-        String maxMapCount = result.stdout.trim();
-        sh.run("service opensearch stop");
-        assertThat(maxMapCount, equalTo("262145"));
-    }
+	public void test32MaxMapBigEnough() throws Exception {
+		// Ensures that if $MAX_MAP_COUNT is greater than the set
+		// value on the OS we do not attempt to update it.
+		sh.run("sysctl -q -w vm.max_map_count=262145");
+		startOpenSearch();
+		Shell.Result result = sh.run("sysctl -n vm.max_map_count");
+		String maxMapCount = result.stdout.trim();
+		sh.run("service opensearch stop");
+		assertThat(maxMapCount, equalTo("262145"));
+	}
 
 }

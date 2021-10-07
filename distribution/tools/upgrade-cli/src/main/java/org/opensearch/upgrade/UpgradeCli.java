@@ -25,43 +25,43 @@ import org.opensearch.env.Environment;
  */
 public class UpgradeCli extends EnvironmentAwareCommand {
 
-    /**
-     * Constructor to create an instance of UpgradeCli.
-     */
-    public UpgradeCli() {
-        super("A CLI tool for upgrading to OpenSearch 1.x from a supported Elasticsearch version.");
-    }
+	/**
+	 * Constructor to create an instance of UpgradeCli.
+	 */
+	public UpgradeCli() {
+		super("A CLI tool for upgrading to OpenSearch 1.x from a supported Elasticsearch version.");
+	}
 
-    /**
-     * Entrypoint for the upgrade tool.
-     *
-     * @param args args to main.
-     * @throws Exception exception thrown during the execution of the UpgradeCli.
-     */
-    public static void main(String[] args) throws Exception {
-        exit(new UpgradeCli().main(args, Terminal.DEFAULT));
-    }
+	/**
+	 * Entrypoint for the upgrade tool.
+	 *
+	 * @param args args to main.
+	 * @throws Exception exception thrown during the execution of the UpgradeCli.
+	 */
+	public static void main(String[] args) throws Exception {
+		exit(new UpgradeCli().main(args, Terminal.DEFAULT));
+	}
 
-    /**
-     * Executes the upgrade task. This retrieves an instance of {@link UpgradeTask} which is composed
-     * of smaller individual tasks that perform specific operations as part of the overall process.
-     *
-     * @param terminal current terminal the command is running
-     * @param options  options supplied to the command
-     * @param env      current environment in which this cli tool is running.
-     * @throws UserException if any exception is thrown from the tasks
-     */
-    @Override
-    protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws UserException {
-        try {
-            final Tuple<TaskInput, Terminal> input = new Tuple<>(new TaskInput(env), terminal);
-            UpgradeTask.getTask().accept(input);
-            terminal.println("Done!");
-            terminal.println("Next Steps: ");
-            terminal.println(" Stop the running elasticsearch on this node.");
-            terminal.println(" Start OpenSearch on this node.");
-        } catch (RuntimeException ex) {
-            throw new UserException(ExitCodes.DATA_ERROR, ex.getMessage());
-        }
-    }
+	/**
+	 * Executes the upgrade task. This retrieves an instance of {@link UpgradeTask} which is composed
+	 * of smaller individual tasks that perform specific operations as part of the overall process.
+	 *
+	 * @param terminal current terminal the command is running
+	 * @param options  options supplied to the command
+	 * @param env      current environment in which this cli tool is running.
+	 * @throws UserException if any exception is thrown from the tasks
+	 */
+	@Override
+	protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws UserException {
+		try {
+			final Tuple<TaskInput, Terminal> input = new Tuple<>(new TaskInput(env), terminal);
+			UpgradeTask.getTask().accept(input);
+			terminal.println("Done!");
+			terminal.println("Next Steps: ");
+			terminal.println(" Stop the running elasticsearch on this node.");
+			terminal.println(" Start OpenSearch on this node.");
+		} catch (RuntimeException ex) {
+			throw new UserException(ExitCodes.DATA_ERROR, ex.getMessage());
+		}
+	}
 }

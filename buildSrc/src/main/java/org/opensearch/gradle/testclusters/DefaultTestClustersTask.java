@@ -38,11 +38,11 @@ import java.util.HashSet;
 
 public class DefaultTestClustersTask extends DefaultTask implements TestClustersAware {
 
-    private Collection<OpenSearchCluster> clusters = new HashSet<>();
+	private Collection<OpenSearchCluster> clusters = new HashSet<>();
 
-    @Override
-    public Collection<OpenSearchCluster> getClusters() {
-        return clusters;
-    }
+	@Override
+	public Collection<OpenSearchCluster> getClusters() {
+		return clusters;
+	}
 
 }

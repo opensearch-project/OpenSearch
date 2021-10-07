@@ -59,85 +59,85 @@ import java.util.List;
 @CacheableTask
 public class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
-    private Collection<OpenSearchCluster> clusters = new HashSet<>();
+	private Collection<OpenSearchCluster> clusters = new HashSet<>();
 
-    public StandaloneRestIntegTestTask() {
-        this.getOutputs()
-            .doNotCacheIf(
-                "Caching disabled for this task since it uses a cluster shared by other tasks",
-                /*
-                 * Look for any other tasks which use the same cluster as this task. Since tests often have side effects for the cluster
-                 * they execute against, this state can cause issues when trying to cache tests results of tasks that share a cluster. To
-                 * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
-                 * multiple tasks.
-                 */
-                t -> getProject().getTasks()
-                    .withType(StandaloneRestIntegTestTask.class)
-                    .stream()
-                    .filter(task -> task != this)
-                    .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false)
-            );
+	public StandaloneRestIntegTestTask() {
+		this.getOutputs()
+			.doNotCacheIf(
+				"Caching disabled for this task since it uses a cluster shared by other tasks",
+				/*
+				 * Look for any other tasks which use the same cluster as this task. Since tests often have side effects for the cluster
+				 * they execute against, this state can cause issues when trying to cache tests results of tasks that share a cluster. To
+				 * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
+				 * multiple tasks.
+				 */
+				t -> getProject().getTasks()
+					.withType(StandaloneRestIntegTestTask.class)
+					.stream()
+					.filter(task -> task != this)
+					.anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false)
+			);
 
-        this.getOutputs()
-            .doNotCacheIf(
-                "Caching disabled for this task since it is configured to preserve data directory",
-                // Don't cache the output of this task if it's not running from a clean data directory.
-                t -> getClusters().stream().anyMatch(cluster -> cluster.isPreserveDataDir())
-            );
-    }
+		this.getOutputs()
+			.doNotCacheIf(
+				"Caching disabled for this task since it is configured to preserve data directory",
+				// Don't cache the output of this task if it's not running from a clean data directory.
+				t -> getClusters().stream().anyMatch(cluster -> cluster.isPreserveDataDir())
+			);
+	}
 
-    @Override
-    public int getMaxParallelForks() {
-        return 1;
-    }
+	@Override
+	public int getMaxParallelForks() {
+		return 1;
+	}
 
-    @Nested
-    @Override
-    public Collection<OpenSearchCluster> getClusters() {
-        return clusters;
-    }
+	@Nested
+	@Override
+	public Collection<OpenSearchCluster> getClusters() {
+		return clusters;
+	}
 
-    @Override
-    @Internal
-    public List<ResourceLock> getSharedResources() {
-        List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
-        BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
-        Provider<TestClustersThrottle> throttleProvider = GradleUtils.getBuildService(
-            serviceRegistry,
-            TestClustersPlugin.THROTTLE_SERVICE_NAME
-        );
-        SharedResource resource = serviceRegistry.forService(throttleProvider);
+	@Override
+	@Internal
+	public List<ResourceLock> getSharedResources() {
+		List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
+		BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
+		Provider<TestClustersThrottle> throttleProvider = GradleUtils.getBuildService(
+			serviceRegistry,
+			TestClustersPlugin.THROTTLE_SERVICE_NAME
+		);
+		SharedResource resource = serviceRegistry.forService(throttleProvider);
 
-        int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
-        if (nodeCount > 0) {
-            locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
-        }
+		int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
+		if (nodeCount > 0) {
+			locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
+		}
 
-        return Collections.unmodifiableList(locks);
-    }
+		return Collections.unmodifiableList(locks);
+	}
 
-    @Override
-    public Task dependsOn(Object... dependencies) {
-        super.dependsOn(dependencies);
-        for (Object dependency : dependencies) {
-            if (dependency instanceof Fixture) {
-                finalizedBy(((Fixture) dependency).getStopTask());
-            }
-        }
-        return this;
-    }
+	@Override
+	public Task dependsOn(Object... dependencies) {
+		super.dependsOn(dependencies);
+		for (Object dependency : dependencies) {
+			if (dependency instanceof Fixture) {
+				finalizedBy(((Fixture) dependency).getStopTask());
+			}
+		}
+		return this;
+	}
 
-    @Override
-    public void setDependsOn(Iterable<?> dependencies) {
-        super.setDependsOn(dependencies);
-        for (Object dependency : dependencies) {
-            if (dependency instanceof Fixture) {
-                finalizedBy(((Fixture) dependency).getStopTask());
-            }
-        }
-    }
+	@Override
+	public void setDependsOn(Iterable<?> dependencies) {
+		super.setDependsOn(dependencies);
+		for (Object dependency : dependencies) {
+			if (dependency instanceof Fixture) {
+				finalizedBy(((Fixture) dependency).getStopTask());
+			}
+		}
+	}
 
-    public WorkResult delete(Object... objects) {
-        return getFileSystemOperations().delete(d -> d.delete(objects));
-    }
+	public WorkResult delete(Object... objects) {
+		return getFileSystemOperations().delete(d -> d.delete(objects));
+	}
 }

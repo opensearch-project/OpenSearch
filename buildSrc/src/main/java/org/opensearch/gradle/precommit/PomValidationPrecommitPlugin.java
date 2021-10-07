@@ -44,24 +44,24 @@ import org.gradle.api.tasks.TaskProvider;
  */
 public class PomValidationPrecommitPlugin extends PrecommitPlugin {
 
-    @Override
-    public TaskProvider<? extends Task> createTask(Project project) {
-        TaskProvider<Task> validatePom = project.getTasks().register("validatePom");
-        PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
-        publishing.getPublications().all(publication -> {
-            String publicationName = Util.capitalize(publication.getName());
-            TaskProvider<PomValidationTask> validateTask = project.getTasks()
-                .register("validate" + publicationName + "Pom", PomValidationTask.class);
-            validatePom.configure(t -> t.dependsOn(validateTask));
-            validateTask.configure(task -> {
-                GenerateMavenPom generateMavenPom = project.getTasks()
-                    .withType(GenerateMavenPom.class)
-                    .getByName("generatePomFileFor" + publicationName + "Publication");
-                task.dependsOn(generateMavenPom);
-                task.getPomFile().fileValue(generateMavenPom.getDestination());
-            });
-        });
+	@Override
+	public TaskProvider<? extends Task> createTask(Project project) {
+		TaskProvider<Task> validatePom = project.getTasks().register("validatePom");
+		PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
+		publishing.getPublications().all(publication -> {
+			String publicationName = Util.capitalize(publication.getName());
+			TaskProvider<PomValidationTask> validateTask = project.getTasks()
+				.register("validate" + publicationName + "Pom", PomValidationTask.class);
+			validatePom.configure(t -> t.dependsOn(validateTask));
+			validateTask.configure(task -> {
+				GenerateMavenPom generateMavenPom = project.getTasks()
+					.withType(GenerateMavenPom.class)
+					.getByName("generatePomFileFor" + publicationName + "Publication");
+				task.dependsOn(generateMavenPom);
+				task.getPomFile().fileValue(generateMavenPom.getDestination());
+			});
+		});
 
-        return validatePom;
-    }
+		return validatePom;
+	}
 }

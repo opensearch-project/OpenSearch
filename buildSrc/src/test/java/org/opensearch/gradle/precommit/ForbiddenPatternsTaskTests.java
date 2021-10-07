@@ -48,94 +48,86 @@ import java.util.Optional;
 
 public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
 
-    public void testCheckInvalidPatternsWhenNoSourceFilesExist() throws Exception {
-        Project project = createProject();
-        ForbiddenPatternsTask task = createTask(project);
+	public void testCheckInvalidPatternsWhenNoSourceFilesExist() throws Exception {
+		Project project = createProject();
+		ForbiddenPatternsTask task = createTask(project);
 
-        checkAndAssertTaskSuccessful(task);
-    }
+		checkAndAssertTaskSuccessful(task);
+	}
 
-    public void testCheckInvalidPatternsWhenSourceFilesExistNoViolation() throws Exception {
-        Project project = createProject();
-        ForbiddenPatternsTask task = createTask(project);
+	public void testCheckInvalidPatternsWhenSourceFilesExistNoViolation() throws Exception {
+		Project project = createProject();
+		ForbiddenPatternsTask task = createTask(project);
 
-        writeSourceFile(project, "src/main/java/Foo.java", "public void bar() {}");
-        checkAndAssertTaskSuccessful(task);
-    }
+		writeSourceFile(project, "src/main/java/Foo.java", "public void bar() {}");
+		checkAndAssertTaskSuccessful(task);
+	}
 
-    public void testCheckInvalidPatternsWhenSourceFilesExistHavingTab() throws Exception {
-        Project project = createProject();
-        ForbiddenPatternsTask task = createTask(project);
+	public void testCheckInvalidPatternsWithCustomRule() throws Exception {
+		Map<String, String> rule = new HashMap<>();
+		rule.put("name", "TODO comments are not allowed");
+		rule.put("pattern", "\\/\\/.*(?i)TODO");
 
-        writeSourceFile(project, "src/main/java/Bar.java", "\tpublic void bar() {}");
-        checkAndAssertTaskThrowsException(task);
-    }
+		Project project = createProject();
+		ForbiddenPatternsTask task = createTask(project);
+		task.rule(rule);
 
-    public void testCheckInvalidPatternsWithCustomRule() throws Exception {
-        Map<String, String> rule = new HashMap<>();
-        rule.put("name", "TODO comments are not allowed");
-        rule.put("pattern", "\\/\\/.*(?i)TODO");
+		writeSourceFile(project, "src/main/java/Moot.java", "GOOD LINE", "//todo", "// some stuff, toDo");
+		checkAndAssertTaskThrowsException(task);
+	}
 
-        Project project = createProject();
-        ForbiddenPatternsTask task = createTask(project);
-        task.rule(rule);
+	public void testCheckInvalidPatternsWhenExcludingFiles() throws Exception {
+		Project project = createProject();
+		ForbiddenPatternsTask task = createTask(project);
+		task.exclude("**/*.java");
 
-        writeSourceFile(project, "src/main/java/Moot.java", "GOOD LINE", "//todo", "// some stuff, toDo");
-        checkAndAssertTaskThrowsException(task);
-    }
+		writeSourceFile(project, "src/main/java/FooBarMoot.java", "\t");
+		checkAndAssertTaskSuccessful(task);
+	}
 
-    public void testCheckInvalidPatternsWhenExcludingFiles() throws Exception {
-        Project project = createProject();
-        ForbiddenPatternsTask task = createTask(project);
-        task.exclude("**/*.java");
+	private Project createProject() {
+		Project project = ProjectBuilder.builder().build();
+		project.getPlugins().apply(JavaPlugin.class);
 
-        writeSourceFile(project, "src/main/java/FooBarMoot.java", "\t");
-        checkAndAssertTaskSuccessful(task);
-    }
+		return project;
+	}
 
-    private Project createProject() {
-        Project project = ProjectBuilder.builder().build();
-        project.getPlugins().apply(JavaPlugin.class);
+	private ForbiddenPatternsTask createTask(Project project) {
+		return project.getTasks().create("forbiddenPatterns", ForbiddenPatternsTask.class);
+	}
 
-        return project;
-    }
+	private ForbiddenPatternsTask createTask(Project project, String taskName) {
+		return project.getTasks().create(taskName, ForbiddenPatternsTask.class);
+	}
 
-    private ForbiddenPatternsTask createTask(Project project) {
-        return project.getTasks().create("forbiddenPatterns", ForbiddenPatternsTask.class);
-    }
+	private void writeSourceFile(Project project, String name, String... lines) throws IOException {
+		File file = new File(project.getProjectDir(), name);
+		file.getParentFile().mkdirs();
+		file.createNewFile();
 
-    private ForbiddenPatternsTask createTask(Project project, String taskName) {
-        return project.getTasks().create(taskName, ForbiddenPatternsTask.class);
-    }
+		if (lines.length != 0) Files.write(file.toPath(), Arrays.asList(lines), StandardCharsets.UTF_8);
+	}
 
-    private void writeSourceFile(Project project, String name, String... lines) throws IOException {
-        File file = new File(project.getProjectDir(), name);
-        file.getParentFile().mkdirs();
-        file.createNewFile();
+	private void checkAndAssertTaskSuccessful(ForbiddenPatternsTask task) throws IOException {
+		task.checkInvalidPatterns();
+		assertTaskSuccessful(task.getProject(), task.getName());
+	}
 
-        if (lines.length != 0) Files.write(file.toPath(), Arrays.asList(lines), StandardCharsets.UTF_8);
-    }
+	private void checkAndAssertTaskThrowsException(ForbiddenPatternsTask task) throws IOException {
+		try {
+			task.checkInvalidPatterns();
+			fail("GradleException was expected to be thrown in this case!");
+		} catch (GradleException e) {
+			assertTrue(e.getMessage().startsWith("Found invalid patterns"));
+		}
+	}
 
-    private void checkAndAssertTaskSuccessful(ForbiddenPatternsTask task) throws IOException {
-        task.checkInvalidPatterns();
-        assertTaskSuccessful(task.getProject(), task.getName());
-    }
+	private void assertTaskSuccessful(Project project, String fileName) throws IOException {
+		File outputMarker = new File(project.getBuildDir(), "markers/" + fileName);
+		assertTrue(outputMarker.exists());
 
-    private void checkAndAssertTaskThrowsException(ForbiddenPatternsTask task) throws IOException {
-        try {
-            task.checkInvalidPatterns();
-            fail("GradleException was expected to be thrown in this case!");
-        } catch (GradleException e) {
-            assertTrue(e.getMessage().startsWith("Found invalid patterns"));
-        }
-    }
-
-    private void assertTaskSuccessful(Project project, String fileName) throws IOException {
-        File outputMarker = new File(project.getBuildDir(), "markers/" + fileName);
-        assertTrue(outputMarker.exists());
-
-        Optional<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8).stream().findFirst();
-        assertTrue(result.isPresent());
-        assertEquals("done", result.get());
-    }
+		Optional<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8).stream().findFirst();
+		assertTrue(result.isPresent());
+		assertEquals("done", result.get());
+	}
 }

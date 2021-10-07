@@ -40,12 +40,12 @@ import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 /** Runs yaml rest tests */
 public class GeoClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
-    public GeoClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
+	public GeoClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+		super(testCandidate);
+	}
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return OpenSearchClientYamlSuiteTestCase.createParameters();
-    }
+	@ParametersFactory
+	public static Iterable<Object[]> parameters() throws Exception {
+		return OpenSearchClientYamlSuiteTestCase.createParameters();
+	}
 }

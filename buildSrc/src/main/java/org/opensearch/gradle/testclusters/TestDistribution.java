@@ -35,6 +35,6 @@ package org.opensearch.gradle.testclusters;
  * An enumeration of the distributions that may be used in test clusters.
  */
 public enum TestDistribution {
-    INTEG_TEST,
-    ARCHIVE
+	INTEG_TEST,
+	ARCHIVE
 }

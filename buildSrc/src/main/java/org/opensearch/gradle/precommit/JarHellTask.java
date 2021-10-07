@@ -46,29 +46,29 @@ import java.io.File;
 @CacheableTask
 public class JarHellTask extends PrecommitTask {
 
-    private FileCollection classpath;
+	private FileCollection classpath;
 
-    public JarHellTask() {
-        setDescription("Runs CheckJarHell on the configured classpath");
-    }
+	public JarHellTask() {
+		setDescription("Runs CheckJarHell on the configured classpath");
+	}
 
-    @TaskAction
-    public void runJarHellCheck() {
-        LoggedExec.javaexec(getProject(), spec -> {
-            spec.environment("CLASSPATH", getClasspath().getAsPath());
-            spec.setMain("org.opensearch.bootstrap.JarHell");
-        });
-    }
+	@TaskAction
+	public void runJarHellCheck() {
+		LoggedExec.javaexec(getProject(), spec -> {
+			spec.environment("CLASSPATH", getClasspath().getAsPath());
+			spec.setMain("org.opensearch.bootstrap.JarHell");
+		});
+	}
 
-    // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jar hell.
-    // We only care about the runtime classpath ABI here.
-    @CompileClasspath
-    public FileCollection getClasspath() {
-        return classpath.filter(File::exists);
-    }
+	// We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jar hell.
+	// We only care about the runtime classpath ABI here.
+	@CompileClasspath
+	public FileCollection getClasspath() {
+		return classpath.filter(File::exists);
+	}
 
-    public void setClasspath(FileCollection classpath) {
-        this.classpath = classpath;
-    }
+	public void setClasspath(FileCollection classpath) {
+		this.classpath = classpath;
+	}
 
 }

@@ -44,116 +44,116 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 
 public class UpgradeCliTests extends CommandTestCase {
-    private final List<FileSystem> fileSystems = new ArrayList<>();
-    private Environment env;
+	private final List<FileSystem> fileSystems = new ArrayList<>();
+	private Environment env;
 
-    @Before
-    public void setupEnv() throws IOException {
-        final Configuration configuration;
-        configuration = Configuration.unix().toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
-        FileSystem fs = Jimfs.newFileSystem(configuration);
-        fileSystems.add(fs);
-        PathUtilsForTesting.installMock(fs);
-        Path home = fs.getPath("test-home");
-        Path config = home.resolve("config");
-        Files.createDirectories(config);
-        Files.createFile(config.resolve("opensearch.yml"));
-        Files.createDirectory(config.resolve("jvm.options.d"));
-        Files.createFile(config.resolve("log4j2.properties"));
-        env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
-    }
+	@Before
+	public void setupEnv() throws IOException {
+		final Configuration configuration;
+		configuration = Configuration.unix().toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
+		FileSystem fs = Jimfs.newFileSystem(configuration);
+		fileSystems.add(fs);
+		PathUtilsForTesting.installMock(fs);
+		Path home = fs.getPath("test-home");
+		Path config = home.resolve("config");
+		Files.createDirectories(config);
+		Files.createFile(config.resolve("opensearch.yml"));
+		Files.createDirectory(config.resolve("jvm.options.d"));
+		Files.createFile(config.resolve("log4j2.properties"));
+		env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
+	}
 
-    @After
-    public void closeMockFileSystems() throws IOException {
-        IOUtils.close(fileSystems);
-    }
+	@After
+	public void closeMockFileSystems() throws IOException {
+		IOUtils.close(fileSystems);
+	}
 
-    @Override
-    protected Command newCommand() {
-        return new UpgradeCli() {
-            @Override
-            protected Environment createEnv(Map<String, String> settings) {
-                return env;
-            }
-        };
-    }
+	@Override
+	protected Command newCommand() {
+		return new UpgradeCli() {
+			@Override
+			protected Environment createEnv(Map<String, String> settings) {
+				return env;
+			}
+		};
+	}
 
-    @SuppressForbidden(reason = "Read config directory from test resources.")
-    public void testUpgrade() throws Exception {
-        String passwd = "keystorepassword";
+	@SuppressForbidden(reason = "Read config directory from test resources.")
+	public void testUpgrade() throws Exception {
+		String passwd = "keystorepassword";
 
-        Path esConfig = new File(getClass().getResource("/config").getPath()).toPath();
-        // path for es_home
-        terminal.addTextInput(esConfig.getParent().toString());
-        // path for es_config
-        terminal.addTextInput(esConfig.toString());
-        // input for prompt 'config directory is inside installation'
-        terminal.addTextInput("y");
-        // input for prompt 'es version not detected'
-        terminal.addTextInput("y");
-        // input for prompt 'confirm the details look good'
-        terminal.addTextInput("y");
-        // as the keystore is password protected, we set it.
-        terminal.addSecretInput(passwd);
+		Path esConfig = new File(getClass().getResource("/config").getPath()).toPath();
+		// path for es_home
+		terminal.addTextInput(esConfig.getParent().toString());
+		// path for es_config
+		terminal.addTextInput(esConfig.toString());
+		// input for prompt 'config directory is inside installation'
+		terminal.addTextInput("y");
+		// input for prompt 'es version not detected'
+		terminal.addTextInput("y");
+		// input for prompt 'confirm the details look good'
+		terminal.addTextInput("y");
+		// as the keystore is password protected, we set it.
+		terminal.addSecretInput(passwd);
 
-        execute();
+		execute();
 
-        assertYmlConfigImported();
-        assertKeystoreImported(passwd);
-        assertJvmOptionsImported();
-        assertLog4jPropertiesImported();
-    }
+		assertYmlConfigImported();
+		assertKeystoreImported(passwd);
+		assertJvmOptionsImported();
+		assertLog4jPropertiesImported();
+	}
 
-    private void assertYmlConfigImported() throws IOException {
-        String[] headers = ImportYmlConfigTask.HEADER.split("[\\r\\n]+");
-        List<String> expectedSettings = new ArrayList<>();
-        expectedSettings.addAll(Arrays.asList(headers));
-        // this is the generated flat settings
-        expectedSettings.addAll(
-            Arrays.asList(
-                "---",
-                "cluster.name: \"my-cluster\"",
-                "node.name: \"node-x\"",
-                "path.data:",
-                "- \"/mnt/data_1\"",
-                "- \"/mnt/data_2\"",
-                "path.logs: \"/var/log/eslogs\""
-            )
-        );
-        List<String> actualSettings = Files.readAllLines(env.configFile().resolve("opensearch.yml"))
-            .stream()
-            .filter(Objects::nonNull)
-            .filter(line -> !line.isEmpty())
-            .collect(Collectors.toList());
+	private void assertYmlConfigImported() throws IOException {
+		String[] headers = ImportYmlConfigTask.HEADER.split("[\\r\\n]+");
+		List<String> expectedSettings = new ArrayList<>();
+		expectedSettings.addAll(Arrays.asList(headers));
+		// this is the generated flat settings
+		expectedSettings.addAll(
+			Arrays.asList(
+				"---",
+				"cluster.name: \"my-cluster\"",
+				"node.name: \"node-x\"",
+				"path.data:",
+				"- \"/mnt/data_1\"",
+				"- \"/mnt/data_2\"",
+				"path.logs: \"/var/log/eslogs\""
+			)
+		);
+		List<String> actualSettings = Files.readAllLines(env.configFile().resolve("opensearch.yml"))
+			.stream()
+			.filter(Objects::nonNull)
+			.filter(line -> !line.isEmpty())
+			.collect(Collectors.toList());
 
-        assertThat(actualSettings, equalTo(expectedSettings));
-    }
+		assertThat(actualSettings, equalTo(expectedSettings));
+	}
 
-    private void assertKeystoreImported(String passwd) throws IOException, GeneralSecurityException {
-        // assert keystore is created
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        assertNotNull(keystore);
+	private void assertKeystoreImported(String passwd) throws IOException, GeneralSecurityException {
+		// assert keystore is created
+		KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
+		assertNotNull(keystore);
 
-        // assert all keystore settings are imported
-        keystore.decrypt(passwd.toCharArray());
-        assertThat(keystore.getSettingNames(), hasItems(KeyStoreWrapper.SEED_SETTING.getKey(), "test.setting.key", "test.setting.file"));
-        assertThat(keystore.getString("test.setting.key").toString(), is("test.setting.value"));
-        InputStream is = keystore.getFile("test.setting.file");
-        byte[] bytes = new byte[is.available()];
-        assertThat(is.read(bytes), greaterThan(0));
-        String actual = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes)).toString();
-        String expected = "{\"some_key\": \"some_val\"}";
-        assertThat(actual, is(expected));
-    }
+		// assert all keystore settings are imported
+		keystore.decrypt(passwd.toCharArray());
+		assertThat(keystore.getSettingNames(), hasItems(KeyStoreWrapper.SEED_SETTING.getKey(), "test.setting.key", "test.setting.file"));
+		assertThat(keystore.getString("test.setting.key").toString(), is("test.setting.value"));
+		InputStream is = keystore.getFile("test.setting.file");
+		byte[] bytes = new byte[is.available()];
+		assertThat(is.read(bytes), greaterThan(0));
+		String actual = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes)).toString();
+		String expected = "{\"some_key\": \"some_val\"}";
+		assertThat(actual, is(expected));
+	}
 
-    private void assertJvmOptionsImported() throws IOException, GeneralSecurityException {
-        Path path = env.configFile().resolve("jvm.options.d");
-        assertThat(Files.exists(path), is(true));
-        assertThat(Files.isDirectory(path), is(true));
-        assertThat(Files.exists(path.resolve("test.options")), is(true));
-    }
+	private void assertJvmOptionsImported() throws IOException, GeneralSecurityException {
+		Path path = env.configFile().resolve("jvm.options.d");
+		assertThat(Files.exists(path), is(true));
+		assertThat(Files.isDirectory(path), is(true));
+		assertThat(Files.exists(path.resolve("test.options")), is(true));
+	}
 
-    private void assertLog4jPropertiesImported() throws IOException, GeneralSecurityException {
-        assertThat(Files.exists(env.configFile().resolve("log4j2.properties")), is(true));
-    }
+	private void assertLog4jPropertiesImported() throws IOException, GeneralSecurityException {
+		assertThat(Files.exists(env.configFile().resolve("log4j2.properties")), is(true));
+	}
 }

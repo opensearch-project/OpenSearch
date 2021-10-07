@@ -46,72 +46,72 @@ import java.util.regex.Pattern;
  */
 public class TestingConventionRule implements Serializable {
 
-    private final String suffix;
+	private final String suffix;
 
-    private Set<String> baseClasses = new HashSet<>();
+	private Set<String> baseClasses = new HashSet<>();
 
-    private Set<Pattern> taskNames = new HashSet<>();
+	private Set<Pattern> taskNames = new HashSet<>();
 
-    public TestingConventionRule(String suffix) {
-        this.suffix = suffix;
-    }
+	public TestingConventionRule(String suffix) {
+		this.suffix = suffix;
+	}
 
-    public String getSuffix() {
-        return suffix;
-    }
+	public String getSuffix() {
+		return suffix;
+	}
 
-    /**
-     * Alias for @{link getSuffix} as Gradle requires a name property
-     *
-     */
-    public String getName() {
-        return suffix;
-    }
+	/**
+	 * Alias for @{link getSuffix} as Gradle requires a name property
+	 *
+	 */
+	public String getName() {
+		return suffix;
+	}
 
-    public void baseClass(String clazz) {
-        baseClasses.add(clazz);
-    }
+	public void baseClass(String clazz) {
+		baseClasses.add(clazz);
+	}
 
-    public void setBaseClasses(Collection<String> baseClasses) {
-        this.baseClasses.clear();
-        this.baseClasses.addAll(baseClasses);
-    }
+	public void setBaseClasses(Collection<String> baseClasses) {
+		this.baseClasses.clear();
+		this.baseClasses.addAll(baseClasses);
+	}
 
-    public void taskName(Pattern expression) {
-        taskNames.add(expression);
-    }
+	public void taskName(Pattern expression) {
+		taskNames.add(expression);
+	}
 
-    public void taskName(String expression) {
-        taskNames.add(Pattern.compile(expression));
-    }
+	public void taskName(String expression) {
+		taskNames.add(Pattern.compile(expression));
+	}
 
-    public void setTaskNames(Collection<Pattern> expressions) {
-        taskNames.clear();
-        taskNames.addAll(expressions);
-    }
+	public void setTaskNames(Collection<Pattern> expressions) {
+		taskNames.clear();
+		taskNames.addAll(expressions);
+	}
 
-    public Set<String> getBaseClasses() {
-        return baseClasses;
-    }
+	public Set<String> getBaseClasses() {
+		return baseClasses;
+	}
 
-    public Set<Pattern> getTaskNames() {
-        return taskNames;
-    }
+	public Set<Pattern> getTaskNames() {
+		return taskNames;
+	}
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        TestingConventionRule that = (TestingConventionRule) o;
-        return Objects.equals(suffix, that.suffix);
-    }
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) {
+			return true;
+		}
+		if (o == null || getClass() != o.getClass()) {
+			return false;
+		}
+		TestingConventionRule that = (TestingConventionRule) o;
+		return Objects.equals(suffix, that.suffix);
+	}
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(suffix);
-    }
+	@Override
+	public int hashCode() {
+		return Objects.hash(suffix);
+	}
 }

@@ -44,16 +44,16 @@ import static java.util.Collections.singletonList;
  * Test plugin that allows to delay aggregations on shards with a configurable time
  */
 public class DelayedShardAggregationPlugin extends Plugin implements SearchPlugin {
-    public DelayedShardAggregationPlugin() {}
+	public DelayedShardAggregationPlugin() {}
 
-    @Override
-    public List<AggregationSpec> getAggregations() {
-        return singletonList(
-            new AggregationSpec(
-                DelayedShardAggregationBuilder.NAME,
-                DelayedShardAggregationBuilder::new,
-                DelayedShardAggregationBuilder.PARSER
-            ).addResultReader(InternalFilter::new)
-        );
-    }
+	@Override
+	public List<AggregationSpec> getAggregations() {
+		return singletonList(
+			new AggregationSpec(
+				DelayedShardAggregationBuilder.NAME,
+				DelayedShardAggregationBuilder::new,
+				DelayedShardAggregationBuilder.PARSER
+			).addResultReader(InternalFilter::new)
+		);
+	}
 }

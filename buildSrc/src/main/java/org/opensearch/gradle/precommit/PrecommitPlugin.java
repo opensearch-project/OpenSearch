@@ -44,27 +44,27 @@ import org.gradle.api.tasks.TaskProvider;
  */
 public abstract class PrecommitPlugin implements Plugin<Project> {
 
-    public static final String PRECOMMIT_TASK_NAME = "precommit";
+	public static final String PRECOMMIT_TASK_NAME = "precommit";
 
-    @Override
-    public final void apply(Project project) {
-        project.getPluginManager().apply(PrecommitTaskPlugin.class);
-        TaskProvider<? extends Task> task = createTask(project);
-        TaskProvider<Task> precommit = project.getTasks().named(PRECOMMIT_TASK_NAME);
-        precommit.configure(t -> t.dependsOn(task));
+	@Override
+	public final void apply(Project project) {
+		project.getPluginManager().apply(PrecommitTaskPlugin.class);
+		TaskProvider<? extends Task> task = createTask(project);
+		TaskProvider<Task> precommit = project.getTasks().named(PRECOMMIT_TASK_NAME);
+		precommit.configure(t -> t.dependsOn(task));
 
-        project.getPluginManager()
-            .withPlugin(
-                "java",
-                p -> {
-                    // We want to get any compilation error before running the pre-commit checks.
-                    for (SourceSet sourceSet : GradleUtils.getJavaSourceSets(project)) {
-                        task.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()));
-                    }
-                }
-            );
-    }
+		project.getPluginManager()
+			.withPlugin(
+				"java",
+				p -> {
+					// We want to get any compilation error before running the pre-commit checks.
+					for (SourceSet sourceSet : GradleUtils.getJavaSourceSets(project)) {
+						task.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()));
+					}
+				}
+			);
+	}
 
-    public abstract TaskProvider<? extends Task> createTask(Project project);
+	public abstract TaskProvider<? extends Task> createTask(Project project);
 
 }

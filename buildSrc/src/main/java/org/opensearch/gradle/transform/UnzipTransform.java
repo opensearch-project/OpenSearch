@@ -48,33 +48,33 @@ import static org.opensearch.gradle.util.PermissionUtils.chmod;
 
 public abstract class UnzipTransform implements UnpackTransform {
 
-    public void unpack(File zipFile, File targetDir) throws IOException {
-        Logging.getLogger(UnzipTransform.class)
-            .info("Unpacking " + zipFile.getName() + " using " + UnzipTransform.class.getSimpleName() + ".");
-        Function<String, Path> pathModifier = pathResolver();
-        ZipFile zip = new ZipFile(zipFile);
-        try {
-            Enumeration<ZipEntry> entries = zip.getEntries();
-            while (entries.hasMoreElements()) {
-                ZipEntry zipEntry = entries.nextElement();
-                Path child = pathModifier.apply(zipEntry.getName());
-                if (child == null) {
-                    continue;
-                }
-                Path outputPath = targetDir.toPath().resolve(child);
-                if (zipEntry.isDirectory()) {
-                    outputPath.toFile().mkdirs();
-                    chmod(outputPath, zipEntry.getUnixMode());
-                    continue;
-                }
-                try (FileOutputStream outputStream = new FileOutputStream(outputPath.toFile())) {
-                    IOUtils.copyLarge(zip.getInputStream(zipEntry), outputStream);
-                }
-                chmod(outputPath, zipEntry.getUnixMode());
-            }
-        } finally {
-            zip.close();
-        }
-    }
+	public void unpack(File zipFile, File targetDir) throws IOException {
+		Logging.getLogger(UnzipTransform.class)
+			.info("Unpacking " + zipFile.getName() + " using " + UnzipTransform.class.getSimpleName() + ".");
+		Function<String, Path> pathModifier = pathResolver();
+		ZipFile zip = new ZipFile(zipFile);
+		try {
+			Enumeration<ZipEntry> entries = zip.getEntries();
+			while (entries.hasMoreElements()) {
+				ZipEntry zipEntry = entries.nextElement();
+				Path child = pathModifier.apply(zipEntry.getName());
+				if (child == null) {
+					continue;
+				}
+				Path outputPath = targetDir.toPath().resolve(child);
+				if (zipEntry.isDirectory()) {
+					outputPath.toFile().mkdirs();
+					chmod(outputPath, zipEntry.getUnixMode());
+					continue;
+				}
+				try (FileOutputStream outputStream = new FileOutputStream(outputPath.toFile())) {
+					IOUtils.copyLarge(zip.getInputStream(zipEntry), outputStream);
+				}
+				chmod(outputPath, zipEntry.getUnixMode());
+			}
+		} finally {
+			zip.close();
+		}
+	}
 
 }

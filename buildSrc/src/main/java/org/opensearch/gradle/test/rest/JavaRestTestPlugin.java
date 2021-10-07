@@ -53,32 +53,32 @@ import static org.opensearch.gradle.test.rest.RestTestUtil.setupDependencies;
  */
 public class JavaRestTestPlugin implements Plugin<Project> {
 
-    public static final String SOURCE_SET_NAME = "javaRestTest";
+	public static final String SOURCE_SET_NAME = "javaRestTest";
 
-    @Override
-    public void apply(Project project) {
+	@Override
+	public void apply(Project project) {
 
-        project.getPluginManager().apply(OpenSearchJavaPlugin.class);
-        project.getPluginManager().apply(RestTestBasePlugin.class);
-        project.getPluginManager().apply(TestClustersPlugin.class);
+		project.getPluginManager().apply(OpenSearchJavaPlugin.class);
+		project.getPluginManager().apply(RestTestBasePlugin.class);
+		project.getPluginManager().apply(TestClustersPlugin.class);
 
-        // create source set
-        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
+		// create source set
+		SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+		SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        // create the test cluster container
-        createTestCluster(project, javaTestSourceSet);
+		// create the test cluster container
+		createTestCluster(project, javaTestSourceSet);
 
-        // setup the javaRestTest task
-        Provider<RestIntegTestTask> javaRestTestTask = registerTask(project, javaTestSourceSet);
+		// setup the javaRestTest task
+		Provider<RestIntegTestTask> javaRestTestTask = registerTask(project, javaTestSourceSet);
 
-        // setup dependencies
-        setupDependencies(project, javaTestSourceSet);
+		// setup dependencies
+		setupDependencies(project, javaTestSourceSet);
 
-        // setup IDE
-        GradleUtils.setupIdeForTestSourceSet(project, javaTestSourceSet);
+		// setup IDE
+		GradleUtils.setupIdeForTestSourceSet(project, javaTestSourceSet);
 
-        // wire this task into check
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(javaRestTestTask));
-    }
+		// wire this task into check
+		project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(javaRestTestTask));
+	}
 }

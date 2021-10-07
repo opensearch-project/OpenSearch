@@ -44,25 +44,25 @@ import org.junit.runner.RunWith;
 @ThreadLeakLingering(linger = 5000) // wait for "Connection worker" to die
 public abstract class BaseTestCase extends Assert {
 
-    // add expectThrows from junit 5
-    @FunctionalInterface
-    public interface ThrowingRunnable {
-        void run() throws Throwable;
-    }
+	// add expectThrows from junit 5
+	@FunctionalInterface
+	public interface ThrowingRunnable {
+		void run() throws Throwable;
+	}
 
-    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ThrowingRunnable runnable) {
-        try {
-            runnable.run();
-        } catch (Throwable e) {
-            if (expectedType.isInstance(e)) {
-                return expectedType.cast(e);
-            }
-            AssertionFailedError assertion = new AssertionFailedError(
-                "Unexpected exception type, expected " + expectedType.getSimpleName() + " but got " + e
-            );
-            assertion.initCause(e);
-            throw assertion;
-        }
-        throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName() + " but no exception was thrown");
-    }
+	public static <T extends Throwable> T expectThrows(Class<T> expectedType, ThrowingRunnable runnable) {
+		try {
+			runnable.run();
+		} catch (Throwable e) {
+			if (expectedType.isInstance(e)) {
+				return expectedType.cast(e);
+			}
+			AssertionFailedError assertion = new AssertionFailedError(
+				"Unexpected exception type, expected " + expectedType.getSimpleName() + " but got " + e
+			);
+			assertion.initCause(e);
+			throw assertion;
+		}
+		throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName() + " but no exception was thrown");
+	}
 }

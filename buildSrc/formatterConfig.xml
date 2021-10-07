@@ -350,7 +350,6 @@
         <setting id="org.eclipse.jdt.core.formatter.comment.indent_parameter_description" value="false"/>
         <setting id="org.eclipse.jdt.core.formatter.number_of_blank_lines_at_beginning_of_code_block" value="0"/>
         <setting id="org.eclipse.jdt.core.formatter.insert_new_line_before_finally_in_try_statement" value="do not insert"/>
-        <!-- <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/> -->
         <setting id="org.eclipse.jdt.core.formatter.insert_space_after_relational_operator" value="insert"/>
         <setting id="org.eclipse.jdt.core.formatter.insert_space_before_comma_in_multiple_field_declarations" value="do not insert"/>
         <setting id="org.eclipse.jdt.core.formatter.wrap_before_string_concatenation" value="true"/>

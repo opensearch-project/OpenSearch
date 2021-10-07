@@ -37,44 +37,44 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ImportLog4jPropertiesTaskTests extends OpenSearchTestCase {
-    private final MockTerminal terminal = new MockTerminal();
-    private final List<FileSystem> fileSystems = new ArrayList<>();
-    private ImportLog4jPropertiesTask task;
-    private Environment env;
+	private final MockTerminal terminal = new MockTerminal();
+	private final List<FileSystem> fileSystems = new ArrayList<>();
+	private ImportLog4jPropertiesTask task;
+	private Environment env;
 
-    @Before
-    public void setUpTask() throws IOException {
-        task = new ImportLog4jPropertiesTask();
-        final Configuration configuration;
-        configuration = Configuration.unix().toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
-        FileSystem fs = Jimfs.newFileSystem(configuration);
-        fileSystems.add(fs);
-        PathUtilsForTesting.installMock(fs);
-        Path home = fs.getPath("test-home");
-        Path config = home.resolve("config");
-        Files.createDirectories(config);
-        Files.createFile(config.resolve(ImportLog4jPropertiesTask.LOG4J_PROPERTIES));
-        env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
-    }
+	@Before
+	public void setUpTask() throws IOException {
+		task = new ImportLog4jPropertiesTask();
+		final Configuration configuration;
+		configuration = Configuration.unix().toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
+		FileSystem fs = Jimfs.newFileSystem(configuration);
+		fileSystems.add(fs);
+		PathUtilsForTesting.installMock(fs);
+		Path home = fs.getPath("test-home");
+		Path config = home.resolve("config");
+		Files.createDirectories(config);
+		Files.createFile(config.resolve(ImportLog4jPropertiesTask.LOG4J_PROPERTIES));
+		env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
+	}
 
-    @SuppressForbidden(reason = "Read config directory from test resources.")
-    public void testImportLog4jPropertiesTask() throws IOException {
-        TaskInput taskInput = new TaskInput(env);
-        Path esConfig = new File(getClass().getResource("/config").getPath()).toPath();
-        taskInput.setEsConfig(esConfig);
-        task.accept(new Tuple<>(taskInput, terminal));
+	@SuppressForbidden(reason = "Read config directory from test resources.")
+	public void testImportLog4jPropertiesTask() throws IOException {
+		TaskInput taskInput = new TaskInput(env);
+		Path esConfig = new File(getClass().getResource("/config").getPath()).toPath();
+		taskInput.setEsConfig(esConfig);
+		task.accept(new Tuple<>(taskInput, terminal));
 
-        Properties properties = new Properties();
-        properties.load(Files.newInputStream(taskInput.getOpenSearchConfig().resolve(ImportLog4jPropertiesTask.LOG4J_PROPERTIES)));
-        assertThat(properties, is(notNullValue()));
-        assertThat(properties.entrySet(), hasSize(137));
-        assertThat(properties.get("appender.rolling.layout.type"), equalTo("OpenSearchJsonLayout"));
-        assertThat(
-            properties.get("appender.deprecation_rolling.fileName"),
-            equalTo("${sys:opensearch.logs.base_path}${sys:file.separator}${sys:opensearch.logs.cluster_name}_deprecation.json")
-        );
-        assertThat(properties.get("logger.deprecation.name"), equalTo("org.opensearch.deprecation"));
-        assertThat(properties.keySet(), not(hasItem("appender.deprecation_rolling.layout.esmessagefields")));
-        assertThat(properties.keySet(), hasItem("appender.deprecation_rolling.layout.opensearchmessagefields"));
-    }
+		Properties properties = new Properties();
+		properties.load(Files.newInputStream(taskInput.getOpenSearchConfig().resolve(ImportLog4jPropertiesTask.LOG4J_PROPERTIES)));
+		assertThat(properties, is(notNullValue()));
+		assertThat(properties.entrySet(), hasSize(137));
+		assertThat(properties.get("appender.rolling.layout.type"), equalTo("OpenSearchJsonLayout"));
+		assertThat(
+			properties.get("appender.deprecation_rolling.fileName"),
+			equalTo("${sys:opensearch.logs.base_path}${sys:file.separator}${sys:opensearch.logs.cluster_name}_deprecation.json")
+		);
+		assertThat(properties.get("logger.deprecation.name"), equalTo("org.opensearch.deprecation"));
+		assertThat(properties.keySet(), not(hasItem("appender.deprecation_rolling.layout.esmessagefields")));
+		assertThat(properties.keySet(), hasItem("appender.deprecation_rolling.layout.opensearchmessagefields"));
+	}
 }

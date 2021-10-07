@@ -49,47 +49,47 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
-    @Override
-    protected Command newCommand() {
-        return new UpgradeKeyStoreCommand() {
+	@Override
+	protected Command newCommand() {
+		return new UpgradeKeyStoreCommand() {
 
-            @Override
-            protected Environment createEnv(final Map<String, String> settings) {
-                return env;
-            }
+			@Override
+			protected Environment createEnv(final Map<String, String> settings) {
+				return env;
+			}
 
-        };
-    }
+		};
+	}
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/468")
-    public void testKeystoreUpgrade() throws Exception {
-        final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
-        try (
-            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-opensearch.keystore");
-            OutputStream os = Files.newOutputStream(keystore)
-        ) {
-            final byte[] buffer = new byte[4096];
-            int read;
-            while ((read = is.read(buffer, 0, buffer.length)) >= 0) {
-                os.write(buffer, 0, read);
-            }
-        }
-        try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configFile())) {
-            assertNotNull(beforeUpgrade);
-            assertThat(beforeUpgrade.getFormatVersion(), equalTo(3));
-        }
-        execute();
-        try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configFile())) {
-            assertNotNull(afterUpgrade);
-            assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.FORMAT_VERSION));
-            afterUpgrade.decrypt(new char[0]);
-            assertThat(afterUpgrade.getSettingNames(), hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
-        }
-    }
+	@AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/468")
+	public void testKeystoreUpgrade() throws Exception {
+		final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
+		try (
+			InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-opensearch.keystore");
+			OutputStream os = Files.newOutputStream(keystore)
+		) {
+			final byte[] buffer = new byte[4096];
+			int read;
+			while ((read = is.read(buffer, 0, buffer.length)) >= 0) {
+				os.write(buffer, 0, read);
+			}
+		}
+		try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configFile())) {
+			assertNotNull(beforeUpgrade);
+			assertThat(beforeUpgrade.getFormatVersion(), equalTo(3));
+		}
+		execute();
+		try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configFile())) {
+			assertNotNull(afterUpgrade);
+			assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.FORMAT_VERSION));
+			afterUpgrade.decrypt(new char[0]);
+			assertThat(afterUpgrade.getSettingNames(), hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
+		}
+	}
 
-    public void testKeystoreDoesNotExist() {
-        final UserException e = expectThrows(UserException.class, this::execute);
-        assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]")));
-    }
+	public void testKeystoreDoesNotExist() {
+		final UserException e = expectThrows(UserException.class, this::execute);
+		assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]")));
+	}
 
 }

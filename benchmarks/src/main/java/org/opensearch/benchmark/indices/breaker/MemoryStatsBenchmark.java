@@ -56,62 +56,62 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 @SuppressWarnings("unused") // invoked by benchmarking framework
 public class MemoryStatsBenchmark {
-    private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
+	private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
 
-    @Param({ "0", "16", "256", "4096" })
-    private int tokens;
+	@Param({ "0", "16", "256", "4096" })
+	private int tokens;
 
-    @Benchmark
-    public void baseline() {
-        Blackhole.consumeCPU(tokens);
-    }
+	@Benchmark
+	public void baseline() {
+		Blackhole.consumeCPU(tokens);
+	}
 
-    @Benchmark
-    @Threads(1)
-    public long getMemoryStats_01() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
+	@Benchmark
+	@Threads(1)
+	public long getMemoryStats_01() {
+		Blackhole.consumeCPU(tokens);
+		return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+	}
 
-    @Benchmark
-    @Threads(2)
-    public long getMemoryStats_02() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
+	@Benchmark
+	@Threads(2)
+	public long getMemoryStats_02() {
+		Blackhole.consumeCPU(tokens);
+		return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+	}
 
-    @Benchmark
-    @Threads(4)
-    public long getMemoryStats_04() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
+	@Benchmark
+	@Threads(4)
+	public long getMemoryStats_04() {
+		Blackhole.consumeCPU(tokens);
+		return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+	}
 
-    @Benchmark
-    @Threads(8)
-    public long getMemoryStats_08() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
+	@Benchmark
+	@Threads(8)
+	public long getMemoryStats_08() {
+		Blackhole.consumeCPU(tokens);
+		return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+	}
 
-    @Benchmark
-    @Threads(16)
-    public long getMemoryStats_16() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
+	@Benchmark
+	@Threads(16)
+	public long getMemoryStats_16() {
+		Blackhole.consumeCPU(tokens);
+		return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+	}
 
-    @Benchmark
-    @Threads(32)
-    public long getMemoryStats_32() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
+	@Benchmark
+	@Threads(32)
+	public long getMemoryStats_32() {
+		Blackhole.consumeCPU(tokens);
+		return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+	}
 
-    @Benchmark
-    @Threads(64)
-    public long getMemoryStats_64() {
-        Blackhole.consumeCPU(tokens);
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
-    }
+	@Benchmark
+	@Threads(64)
+	public long getMemoryStats_64() {
+		Blackhole.consumeCPU(tokens);
+		return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+	}
 }

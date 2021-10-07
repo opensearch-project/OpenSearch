@@ -49,53 +49,53 @@ import org.gradle.api.tasks.bundling.Zip;
  */
 public class RestTestUtil {
 
-    private RestTestUtil() {}
+	private RestTestUtil() {}
 
-    static OpenSearchCluster createTestCluster(Project project, SourceSet sourceSet) {
-        // eagerly create the testCluster container so it is easily available for configuration
-        @SuppressWarnings("unchecked")
-        NamedDomainObjectContainer<OpenSearchCluster> testClusters = (NamedDomainObjectContainer<OpenSearchCluster>) project.getExtensions()
-            .getByName(TestClustersPlugin.EXTENSION_NAME);
-        return testClusters.create(sourceSet.getName());
-    }
+	static OpenSearchCluster createTestCluster(Project project, SourceSet sourceSet) {
+		// eagerly create the testCluster container so it is easily available for configuration
+		@SuppressWarnings("unchecked")
+		NamedDomainObjectContainer<OpenSearchCluster> testClusters = (NamedDomainObjectContainer<OpenSearchCluster>) project.getExtensions()
+			.getByName(TestClustersPlugin.EXTENSION_NAME);
+		return testClusters.create(sourceSet.getName());
+	}
 
-    /**
-     * Creates a task with the source set name of type {@link RestIntegTestTask}
-     */
-    static Provider<RestIntegTestTask> registerTask(Project project, SourceSet sourceSet) {
-        // lazily create the test task
-        Provider<RestIntegTestTask> testProvider = project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
-            testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-            testTask.setDescription("Runs the REST tests against an external cluster");
-            testTask.mustRunAfter(project.getTasks().named("test"));
-            testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
-            testTask.setClasspath(sourceSet.getRuntimeClasspath());
-            // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
-            project.getPluginManager().withPlugin("opensearch.opensearchplugin", plugin -> {
-                Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
-                testTask.dependsOn(bundle);
-                if (project.getPath().contains("modules:")) {
-                    testTask.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
-                } else {
-                    testTask.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
-                }
-            });
-        });
+	/**
+	 * Creates a task with the source set name of type {@link RestIntegTestTask}
+	 */
+	static Provider<RestIntegTestTask> registerTask(Project project, SourceSet sourceSet) {
+		// lazily create the test task
+		Provider<RestIntegTestTask> testProvider = project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
+			testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+			testTask.setDescription("Runs the REST tests against an external cluster");
+			testTask.mustRunAfter(project.getTasks().named("test"));
+			testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
+			testTask.setClasspath(sourceSet.getRuntimeClasspath());
+			// if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
+			project.getPluginManager().withPlugin("opensearch.opensearchplugin", plugin -> {
+				Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
+				testTask.dependsOn(bundle);
+				if (project.getPath().contains("modules:")) {
+					testTask.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
+				} else {
+					testTask.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
+				}
+			});
+		});
 
-        return testProvider;
-    }
+		return testProvider;
+	}
 
-    /**
-     * Setup the dependencies needed for the REST tests.
-     */
-    static void setupDependencies(Project project, SourceSet sourceSet) {
-        if (BuildParams.isInternal()) {
-            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
-        } else {
-            project.getDependencies()
-                .add(sourceSet.getImplementationConfigurationName(), "org.opensearch.test:framework:" + VersionProperties.getOpenSearch());
-        }
+	/**
+	 * Setup the dependencies needed for the REST tests.
+	 */
+	static void setupDependencies(Project project, SourceSet sourceSet) {
+		if (BuildParams.isInternal()) {
+			project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
+		} else {
+			project.getDependencies()
+				.add(sourceSet.getImplementationConfigurationName(), "org.opensearch.test:framework:" + VersionProperties.getOpenSearch());
+		}
 
-    }
+	}
 
 }

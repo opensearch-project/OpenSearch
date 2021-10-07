@@ -69,174 +69,174 @@ import java.util.stream.Collectors;
  * @see RestResourcesPlugin
  */
 public class CopyRestApiTask extends DefaultTask {
-    private static final String REST_API_PREFIX = "rest-api-spec/api";
-    final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
-    String sourceSetName;
-    boolean skipHasRestTestCheck;
-    Configuration coreConfig;
-    Configuration additionalConfig;
+	private static final String REST_API_PREFIX = "rest-api-spec/api";
+	final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
+	String sourceSetName;
+	boolean skipHasRestTestCheck;
+	Configuration coreConfig;
+	Configuration additionalConfig;
 
-    private final PatternFilterable corePatternSet;
+	private final PatternFilterable corePatternSet;
 
-    public CopyRestApiTask() {
-        corePatternSet = getPatternSetFactory().create();
-    }
+	public CopyRestApiTask() {
+		corePatternSet = getPatternSetFactory().create();
+	}
 
-    @Inject
-    protected Factory<PatternSet> getPatternSetFactory() {
-        throw new UnsupportedOperationException();
-    }
+	@Inject
+	protected Factory<PatternSet> getPatternSetFactory() {
+		throw new UnsupportedOperationException();
+	}
 
-    @Inject
-    protected FileSystemOperations getFileSystemOperations() {
-        throw new UnsupportedOperationException();
-    }
+	@Inject
+	protected FileSystemOperations getFileSystemOperations() {
+		throw new UnsupportedOperationException();
+	}
 
-    @Inject
-    protected ArchiveOperations getArchiveOperations() {
-        throw new UnsupportedOperationException();
-    }
+	@Inject
+	protected ArchiveOperations getArchiveOperations() {
+		throw new UnsupportedOperationException();
+	}
 
-    @Input
-    public ListProperty<String> getIncludeCore() {
-        return includeCore;
-    }
+	@Input
+	public ListProperty<String> getIncludeCore() {
+		return includeCore;
+	}
 
-    @Input
-    String getSourceSetName() {
-        return sourceSetName;
-    }
+	@Input
+	String getSourceSetName() {
+		return sourceSetName;
+	}
 
-    @Input
-    public boolean isSkipHasRestTestCheck() {
-        return skipHasRestTestCheck;
-    }
+	@Input
+	public boolean isSkipHasRestTestCheck() {
+		return skipHasRestTestCheck;
+	}
 
-    @SkipWhenEmpty
-    @InputFiles
-    public FileTree getInputDir() {
-        FileTree coreFileTree = null;
-        boolean projectHasYamlRestTests = skipHasRestTestCheck || projectHasYamlRestTests();
-        if (includeCore.get().isEmpty() == false || projectHasYamlRestTests) {
-            if (BuildParams.isInternal()) {
-                corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-                coreFileTree = coreConfig.getAsFileTree().matching(corePatternSet); // directory on disk
-            } else {
-                coreFileTree = coreConfig.getAsFileTree(); // jar file
-            }
-        }
+	@SkipWhenEmpty
+	@InputFiles
+	public FileTree getInputDir() {
+		FileTree coreFileTree = null;
+		boolean projectHasYamlRestTests = skipHasRestTestCheck || projectHasYamlRestTests();
+		if (includeCore.get().isEmpty() == false || projectHasYamlRestTests) {
+			if (BuildParams.isInternal()) {
+				corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+				coreFileTree = coreConfig.getAsFileTree().matching(corePatternSet); // directory on disk
+			} else {
+				coreFileTree = coreConfig.getAsFileTree(); // jar file
+			}
+		}
 
-        ConfigurableFileCollection fileCollection = additionalConfig == null
-            ? getProject().files(coreFileTree)
-            : getProject().files(coreFileTree, additionalConfig.getAsFileTree());
+		ConfigurableFileCollection fileCollection = additionalConfig == null
+			? getProject().files(coreFileTree)
+			: getProject().files(coreFileTree, additionalConfig.getAsFileTree());
 
-        // if project has rest tests or the includes are explicitly configured execute the task, else NO-SOURCE due to the null input
-        return projectHasYamlRestTests || includeCore.get().isEmpty() == false ? fileCollection.getAsFileTree() : null;
-    }
+		// if project has rest tests or the includes are explicitly configured execute the task, else NO-SOURCE due to the null input
+		return projectHasYamlRestTests || includeCore.get().isEmpty() == false ? fileCollection.getAsFileTree() : null;
+	}
 
-    @OutputDirectory
-    public File getOutputDir() {
-        return new File(
-            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
-                .getOutput()
-                .getResourcesDir(),
-            REST_API_PREFIX
-        );
-    }
+	@OutputDirectory
+	public File getOutputDir() {
+		return new File(
+			getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
+				.getOutput()
+				.getResourcesDir(),
+			REST_API_PREFIX
+		);
+	}
 
-    @TaskAction
-    void copy() {
-        // always copy the core specs if the task executes
-        String projectPath = GradleUtils.getProjectPathFromTask(getPath());
-        if (BuildParams.isInternal()) {
-            getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", projectPath);
-            getFileSystemOperations().copy(c -> {
-                c.from(coreConfig.getAsFileTree());
-                c.into(getOutputDir());
-                c.include(corePatternSet.getIncludes());
-            });
-        } else {
-            getLogger().debug(
-                "Rest specs for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
-                projectPath,
-                VersionProperties.getOpenSearch()
-            );
-            getFileSystemOperations().copy(c -> {
-                c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile()));
-                // this ends up as the same dir as outputDir
-                c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
-                if (includeCore.get().isEmpty()) {
-                    c.include(REST_API_PREFIX + "/**");
-                } else {
-                    c.include(
-                        includeCore.get().stream().map(prefix -> REST_API_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
-                    );
-                }
-            });
-        }
-        // TODO: once https://github.com/elastic/elasticsearch/pull/62968 lands ensure that this uses `getFileSystemOperations()`
-        // copy any additional config
-        if (additionalConfig != null) {
-            getFileSystemOperations().copy(c -> {
-                c.from(additionalConfig.getAsFileTree());
-                c.into(getOutputDir());
-            });
-        }
-    }
+	@TaskAction
+	void copy() {
+		// always copy the core specs if the task executes
+		String projectPath = GradleUtils.getProjectPathFromTask(getPath());
+		if (BuildParams.isInternal()) {
+			getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", projectPath);
+			getFileSystemOperations().copy(c -> {
+				c.from(coreConfig.getAsFileTree());
+				c.into(getOutputDir());
+				c.include(corePatternSet.getIncludes());
+			});
+		} else {
+			getLogger().debug(
+				"Rest specs for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
+				projectPath,
+				VersionProperties.getOpenSearch()
+			);
+			getFileSystemOperations().copy(c -> {
+				c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile()));
+				// this ends up as the same dir as outputDir
+				c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
+				if (includeCore.get().isEmpty()) {
+					c.include(REST_API_PREFIX + "/**");
+				} else {
+					c.include(
+						includeCore.get().stream().map(prefix -> REST_API_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
+					);
+				}
+			});
+		}
+		// TODO: once https://github.com/elastic/elasticsearch/pull/62968 lands ensure that this uses `getFileSystemOperations()`
+		// copy any additional config
+		if (additionalConfig != null) {
+			getFileSystemOperations().copy(c -> {
+				c.from(additionalConfig.getAsFileTree());
+				c.into(getOutputDir());
+			});
+		}
+	}
 
-    /**
-     * Returns true if any files with a .yml extension exist the test resources rest-api-spec/test directory (from source or output dir)
-     */
-    private boolean projectHasYamlRestTests() {
-        File testSourceResourceDir = getTestSourceResourceDir();
-        File testOutputResourceDir = getTestOutputResourceDir(); // check output for cases where tests are copied programmatically
+	/**
+	 * Returns true if any files with a .yml extension exist the test resources rest-api-spec/test directory (from source or output dir)
+	 */
+	private boolean projectHasYamlRestTests() {
+		File testSourceResourceDir = getTestSourceResourceDir();
+		File testOutputResourceDir = getTestOutputResourceDir(); // check output for cases where tests are copied programmatically
 
-        if (testSourceResourceDir == null && testOutputResourceDir == null) {
-            return false;
-        }
-        try {
-            if (testSourceResourceDir != null && new File(testSourceResourceDir, "rest-api-spec/test").exists()) {
-                return Files.walk(testSourceResourceDir.toPath().resolve("rest-api-spec/test"))
-                    .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
-            }
-            if (testOutputResourceDir != null && new File(testOutputResourceDir, "rest-api-spec/test").exists()) {
-                return Files.walk(testOutputResourceDir.toPath().resolve("rest-api-spec/test"))
-                    .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException(String.format("Error determining if this project [%s] has rest tests.", getProject()), e);
-        }
-        return false;
-    }
+		if (testSourceResourceDir == null && testOutputResourceDir == null) {
+			return false;
+		}
+		try {
+			if (testSourceResourceDir != null && new File(testSourceResourceDir, "rest-api-spec/test").exists()) {
+				return Files.walk(testSourceResourceDir.toPath().resolve("rest-api-spec/test"))
+					.anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+			}
+			if (testOutputResourceDir != null && new File(testOutputResourceDir, "rest-api-spec/test").exists()) {
+				return Files.walk(testOutputResourceDir.toPath().resolve("rest-api-spec/test"))
+					.anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+			}
+		} catch (IOException e) {
+			throw new IllegalStateException(String.format("Error determining if this project [%s] has rest tests.", getProject()), e);
+		}
+		return false;
+	}
 
-    private File getTestSourceResourceDir() {
-        Optional<SourceSet> testSourceSet = getSourceSet();
-        if (testSourceSet.isPresent()) {
-            SourceSet testSources = testSourceSet.get();
-            Set<File> resourceDir = testSources.getResources()
-                .getSrcDirs()
-                .stream()
-                .filter(f -> f.isDirectory() && f.getParentFile().getName().equals(getSourceSetName()) && f.getName().equals("resources"))
-                .collect(Collectors.toSet());
-            assert resourceDir.size() <= 1;
-            if (resourceDir.size() == 0) {
-                return null;
-            }
-            return resourceDir.iterator().next();
-        } else {
-            return null;
-        }
-    }
+	private File getTestSourceResourceDir() {
+		Optional<SourceSet> testSourceSet = getSourceSet();
+		if (testSourceSet.isPresent()) {
+			SourceSet testSources = testSourceSet.get();
+			Set<File> resourceDir = testSources.getResources()
+				.getSrcDirs()
+				.stream()
+				.filter(f -> f.isDirectory() && f.getParentFile().getName().equals(getSourceSetName()) && f.getName().equals("resources"))
+				.collect(Collectors.toSet());
+			assert resourceDir.size() <= 1;
+			if (resourceDir.size() == 0) {
+				return null;
+			}
+			return resourceDir.iterator().next();
+		} else {
+			return null;
+		}
+	}
 
-    private File getTestOutputResourceDir() {
-        Optional<SourceSet> testSourceSet = getSourceSet();
-        return testSourceSet.map(sourceSet -> sourceSet.getOutput().getResourcesDir()).orElse(null);
-    }
+	private File getTestOutputResourceDir() {
+		Optional<SourceSet> testSourceSet = getSourceSet();
+		return testSourceSet.map(sourceSet -> sourceSet.getOutput().getResourcesDir()).orElse(null);
+	}
 
-    private Optional<SourceSet> getSourceSet() {
-        Project project = getProject();
-        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
-            ? Optional.empty()
-            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
-    }
+	private Optional<SourceSet> getSourceSet() {
+		Project project = getProject();
+		return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+			? Optional.empty()
+			: Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
+	}
 }

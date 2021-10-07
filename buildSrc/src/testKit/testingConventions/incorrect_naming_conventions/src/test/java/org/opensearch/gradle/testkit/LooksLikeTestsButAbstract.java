@@ -33,8 +33,8 @@ package org.opensearch.gradle.testkit;
 
 public abstract class LooksLikeTestsButAbstract {
 
-    public void testMethod() {
+	public void testMethod() {
 
-    }
+	}
 
 }

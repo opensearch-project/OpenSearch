@@ -39,12 +39,12 @@ import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
 public class DelayedShardAggregationClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
-    public DelayedShardAggregationClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
+	public DelayedShardAggregationClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+		super(testCandidate);
+	}
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return OpenSearchClientYamlSuiteTestCase.createParameters();
-    }
+	@ParametersFactory
+	public static Iterable<Object[]> parameters() throws Exception {
+		return OpenSearchClientYamlSuiteTestCase.createParameters();
+	}
 }

@@ -39,13 +39,13 @@ import java.util.Arrays;
 import java.util.Collection;
 
 public class DelayedShardAggregationBuilderTests extends BaseAggregationTestCase<DelayedShardAggregationBuilder> {
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(DelayedShardAggregationPlugin.class, TestGeoShapeFieldMapperPlugin.class);
-    }
+	@Override
+	protected Collection<Class<? extends Plugin>> getPlugins() {
+		return Arrays.asList(DelayedShardAggregationPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+	}
 
-    @Override
-    protected DelayedShardAggregationBuilder createTestAggregatorBuilder() {
-        return new DelayedShardAggregationBuilder(randomAlphaOfLength(10), TimeValue.timeValueMillis(100));
-    }
+	@Override
+	protected DelayedShardAggregationBuilder createTestAggregatorBuilder() {
+		return new DelayedShardAggregationBuilder(randomAlphaOfLength(10), TimeValue.timeValueMillis(100));
+	}
 }

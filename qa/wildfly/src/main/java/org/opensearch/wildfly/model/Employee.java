@@ -42,59 +42,59 @@ import java.util.List;
 @Consumes(MediaType.APPLICATION_JSON)
 public class Employee {
 
-    @JsonProperty(value = "first_name")
-    private String firstName;
+	@JsonProperty(value = "first_name")
+	private String firstName;
 
-    public String getFirstName() {
-        return firstName;
-    }
+	public String getFirstName() {
+		return firstName;
+	}
 
-    public void setFirstName(String firstName) {
-        this.firstName = firstName;
-    }
+	public void setFirstName(String firstName) {
+		this.firstName = firstName;
+	}
 
-    @JsonProperty(value = "last_name")
-    private String lastName;
+	@JsonProperty(value = "last_name")
+	private String lastName;
 
-    public String getLastName() {
-        return lastName;
-    }
+	public String getLastName() {
+		return lastName;
+	}
 
-    public void setLastName(String lastName) {
-        this.lastName = lastName;
-    }
+	public void setLastName(String lastName) {
+		this.lastName = lastName;
+	}
 
-    @JsonProperty(value = "age")
-    private int age;
+	@JsonProperty(value = "age")
+	private int age;
 
-    public int getAge() {
-        return age;
-    }
+	public int getAge() {
+		return age;
+	}
 
-    public void setAge(int age) {
-        this.age = age;
-    }
+	public void setAge(int age) {
+		this.age = age;
+	}
 
-    @JsonProperty(value = "about")
-    private String about;
+	@JsonProperty(value = "about")
+	private String about;
 
-    public String getAbout() {
-        return about;
-    }
+	public String getAbout() {
+		return about;
+	}
 
-    public void setAbout(String about) {
-        this.about = about;
-    }
+	public void setAbout(String about) {
+		this.about = about;
+	}
 
-    @JsonProperty(value = "interests")
-    private List<String> interests;
+	@JsonProperty(value = "interests")
+	private List<String> interests;
 
-    public List<String> getInterests() {
-        return interests;
-    }
+	public List<String> getInterests() {
+		return interests;
+	}
 
-    public void setInterests(List<String> interests) {
-        this.interests = interests;
-    }
+	public void setInterests(List<String> interests) {
+		this.interests = interests;
+	}
 
 }

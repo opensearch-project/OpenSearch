@@ -48,46 +48,46 @@ import java.io.File;
 
 public class TestWithSslPlugin implements Plugin<Project> {
 
-    @Override
-    public void apply(Project project) {
-        File keyStoreDir = new File(project.getBuildDir(), "keystore");
-        TaskProvider<ExportOpenSearchBuildResourcesTask> exportKeyStore = project.getTasks()
-            .register("copyTestCertificates", ExportOpenSearchBuildResourcesTask.class, (t) -> {
-                t.copy("test/ssl/test-client.crt");
-                t.copy("test/ssl/test-client.jks");
-                t.copy("test/ssl/test-node.crt");
-                t.copy("test/ssl/test-node.jks");
-                t.setOutputDir(keyStoreDir);
-            });
+	@Override
+	public void apply(Project project) {
+		File keyStoreDir = new File(project.getBuildDir(), "keystore");
+		TaskProvider<ExportOpenSearchBuildResourcesTask> exportKeyStore = project.getTasks()
+			.register("copyTestCertificates", ExportOpenSearchBuildResourcesTask.class, (t) -> {
+				t.copy("test/ssl/test-client.crt");
+				t.copy("test/ssl/test-client.jks");
+				t.copy("test/ssl/test-node.crt");
+				t.copy("test/ssl/test-node.jks");
+				t.setOutputDir(keyStoreDir);
+			});
 
-        project.getPlugins().withType(StandaloneRestTestPlugin.class).configureEach(restTestPlugin -> {
-            SourceSet testSourceSet = Util.getJavaTestSourceSet(project).get();
-            testSourceSet.getResources().srcDir(new File(keyStoreDir, "test/ssl"));
-            testSourceSet.compiledBy(exportKeyStore);
+		project.getPlugins().withType(StandaloneRestTestPlugin.class).configureEach(restTestPlugin -> {
+			SourceSet testSourceSet = Util.getJavaTestSourceSet(project).get();
+			testSourceSet.getResources().srcDir(new File(keyStoreDir, "test/ssl"));
+			testSourceSet.compiledBy(exportKeyStore);
 
-            project.getTasks().withType(TestClustersAware.class).configureEach(clusterAware -> clusterAware.dependsOn(exportKeyStore));
+			project.getTasks().withType(TestClustersAware.class).configureEach(clusterAware -> clusterAware.dependsOn(exportKeyStore));
 
-            // Tell the tests we're running with ssl enabled
-            project.getTasks()
-                .withType(RestIntegTestTask.class)
-                .configureEach(runner -> runner.systemProperty("tests.ssl.enabled", "true"));
-        });
+			// Tell the tests we're running with ssl enabled
+			project.getTasks()
+				.withType(RestIntegTestTask.class)
+				.configureEach(runner -> runner.systemProperty("tests.ssl.enabled", "true"));
+		});
 
-        project.getPlugins().withType(TestClustersPlugin.class).configureEach(clustersPlugin -> {
-            File keystoreDir = new File(project.getBuildDir(), "keystore/test/ssl");
-            File nodeKeystore = new File(keystoreDir, "test-node.jks");
-            File clientKeyStore = new File(keystoreDir, "test-client.jks");
-            NamedDomainObjectContainer<OpenSearchCluster> clusters = (NamedDomainObjectContainer<OpenSearchCluster>) project.getExtensions()
-                .getByName(TestClustersPlugin.EXTENSION_NAME);
-            clusters.all(c -> {
-                // copy keystores & certs into config/
-                c.extraConfigFile(nodeKeystore.getName(), nodeKeystore);
-                c.extraConfigFile(clientKeyStore.getName(), clientKeyStore);
-            });
-        });
+		project.getPlugins().withType(TestClustersPlugin.class).configureEach(clustersPlugin -> {
+			File keystoreDir = new File(project.getBuildDir(), "keystore/test/ssl");
+			File nodeKeystore = new File(keystoreDir, "test-node.jks");
+			File clientKeyStore = new File(keystoreDir, "test-client.jks");
+			NamedDomainObjectContainer<OpenSearchCluster> clusters = (NamedDomainObjectContainer<OpenSearchCluster>) project.getExtensions()
+				.getByName(TestClustersPlugin.EXTENSION_NAME);
+			clusters.all(c -> {
+				// copy keystores & certs into config/
+				c.extraConfigFile(nodeKeystore.getName(), nodeKeystore);
+				c.extraConfigFile(clientKeyStore.getName(), clientKeyStore);
+			});
+		});
 
-        project.getTasks()
-            .withType(ForbiddenPatternsTask.class)
-            .configureEach(forbiddenPatternTask -> forbiddenPatternTask.exclude("**/*.crt"));
-    }
+		project.getTasks()
+			.withType(ForbiddenPatternsTask.class)
+			.configureEach(forbiddenPatternTask -> forbiddenPatternTask.exclude("**/*.crt"));
+	}
 }

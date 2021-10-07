@@ -55,16 +55,16 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("unused") // invoked by benchmarking framework
 public class DateFormatterBenchmark {
 
-    private final DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||ordinal_date||epoch_millis");
-    private final DateFormatter jodaFormatter = Joda.forPattern("year_month_day||ordinal_date||epoch_millis");
+	private final DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||ordinal_date||epoch_millis");
+	private final DateFormatter jodaFormatter = Joda.forPattern("year_month_day||ordinal_date||epoch_millis");
 
-    @Benchmark
-    public TemporalAccessor parseJavaDate() {
-        return javaFormatter.parse("1234567890");
-    }
+	@Benchmark
+	public TemporalAccessor parseJavaDate() {
+		return javaFormatter.parse("1234567890");
+	}
 
-    @Benchmark
-    public TemporalAccessor parseJodaDate() {
-        return jodaFormatter.parse("1234567890");
-    }
+	@Benchmark
+	public TemporalAccessor parseJodaDate() {
+		return jodaFormatter.parse("1234567890");
+	}
 }

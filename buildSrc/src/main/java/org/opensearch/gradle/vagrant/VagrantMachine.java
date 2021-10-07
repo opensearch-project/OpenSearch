@@ -58,164 +58,164 @@ import java.util.function.UnaryOperator;
  */
 public class VagrantMachine {
 
-    private final Project project;
-    private final VagrantExtension extension;
-    private final ReaperService reaper;
-    // pkg private so plugin can set this after construction
-    long refs;
-    private boolean isVMStarted = false;
+	private final Project project;
+	private final VagrantExtension extension;
+	private final ReaperService reaper;
+	// pkg private so plugin can set this after construction
+	long refs;
+	private boolean isVMStarted = false;
 
-    public VagrantMachine(Project project, VagrantExtension extension, ReaperService reaper) {
-        this.project = project;
-        this.extension = extension;
-        this.reaper = reaper;
-    }
+	public VagrantMachine(Project project, VagrantExtension extension, ReaperService reaper) {
+		this.project = project;
+		this.extension = extension;
+		this.reaper = reaper;
+	}
 
-    @Inject
-    protected ProgressLoggerFactory getProgressLoggerFactory() {
-        throw new UnsupportedOperationException();
-    }
+	@Inject
+	protected ProgressLoggerFactory getProgressLoggerFactory() {
+		throw new UnsupportedOperationException();
+	}
 
-    public void execute(Action<VagrantExecSpec> action) {
-        VagrantExecSpec vagrantSpec = new VagrantExecSpec();
-        action.execute(vagrantSpec);
+	public void execute(Action<VagrantExecSpec> action) {
+		VagrantExecSpec vagrantSpec = new VagrantExecSpec();
+		action.execute(vagrantSpec);
 
-        Objects.requireNonNull(vagrantSpec.command);
+		Objects.requireNonNull(vagrantSpec.command);
 
-        LoggedExec.exec(project, execSpec -> {
-            execSpec.setExecutable("vagrant");
-            File vagrantfile = extension.getVagrantfile();
-            execSpec.setEnvironment(System.getenv()); // pass through env
-            execSpec.environment("VAGRANT_CWD", vagrantfile.getParentFile().toString());
-            execSpec.environment("VAGRANT_VAGRANTFILE", vagrantfile.getName());
-            extension.getHostEnv().forEach(execSpec::environment);
+		LoggedExec.exec(project, execSpec -> {
+			execSpec.setExecutable("vagrant");
+			File vagrantfile = extension.getVagrantfile();
+			execSpec.setEnvironment(System.getenv()); // pass through env
+			execSpec.environment("VAGRANT_CWD", vagrantfile.getParentFile().toString());
+			execSpec.environment("VAGRANT_VAGRANTFILE", vagrantfile.getName());
+			extension.getHostEnv().forEach(execSpec::environment);
 
-            execSpec.args(vagrantSpec.command);
-            if (vagrantSpec.subcommand != null) {
-                execSpec.args(vagrantSpec.subcommand);
-            }
-            execSpec.args(extension.getBox());
-            if (vagrantSpec.args != null) {
-                execSpec.args(Arrays.asList(vagrantSpec.args));
-            }
+			execSpec.args(vagrantSpec.command);
+			if (vagrantSpec.subcommand != null) {
+				execSpec.args(vagrantSpec.subcommand);
+			}
+			execSpec.args(extension.getBox());
+			if (vagrantSpec.args != null) {
+				execSpec.args(Arrays.asList(vagrantSpec.args));
+			}
 
-            UnaryOperator<String> progressHandler = vagrantSpec.progressHandler;
-            if (progressHandler == null) {
-                progressHandler = new VagrantProgressLogger("==> " + extension.getBox() + ": ");
-            }
-            OutputStream output = execSpec.getStandardOutput();
-            // output from vagrant needs to be manually curated because --machine-readable isn't actually "readable"
-            OutputStream progressStream = new ProgressOutputStream(vagrantSpec.command, progressHandler);
-            execSpec.setStandardOutput(new TeeOutputStream(output, progressStream));
-        });
-    }
+			UnaryOperator<String> progressHandler = vagrantSpec.progressHandler;
+			if (progressHandler == null) {
+				progressHandler = new VagrantProgressLogger("==> " + extension.getBox() + ": ");
+			}
+			OutputStream output = execSpec.getStandardOutput();
+			// output from vagrant needs to be manually curated because --machine-readable isn't actually "readable"
+			OutputStream progressStream = new ProgressOutputStream(vagrantSpec.command, progressHandler);
+			execSpec.setStandardOutput(new TeeOutputStream(output, progressStream));
+		});
+	}
 
-    // start the configuration VM if it hasn't been started yet
-    void maybeStartVM() {
-        if (isVMStarted) {
-            return;
-        }
+	// start the configuration VM if it hasn't been started yet
+	void maybeStartVM() {
+		if (isVMStarted) {
+			return;
+		}
 
-        execute(spec -> {
-            spec.setCommand("box");
-            spec.setSubcommand("update");
-        });
+		execute(spec -> {
+			spec.setCommand("box");
+			spec.setSubcommand("update");
+		});
 
-        // Destroying before every execution can be annoying while iterating on tests locally. Therefore, we provide a flag that defaults
-        // to true that can be used to control whether or not to destroy any test boxes before test execution.
-        boolean destroyVM = Util.getBooleanProperty("vagrant.destroy", true);
-        if (destroyVM) {
-            execute(spec -> {
-                spec.setCommand("destroy");
-                spec.setArgs("--force");
-            });
-        }
+		// Destroying before every execution can be annoying while iterating on tests locally. Therefore, we provide a flag that defaults
+		// to true that can be used to control whether or not to destroy any test boxes before test execution.
+		boolean destroyVM = Util.getBooleanProperty("vagrant.destroy", true);
+		if (destroyVM) {
+			execute(spec -> {
+				spec.setCommand("destroy");
+				spec.setArgs("--force");
+			});
+		}
 
-        // register box to be shutdown if gradle dies
-        reaper.registerCommand(extension.getBox(), "vagrant", "halt", "-f", extension.getBox());
+		// register box to be shutdown if gradle dies
+		reaper.registerCommand(extension.getBox(), "vagrant", "halt", "-f", extension.getBox());
 
-        // We lock the provider to virtualbox because the Vagrantfile specifies lots of boxes that only work
-        // properly in virtualbox. Virtualbox is vagrant's default but its possible to change that default and folks do.
-        execute(spec -> {
-            spec.setCommand("up");
-            spec.setArgs("--provision", "--provider", "virtualbox");
-        });
-        isVMStarted = true;
-    }
+		// We lock the provider to virtualbox because the Vagrantfile specifies lots of boxes that only work
+		// properly in virtualbox. Virtualbox is vagrant's default but its possible to change that default and folks do.
+		execute(spec -> {
+			spec.setCommand("up");
+			spec.setArgs("--provision", "--provider", "virtualbox");
+		});
+		isVMStarted = true;
+	}
 
-    // stops the VM if refs are down to 0, or force was called
-    void maybeStopVM(boolean force) {
-        assert refs >= 1;
-        this.refs--;
-        if ((refs == 0 || force) && isVMStarted) {
-            execute(spec -> spec.setCommand("halt"));
-            reaper.unregister(extension.getBox());
-        }
-    }
+	// stops the VM if refs are down to 0, or force was called
+	void maybeStopVM(boolean force) {
+		assert refs >= 1;
+		this.refs--;
+		if ((refs == 0 || force) && isVMStarted) {
+			execute(spec -> spec.setCommand("halt"));
+			reaper.unregister(extension.getBox());
+		}
+	}
 
-    // convert the given path from an opensearch repo path to a VM path
-    public static String convertLinuxPath(Project project, String path) {
-        return "/opensearch/" + project.getRootDir().toPath().relativize(Paths.get(path));
-    }
+	// convert the given path from an opensearch repo path to a VM path
+	public static String convertLinuxPath(Project project, String path) {
+		return "/opensearch/" + project.getRootDir().toPath().relativize(Paths.get(path));
+	}
 
-    public static String convertWindowsPath(Project project, String path) {
-        return "C:\\opensearch\\" + project.getRootDir().toPath().relativize(Paths.get(path)).toString().replace('/', '\\');
-    }
+	public static String convertWindowsPath(Project project, String path) {
+		return "C:\\opensearch\\" + project.getRootDir().toPath().relativize(Paths.get(path)).toString().replace('/', '\\');
+	}
 
-    public static class VagrantExecSpec {
-        private String command;
-        private String subcommand;
-        private String[] args;
-        private UnaryOperator<String> progressHandler;
+	public static class VagrantExecSpec {
+		private String command;
+		private String subcommand;
+		private String[] args;
+		private UnaryOperator<String> progressHandler;
 
-        private VagrantExecSpec() {}
+		private VagrantExecSpec() {}
 
-        public void setCommand(String command) {
-            this.command = command;
-        }
+		public void setCommand(String command) {
+			this.command = command;
+		}
 
-        public void setSubcommand(String subcommand) {
-            this.subcommand = subcommand;
-        }
+		public void setSubcommand(String subcommand) {
+			this.subcommand = subcommand;
+		}
 
-        public void setArgs(String... args) {
-            this.args = args;
-        }
+		public void setArgs(String... args) {
+			this.args = args;
+		}
 
-        /**
-         * A function to translate output from the vagrant command execution to the progress line.
-         *
-         * The function takes the current line of output from vagrant, and returns a new
-         * progress line, or {@code null} if there is no update.
-         */
-        public void setProgressHandler(UnaryOperator<String> progressHandler) {
-            this.progressHandler = progressHandler;
-        }
-    }
+		/**
+		 * A function to translate output from the vagrant command execution to the progress line.
+		 *
+		 * The function takes the current line of output from vagrant, and returns a new
+		 * progress line, or {@code null} if there is no update.
+		 */
+		public void setProgressHandler(UnaryOperator<String> progressHandler) {
+			this.progressHandler = progressHandler;
+		}
+	}
 
-    private class ProgressOutputStream extends LoggingOutputStream {
+	private class ProgressOutputStream extends LoggingOutputStream {
 
-        private ProgressLogger progressLogger;
-        private UnaryOperator<String> progressHandler;
+		private ProgressLogger progressLogger;
+		private UnaryOperator<String> progressHandler;
 
-        ProgressOutputStream(String command, UnaryOperator<String> progressHandler) {
-            this.progressHandler = progressHandler;
-            this.progressLogger = getProgressLoggerFactory().newOperation("vagrant");
-            progressLogger.start(extension.getBox() + "> " + command, "hello");
-        }
+		ProgressOutputStream(String command, UnaryOperator<String> progressHandler) {
+			this.progressHandler = progressHandler;
+			this.progressLogger = getProgressLoggerFactory().newOperation("vagrant");
+			progressLogger.start(extension.getBox() + "> " + command, "hello");
+		}
 
-        @Override
-        protected void logLine(String line) {
-            String progress = progressHandler.apply(line);
-            if (progress != null) {
-                progressLogger.progress(progress);
-            }
-        }
+		@Override
+		protected void logLine(String line) {
+			String progress = progressHandler.apply(line);
+			if (progress != null) {
+				progressLogger.progress(progress);
+			}
+		}
 
-        @Override
-        public void close() {
-            progressLogger.completed();
-        }
-    }
+		@Override
+		public void close() {
+			progressLogger.completed();
+		}
+	}
 
 }
