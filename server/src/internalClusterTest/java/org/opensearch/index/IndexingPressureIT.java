@@ -74,11 +74,15 @@ public class IndexingPressureIT extends OpenSearchIntegTestCase {
 
     private static final Settings unboundedWriteQueue = Settings.builder().put("thread_pool.write.queue_size", -1).build();
 
+    public static final Settings settings = Settings.builder()
+        .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build();
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(unboundedWriteQueue)
+            .put(settings)
             .build();
     }
 
@@ -148,9 +152,12 @@ public class IndexingPressureIT extends OpenSearchIntegTestCase {
             final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
             replicationSendPointReached.await();
 
-            IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
-            IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
-            IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
+            IndexingPressure primaryWriteLimits = internalCluster()
+                .getInstance(IndexingPressureService.class, primaryName).getShardIndexingPressure();
+            IndexingPressure replicaWriteLimits = internalCluster()
+                .getInstance(IndexingPressureService.class, replicaName).getShardIndexingPressure();;
+            IndexingPressure coordinatingWriteLimits = internalCluster()
+                .getInstance(IndexingPressureService.class, coordinatingOnlyNode).getShardIndexingPressure();;
 
             assertThat(primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
             assertThat(primaryWriteLimits.getCurrentPrimaryBytes(), greaterThan(bulkShardRequestSize));
@@ -271,9 +278,12 @@ public class IndexingPressureIT extends OpenSearchIntegTestCase {
         try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
             final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
 
-            IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
-            IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
-            IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
+            IndexingPressure primaryWriteLimits = internalCluster()
+                .getInstance(IndexingPressureService.class, primaryName).getShardIndexingPressure();
+            IndexingPressure replicaWriteLimits = internalCluster()
+                .getInstance(IndexingPressureService.class, replicaName).getShardIndexingPressure();
+            IndexingPressure coordinatingWriteLimits = internalCluster()
+                .getInstance(IndexingPressureService.class, coordinatingOnlyNode).getShardIndexingPressure();
 
             assertBusy(() -> {
                 assertThat(primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
@@ -335,9 +345,12 @@ public class IndexingPressureIT extends OpenSearchIntegTestCase {
         try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
             final ActionFuture<BulkResponse> successFuture = client(primaryName).bulk(bulkRequest);
 
-            IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
-            IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
-            IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
+            IndexingPressure primaryWriteLimits = internalCluster()
+                .getInstance(IndexingPressureService.class, primaryName).getShardIndexingPressure();
+            IndexingPressure replicaWriteLimits = internalCluster()
+                .getInstance(IndexingPressureService.class, replicaName).getShardIndexingPressure();
+            IndexingPressure coordinatingWriteLimits = internalCluster()
+                .getInstance(IndexingPressureService.class, coordinatingOnlyNode).getShardIndexingPressure();
 
             assertBusy(() -> {
                 assertThat(primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));

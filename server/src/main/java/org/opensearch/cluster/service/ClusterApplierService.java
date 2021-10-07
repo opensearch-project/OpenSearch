@@ -205,6 +205,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
+     * Returns true if the appliedClusterState is not null
+     */
+    public boolean isInitialClusterStateSet() {
+        return Objects.nonNull(this.state.get());
+    }
+
+    /**
      * Adds a high priority applier of updated cluster states.
      */
     public void addHighPriorityApplier(ClusterStateApplier applier) {
