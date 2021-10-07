@@ -247,6 +247,14 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
+    public void testDeepCopyMethod() throws IOException, CloneNotSupportedException {
+        SearchRequest searchRequest = createSearchRequest();
+        SearchRequest copiedSearchRequest = searchRequest.getCopy();
+        assertEquals(copiedSearchRequest, searchRequest);
+        assertEquals(copiedSearchRequest.hashCode(), searchRequest.hashCode());
+        assertNotSame(copiedSearchRequest, searchRequest);
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         checkEqualsAndHashCode(createSearchRequest(), SearchRequest::new, this::mutate);
     }

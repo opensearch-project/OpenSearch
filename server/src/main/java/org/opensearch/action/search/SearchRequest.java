@@ -70,7 +70,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * @see org.opensearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable, Cloneable {
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -149,6 +149,16 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         indices(indices);
         this.source = source;
+    }
+
+    /** 
+     * get a deep copy of SearchRequest object
+     */
+    public SearchRequest getCopy() throws CloneNotSupportedException {
+        SearchRequest sq = (SearchRequest)super.clone();
+        sq.indices = (String[])indices.clone();
+        sq.types = (String[])types.clone();
+        return sq;
     }
 
     /**
