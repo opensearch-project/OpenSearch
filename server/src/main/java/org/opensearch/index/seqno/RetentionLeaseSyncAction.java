@@ -38,7 +38,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
-import org.opensearch.index.IndexingPressure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.WriteResponse;
@@ -55,6 +54,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.ShardId;
@@ -94,7 +94,7 @@ public class RetentionLeaseSyncAction extends
         final ThreadPool threadPool,
         final ShardStateAction shardStateAction,
         final ActionFilters actionFilters,
-        final IndexingPressure indexingPressure,
+        final IndexingPressureService indexingPressureService,
         final SystemIndices systemIndices) {
         super(
                 settings,
@@ -107,7 +107,7 @@ public class RetentionLeaseSyncAction extends
                 actionFilters,
                 RetentionLeaseSyncAction.Request::new,
                 RetentionLeaseSyncAction.Request::new,
-                ignore -> ThreadPool.Names.MANAGEMENT, false, indexingPressure, systemIndices);
+                ignore -> ThreadPool.Names.MANAGEMENT, false, indexingPressureService, systemIndices);
     }
 
     @Override
