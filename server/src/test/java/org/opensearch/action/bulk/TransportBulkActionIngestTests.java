@@ -79,8 +79,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.MockitoAnnotations;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -125,13 +123,9 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
     ThreadPool threadPool;
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
-    @Captor
     ArgumentCaptor<BiConsumer<Integer, Exception>> failureHandler;
-    @Captor
     ArgumentCaptor<BiConsumer<Thread, Exception>> completionHandler;
-    @Captor
     ArgumentCaptor<TransportResponseHandler<BulkResponse>> remoteResponseHandler;
-    @Captor
     ArgumentCaptor<Iterable<DocWriteRequest<?>>> bulkDocsItr;
 
     /** The actual action we want to test, with real indexing mocked */
@@ -199,7 +193,12 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         threadPool = mock(ThreadPool.class);
         final ExecutorService direct = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
-        MockitoAnnotations.initMocks(this);
+
+        bulkDocsItr = ArgumentCaptor.forClass(Iterable.class);
+        failureHandler = ArgumentCaptor.forClass(BiConsumer.class);
+        completionHandler = ArgumentCaptor.forClass(BiConsumer.class);
+        remoteResponseHandler = ArgumentCaptor.forClass(TransportResponseHandler.class);
+        
         // setup services that will be called by action
         transportService = mock(TransportService.class);
         clusterService = mock(ClusterService.class);
@@ -672,6 +671,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             }));
 
         assertEquals("pipeline2", indexRequest.getPipeline());
+        
         verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
             completionHandler.capture(), any(), eq(Names.WRITE));
     }

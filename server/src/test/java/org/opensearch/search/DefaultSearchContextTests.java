@@ -85,6 +85,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -122,7 +123,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString())).thenReturn(queryShardContext);
+        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), 
+            nullable(String.class))).thenReturn(queryShardContext);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
@@ -267,7 +269,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
 
         IndexService indexService = mock(IndexService.class);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString())).thenReturn(queryShardContext);
+        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), 
+            nullable(String.class))).thenReturn(queryShardContext);
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 

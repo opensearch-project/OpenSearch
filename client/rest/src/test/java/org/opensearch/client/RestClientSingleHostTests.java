@@ -101,6 +101,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -137,7 +138,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     static CloseableHttpAsyncClient mockHttpClient(final ExecutorService exec) {
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-            any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer((Answer<Future<HttpResponse>>) invocationOnMock -> {
+            any(HttpClientContext.class), nullable(FutureCallback.class))).thenAnswer((Answer<Future<HttpResponse>>) invocationOnMock -> {
                 final HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                 final FutureCallback<HttpResponse> futureCallback =
                     (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
@@ -215,7 +216,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String httpMethod : getHttpMethods()) {
             HttpUriRequest expectedRequest = performRandomRequest(httpMethod);
             verify(httpClient, times(++times)).<HttpResponse>execute(requestArgumentCaptor.capture(),
-                    any(HttpAsyncResponseConsumer.class), any(HttpClientContext.class), any(FutureCallback.class));
+                    any(HttpAsyncResponseConsumer.class), any(HttpClientContext.class), nullable(FutureCallback.class));
             HttpUriRequest actualRequest = (HttpUriRequest)requestArgumentCaptor.getValue().generateRequest();
             assertEquals(expectedRequest.getURI(), actualRequest.getURI());
             assertEquals(expectedRequest.getClass(), actualRequest.getClass());
