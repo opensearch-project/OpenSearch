@@ -709,6 +709,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
 
         // Test that the shards use a round-robin pattern when there are no stats
+        assertThat(groupIterator.size(), equalTo(numIndices * numShards));
         assertThat(groupIterator.get(0).size(), equalTo(numReplicas + 1));
 
         ShardRouting firstChoice = groupIterator.get(0).nextOrNull();
@@ -719,6 +720,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
 
         assertThat(groupIterator.size(), equalTo(numIndices * numShards));
+        assertThat(groupIterator.get(0).size(), equalTo(numReplicas + 1));
         ShardRouting secondChoice = groupIterator.get(0).nextOrNull();
         assertNotNull(secondChoice);
         searchedShards.add(secondChoice);
@@ -741,14 +743,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
         // node_a0 or node_a1 should be the lowest ranked node to start
         groupIterator.forEach(shardRoutings -> assertThat(shardRoutings.nextOrNull().currentNodeId(), containsString("node_a")));
-
-
-        // Adding more load to node_a0
-        collector.addNodeStatistics("node_a0", 10, TimeValue.timeValueMillis(200).nanos(), TimeValue.timeValueMillis(150).nanos());
-        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
-        // node_a0 or node_a1 should be the lowest ranked node to start
-        groupIterator.forEach(shardRoutings -> assertThat(shardRoutings.nextOrNull().currentNodeId(), containsString("node_a")));
-
 
         // Adding more load to node_a0 and node_a1 from zone-a
         collector.addNodeStatistics("node_a1", 100, TimeValue.timeValueMillis(300).nanos(), TimeValue.timeValueMillis(250).nanos());
