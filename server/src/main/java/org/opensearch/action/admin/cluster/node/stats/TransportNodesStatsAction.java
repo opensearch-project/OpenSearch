@@ -97,7 +97,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
             NodesStatsRequest.Metric.INGEST.containedIn(metrics),
             NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
             NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics),
-            NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics));
+            NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics),
+            NodesStatsRequest.Metric.SHARD_INDEXING_PRESSURE.containedIn(metrics));
     }
 
     public static class NodeStatsRequest extends BaseNodeRequest {

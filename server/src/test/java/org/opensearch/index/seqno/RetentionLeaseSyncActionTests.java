@@ -33,7 +33,6 @@
 package org.opensearch.index.seqno;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.index.IndexingPressure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
@@ -44,6 +43,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
@@ -120,7 +120,7 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
+                new IndexingPressureService(Settings.EMPTY, clusterService),
                 new SystemIndices(emptyMap()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -158,7 +158,7 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
+                new IndexingPressureService(Settings.EMPTY, clusterService),
                 new SystemIndices(emptyMap()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -199,7 +199,7 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
+                new IndexingPressureService(Settings.EMPTY, clusterService),
                 new SystemIndices(emptyMap()));
 
         assertNull(action.indexBlockLevel());
