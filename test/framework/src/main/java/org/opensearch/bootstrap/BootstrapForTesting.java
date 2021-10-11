@@ -43,6 +43,7 @@ import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.network.IfConfig;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.mockito.plugin.PriviledgedMockMaker;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.secure_sm.SecureSM;
 import org.junit.Assert;
@@ -147,8 +148,8 @@ public class BootstrapForTesting {
                 addClassCodebase(codebases,"opensearch", "org.opensearch.plugins.PluginsService");
                 if (System.getProperty("tests.gradle") == null) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
-                    addClassCodebase(codebases,"plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
-                    addClassCodebase(codebases,"opensearch-nio", "org.opensearch.nio.ChannelFactory");
+                    addClassCodebase(codebases, "plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
+                    addClassCodebase(codebases, "opensearch-nio", "org.opensearch.nio.ChannelFactory");
                     addClassCodebase(codebases, "opensearch-secure-sm", "org.opensearch.secure_sm.SecureSM");
                     addClassCodebase(codebases, "opensearch-rest-client", "org.opensearch.client.RestClient");
                 }
@@ -161,6 +162,8 @@ public class BootstrapForTesting {
                         return opensearchPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
                     }
                 });
+
+                PriviledgedMockMaker.createAccessControlContext();
                 System.setSecurityManager(SecureSM.createTestSecureSM());
                 Security.selfTest();
 
