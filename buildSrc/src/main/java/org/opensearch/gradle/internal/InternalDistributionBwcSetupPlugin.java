@@ -158,7 +158,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         projects.addAll(asList("deb", "rpm"));
 
         if (bwcVersion.onOrAfter("7.0.0")) { // starting with 7.0 we bundle a jdk which means we have platform-specific archives
-            projects.addAll(asList("darwin-tar", "freebsd-tar", "linux-tar", "windows-tar"));
+            projects.addAll(asList("darwin-tar", "linux-tar", "windows-tar"));
         } else { // prior to 7.0 we published only a single zip and tar archives
             projects.addAll(asList("zip", "tar"));
         }
