@@ -96,8 +96,6 @@ forbiddenPatterns {
 configurations {
   oldesFixture
   es2
-  es1
-  es090
 }
 
 dependencies {
@@ -106,8 +104,6 @@ dependencies {
    * reindex-from-remote to work against. We could randomize the versions but
    * that doesn't seem worth it at this point. */
   es2 'org.elasticsearch.distribution.zip:elasticsearch:2.4.5@zip'
-  es1 'org.elasticsearch:elasticsearch:1.7.6@zip'
-  es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
 }
 
 jdks {
@@ -132,11 +128,11 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 } else {
   /* Set up tasks to unzip and run the old versions of ES before running the
    * integration tests. */
-  def versions = ['2', '1', '090']
+  def versions = ['2']
   if (Os.isFamily(Os.FAMILY_MAC)) {
     // 0.90 fails sometimes on mac, given that it is so old, let us disable it
     // see: https://github.com/elastic/elasticsearch/issues/51202
-    versions = ['2', '1']
+    versions = ['2']
   }
   for (String version : versions) {
     Task unzip = task("unzipEs${version}", type: Sync) {

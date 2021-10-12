@@ -34,7 +34,6 @@ package org.opensearch.index.reindex.remote;
 
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.Constants;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.RestClient;
@@ -126,26 +125,8 @@ public class ReindexFromOldRemoteIT extends OpenSearchRestTestCase {
         oldEsTestCase("es2.port", null);
     }
 
-    public void testEs1() throws IOException {
-        oldEsTestCase("es1.port", null);
-    }
-
-    public void testEs090() throws IOException {
-        assumeFalse("No longer works on Mac", Constants.MAC_OS_X);
-        oldEsTestCase("es090.port", null);
-    }
-
     public void testEs2WithFunnyThrottle() throws IOException {
         oldEsTestCase("es2.port", "11"); // 11 requests per second should give us a nice "funny" number on the scroll timeout
-    }
-
-    public void testEs1WithFunnyThrottle() throws IOException {
-        oldEsTestCase("es1.port", "11"); // 11 requests per second should give us a nice "funny" number on the scroll timeout
-    }
-
-    public void testEs090WithFunnyThrottle() throws IOException {
-        assumeFalse("No longer works on Mac", Constants.MAC_OS_X);
-        oldEsTestCase("es090.port", "11"); // 11 requests per second should give us a nice "funny" number on the scroll timeout
     }
 
 }
