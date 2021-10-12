@@ -64,7 +64,7 @@ dependencies {
   api "org.apache.hadoop:hadoop-auth:${versions.hadoop3}"
   api "org.apache.hadoop:hadoop-hdfs:${versions.hadoop3}"
   api "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop3}"
-  api 'org.apache.htrace:htrace-core4:4.0.1-incubating'
+  api 'org.apache.htrace:htrace-core4:4.1.0-incubating'
   api "org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.1.1"
   api "org.apache.hadoop.thirdparty:hadoop-shaded-protobuf_3_7:1.1.1"
   runtimeOnly 'com.google.guava:guava:30.1.1-jre'
