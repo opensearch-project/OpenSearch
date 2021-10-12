@@ -71,7 +71,8 @@ public final class SearchExecutionStatsCollector implements ActionListener<Searc
         QuerySearchResult queryResult = response.queryResult();
         if (response.remoteAddress() != null) {
             // update outbound network time for request sent over network
-            response.getShardSearchRequest().setOutboundNetworkTime(System.currentTimeMillis() - response.getShardSearchRequest().getOutboundNetworkTime());
+            response.getShardSearchRequest().setOutboundNetworkTime(
+                System.currentTimeMillis() - response.getShardSearchRequest().getOutboundNetworkTime());
         } else {
             // reset inbound and outbound network time to 0 for local request
             response.getShardSearchRequest().setOutboundNetworkTime(0);
