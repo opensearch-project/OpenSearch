@@ -43,6 +43,8 @@
     # udp_preference_limit = 1
     kdc_timeout = 3000
     canonicalize = true
+    # See please https://seanjmullan.org/blog/2021/09/14/jdk17 (deprecate 3DES and RC4 in Kerberos)
+    allow_weak_crypto = true
 
 [realms]
     ${REALM_NAME} = {

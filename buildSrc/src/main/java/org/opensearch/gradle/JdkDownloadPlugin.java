@@ -46,7 +46,7 @@ import org.gradle.api.attributes.Attribute;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
-
+    public static final String VENDOR_ADOPTIUM = "adoptium";
     public static final String VENDOR_ADOPTOPENJDK = "adoptopenjdk";
     public static final String VENDOR_OPENJDK = "openjdk";
 
@@ -108,7 +108,20 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         String repoUrl;
         String artifactPattern;
 
-        if (jdk.getVendor().equals(VENDOR_ADOPTOPENJDK)) {
+        if (jdk.getVendor().equals(VENDOR_ADOPTIUM)) {
+            repoUrl = "https://github.com/adoptium/temurin" + jdk.getMajor() + "-binaries/releases/download/";
+            artifactPattern = "jdk-"
+                + jdk.getBaseVersion()
+                + "+"
+                + jdk.getBuild()
+                + "/OpenJDK"
+                + jdk.getMajor()
+                + "-jdk_[classifier]_[module]_hotspot_"
+                + jdk.getBaseVersion()
+                + "_"
+                + jdk.getBuild()
+                + ".[ext]";
+        } else if (jdk.getVendor().equals(VENDOR_ADOPTOPENJDK)) {
             repoUrl = "https://api.adoptopenjdk.net/v3/binary/version/";
             if (jdk.getMajor().equals("8")) {
                 // legacy pattern for JDK 8
@@ -167,7 +180,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     private static String dependencyNotation(Jdk jdk) {
         String platformDep = jdk.getPlatform().equals("darwin") || jdk.getPlatform().equals("mac")
-            ? (jdk.getVendor().equals(VENDOR_ADOPTOPENJDK) ? "mac" : "osx")
+            ? (jdk.getVendor().equals(VENDOR_OPENJDK) ? "osx" : "mac")
             : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
 

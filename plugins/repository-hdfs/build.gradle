@@ -223,6 +223,10 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
           )
         }
       }
+      
+      if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+        jvmArgs += ["--add-opens", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"]
+      }
   }
 
   testClusters."${integTestTaskName}" {
