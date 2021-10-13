@@ -38,7 +38,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -74,7 +73,7 @@ public class Ec2NetworkTests extends OpenSearchTestCase {
 
     @BeforeClass
     public static void startHttp() throws Exception {
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
+        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
 
         BiConsumer<String, String> registerContext = (path, v) ->{
             final byte[] message = v.getBytes(UTF_8);

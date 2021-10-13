@@ -38,6 +38,8 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 
+import java.io.IOException;
+
 /**
  * An action listener that requires {@link #processResponse(Object)} to be implemented
  * and will automatically handle failures.
@@ -65,10 +67,23 @@ public abstract class RestActionListener<Response> implements ActionListener<Res
 
     protected abstract void processResponse(Response response) throws Exception;
 
+    private BytesRestResponse from(Exception e) throws IOException {
+        try {
+            return new BytesRestResponse(channel, e);
+        } catch (Exception inner) {
+            try {
+                return new BytesRestResponse(channel, inner);
+            } finally {
+                inner.addSuppressed(e);
+                logger.error("failed to construct failure response", inner);
+            }
+        }
+    }
+
     @Override
     public final void onFailure(Exception e) {
         try {
-            channel.sendResponse(new BytesRestResponse(channel, e));
+            channel.sendResponse(from(e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error("failed to send failure response", inner);

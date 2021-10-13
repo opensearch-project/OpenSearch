@@ -35,6 +35,8 @@ package org.opensearch.index.store.smbsimplefs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.SmbDirectoryWrapper;
@@ -42,10 +44,20 @@ import org.opensearch.index.store.SmbDirectoryWrapper;
 import java.io.IOException;
 import java.nio.file.Path;
 
+/**
+ * Factory to create a new Simple File System type directory accessible as a SMB share
+ *
+ * @deprecated use {@link org.opensearch.index.store.smbniofs.SmbNIOFsDirectoryFactory} instead
+ */
+@Deprecated
 public final class SmbSimpleFsDirectoryFactory extends FsDirectoryFactory {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SmbSimpleFsDirectoryFactory.class);
 
     @Override
     protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+        DEPRECATION_LOGGER.deprecate(IndexModule.Type.SIMPLEFS.getSettingsKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()
+            + " is deprecated and will be removed in 2.0");
         return new SmbDirectoryWrapper(new SimpleFSDirectory(location, lockFactory));
     }
 }

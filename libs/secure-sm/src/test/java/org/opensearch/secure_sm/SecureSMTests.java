@@ -37,6 +37,7 @@ import junit.framework.TestCase;
 import java.security.Permission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Simple tests for SecureSM */
@@ -57,7 +58,7 @@ public class SecureSMTests extends TestCase {
                 return true;
             }
         });
-        System.setSecurityManager(SecureSM.createTestSecureSM());
+        System.setSecurityManager(SecureSM.createTestSecureSM(Collections.emptySet()));
     }
 
     @SuppressForbidden(reason = "testing that System#exit is blocked")

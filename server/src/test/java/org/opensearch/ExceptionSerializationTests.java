@@ -150,10 +150,11 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         final String path = "/org/opensearch";
         final Path startPath = PathUtils.get(OpenSearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                 .resolve("org").resolve("opensearch");
-        final Set<? extends Class<?>> ignore = Sets.newHashSet(
-                CancellableThreadsTests.CustomException.class,
-                org.opensearch.rest.BytesRestResponseTests.WithHeadersException.class,
-                AbstractClientHeadersTestCase.InternalException.class);
+        final Set<String> ignore = Sets.newHashSet(
+                CancellableThreadsTests.CustomException.class.getName(),
+                org.opensearch.rest.BytesRestResponseTests.WithHeadersException.class.getName(),
+                AbstractClientHeadersTestCase.InternalException.class.getName(),
+                "org.opensearch.rest.action.RestActionListenerTests$2");
         FileVisitor<Path> visitor = new FileVisitor<Path>() {
             private Path pkgPrefix = PathUtils.get(path).getParent();
 
@@ -181,7 +182,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
             }
 
             private void checkClass(Class<?> clazz) {
-                if (ignore.contains(clazz) || isAbstract(clazz.getModifiers()) || isInterface(clazz.getModifiers())) {
+                if (ignore.contains(clazz.getName()) || isAbstract(clazz.getModifiers()) || isInterface(clazz.getModifiers())) {
                     return;
                 }
                 if (isEsException(clazz) == false) {

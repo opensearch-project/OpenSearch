@@ -261,7 +261,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
                 final PluginInfo pluginInfo = installPlugin(terminal, isBatch, extractedZip, env, deleteOnFailure);
-                terminal.println("-> Installed " + pluginInfo.getName());
+                terminal.println("-> Installed " + pluginInfo.getName() + " with folder name " + pluginInfo.getTargetFolderName());
                 // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
                 deleteOnFailures.remove(pluginId);
                 deleteOnFailures.put(pluginInfo.getName(), deleteOnFailure);
@@ -605,7 +605,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
-     * ".asc" to the URL. It is expected that the plugin is signed with the OpenSearch signing key with ID 0934A65836A51424.
+     * ".sig" to the URL. It is expected that the plugin is signed with the OpenSearch signing key with ID C2EE2AF6542C03B4.
      *
      * @param zip       the path to the downloaded plugin ZIP
      * @param urlString the URL source of the downloade plugin ZIP
@@ -613,13 +613,13 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * @throws PGPException if the PGP implementation throws an internal exception during verification
      */
     void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
-        final String ascUrlString = urlString + ".asc";
-        final URL ascUrl = openUrl(ascUrlString);
+        final String sigUrlString = urlString + ".sig";
+        final URL sigUrl = openUrl(sigUrlString);
         try (
             // fin is a file stream over the downloaded plugin zip whose signature to verify
             InputStream fin = pluginZipInputStream(zip);
             // sin is a URL stream to the signature corresponding to the downloaded plugin zip
-            InputStream sin = urlOpenStream(ascUrl);
+            InputStream sin = urlOpenStream(sigUrl);
             // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
             InputStream ain = new ArmoredInputStream(getPublicKey())
         ) {
@@ -666,7 +666,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * @return the public key ID
      */
     String getPublicKeyId() {
-        return "0934A65836A51424";
+        return "C2EE2AF6542C03B4";
     }
 
     /**
@@ -675,7 +675,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * @return an input stream to the public key
      */
     InputStream getPublicKey() {
-        return InstallPluginCommand.class.getResourceAsStream("/public_key.asc");
+        return InstallPluginCommand.class.getResourceAsStream("/public_key.sig");
     }
 
     /**
@@ -780,7 +780,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "plugin '" + pluginName + "' cannot be installed as a plugin, it is a system module");
         }
 
-        final Path destination = pluginPath.resolve(pluginName);
+        // scan all the installed plugins to see if the plugin being installed already exists
+        // either with the plugin name or a custom folder name
+        Path destination = PluginHelper.verifyIfPluginExists(pluginPath, pluginName);
         if (Files.exists(destination)) {
             final String message = String.format(
                 Locale.ROOT,
@@ -864,14 +866,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
         PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
 
-        final Path destination = env.pluginsFile().resolve(info.getName());
+        String targetFolderName = info.getTargetFolderName();
+        final Path destination = env.pluginsFile().resolve(targetFolderName);
         deleteOnFailure.add(destination);
 
         installPluginSupportFiles(
             info,
             tmpRoot,
-            env.binFile().resolve(info.getName()),
-            env.configFile().resolve(info.getName()),
+            env.binFile().resolve(targetFolderName),
+            env.configFile().resolve(targetFolderName),
             deleteOnFailure
         );
         movePlugin(tmpRoot, destination);

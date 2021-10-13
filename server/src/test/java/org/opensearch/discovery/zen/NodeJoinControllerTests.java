@@ -97,6 +97,7 @@ import static org.opensearch.cluster.service.MasterServiceTests.discoveryState;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.opensearch.test.VersionUtils.allVersions;
+import static org.opensearch.test.VersionUtils.allOpenSearchVersions;
 import static org.opensearch.test.VersionUtils.getPreviousVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
 import static org.hamcrest.Matchers.allOf;
@@ -617,7 +618,7 @@ public class NodeJoinControllerTests extends OpenSearchTestCase {
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), badVersion);
 
         final Version goodVersion =
-            randomFrom(allVersions().stream().filter(v -> v.compareMajor(Version.CURRENT) >= 0).collect(Collectors.toList()));
+            randomFrom(allOpenSearchVersions().stream().filter(v -> v.compareMajor(Version.CURRENT) >= 0).collect(Collectors.toList()));
         final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), goodVersion);
 

@@ -58,7 +58,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
@@ -105,7 +105,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
                     new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver(), new SystemIndices(emptyMap())),
-                    new IndexingPressure(Settings.EMPTY), new SystemIndices(emptyMap()));
+                    new IndexingPressureService(Settings.EMPTY, clusterService), new SystemIndices(emptyMap()));
         }
 
         @Override

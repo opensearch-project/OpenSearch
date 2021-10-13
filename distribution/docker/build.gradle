@@ -50,7 +50,7 @@ ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
     classifier = "linux-\$(arch)"
   }
 
-  final String opensearch = "opensearch-${VersionProperties.getOpenSearch()}-${classifier}.tar.gz"
+  final String opensearch = "opensearch-min-${VersionProperties.getOpenSearch()}-${classifier}.tar.gz"
 
   /* Both the following Dockerfile commands put the resulting artifact at
    * the same location, regardless of classifier, so that the commands that

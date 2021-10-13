@@ -1,10 +1,19 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e -o pipefail
 
 CDPATH=""
 
 SCRIPT="$0"
+
+UNAME=$(uname -s)
+if [ $UNAME = "FreeBSD" ]; then
+  OS="freebsd"
+elif [ $UNAME = "Darwin" ]; then
+  OS="darwin"
+else
+  OS="other"
+fi
 
 # SCRIPT might be an arbitrarily deep series of symbolic links; loop until we
 # have the concrete path
@@ -40,9 +49,12 @@ if [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
   JAVA_TYPE="JAVA_HOME"
 else
-  if [ "$(uname -s)" = "Darwin" ]; then
-    # macOS has a different structure
+  if [ $OS = "darwin" ]; then
+    # macOS bundled Java
     JAVA="$OPENSEARCH_HOME/jdk.app/Contents/Home/bin/java"
+  elif [ $OS = "freebsd" ]; then
+    # using FreeBSD default java from ports if JAVA_HOME is not set
+    JAVA="/usr/local/bin/java"
   else
     JAVA="$OPENSEARCH_HOME/jdk/bin/java"
   fi
@@ -78,7 +90,9 @@ fi
 
 export HOSTNAME=$HOSTNAME
 
-${source.path.env}
+if [ -z "$OPENSEARCH_PATH_CONF" ]; then
+  ${source.path.env}
+fi
 
 if [ -z "$OPENSEARCH_PATH_CONF" ]; then
   echo "OPENSEARCH_PATH_CONF must be set to the configuration path"
@@ -108,7 +122,7 @@ if [[ "$OPENSEARCH_DISTRIBUTION_TYPE" == "docker" ]]; then
   #
   # will cause OpenSearch to be invoked with -Ecluster.name=testcluster
   #
-  # see https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#_setting_default_settings
+  # see https://opensearch.org/docs/opensearch/configuration/ 
 
   declare -a opensearch_arg_array
 

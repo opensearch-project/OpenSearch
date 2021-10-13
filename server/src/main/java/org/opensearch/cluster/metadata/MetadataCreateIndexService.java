@@ -76,6 +76,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -783,12 +784,23 @@ public class MetadataCreateIndexService {
                     "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
         }
         validateTranslogRetentionSettings(indexSettings);
+        validateStoreTypeSettings(indexSettings);
+
         return indexSettings;
+    }
+
+    public static void validateStoreTypeSettings(Settings settings) {
+        // deprecate simplefs store type:
+        if (IndexModule.Type.SIMPLEFS.match(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings))) {
+            DEPRECATION_LOGGER.deprecate("store_type_setting",
+                "[simplefs] is deprecated and will be removed in 2.0. Use [niofs], which offers equal or better performance, " +
+                    "or other file systems instead.");
+        }
     }
 
     static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
         // TODO: this logic can be removed when the current major version is 8
-        assert Version.CURRENT.major == 1;
+        assert Version.CURRENT.major == 1 || Version.CURRENT.major == 2;
         final int numberOfShards;
         final Version indexVersionCreated =
             Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey())));
@@ -1044,7 +1056,10 @@ public class MetadataCreateIndexService {
         for (final String key : settings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
-                assert indexScopedSettings.isPrivateSetting(key) : "expected [" + key + "] to be private but it was not";
+                // see: https://github.com/opensearch-project/OpenSearch/issues/1019
+                if(!indexScopedSettings.isPrivateSetting(key)) {
+                    validationErrors.add("expected [" + key + "] to be private but it was not");
+                }
             } else if (setting.isPrivateIndex()) {
                 validationErrors.add("private index setting [" + key + "] can not be set explicitly");
             }
@@ -1243,11 +1258,19 @@ public class MetadataCreateIndexService {
     }
 
     public static void validateTranslogRetentionSettings(Settings indexSettings) {
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
-            (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
-                || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            DEPRECATION_LOGGER.deprecate("translog_retention", "Translog retention settings [index.translog.retention.age] "
-                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings)) {
+            if(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
+                || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings)) {
+                DEPRECATION_LOGGER.deprecate("translog_retention", "Translog retention settings " +
+                    "[index.translog.retention.age] "
+                    + "and [index.translog.retention.size] are deprecated and effectively ignored. " +
+                    "They will be removed in a future version.");
+            } else if(IndexSettings.INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.exists(indexSettings)) {
+                DEPRECATION_LOGGER.deprecate("translog_pruning_retention_lease",
+                    "[index.plugins.replication.translog.retention_lease.pruning.enabled] " +
+                        "setting was deprecated in OpenSearch and will be removed in a future release! " +
+                        "See the breaking changes documentation for the next major version.");
+            }
         }
     }
 }

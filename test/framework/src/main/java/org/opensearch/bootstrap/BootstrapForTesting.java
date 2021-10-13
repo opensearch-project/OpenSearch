@@ -42,12 +42,16 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.network.IfConfig;
+import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.mockito.plugin.PriviledgedMockMaker;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.secure_sm.SecureSM;
 import org.junit.Assert;
 
 import java.io.InputStream;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.SocketPermission;
 import java.net.URL;
 import java.nio.file.Files;
@@ -66,6 +70,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
@@ -127,15 +132,6 @@ public class BootstrapForTesting {
                 if (Strings.hasLength(System.getProperty("tests.config"))) {
                     FilePermissionUtils.addSingleFilePath(perms, PathUtils.get(System.getProperty("tests.config")), "read,readlink");
                 }
-                // jacoco coverage output file
-                final boolean testsCoverage =
-                        Booleans.parseBoolean(System.getProperty("tests.coverage", "false"));
-                if (testsCoverage) {
-                    Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
-                    FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco.exec"), "read,write");
-                    // in case we get fancy and use the -integration goals later:
-                    FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco-it.exec"), "read,write");
-                }
                 // intellij hack: intellij test runner wants setIO and will
                 // screw up all test logging without it!
                 if (System.getProperty("tests.gradle") == null) {
@@ -156,8 +152,8 @@ public class BootstrapForTesting {
                 addClassCodebase(codebases,"opensearch", "org.opensearch.plugins.PluginsService");
                 if (System.getProperty("tests.gradle") == null) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
-                    addClassCodebase(codebases,"plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
-                    addClassCodebase(codebases,"opensearch-nio", "org.opensearch.nio.ChannelFactory");
+                    addClassCodebase(codebases, "plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
+                    addClassCodebase(codebases, "opensearch-nio", "org.opensearch.nio.ChannelFactory");
                     addClassCodebase(codebases, "opensearch-secure-sm", "org.opensearch.secure_sm.SecureSM");
                     addClassCodebase(codebases, "opensearch-rest-client", "org.opensearch.client.RestClient");
                 }
@@ -170,7 +166,9 @@ public class BootstrapForTesting {
                         return opensearchPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
                     }
                 });
-                System.setSecurityManager(SecureSM.createTestSecureSM());
+                // Create access control context for mocking
+                PriviledgedMockMaker.createAccessControlContext();
+                System.setSecurityManager(SecureSM.createTestSecureSM(getTrustedHosts()));
                 Security.selfTest();
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.
@@ -279,6 +277,25 @@ public class BootstrapForTesting {
             }
         }
         return raw;
+    }
+    
+    /**
+     * Collect host addresses of all local interfaces so we could check 
+     * if the network connection is being made only on those.
+     * @return host names and addresses of all local interfaces
+     */
+    private static Set<String> getTrustedHosts() {
+        // 
+        try {
+            return Collections
+                .list(NetworkInterface.getNetworkInterfaces())
+                .stream()
+                .flatMap(iface -> Collections.list(iface.getInetAddresses()).stream())
+                .map(address -> NetworkAddress.format(address))
+                .collect(Collectors.toSet());
+        } catch (final SocketException e) {
+            return Collections.emptySet();
+        }
     }
 
     // does nothing, just easy way to make sure the class is loaded.

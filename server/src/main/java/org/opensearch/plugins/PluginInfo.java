@@ -69,8 +69,35 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final Version opensearchVersion;
     private final String javaVersion;
     private final String classname;
+    private final String customFolderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+
+    /**
+     * Construct plugin info.
+     *
+     * @param name                  the name of the plugin
+     * @param description           a description of the plugin
+     * @param version               an opaque version identifier for the plugin
+     * @param opensearchVersion     the version of OpenSearch the plugin was built for
+     * @param javaVersion           the version of Java the plugin was built with
+     * @param classname             the entry point to the plugin
+     * @param customFolderName      the custom folder name for the plugin
+     * @param extendedPlugins       other plugins this plugin extends through SPI
+     * @param hasNativeController   whether or not the plugin has a native controller
+     */
+    public PluginInfo(String name, String description, String version, Version opensearchVersion, String javaVersion,
+                      String classname, String customFolderName, List<String> extendedPlugins, boolean hasNativeController) {
+        this.name = name;
+        this.description = description;
+        this.version = version;
+        this.opensearchVersion = opensearchVersion;
+        this.javaVersion = javaVersion;
+        this.classname = classname;
+        this.customFolderName = customFolderName;
+        this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
+        this.hasNativeController = hasNativeController;
+    }
 
     /**
      * Construct plugin info.
@@ -86,14 +113,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public PluginInfo(String name, String description, String version, Version opensearchVersion, String javaVersion,
                       String classname, List<String> extendedPlugins, boolean hasNativeController) {
-        this.name = name;
-        this.description = description;
-        this.version = version;
-        this.opensearchVersion = opensearchVersion;
-        this.javaVersion = javaVersion;
-        this.classname = classname;
-        this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
-        this.hasNativeController = hasNativeController;
+        this(name, description, version, opensearchVersion, javaVersion, classname, null /* customFolderName */, 
+            extendedPlugins, hasNativeController);
     }
 
     /**
@@ -116,6 +137,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
             javaVersion = "1.8";
         }
         this.classname = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            customFolderName = in.readString();
+        } else {
+            customFolderName = this.name;
+        }
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
             extendedPlugins = in.readStringList();
         } else {
@@ -141,6 +167,13 @@ public class PluginInfo implements Writeable, ToXContentObject {
             out.writeString(javaVersion);
         }
         out.writeString(classname);
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            if (customFolderName != null) {
+                out.writeString(customFolderName);
+            } else {
+                out.writeString(name);
+            }
+        }
         if (out.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
             out.writeStringCollection(extendedPlugins);
         }
@@ -189,12 +222,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     "property [version] is missing for plugin [" + name + "]");
         }
 
-        final String esVersionString = propsMap.remove("opensearch.version");
-        if (esVersionString == null) {
+        final String opensearchVersionString = propsMap.remove("opensearch.version");
+        if (opensearchVersionString == null) {
             throw new IllegalArgumentException(
                     "property [opensearch.version] is missing for plugin [" + name + "]");
         }
-        final Version esVersion = Version.fromString(esVersionString);
+        final Version opensearchVersion = Version.fromString(opensearchVersionString);
         final String javaVersionString = propsMap.remove("java.version");
         if (javaVersionString == null) {
             throw new IllegalArgumentException(
@@ -205,6 +238,14 @@ public class PluginInfo implements Writeable, ToXContentObject {
         if (classname == null) {
             throw new IllegalArgumentException(
                     "property [classname] is missing for plugin [" + name + "]");
+        }
+
+        final String customFolderNameValue = propsMap.remove("custom.foldername");
+        final String customFolderName;
+        if (opensearchVersion.onOrAfter(Version.V_1_1_0)) {
+            customFolderName = customFolderNameValue;
+        } else {
+            customFolderName = name;
         }
 
         final String extendedString = propsMap.remove("extended.plugins");
@@ -239,7 +280,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             }
         }
 
-        if (esVersion.before(LegacyESVersion.V_6_3_0) && esVersion.onOrAfter(LegacyESVersion.V_6_0_0_beta2)) {
+        if (opensearchVersion.before(LegacyESVersion.V_6_3_0) && opensearchVersion.onOrAfter(LegacyESVersion.V_6_0_0_beta2)) {
             propsMap.remove("requires.keystore");
         }
 
@@ -247,8 +288,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
 
-        return new PluginInfo(name, description, version, esVersion, javaVersionString,
-                              classname, extendedPlugins, hasNativeController);
+        return new PluginInfo(name, description, version, opensearchVersion, javaVersionString,
+                              classname, customFolderName, extendedPlugins, hasNativeController);
     }
 
     /**
@@ -276,6 +317,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public String getClassname() {
         return classname;
+    }
+
+    /**
+     * The custom folder name for the plugin.
+     *
+     * @return the custom folder name for the plugin
+     */
+    public String getFolderName() {
+        return customFolderName;
     }
 
     /**
@@ -323,6 +373,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
         return hasNativeController;
     }
 
+    /**
+     * The target folder name for the plugin.
+     *
+     * @return the custom folder name for the plugin if the folder name is specified, else return the id with kebab-case.
+     */
+    public String getTargetFolderName() {
+        return (this.customFolderName == null || this.customFolderName.isEmpty()) ? this.name : this.customFolderName;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -333,6 +392,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("java_version", javaVersion);
             builder.field("description", description);
             builder.field("classname", classname);
+            builder.field("custom_foldername", customFolderName);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
         }
@@ -375,7 +435,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(prefix).append("Java Version: ").append(javaVersion).append("\n")
             .append(prefix).append("Native Controller: ").append(hasNativeController).append("\n")
             .append(prefix).append("Extended Plugins: ").append(extendedPlugins).append("\n")
-            .append(prefix).append(" * Classname: ").append(classname);
+            .append(prefix).append(" * Classname: ").append(classname).append("\n")
+            .append(prefix).append("Folder name: ").append(customFolderName);
         return information.toString();
     }
 }

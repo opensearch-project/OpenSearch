@@ -39,20 +39,16 @@ import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -89,25 +85,6 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            {
-                Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
-                assertThat("this branch is not needed if we aren't compatible with 6.0",
-                    minimumIndexCompatibilityVersion.onOrBefore(LegacyESVersion.V_6_0_0), equalTo(true));
-                if (minimumIndexCompatibilityVersion.before(LegacyESVersion.V_7_0_0)) {
-                    XContentBuilder template = jsonBuilder();
-                    template.startObject();
-                    {
-                        template.array("index_patterns", "test_index", "index_with_replicas", "empty_index");
-                        template.startObject("settings");
-                        template.field("number_of_shards", 5);
-                        template.endObject();
-                    }
-                    template.endObject();
-                    Request createTemplate = new Request("PUT", "/_template/prevent-bwc-deprecation-template");
-                    createTemplate.setJsonEntity(Strings.toString(template));
-                    client().performRequest(createTemplate);
-                }
-            }
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createTestIndex);

@@ -126,7 +126,7 @@ public class QueryPhase {
             cancellation = context.searcher().addQueryCancellation(() -> {
                 SearchShardTask task = context.getTask();
                 if (task != null && task.isCancelled()) {
-                    throw new TaskCancelledException("cancelled");
+                    throw new TaskCancelledException("cancelled task with reason: " + task.getReasonCancelled());
                 }
             });
         } else {
@@ -295,7 +295,7 @@ public class QueryPhase {
                 searcher.addQueryCancellation(() -> {
                     SearchShardTask task = searchContext.getTask();
                     if (task != null && task.isCancelled()) {
-                        throw new TaskCancelledException("cancelled");
+                        throw new TaskCancelledException("cancelled task with reason: " + task.getReasonCancelled());
                     }
                 });
             }

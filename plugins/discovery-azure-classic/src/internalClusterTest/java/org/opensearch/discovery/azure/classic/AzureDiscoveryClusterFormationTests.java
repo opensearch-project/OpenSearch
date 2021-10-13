@@ -46,7 +46,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.node.Node;
 import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
@@ -163,7 +162,7 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
     public static void startHttpd() throws Exception {
         logDir = createTempDir();
         SSLContext sslContext = getSSLContext();
-        httpsServer = MockHttpServer.createHttps(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
+        httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
         httpsServer.createContext("/subscription/services/hostedservices/myservice", (s) -> {
             Headers headers = s.getResponseHeaders();

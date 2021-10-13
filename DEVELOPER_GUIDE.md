@@ -49,9 +49,9 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 OpenSearch builds using Java 11 at a minimum. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`.
 
-By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
+By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch also supports JDK 8 as the runtime, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
 
-To run the full suite of tests you will also need `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`, `JAVA11_HOME`, and `JAVA12_HOME`.
+To run the full suite of tests you will also need `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
 
 #### Docker
 
@@ -147,7 +147,18 @@ Follow links in the [Java Tutorial](https://code.visualstudio.com/docs/java/java
 
 ### Eclipse
 
-We would like to support Eclipse, but few of us use it and has fallen into disrepair. Please [contribute](CONTRIBUTING.md).
+When importing to Eclipse, you need to have [Eclipse Buildship](https://projects.eclipse.org/projects/tools.buildship) plugin installed and, preferrably, have JDK 11 set as default JRE in **Preferences -> Java -> Installed JREs**. Once this is done, generate Eclipse projects using Gradle wrapper:
+
+    ./gradlew eclipse
+
+You can now import the OpenSearch project into Eclipse as follows.
+
+1. Select **File > Import -> Existing Gradle Project**
+2. In the subsequent dialog navigate to the root of `build.gradle` file
+3. In the subsequent dialog, if JDK 11 is not set as default JRE, please make sure to check **[Override workpace settings]**, keep **[Gradle Wrapper]** and provide the correct path to JDK11 using **[Java Home]** property under **[Advanced Options]**. Otherwise, you may run into cryptic import failures and only top level project is going to be imported.
+4. In the subsequent dialog, you sould see **[Gradle project structure]** populated, please click **[Finish]** to complete the import
+
+**Note:** it may look non-intuitive why one needs to use Gradle wrapper and then import existing Gradle project (in general, **File > Import -> Existing Gradle Project** should be enough). Practially, as it stands now, Eclipse Buildship plugin does not import OpenSearch project dependencies correctly but does work in conjuction with Gradle wrapper.
 
 ## Project Layout
 
@@ -282,13 +293,93 @@ of this is `junit`.
 
 ### git-secrets
 
-Security is our top priority. Avoid checking in credentials, install [awslabs/git-secrets](https://github.com/awslabs/git-secrets).
+Security is our top priority. Avoid checking in credentials.
 
+#### Installation
+Install [awslabs/git-secrets](https://github.com/awslabs/git-secrets) by running the following commands.
 ```
 git clone https://github.com/awslabs/git-secrets.git
 cd git-secrets
 make install
 ```
+
+#### Configuration
+You can configure git secrets per repository, you need to change the directory to the root of the repository and run the following command.
+```
+git secrets --install
+✓ Installed commit-msg hook to .git/hooks/commit-msg
+✓ Installed pre-commit hook to .git/hooks/pre-commit
+✓ Installed prepare-commit-msg hook to .git/hooks/prepare-commit-msg
+```
+Then, you need to apply patterns for git-secrets, you can install the AWS standard patterns by running the following command.
+```
+git secrets --register-aws
+```
+
+## Components
+As you work in the OpenSearch repo you may notice issues getting labeled with component labels.  It's a housekeeping task to help group together similar pieces of work.  You can pretty much ignore it, but if you're curious, here's what the different labels mean:
+
+### Build libraries & interfaces
+Tasks to make sure the build tasks are useful and packaging and distribution are easy.
+
+Includes:
+
+- Gradle for the Core tasks
+- Groovy scripts
+- build-tools
+- Versioning interfaces
+- Compatibility
+- Javadoc enforcement
+
+
+### Clients & Libraries
+APIs and communication mechanisms for external connections to OpenSearch.  This includes the “library” directory in OpenSearch (a set of common functions).
+
+Includes:
+
+- Transport layer
+- High Level and low level Rest Client
+- CLI
+
+### Plugins
+Anything touching the plugin infrastructure within core OpenSearch.
+
+Includes:
+
+- API
+- SPI
+- Plugin interfaces
+
+
+### Indexing & search
+The critical path of indexing and search, including:  Measure index and search, performance, Improving the performance of indexing and search, ensure synchronization OpenSearch APIs with upstream Lucene change (e.g. new field types, changing doc values and codex).
+
+Includes:
+
+- Lucene Structures
+- FieldMappers
+- QueryBuilders
+- DocValues
+
+### Aggregations
+Making sure OpenSearch can be used as a compute engine.
+
+Includes:
+
+- APIs (suggest supporting a formal API)
+- Framework
+
+### Distributed Framework
+Work to make sure that OpenSearch can scale in a distributed manner.
+
+Includes:
+
+- Nodes (Master, Data, Compute, Ingest, Discovery, etc.)
+- Replication & Merge Policies (Document, Segment level)
+- Snapshot/Restore (repositories; S3, Azure, GCP, NFS)
+- Translog (e.g., OpenSearch, Kafka, Kinesis)
+- Shard Strategies
+- Circuit Breakers
 
 ## Submitting Changes
 

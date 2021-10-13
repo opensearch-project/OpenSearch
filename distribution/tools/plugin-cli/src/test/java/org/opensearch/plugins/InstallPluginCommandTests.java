@@ -576,6 +576,17 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assertInstallCleaned(env.v2());
     }
 
+    public void testExistingPluginWithCustomFolderName() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir, "custom.foldername", "fake-folder");
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake-folder", pluginDir, env.v2());
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("already exists"));
+        assertInstallCleaned(env.v2());
+    }
+
     public void testBin() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
@@ -873,6 +884,14 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         );
     }
 
+    public void testPluginInstallationWithCustomFolderName() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir, "custom.foldername", "fake-folder");
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake-folder", pluginDir, env.v2());
+    }
+
     private void installPlugin(MockTerminal terminal, boolean isBatch) throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
@@ -916,8 +935,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                     String checksum = shaCalculator.apply(zipbytes);
                     Files.write(shaFile, checksum.getBytes(StandardCharsets.UTF_8));
                     return shaFile.toUri().toURL();
-                } else if ((url + ".asc").equals(urlString)) {
-                    final Path ascFile = temp.apply("asc").resolve("downloaded.zip" + ".asc");
+                } else if ((url + ".sig").equals(urlString)) {
+                    final Path ascFile = temp.apply("sig").resolve("downloaded.zip" + ".sig");
                     final byte[] zipBytes = Files.readAllBytes(pluginZip);
                     final String asc = signature.apply(zipBytes, secretKey);
                     Files.write(ascFile, asc.getBytes(StandardCharsets.UTF_8));

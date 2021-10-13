@@ -37,7 +37,6 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.index.IndexResponse;
@@ -56,6 +55,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
@@ -269,7 +269,6 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(activeRefs, indexShard.store().refCount());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/578")
     public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -315,7 +314,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         thread.start();
         startGun.await();
         try {
-            final int rounds = scaledRandomIntBetween(100, 10000);
+            final int rounds = scaledRandomIntBetween(100, 1000);
             SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
             SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true)
                 .scroll(new Scroll(TimeValue.timeValueMinutes(1)));
@@ -575,7 +574,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         }
 
         final ShardScrollRequestTest request = new ShardScrollRequestTest(indexShard.shardId());
-        OpenSearchException ex = expectThrows(OpenSearchException.class,
+        OpenSearchRejectedExecutionException ex = expectThrows(OpenSearchRejectedExecutionException.class,
             () -> service.createAndPutReaderContext(
                 request, indexService, indexShard, indexShard.acquireSearcherSupplier(), randomBoolean()));
         assertEquals(
@@ -607,7 +606,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                         try {
                             searchService.createAndPutReaderContext(
                                 new ShardScrollRequestTest(indexShard.shardId()), indexService, indexShard, reader, true);
-                        } catch (OpenSearchException e) {
+                        } catch (OpenSearchRejectedExecutionException e) {
                             assertThat(e.getMessage(), equalTo(
                                 "Trying to create too many scroll contexts. Must be less than or equal to: " +
                                     "[" + maxScrollContexts + "]. " +

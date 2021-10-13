@@ -52,11 +52,11 @@ import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
 
-import static org.elasticsearch.mock.orig.Mockito.never;
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
 

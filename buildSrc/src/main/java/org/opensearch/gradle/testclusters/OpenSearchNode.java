@@ -409,6 +409,14 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    public void upgradePlugin(List<Provider<RegularFile>> plugins) {
+        this.plugins.clear();
+        for (Provider<RegularFile> plugin : plugins) {
+            this.plugins.add(plugin.map(RegularFile::getAsFile));
+        }
+    }
+
+    @Override
     public void plugin(String pluginProjectPath) {
         plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath));
     }

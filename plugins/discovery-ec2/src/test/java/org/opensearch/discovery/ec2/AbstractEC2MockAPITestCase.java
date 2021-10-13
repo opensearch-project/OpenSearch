@@ -40,7 +40,6 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -74,7 +73,7 @@ public abstract class AbstractEC2MockAPITestCase extends OpenSearchTestCase {
 
     @Before
     public void setUp() throws Exception {
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         threadPool = new TestThreadPool(EC2RetriesTests.class.getName());
         transportService = createTransportService();

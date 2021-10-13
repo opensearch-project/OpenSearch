@@ -363,7 +363,13 @@ These test tasks can use the `--tests`, `--info`, and `--debug` parameters just 
 
 # Testing backwards compatibility
 
-Backwards compatibility tests exist to test upgrading from each supported version to the current version. To run them all use:
+Backwards compatibility tests exist to test upgrading from each supported version to the current version. 
+
+The test can be run for any versions which the current version will be compatible with. Tests are run for released versions download the distributions from the artifact repository, see [DistributionDownloadPlugin](./buildSrc/src/main/java/org/opensearch/gradle/DistributionDownloadPlugin.java) for the repository location. Tests are run for versions that are not yet released automatically check out the branch and build from source to get the distributions, see [BwcVersions](./buildSrc/src/main/java/org/opensearch/gradle/BwcVersions.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
+
+The minimum JDK versions for runtime and compiling need to be installed, and environment variables `JAVAx_HOME`, such as `JAVA8_HOME`, pointing to the JDK installations are required to run the tests against unreleased versions, since the distributions are created by building from source. The required JDK versions for each branch are located at [.ci/java-versions.properties](.ci/java-versions.properties), see [BwcSetupExtension](./buildSrc/src/main/java/org/opensearch/gradle/internal/BwcSetupExtension.java) for more information. 
+
+To run all the backwards compatibility tests use:
 
     ./gradlew bwcTest
 
@@ -376,8 +382,6 @@ Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example 
     ./gradlew :qa:rolling-upgrade:v7.7.0#bwcTest \
      -Dtests.class=org.opensearch.upgrades.RecoveryIT \
      -Dtests.method=testHistoryUUIDIsGenerated
-
-Tests are run for versions that are not yet released but with which the current version will be compatible with. These are automatically checked out and built from source. See [BwcVersions](./buildSrc/src/main/java/org/opensearch/gradle/BwcVersions.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
 
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
 
@@ -439,7 +443,37 @@ Multi-threaded tests are often not reproducible due to the fact that there is no
 
 # Test coverage analysis
 
-Generating test coverage reports for OpenSearch is currently not possible through Gradle. However, it *is* possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
+The code coverage report can be generated through Gradle with [JaCoCo plugin](https://docs.gradle.org/current/userguide/jacoco_plugin.html).
+
+For unit test:
+
+    ./gradlew codeCoverageReportForUnitTest
+
+For integration test:
+
+    ./gradlew codeCoverageReportForIntegrationTest
+
+For the combined tests (unit and integration):
+
+    ./gradlew codeCoverageReport
+
+To generate coverage report for the combined tests after `check` task:
+
+    ./gradlew check -Dtests.coverage=true
+
+The code coverage report will be generated in `build/codeCoverageReport`, `build/codeCoverageReportForUnitTest` or `build/codeCoverageReportForIntegrationTest` correspondingly.
+
+The report will be in XML format only by default, but you can add the following parameter for HTML and CSV format.
+
+- To generate report in HTML format: `-Dtests.coverage.report.html=true`
+- To generate report in CSV format: `-Dtests.coverage.report.csv=true`
+- To NOT generate report in XML format: `-Dtests.coverage.report.xml=false`
+
+For example, to generate code coverage report in HTML format and not in XML format:
+
+    ./gradlew codeCoverageReport -Dtests.coverage.report.html=true -Dtests.coverage.report.xml=false
+
+Apart from using Gradle, it is also possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
 
 Please read your IDE documentation for how to attach a debugger to a JVM process.
 

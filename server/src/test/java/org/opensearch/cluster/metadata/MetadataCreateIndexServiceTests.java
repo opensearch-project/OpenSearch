@@ -66,7 +66,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
@@ -961,6 +963,55 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Collections.emptySet());
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+    }
+
+    public void testIndexLifecycleNameSetting() {
+        // see: https://github.com/opensearch-project/OpenSearch/issues/1019
+        final Settings ilnSetting = Settings.builder().put("index.lifecycle.name", "dummy").build();
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                null,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                new Environment(Settings.builder().put("path.home", "dummy").build(), null),
+                new IndexScopedSettings(ilnSetting, Collections.emptySet()),
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                true
+            );
+
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(ilnSetting, true);
+            assertThat(validationErrors.size(), is(1));
+            assertThat(validationErrors.get(0), is("expected [index.lifecycle.name] to be private but it was not"));
+        }));
+    }
+
+    public void testDeprecatedSimpleFSStoreSettings() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder settings = Settings.builder();
+        settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey());
+        request.settings(settings.build());
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, null, Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(), Collections.emptySet());
+        assertWarnings("[simplefs] is deprecated and will be removed in 2.0. Use [niofs], which offers equal " +
+            "or better performance, or other file systems instead.");
+    }
+
+    public void testTranslogPruningBasedOnRetentionLeaseDeprecation() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(Settings.builder()
+            .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.getKey(), true).build());
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+            Collections.emptySet());
+        assertWarnings("[index.plugins.replication.translog.retention_lease.pruning.enabled] setting " +
+            "was deprecated in OpenSearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.");
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

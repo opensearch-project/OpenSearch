@@ -166,7 +166,7 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.index.Index;
-import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -873,16 +873,15 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
      * Simulates concurrent restarts of data and master nodes as well as relocating a primary shard, while starting and subsequently
      * deleting a snapshot.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/579")
     public void testSnapshotPrimaryRelocations() {
         final int masterNodeCount = randomFrom(1, 3, 5);
-        setupTestCluster(masterNodeCount, randomIntBetween(2, 10));
+        setupTestCluster(masterNodeCount, randomIntBetween(2, 5));
 
         String repoName = "repo";
         String snapshotName = "snapshot";
         final String index = "test";
 
-        final int shards = randomIntBetween(1, 10);
+        final int shards = randomIntBetween(1, 5);
 
         final TestClusterNodes.TestClusterNode masterNode =
             testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
@@ -1573,7 +1572,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             threadPool,
                             shardStateAction,
                             actionFilters,
-                            new IndexingPressure(settings),
+                            new IndexingPressureService(settings, clusterService),
                             new SystemIndices(emptyMap()))),
                     new GlobalCheckpointSyncAction(
                         settings,
@@ -1600,7 +1599,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 mappingUpdatedAction.setClient(client);
             final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                 clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, new IndexingPressure(settings), new SystemIndices(emptyMap()));
+                actionFilters, new IndexingPressureService(settings, clusterService), new SystemIndices(emptyMap()));
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
                         new IngestService(
@@ -1609,7 +1608,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             Collections.emptyList(), client),
                         transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
                         new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
-                        new IndexingPressure(settings),
+                        new IndexingPressureService(settings, clusterService),
                         new SystemIndices(emptyMap())
                     ));
                 final RestoreService restoreService = new RestoreService(

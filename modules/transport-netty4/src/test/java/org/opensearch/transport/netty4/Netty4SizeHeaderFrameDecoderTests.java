@@ -40,7 +40,6 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.mocksocket.MockSocket;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
@@ -100,7 +99,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends OpenSearchTestCase {
         String randomMethod = randomFrom("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH");
         String data = randomMethod + " / HTTP/1.1";
 
-        try (Socket socket = new MockSocket(host, port)) {
+        try (Socket socket = new Socket(host, port)) {
             socket.getOutputStream().write(data.getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 
@@ -111,7 +110,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends OpenSearchTestCase {
     }
 
     public void testThatNothingIsReturnedForOtherInvalidPackets() throws Exception {
-        try (Socket socket = new MockSocket(host, port)) {
+        try (Socket socket = new Socket(host, port)) {
             socket.getOutputStream().write("FOOBAR".getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 

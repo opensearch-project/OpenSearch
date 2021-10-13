@@ -38,6 +38,8 @@ import org.opensearch.rest.RestRequest.Method;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Handler for REST requests
@@ -112,6 +114,63 @@ public interface RestHandler {
         return false;
     }
 
+    static RestHandler wrapper(RestHandler delegate) {
+        return new Wrapper(delegate);
+    }
+
+    class Wrapper implements RestHandler {
+        private final RestHandler delegate;
+
+        public Wrapper(RestHandler delegate) {
+            this.delegate = Objects.requireNonNull(delegate, "RestHandler delegate can not be null");
+        }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
+
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            delegate.handleRequest(request, channel, client);
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return delegate.canTripCircuitBreaker();
+        }
+
+        @Override
+        public boolean supportsContentStream() {
+            return delegate.supportsContentStream();
+        }
+
+        @Override
+        public boolean allowsUnsafeBuffers() {
+            return delegate.allowsUnsafeBuffers();
+        }
+
+        @Override
+        public List<Route> routes() {
+            return delegate.routes();
+        }
+
+        @Override
+        public List<DeprecatedRoute> deprecatedRoutes() {
+            return delegate.deprecatedRoutes();
+        }
+
+        @Override
+        public List<ReplacedRoute> replacedRoutes() {
+            return delegate.replacedRoutes();
+        }
+
+        @Override
+        public boolean allowSystemIndexAccessByDefault() {
+            return delegate.allowSystemIndexAccessByDefault();
+        }
+    }
+
     class Route {
 
         private final String path;
@@ -157,10 +216,38 @@ public interface RestHandler {
         private final String deprecatedPath;
         private final Method deprecatedMethod;
 
+        /**
+         * Construct replaced routes using new and deprocated methods and new and deprecated paths
+         * @param method route method
+         * @param path new route path
+         * @param deprecatedMethod deprecated method
+         * @param deprecatedPath deprecated path
+         */
         public ReplacedRoute(Method method, String path, Method deprecatedMethod, String deprecatedPath) {
             super(method, path);
             this.deprecatedMethod = deprecatedMethod;
             this.deprecatedPath = deprecatedPath;
+        }
+
+        /**
+         * Construct replaced routes using route method, new and deprecated paths
+         * This constructor can be used when both new and deprecated paths use the same method
+         * @param method route method
+         * @param path new route path
+         * @param deprecatedPath deprecated path
+         */
+        public ReplacedRoute(Method method, String path, String deprecatedPath) {
+            this(method, path, method, deprecatedPath);
+        }
+
+        /**
+         * Construct replaced routes using route, new and deprecated prefixes
+         * @param route route
+         * @param prefix new route prefix
+         * @param deprecatedPrefix deprecated prefix
+         */
+        public ReplacedRoute(Route route, String prefix, String deprecatedPrefix) {
+            this(route.getMethod(), prefix + route.getPath(), deprecatedPrefix + route.getPath());
         }
 
         public String getDeprecatedPath() {
@@ -170,5 +257,18 @@ public interface RestHandler {
         public Method getDeprecatedMethod() {
             return deprecatedMethod;
         }
+    }
+
+    /**
+     * Construct replaced routes using routes template and prefixes for new and deprecated paths
+     * @param routes routes
+     * @param prefix new prefix
+     * @param deprecatedPrefix deprecated prefix
+     * @return new list of API routes prefixed with the prefix string
+     */
+    static List<ReplacedRoute> replaceRoutes(List<Route> routes, final String prefix, final String deprecatedPrefix){
+        return routes.stream()
+            .map(route -> new ReplacedRoute(route, prefix, deprecatedPrefix))
+            .collect(Collectors.toList());
     }
 }
