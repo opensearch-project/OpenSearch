@@ -484,7 +484,7 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
             .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
             .put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 100)
             .build();
-        final int NUM_THREADS = scaledRandomIntBetween(100, 120);
+        final int NUM_THREADS = scaledRandomIntBetween(80, 100);
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
