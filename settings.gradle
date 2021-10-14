@@ -36,6 +36,8 @@ List projects = [
   'distribution:archives:no-jdk-windows-zip',
   'distribution:archives:darwin-tar',
   'distribution:archives:no-jdk-darwin-tar',
+  'distribution:archives:freebsd-tar',
+  'distribution:archives:no-jdk-freebsd-tar',
   'distribution:archives:linux-arm64-tar',
   'distribution:archives:linux-tar',
   'distribution:archives:no-jdk-linux-tar',
