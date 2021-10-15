@@ -65,6 +65,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -75,7 +76,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final String DEFAULT_LEGACY_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/opensearch/LegacyESVersion.java";
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/opensearch/Version.java";
     private static Integer _defaultParallel = null;
-    private static Boolean _isBundledJdkSupported = null;
 
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final ObjectFactory objects;
@@ -101,7 +101,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(Util.getResourceContents("/minimumCompilerVersion"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(Util.getResourceContents("/minimumRuntimeVersion"));
 
-        File runtimeJavaHome = findRuntimeJavaHome();
+        Optional<File> runtimeJavaHomeOpt = findRuntimeJavaHome();
+        File runtimeJavaHome = runtimeJavaHomeOpt.orElse(Jvm.current().getJavaHome());
 
         File rootDir = project.getRootDir();
         GitInfo gitInfo = gitInfo(rootDir);
@@ -113,7 +114,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
             params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
-            params.setIsRutimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
+            params.setIsRutimeJavaHomeSet(runtimeJavaHomeOpt.isPresent());
             params.setRuntimeJavaDetails(getJavaInstallation(runtimeJavaHome).getImplementationName());
             params.setJavaVersions(getAvailableJavaVersions(minimumCompilerVersion));
             params.setMinimumCompilerVersion(minimumCompilerVersion);
@@ -262,14 +263,14 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         throw new GradleException(message);
     }
 
-    private static File findRuntimeJavaHome() {
+    private static Optional<File> findRuntimeJavaHome() {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
-            return new File(findJavaHome(runtimeJavaProperty));
+            return Optional.of(new File(findJavaHome(runtimeJavaProperty)));
         }
 
-        return System.getenv("RUNTIME_JAVA_HOME") == null ? Jvm.current().getJavaHome() : new File(System.getenv("RUNTIME_JAVA_HOME"));
+        return System.getenv("RUNTIME_JAVA_HOME") == null ? Optional.empty() : Optional.of(new File(System.getenv("RUNTIME_JAVA_HOME")));
     }
 
     private static String findJavaHome(String version) {
