@@ -8,10 +8,27 @@
 
 package org.opensearch.index;
 
+import org.junit.BeforeClass;
+import org.opensearch.Version;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ShardIndexingPressureSettingsTests extends OpenSearchTestCase {
 
@@ -76,5 +93,54 @@ public class ShardIndexingPressureSettingsTests extends OpenSearchTestCase {
         assertEquals(shardPrimaryAndCoordinatingBaseLimits, shardIndexingPressureSettings.getShardPrimaryAndCoordinatingBaseLimits());
         assertEquals((long)(shardPrimaryAndCoordinatingBaseLimits * 1.5),
             shardIndexingPressureSettings.getShardReplicaBaseLimits());
+    }
+
+    public void testIsShardIndexingPressureAttributeEnabled() {
+        // We are not able to test the condition when the ClusterService is null, as it is statically assigned from many tests
+        ClusterApplierService mockClusterApplierService = mock(ClusterApplierService.class);
+        when(mockClusterApplierService.isInitialClusterStateSet()).thenReturn(false);
+        ClusterService localClusterService = new ClusterService(settings, clusterSettings,
+            new MasterService(settings, clusterSettings, null), mockClusterApplierService);
+
+
+        // False is returned when the initial cluster state is not set
+        ShardIndexingPressureSettings shardIndexingPressureSettings = new ShardIndexingPressureSettings(localClusterService, settings,
+            IndexingPressure.MAX_INDEXING_BYTES.get(settings).getBytes());
+        assertFalse(ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled());
+
+        // False is returned with empty node attributes
+        when(mockClusterApplierService.isInitialClusterStateSet()).thenReturn(true);
+        HashMap<String, String> attributes = new HashMap<>();
+        DiscoveryNode discoveryNode = new DiscoveryNode("0", buildNewFakeTransportAddress(), attributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode).build();
+        ClusterState mockClusterState = mock(ClusterState.class);
+        when(mockClusterState.getNodes()).thenReturn(discoveryNodes);
+        when(mockClusterApplierService.state()).thenReturn(mockClusterState);
+        assertFalse(ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled());
+
+        // False is returned when the node attribute is set to false
+        attributes.put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, "false");
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        for (Integer nodeID = 0; nodeID < random().nextInt(10); nodeID++) {
+            DiscoveryNode node = new DiscoveryNode(nodeID.toString(), buildNewFakeTransportAddress(), attributes,
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            builder.add(node);
+        }
+        discoveryNodes = builder.build();
+        when(mockClusterState.getNodes()).thenReturn(discoveryNodes);
+        assertFalse(ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled());
+
+        // True is returned when all nodes have the attribute set to true
+        attributes.put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, "true");
+        builder = DiscoveryNodes.builder();
+        for (Integer nodeID = 0; nodeID < random().nextInt(10); nodeID++) {
+            DiscoveryNode node = new DiscoveryNode(nodeID.toString(), buildNewFakeTransportAddress(), attributes,
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            builder.add(node);
+        }
+        discoveryNodes = builder.build();
+        when(mockClusterState.getNodes()).thenReturn(discoveryNodes);
+        assertTrue(ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled());
     }
 }

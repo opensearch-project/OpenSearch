@@ -78,14 +78,14 @@ public final class ShardIndexingPressureSettings {
     }
 
     public static boolean isShardIndexingPressureAttributeEnabled() {
-        // Null check as some plugin tests appear to start node without initializing cluster service
-        if (Objects.isNull(clusterService)) return false;
-        if (clusterService.getClusterApplierService().isInitialClusterStateSet()) {
-            Iterator<DiscoveryNode> nodes = clusterService.state().getNodes().getNodes().valuesIt();
-            while (nodes.hasNext()) {
-                if (Boolean.parseBoolean(nodes.next().getAttributes().get(SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY)) == false) {
-                    return false;
-                }
+        if (Objects.isNull(clusterService) || !clusterService.getClusterApplierService().isInitialClusterStateSet()) {
+            return false;
+        }
+
+        Iterator<DiscoveryNode> nodes = clusterService.state().getNodes().getNodes().valuesIt();
+        while (nodes.hasNext()) {
+            if (Boolean.parseBoolean(nodes.next().getAttributes().get(SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY)) == false) {
+                return false;
             }
         }
         return true;
