@@ -63,22 +63,41 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
     @Before
     public void startSecondCluster() throws IOException, InterruptedException {
         repoPath = randomRepoPath();
-        secondCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, 0,
-                0, "second_cluster", new NodeConfigurationSource() {
-            @Override
-            public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(MultiClusterRepoAccessIT.this.nodeSettings(nodeOrdinal))
+        secondCluster = new InternalTestCluster(
+            randomLong(),
+            createTempDir(),
+            true,
+            true,
+            0,
+            0,
+            "second_cluster",
+            new NodeConfigurationSource() {
+                @Override
+                public Settings nodeSettings(int nodeOrdinal) {
+                    return Settings.builder()
+                        .put(MultiClusterRepoAccessIT.this.nodeSettings(nodeOrdinal))
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                        .put(Environment.PATH_REPO_SETTING.getKey(), repoPath).build();
-            }
+                        .put(Environment.PATH_REPO_SETTING.getKey(), repoPath)
+                        .build();
+                }
 
-            @Override
-            public Path nodeConfigPath(int nodeOrdinal) {
-                return null;
-            }
-        }, 0, "leader", Arrays.asList(OpenSearchIntegTestCase.TestSeedPlugin.class,
-                MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class,
-                MockNioTransportPlugin.class, InternalSettingsPlugin.class, MockRepository.Plugin.class), Function.identity());
+                @Override
+                public Path nodeConfigPath(int nodeOrdinal) {
+                    return null;
+                }
+            },
+            0,
+            "leader",
+            Arrays.asList(
+                OpenSearchIntegTestCase.TestSeedPlugin.class,
+                MockHttpTransport.TestPlugin.class,
+                MockTransportService.TestPlugin.class,
+                MockNioTransportPlugin.class,
+                InternalSettingsPlugin.class,
+                MockRepository.Plugin.class
+            ),
+            Function.identity()
+        );
         secondCluster.beforeTest(random(), 0);
     }
 
@@ -96,8 +115,13 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
         secondCluster.startMasterOnlyNode();
         secondCluster.startDataOnlyNode();
-        secondCluster.client().admin().cluster().preparePutRepository(repoNameOnSecondCluster).setType("fs")
-                .setSettings(Settings.builder().put("location", repoPath)).get();
+        secondCluster.client()
+            .admin()
+            .cluster()
+            .preparePutRepository(repoNameOnSecondCluster)
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", repoPath))
+            .get();
 
         createIndexWithRandomDocs("test-idx-1", randomIntBetween(1, 100));
         createFullSnapshot(repoNameOnFirstCluster, "snap-1");
@@ -109,13 +133,25 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         secondCluster.client().admin().cluster().prepareDeleteSnapshot(repoNameOnSecondCluster, "snap-1").get();
         secondCluster.client().admin().cluster().prepareDeleteSnapshot(repoNameOnSecondCluster, "snap-2").get();
 
-        final SnapshotException sne = expectThrows(SnapshotException.class, () ->
-                client().admin().cluster().prepareCreateSnapshot(repoNameOnFirstCluster, "snap-4").setWaitForCompletion(true)
-                        .execute().actionGet());
+        final SnapshotException sne = expectThrows(
+            SnapshotException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repoNameOnFirstCluster, "snap-4")
+                .setWaitForCompletion(true)
+                .execute()
+                .actionGet()
+        );
         assertThat(sne.getMessage(), containsString("failed to update snapshot in repository"));
         final RepositoryException cause = (RepositoryException) sne.getCause();
-        assertThat(cause.getMessage(), containsString("[" + repoNameOnFirstCluster +
-                "] concurrent modification of the index-N file, expected current generation [2] but it was not found in the repository"));
+        assertThat(
+            cause.getMessage(),
+            containsString(
+                "["
+                    + repoNameOnFirstCluster
+                    + "] concurrent modification of the index-N file, expected current generation [2] but it was not found in the repository"
+            )
+        );
         assertAcked(client().admin().cluster().prepareDeleteRepository(repoNameOnFirstCluster).get());
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
         createFullSnapshot(repoNameOnFirstCluster, "snap-5");

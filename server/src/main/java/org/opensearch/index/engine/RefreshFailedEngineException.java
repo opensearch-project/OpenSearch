@@ -43,7 +43,7 @@ public class RefreshFailedEngineException extends EngineException {
         super(shardId, "Refresh failed", t);
     }
 
-    public RefreshFailedEngineException(StreamInput in) throws IOException{
+    public RefreshFailedEngineException(StreamInput in) throws IOException {
         super(in);
     }
 }

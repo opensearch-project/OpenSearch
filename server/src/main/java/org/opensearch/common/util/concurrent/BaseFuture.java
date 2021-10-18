@@ -72,8 +72,7 @@ public abstract class BaseFuture<V> implements Future<V> {
      * @throws CancellationException {@inheritDoc}
      */
     @Override
-    public V get(long timeout, TimeUnit unit) throws InterruptedException,
-            TimeoutException, ExecutionException {
+    public V get(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException, ExecutionException {
         assert timeout <= 0 || blockingAllowed();
         return sync.get(unit.toNanos(timeout));
     }
@@ -102,10 +101,10 @@ public abstract class BaseFuture<V> implements Future<V> {
 
     // protected so that it can be overridden in specific instances
     protected boolean blockingAllowed() {
-        return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
-            ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
-            ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON) &&
-            MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
+        return Transports.assertNotTransportThread(BLOCKING_OP_REASON)
+            && ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON)
+            && ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON)
+            && MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
     }
 
     @Override
@@ -139,8 +138,7 @@ public abstract class BaseFuture<V> implements Future<V> {
      *
      * @since 10.0
      */
-    protected void interruptTask() {
-    }
+    protected void interruptTask() {}
 
     /**
      * Subclasses should invoke this method to set the result of the computation
@@ -180,9 +178,9 @@ public abstract class BaseFuture<V> implements Future<V> {
 
         // we want to notify the listeners we have with errors as well, as it breaks
         // how we work in OpenSearch in terms of using assertions
-//        if (throwable instanceof Error) {
-//            throw (Error) throwable;
-//        }
+        // if (throwable instanceof Error) {
+        // throw (Error) throwable;
+        // }
         return result;
     }
 
@@ -193,8 +191,7 @@ public abstract class BaseFuture<V> implements Future<V> {
      *
      * @param success indicates if the {@link BaseFuture} was completed with success (true); in other cases it equals to false
      */
-    protected void done(boolean success) {
-    }
+    protected void done(boolean success) {}
 
     /**
      * <p>Following the contract of {@link AbstractQueuedSynchronizer} we create a
@@ -248,8 +245,7 @@ public abstract class BaseFuture<V> implements Future<V> {
          * {@link TimeoutException} if the timer expires, otherwise behaves like
          * {@link #get()}.
          */
-        V get(long nanos) throws TimeoutException, CancellationException,
-                ExecutionException, InterruptedException {
+        V get(long nanos) throws TimeoutException, CancellationException, ExecutionException, InterruptedException {
 
             // Attempt to acquire the shared lock with a timeout.
             if (!tryAcquireSharedNanos(-1, nanos)) {
@@ -265,8 +261,7 @@ public abstract class BaseFuture<V> implements Future<V> {
          * was cancelled, or a {@link ExecutionException} if the task completed with
          * an error.
          */
-        V get() throws CancellationException, ExecutionException,
-                InterruptedException {
+        V get() throws CancellationException, ExecutionException, InterruptedException {
 
             // Acquire the shared lock allowing interruption.
             acquireSharedInterruptibly(-1);
@@ -292,8 +287,7 @@ public abstract class BaseFuture<V> implements Future<V> {
                     throw new CancellationException("Task was cancelled.");
 
                 default:
-                    throw new IllegalStateException(
-                            "Error, synchronizer in invalid state: " + state);
+                    throw new IllegalStateException("Error, synchronizer in invalid state: " + state);
             }
         }
 
@@ -343,8 +337,7 @@ public abstract class BaseFuture<V> implements Future<V> {
          * @param t          the exception to set as the result of the computation.
          * @param finalState the state to transition to.
          */
-        private boolean complete(@Nullable V v, @Nullable Throwable t,
-                                 int finalState) {
+        private boolean complete(@Nullable V v, @Nullable Throwable t, int finalState) {
             boolean doCompletion = compareAndSetState(RUNNING, COMPLETING);
             if (doCompletion) {
                 // If this thread successfully transitioned to COMPLETING, set the value

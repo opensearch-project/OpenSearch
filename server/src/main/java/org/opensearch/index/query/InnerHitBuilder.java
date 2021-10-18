@@ -85,10 +85,16 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         PARSER.declareBoolean(InnerHitBuilder::setSeqNoAndPrimaryTerm, SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setTrackScores, SearchSourceBuilder.TRACK_SCORES_FIELD);
         PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);
-        PARSER.declareObjectArray(InnerHitBuilder::setDocValueFields,
-                (p,c) -> FieldAndFormat.fromXContent(p), SearchSourceBuilder.DOCVALUE_FIELDS_FIELD);
-        PARSER.declareObjectArray(InnerHitBuilder::setFetchFields,
-            (p,c) -> FieldAndFormat.fromXContent(p), SearchSourceBuilder.FETCH_FIELDS_FIELD);
+        PARSER.declareObjectArray(
+            InnerHitBuilder::setDocValueFields,
+            (p, c) -> FieldAndFormat.fromXContent(p),
+            SearchSourceBuilder.DOCVALUE_FIELDS_FIELD
+        );
+        PARSER.declareObjectArray(
+            InnerHitBuilder::setFetchFields,
+            (p, c) -> FieldAndFormat.fromXContent(p),
+            SearchSourceBuilder.FETCH_FIELDS_FIELD
+        );
         PARSER.declareField((p, i, c) -> {
             try {
                 Set<ScriptField> scriptFields = new HashSet<>();
@@ -100,8 +106,11 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner script definition", e);
             }
         }, SearchSourceBuilder.SCRIPT_FIELDS_FIELD, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((p, i, c) -> i.setSorts(SortBuilder.fromXContent(p)), SearchSourceBuilder.SORT_FIELD,
-                ObjectParser.ValueType.OBJECT_ARRAY);
+        PARSER.declareField(
+            (p, i, c) -> i.setSorts(SortBuilder.fromXContent(p)),
+            SearchSourceBuilder.SORT_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
         PARSER.declareField((p, i, c) -> {
             try {
                 i.setFetchSourceContext(FetchSourceContext.fromXContent(p));
@@ -109,17 +118,20 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner _source definition", e);
             }
         }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
-        PARSER.declareObject(InnerHitBuilder::setHighlightBuilder, (p, c) -> HighlightBuilder.fromXContent(p),
-                SearchSourceBuilder.HIGHLIGHT_FIELD);
+        PARSER.declareObject(
+            InnerHitBuilder::setHighlightBuilder,
+            (p, c) -> HighlightBuilder.fromXContent(p),
+            SearchSourceBuilder.HIGHLIGHT_FIELD
+        );
         PARSER.declareField((parser, builder, context) -> {
             Boolean isParsedCorrectly = false;
             String field;
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                     if (FIELD_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
-                        if (parser.nextToken() == XContentParser.Token.VALUE_STRING){
+                        if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
                             field = parser.text();
-                            if (parser.nextToken() == XContentParser.Token.END_OBJECT){
+                            if (parser.nextToken() == XContentParser.Token.END_OBJECT) {
                                 isParsedCorrectly = true;
                                 CollapseBuilder cb = new CollapseBuilder(field);
                                 builder.setInnerCollapse(cb);
@@ -162,7 +174,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         this.name = name;
     }
 
-
     /**
      * Read from a stream.
      */
@@ -173,7 +184,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         size = in.readVInt();
         explain = in.readBoolean();
         version = in.readBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)){
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
             seqNoAndPrimaryTerm = in.readBoolean();
         } else {
             seqNoAndPrimaryTerm = false;
@@ -186,9 +197,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             if (fieldList == null) {
                 docValueFields = null;
             } else {
-                docValueFields = fieldList.stream()
-                        .map(field -> new FieldAndFormat(field, null))
-                        .collect(Collectors.toList());
+                docValueFields = fieldList.stream().map(field -> new FieldAndFormat(field, null)).collect(Collectors.toList());
             }
         } else {
             docValueFields = in.readBoolean() ? in.readList(FieldAndFormat::new) : null;
@@ -234,9 +243,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
         if (out.getVersion().before(LegacyESVersion.V_6_4_0)) {
-            out.writeGenericValue(docValueFields == null
-                    ? null
-                    : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
+            out.writeGenericValue(docValueFields == null ? null : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
         } else {
             out.writeBoolean(docValueFields != null);
             if (docValueFields != null) {
@@ -247,8 +254,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
             out.writeVInt(scriptFields.size());
-            Iterator<ScriptField> iterator = scriptFields.stream()
-                    .sorted(Comparator.comparing(ScriptField::fieldName)).iterator();
+            Iterator<ScriptField> iterator = scriptFields.stream().sorted(Comparator.comparing(ScriptField::fieldName)).iterator();
             while (iterator.hasNext()) {
                 iterator.next().writeTo(out);
             }
@@ -571,29 +577,46 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InnerHitBuilder that = (InnerHitBuilder) o;
-        return ignoreUnmapped == that.ignoreUnmapped &&
-            from == that.from &&
-            size == that.size &&
-            explain == that.explain &&
-            version == that.version &&
-            seqNoAndPrimaryTerm == that.seqNoAndPrimaryTerm &&
-            trackScores == that.trackScores &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(storedFieldsContext, that.storedFieldsContext) &&
-            Objects.equals(query, that.query) &&
-            Objects.equals(sorts, that.sorts) &&
-            Objects.equals(docValueFields, that.docValueFields) &&
-            Objects.equals(scriptFields, that.scriptFields) &&
-            Objects.equals(highlightBuilder, that.highlightBuilder) &&
-            Objects.equals(fetchSourceContext, that.fetchSourceContext) &&
-            Objects.equals(fetchFields, that.fetchFields) &&
-            Objects.equals(innerCollapseBuilder, that.innerCollapseBuilder);
+        return ignoreUnmapped == that.ignoreUnmapped
+            && from == that.from
+            && size == that.size
+            && explain == that.explain
+            && version == that.version
+            && seqNoAndPrimaryTerm == that.seqNoAndPrimaryTerm
+            && trackScores == that.trackScores
+            && Objects.equals(name, that.name)
+            && Objects.equals(storedFieldsContext, that.storedFieldsContext)
+            && Objects.equals(query, that.query)
+            && Objects.equals(sorts, that.sorts)
+            && Objects.equals(docValueFields, that.docValueFields)
+            && Objects.equals(scriptFields, that.scriptFields)
+            && Objects.equals(highlightBuilder, that.highlightBuilder)
+            && Objects.equals(fetchSourceContext, that.fetchSourceContext)
+            && Objects.equals(fetchFields, that.fetchFields)
+            && Objects.equals(innerCollapseBuilder, that.innerCollapseBuilder);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, ignoreUnmapped, from, size, explain, version, seqNoAndPrimaryTerm, trackScores, storedFieldsContext,
-            query, sorts, docValueFields, scriptFields, highlightBuilder, fetchSourceContext, fetchFields, innerCollapseBuilder);
+        return Objects.hash(
+            name,
+            ignoreUnmapped,
+            from,
+            size,
+            explain,
+            version,
+            seqNoAndPrimaryTerm,
+            trackScores,
+            storedFieldsContext,
+            query,
+            sorts,
+            docValueFields,
+            scriptFields,
+            highlightBuilder,
+            fetchSourceContext,
+            fetchFields,
+            innerCollapseBuilder
+        );
     }
 
     public static InnerHitBuilder fromXContent(XContentParser parser) throws IOException {

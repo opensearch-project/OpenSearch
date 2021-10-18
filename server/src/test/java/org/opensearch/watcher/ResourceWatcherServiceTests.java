@@ -36,9 +36,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.watcher.ResourceWatcher;
-import org.opensearch.watcher.ResourceWatcherService;
-import org.opensearch.watcher.WatcherHandle;
 
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,8 +55,8 @@ public class ResourceWatcherServiceTests extends OpenSearchTestCase {
 
         // checking bwc
         settings = Settings.builder()
-                .put("resource.reload.interval", "40s") // only applies to medium
-                .build();
+            .put("resource.reload.interval", "40s") // only applies to medium
+            .build();
         service = new ResourceWatcherService(settings, threadPool);
         assertThat(service.highMonitor.interval.millis(), is(timeValueSeconds(5).millis()));
         assertThat(service.mediumMonitor.interval.millis(), is(timeValueSeconds(40).millis()));
@@ -67,10 +64,10 @@ public class ResourceWatcherServiceTests extends OpenSearchTestCase {
 
         // checking custom
         settings = Settings.builder()
-                .put("resource.reload.interval.high", "10s")
-                .put("resource.reload.interval.medium", "20s")
-                .put("resource.reload.interval.low", "30s")
-                .build();
+            .put("resource.reload.interval.high", "10s")
+            .put("resource.reload.interval.medium", "20s")
+            .put("resource.reload.interval.low", "30s")
+            .build();
         service = new ResourceWatcherService(settings, threadPool);
         assertThat(service.highMonitor.interval.millis(), is(timeValueSeconds(10).millis()));
         assertThat(service.mediumMonitor.interval.millis(), is(timeValueSeconds(20).millis()));
@@ -84,12 +81,10 @@ public class ResourceWatcherServiceTests extends OpenSearchTestCase {
         ResourceWatcherService service = new ResourceWatcherService(settings, threadPool);
         ResourceWatcher watcher = new ResourceWatcher() {
             @Override
-            public void init() {
-            }
+            public void init() {}
 
             @Override
-            public void checkAndNotify() {
-            }
+            public void checkAndNotify() {}
         };
 
         // checking default freq

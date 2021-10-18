@@ -132,12 +132,12 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     @Override
     protected Comparator<Option> sortComparator() {
         switch (sort) {
-        case SCORE:
-            return SCORE;
-        case FREQUENCY:
-            return FREQUENCY;
-        default:
-            throw new OpenSearchException("Could not resolve comparator for sort key: [" + sort + "]");
+            case SCORE:
+                return SCORE;
+            case FREQUENCY:
+                return FREQUENCY;
+            default:
+                throw new OpenSearchException("Could not resolve comparator for sort key: [" + sort + "]");
         }
     }
 
@@ -169,8 +169,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     @Override
     public boolean equals(Object other) {
-        return super.equals(other)
-            && Objects.equals(sort, ((TermSuggestion) other).sort);
+        return super.equals(other) && Objects.equals(sort, ((TermSuggestion) other).sort);
     }
 
     @Override
@@ -262,13 +261,15 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             }
 
             private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>(
-                    "TermSuggestionOptionParser", true,
-                    args -> {
-                        Text text = new Text((String) args[0]);
-                        int freq = (Integer) args[1];
-                        float score = (Float) args[2];
-                        return new Option(text, freq, score);
-                    });
+                "TermSuggestionOptionParser",
+                true,
+                args -> {
+                    Text text = new Text((String) args[0]);
+                    int freq = (Integer) args[1];
+                    float score = (Float) args[2];
+                    return new Option(text, freq, score);
+                }
+            );
 
             static {
                 PARSER.declareString(constructorArg(), Suggestion.Entry.Option.TEXT);

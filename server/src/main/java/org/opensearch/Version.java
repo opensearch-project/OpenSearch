@@ -96,8 +96,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         // least correct for patch versions of known minors since we never
         // update the Lucene dependency for patch versions.
         List<Version> versions = DeclaredVersionsHolder.DECLARED_VERSIONS;
-        Version tmp = id < MASK ? new LegacyESVersion(id, org.apache.lucene.util.Version.LATEST) :
-            new Version(id ^ MASK, org.apache.lucene.util.Version.LATEST);
+        Version tmp = id < MASK
+            ? new LegacyESVersion(id, org.apache.lucene.util.Version.LATEST)
+            : new Version(id ^ MASK, org.apache.lucene.util.Version.LATEST);
         int index = Collections.binarySearch(versions, tmp);
         if (index < 0) {
             index = -2 - index;
@@ -109,8 +110,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             // this version is older than any supported version, so we
             // assume it is the previous major to the oldest Lucene version
             // that we know about
-            luceneVersion = org.apache.lucene.util.Version.fromBits(
-                versions.get(0).luceneVersion.major - 1, 0, 0);
+            luceneVersion = org.apache.lucene.util.Version.fromBits(versions.get(0).luceneVersion.major - 1, 0, 0);
         } else {
             luceneVersion = versions.get(index).luceneVersion;
         }
@@ -130,7 +130,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 Locale.ROOT,
                 "[%s] is not present in the index settings for index with UUID [%s]",
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                indexSettings.get(IndexMetadata.SETTING_INDEX_UUID));
+                indexSettings.get(IndexMetadata.SETTING_INDEX_UUID)
+            );
             throw new IllegalStateException(message);
         }
         return indexVersion;
@@ -158,7 +159,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     /**
      * Returns the maximum version between the 2
      */
-    public static Version max(Version version1, Version version2) { return version1.id > version2.id ? version1 : version2; }
+    public static Version max(Version version1, Version version2) {
+        return version1.id > version2.id ? version1 : version2;
+    }
 
     /**
      * Returns the version given its string representation, current version if the argument is null or empty
@@ -181,14 +184,15 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         String[] parts = version.split("[.-]");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException(
-                "the version needs to contain major, minor, and revision, and optionally the build: " + version);
+                "the version needs to contain major, minor, and revision, and optionally the build: " + version
+            );
         }
 
         try {
             final int rawMajor = Integer.parseInt(parts[0]);
             final int betaOffset = 25; // 0 - 24 is taking by alpha builds
 
-            //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
+            // we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
@@ -225,7 +229,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
         // flip the 28th bit of the ID; identify as an opensearch vs legacy system:
         // we start from version 1 for opensearch, so ignore the 0 (empty) version
-        if(id != 0) {
+        if (id != 0) {
             this.id = id ^ MASK;
             id &= 0xF7FFFFFF;
         } else {
@@ -365,15 +369,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             bwcMajor = major - 1;
         }
         final int bwcMinor = 0;
-        return Version.min(this, fromId((bwcMajor * 1000000 + bwcMinor * 10000 + 99) ));
+        return Version.min(this, fromId((bwcMajor * 1000000 + bwcMinor * 10000 + 99)));
     }
 
     /**
      * Returns <code>true</code> iff both version are compatible. Otherwise <code>false</code>
      */
     public boolean isCompatible(Version version) {
-        boolean compatible = onOrAfter(version.minimumCompatibilityVersion())
-            && version.onOrAfter(minimumCompatibilityVersion());
+        boolean compatible = onOrAfter(version.minimumCompatibilityVersion()) && version.onOrAfter(minimumCompatibilityVersion());
 
         // OpenSearch version 1 is the functional equivalent of predecessor version 7
         // OpenSearch version 2 is the functional equivalent of predecessor unreleased version "8"
@@ -404,7 +407,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             Build.CURRENT.type().displayName(),
             Build.CURRENT.hash(),
             Build.CURRENT.date(),
-            JvmInfo.jvmInfo().version());
+            JvmInfo.jvmInfo().version()
+        );
         System.out.println(versionOutput);
     }
 

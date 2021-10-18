@@ -32,7 +32,6 @@
 
 package org.opensearch.search.dfs;
 
-
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.Term;
@@ -56,17 +55,18 @@ public class AggregatedDfs implements Writeable {
         termStatistics = HppcMaps.newMap(size);
         for (int i = 0; i < size; i++) {
             Term term = new Term(in.readString(), in.readBytesRef());
-            TermStatistics stats = new TermStatistics(in.readBytesRef(),
-                in.readVLong(),
-                DfsSearchResult.subOne(in.readVLong()));
+            TermStatistics stats = new TermStatistics(in.readBytesRef(), in.readVLong(), DfsSearchResult.subOne(in.readVLong()));
             termStatistics.put(term, stats);
         }
         fieldStatistics = DfsSearchResult.readFieldStats(in);
         maxDoc = in.readVLong();
     }
 
-    public AggregatedDfs(ObjectObjectHashMap<Term, TermStatistics> termStatistics,
-            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics, long maxDoc) {
+    public AggregatedDfs(
+        ObjectObjectHashMap<Term, TermStatistics> termStatistics,
+        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics,
+        long maxDoc
+    ) {
         this.termStatistics = termStatistics;
         this.fieldStatistics = fieldStatistics;
         this.maxDoc = maxDoc;

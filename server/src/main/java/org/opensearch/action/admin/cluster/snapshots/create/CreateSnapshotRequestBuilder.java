@@ -43,8 +43,10 @@ import java.util.Map;
 /**
  * Create snapshot request builder
  */
-public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CreateSnapshotRequest,
-        CreateSnapshotResponse, CreateSnapshotRequestBuilder> {
+public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
+    CreateSnapshotRequest,
+    CreateSnapshotResponse,
+    CreateSnapshotRequestBuilder> {
 
     /**
      * Constructs a new create snapshot request builder

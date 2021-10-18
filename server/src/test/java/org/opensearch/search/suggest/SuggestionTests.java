@@ -67,8 +67,9 @@ public class SuggestionTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     private static final Class<Suggestion<? extends Entry<? extends Option>>>[] SUGGESTION_TYPES = new Class[] {
-        TermSuggestion.class, PhraseSuggestion.class, CompletionSuggestion.class
-    };
+        TermSuggestion.class,
+        PhraseSuggestion.class,
+        CompletionSuggestion.class };
 
     public static Suggestion<? extends Entry<? extends Option>> createTestItem() {
         return createTestItem(randomFrom(SUGGESTION_TYPES));
@@ -138,9 +139,12 @@ public class SuggestionTests extends OpenSearchTestCase {
                 // We also exclude options that contain SearchHits, as all unknown fields
                 // on a root level of SearchHit are interpreted as meta-fields and will be kept.
                 Predicate<String> excludeFilter = path -> path.isEmpty()
-                        || path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
-                        || path.contains("fields") || path.contains("_source") || path.contains("inner_hits")
-                        || path.contains("options");
+                    || path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
+                    || path.endsWith("highlight")
+                    || path.contains("fields")
+                    || path.contains("_source")
+                    || path.contains("inner_hits")
+                    || path.contains("options");
                 mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
             } else {
                 mutated = originalBytes;
@@ -197,8 +201,13 @@ public class SuggestionTests extends OpenSearchTestCase {
             + "    }"
             + "  ]"
             + "}").replaceAll("\\s+", "");
-        try (XContentParser parser = xContent.createParser(xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, suggestionString)) {
+        try (
+            XContentParser parser = xContent.createParser(
+                xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                suggestionString
+            )
+        ) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
@@ -210,58 +219,68 @@ public class SuggestionTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         {
-            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
-                1.3f, true);
+            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(
+                new Text("someText"),
+                new Text("somethingHighlighted"),
+                1.3f,
+                true
+            );
             PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
             entry.addOption(option);
             PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
-            assertEquals(("{"
-                + "  \"phrase#suggestionName\": ["
-                + "    {"
-                + "      \"text\": \"entryText\","
-                + "      \"offset\": 42,"
-                + "      \"length\": 313,"
-                + "      \"options\": ["
-                + "        {"
-                + "          \"text\": \"someText\","
-                + "          \"highlighted\": \"somethingHighlighted\","
-                + "          \"score\": 1.3,"
-                + "          \"collate_match\": true"
-                + "        }"
-                + "      ]"
-                + "    }"
-                + "  ]"
-                + "}").replaceAll("\\s+", ""),
+            assertEquals(
+                ("{"
+                    + "  \"phrase#suggestionName\": ["
+                    + "    {"
+                    + "      \"text\": \"entryText\","
+                    + "      \"offset\": 42,"
+                    + "      \"length\": 313,"
+                    + "      \"options\": ["
+                    + "        {"
+                    + "          \"text\": \"someText\","
+                    + "          \"highlighted\": \"somethingHighlighted\","
+                    + "          \"score\": 1.3,"
+                    + "          \"collate_match\": true"
+                    + "        }"
+                    + "      ]"
+                    + "    }"
+                    + "  ]"
+                    + "}").replaceAll("\\s+", ""),
                 xContent.utf8ToString()
             );
         }
         {
-            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
-                    1.3f, true);
+            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(
+                new Text("someText"),
+                new Text("somethingHighlighted"),
+                1.3f,
+                true
+            );
             PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313, 1.0);
             entry.addOption(option);
             PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
-            assertEquals(("{"
-                + "  \"phrase#suggestionName\": ["
-                + "    {"
-                + "      \"text\": \"entryText\","
-                + "      \"offset\": 42,"
-                + "      \"length\": 313,"
-                + "      \"options\": ["
-                + "        {"
-                + "          \"text\": \"someText\","
-                + "          \"highlighted\": \"somethingHighlighted\","
-                + "          \"score\": 1.3,"
-                + "          \"collate_match\": true"
-                + "        }"
-                + "      ]"
-                + "    }"
-                + "  ]"
-                + "}").replaceAll("\\s+", ""),
+            assertEquals(
+                ("{"
+                    + "  \"phrase#suggestionName\": ["
+                    + "    {"
+                    + "      \"text\": \"entryText\","
+                    + "      \"offset\": 42,"
+                    + "      \"length\": 313,"
+                    + "      \"options\": ["
+                    + "        {"
+                    + "          \"text\": \"someText\","
+                    + "          \"highlighted\": \"somethingHighlighted\","
+                    + "          \"score\": 1.3,"
+                    + "          \"collate_match\": true"
+                    + "        }"
+                    + "      ]"
+                    + "    }"
+                    + "  ]"
+                    + "}").replaceAll("\\s+", ""),
                 xContent.utf8ToString()
             );
         }

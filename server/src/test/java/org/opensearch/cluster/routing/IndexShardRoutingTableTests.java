@@ -35,7 +35,6 @@ package org.opensearch.cluster.routing;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
 
 import java.util.ArrayList;
 import java.util.Arrays;

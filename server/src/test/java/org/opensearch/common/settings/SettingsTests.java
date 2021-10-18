@@ -78,10 +78,10 @@ public class SettingsTests extends OpenSearchTestCase {
         String value = System.getProperty("java.home");
         assertFalse(value.isEmpty());
         Settings settings = Settings.builder()
-                 .put("property.placeholder", value)
-                 .put("setting1", "${property.placeholder}")
-                 .replacePropertyPlaceholders()
-                 .build();
+            .put("property.placeholder", value)
+            .put("setting1", "${property.placeholder}")
+            .replacePropertyPlaceholders()
+            .build();
         assertThat(settings.get("setting1"), equalTo(value));
     }
 
@@ -98,10 +98,10 @@ public class SettingsTests extends OpenSearchTestCase {
     public void testReplacePropertiesPlaceholderSystemVariablesHaveNoEffect() {
         final String value = System.getProperty("java.home");
         assertNotNull(value);
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Settings.builder()
-                .put("setting1", "${java.home}")
-                .replacePropertyPlaceholders()
-                .build());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Settings.builder().put("setting1", "${java.home}").replacePropertyPlaceholders().build()
+        );
         assertThat(e, hasToString(containsString("Could not resolve placeholder 'java.home'")));
     }
 
@@ -116,10 +116,11 @@ public class SettingsTests extends OpenSearchTestCase {
 
     public void testGetAsSettings() {
         Settings settings = Settings.builder()
-                .put("bar", "hello world")
-                .put("foo", "abc")
-                .put("foo.bar", "def")
-                .put("foo.baz", "ghi").build();
+            .put("bar", "hello world")
+            .put("foo", "abc")
+            .put("foo.bar", "def")
+            .put("foo.baz", "ghi")
+            .build();
 
         Settings fooSettings = settings.getAsSettings("foo");
         assertFalse(fooSettings.isEmpty());
@@ -133,7 +134,8 @@ public class SettingsTests extends OpenSearchTestCase {
             .put("1.2.3", "hello world")
             .put("1.2.3.4", "abc")
             .put("2.3.4", "def")
-            .put("3.4", "ghi").build();
+            .put("3.4", "ghi")
+            .build();
 
         Settings firstLevelSettings = settings.getByPrefix("1.");
         assertFalse(firstLevelSettings.isEmpty());
@@ -160,11 +162,7 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testNames() {
-        Settings settings = Settings.builder()
-                .put("bar", "baz")
-                .put("foo", "abc")
-                .put("foo.bar", "def")
-                .put("foo.baz", "ghi").build();
+        Settings settings = Settings.builder().put("bar", "baz").put("foo", "abc").put("foo.bar", "def").put("foo.baz", "ghi").build();
 
         Set<String> names = settings.names();
         assertThat(names.size(), equalTo(2));
@@ -181,101 +179,102 @@ public class SettingsTests extends OpenSearchTestCase {
     public void testThatArraysAreOverriddenCorrectly() throws IOException {
         // overriding a single value with an array
         Settings settings = Settings.builder()
-                .put(Settings.builder().putList("value", "1").build())
-                .put(Settings.builder().putList("value", "2", "3").build())
-                .build();
+            .put(Settings.builder().putList("value", "1").build())
+            .put(Settings.builder().putList("value", "2", "3").build())
+            .build();
         assertThat(settings.getAsList("value"), contains("2", "3"));
 
         settings = Settings.builder()
-                .put(Settings.builder().put("value", "1").build())
-                .put(Settings.builder().putList("value", "2", "3").build())
-                .build();
+            .put(Settings.builder().put("value", "1").build())
+            .put(Settings.builder().putList("value", "2", "3").build())
+            .build();
         assertThat(settings.getAsList("value"), contains("2", "3"));
-        settings = Settings.builder().loadFromSource("value: 1", XContentType.YAML)
+        settings = Settings.builder()
+            .loadFromSource("value: 1", XContentType.YAML)
             .loadFromSource("value: [ 2, 3 ]", XContentType.YAML)
             .build();
         assertThat(settings.getAsList("value"), contains("2", "3"));
 
         settings = Settings.builder()
-                .put(Settings.builder().put("value.with.deep.key", "1").build())
-                .put(Settings.builder().putList("value.with.deep.key", "2", "3").build())
-                .build();
+            .put(Settings.builder().put("value.with.deep.key", "1").build())
+            .put(Settings.builder().putList("value.with.deep.key", "2", "3").build())
+            .build();
         assertThat(settings.getAsList("value.with.deep.key"), contains("2", "3"));
 
         // overriding an array with a shorter array
         settings = Settings.builder()
-                .put(Settings.builder().putList("value", "1", "2").build())
-                .put(Settings.builder().putList("value", "3").build())
-                .build();
+            .put(Settings.builder().putList("value", "1", "2").build())
+            .put(Settings.builder().putList("value", "3").build())
+            .build();
         assertThat(settings.getAsList("value"), contains("3"));
 
         settings = Settings.builder()
-                .put(Settings.builder().putList("value", "1", "2", "3").build())
-                .put(Settings.builder().putList("value", "4", "5").build())
-                .build();
+            .put(Settings.builder().putList("value", "1", "2", "3").build())
+            .put(Settings.builder().putList("value", "4", "5").build())
+            .build();
         assertThat(settings.getAsList("value"), contains("4", "5"));
 
         settings = Settings.builder()
-                .put(Settings.builder().putList("value.deep.key", "1", "2", "3").build())
-                .put(Settings.builder().putList("value.deep.key", "4", "5").build())
-                .build();
+            .put(Settings.builder().putList("value.deep.key", "1", "2", "3").build())
+            .put(Settings.builder().putList("value.deep.key", "4", "5").build())
+            .build();
         assertThat(settings.getAsList("value.deep.key"), contains("4", "5"));
 
         // overriding an array with a longer array
         settings = Settings.builder()
-                .put(Settings.builder().putList("value", "1", "2").build())
-                .put(Settings.builder().putList("value", "3", "4", "5").build())
-                .build();
+            .put(Settings.builder().putList("value", "1", "2").build())
+            .put(Settings.builder().putList("value", "3", "4", "5").build())
+            .build();
         assertThat(settings.getAsList("value"), contains("3", "4", "5"));
 
         settings = Settings.builder()
-                .put(Settings.builder().putList("value.deep.key", "1", "2", "3").build())
-                .put(Settings.builder().putList("value.deep.key", "4", "5").build())
-                .build();
+            .put(Settings.builder().putList("value.deep.key", "1", "2", "3").build())
+            .put(Settings.builder().putList("value.deep.key", "4", "5").build())
+            .build();
         assertThat(settings.getAsList("value.deep.key"), contains("4", "5"));
 
         // overriding an array with a single value
         settings = Settings.builder()
-                .put(Settings.builder().putList("value", "1", "2").build())
-                .put(Settings.builder().put("value", "3").build())
-                .build();
+            .put(Settings.builder().putList("value", "1", "2").build())
+            .put(Settings.builder().put("value", "3").build())
+            .build();
         assertThat(settings.getAsList("value"), contains("3"));
 
         settings = Settings.builder()
-                .put(Settings.builder().putList("value.deep.key", "1", "2").build())
-                .put(Settings.builder().put("value.deep.key", "3").build())
-                .build();
+            .put(Settings.builder().putList("value.deep.key", "1", "2").build())
+            .put(Settings.builder().put("value.deep.key", "3").build())
+            .build();
         assertThat(settings.getAsList("value.deep.key"), contains("3"));
 
         // test that other arrays are not overridden
         settings = Settings.builder()
-                .put(Settings.builder().putList("value", "1", "2", "3").putList("a", "b", "c").build())
-                .put(Settings.builder().putList("value", "4", "5").putList("d", "e", "f").build())
-                .build();
+            .put(Settings.builder().putList("value", "1", "2", "3").putList("a", "b", "c").build())
+            .put(Settings.builder().putList("value", "4", "5").putList("d", "e", "f").build())
+            .build();
         assertThat(settings.getAsList("value"), contains("4", "5"));
         assertThat(settings.getAsList("a"), contains("b", "c"));
         assertThat(settings.getAsList("d"), contains("e", "f"));
 
         settings = Settings.builder()
-                .put(Settings.builder().putList("value.deep.key", "1", "2", "3").putList("a", "b", "c").build())
-                .put(Settings.builder().putList("value.deep.key", "4", "5").putList("d", "e", "f").build())
-                .build();
+            .put(Settings.builder().putList("value.deep.key", "1", "2", "3").putList("a", "b", "c").build())
+            .put(Settings.builder().putList("value.deep.key", "4", "5").putList("d", "e", "f").build())
+            .build();
         assertThat(settings.getAsList("value.deep.key"), contains("4", "5"));
         assertThat(settings.getAsList("a"), notNullValue());
         assertThat(settings.getAsList("d"), notNullValue());
 
         // overriding a deeper structure with an array
         settings = Settings.builder()
-                .put(Settings.builder().put("value.data", "1").build())
-                .put(Settings.builder().putList("value", "4", "5").build())
-                .build();
+            .put(Settings.builder().put("value.data", "1").build())
+            .put(Settings.builder().putList("value", "4", "5").build())
+            .build();
         assertThat(settings.getAsList("value"), contains("4", "5"));
 
         // overriding an array with a deeper structure
         settings = Settings.builder()
-                .put(Settings.builder().putList("value", "4", "5").build())
-                .put(Settings.builder().put("value.data", "1").build())
-                .build();
+            .put(Settings.builder().putList("value", "4", "5").build())
+            .put(Settings.builder().put("value.data", "1").build())
+            .build();
         assertThat(settings.get("value.data"), is("1"));
         assertThat(settings.get("value"), is("[4, 5]"));
     }
@@ -285,32 +284,20 @@ public class SettingsTests extends OpenSearchTestCase {
 
         assertThat(settings.names().size(), equalTo(0));
 
-        settings = Settings.builder()
-                .put("bar", "baz")
-                .normalizePrefix("foo.")
-                .build();
+        settings = Settings.builder().put("bar", "baz").normalizePrefix("foo.").build();
 
         assertThat(settings.size(), equalTo(1));
         assertThat(settings.get("bar"), nullValue());
         assertThat(settings.get("foo.bar"), equalTo("baz"));
 
-
-        settings = Settings.builder()
-                .put("bar", "baz")
-                .put("foo.test", "test")
-                .normalizePrefix("foo.")
-                .build();
+        settings = Settings.builder().put("bar", "baz").put("foo.test", "test").normalizePrefix("foo.").build();
 
         assertThat(settings.size(), equalTo(2));
         assertThat(settings.get("bar"), nullValue());
         assertThat(settings.get("foo.bar"), equalTo("baz"));
         assertThat(settings.get("foo.test"), equalTo("test"));
 
-        settings = Settings.builder()
-                .put("foo.test", "test")
-                .normalizePrefix("foo.")
-                .build();
-
+        settings = Settings.builder().put("foo.test", "test").normalizePrefix("foo.").build();
 
         assertThat(settings.size(), equalTo(1));
         assertThat(settings.get("foo.test"), equalTo("test"));
@@ -323,7 +310,6 @@ public class SettingsTests extends OpenSearchTestCase {
         builder.put("a.b.c", "ab2");
         builder.put("a.c", "ac1");
         builder.put("a.b.c.d", "ab3");
-
 
         Settings filteredSettings = builder.build().filter((k) -> k.startsWith("a.b"));
         assertEquals(3, filteredSettings.size());
@@ -339,8 +325,7 @@ public class SettingsTests extends OpenSearchTestCase {
         assertTrue(filteredSettings.keySet().contains("a.b"));
         assertTrue(filteredSettings.keySet().contains("a.b.c"));
         assertTrue(filteredSettings.keySet().contains("a.b.c.d"));
-        expectThrows(UnsupportedOperationException.class, () ->
-            filteredSettings.keySet().remove("a.b"));
+        expectThrows(UnsupportedOperationException.class, () -> filteredSettings.keySet().remove("a.b"));
         assertEquals("ab1", filteredSettings.get("a.b"));
         assertEquals("ab2", filteredSettings.get("a.b.c"));
         assertEquals("ab3", filteredSettings.get("a.b.c.d"));
@@ -386,8 +371,7 @@ public class SettingsTests extends OpenSearchTestCase {
         assertTrue(prefixMap.keySet().contains("b"));
         assertTrue(prefixMap.keySet().contains("b.c"));
         assertTrue(prefixMap.keySet().contains("b.c.d"));
-        expectThrows(UnsupportedOperationException.class, () ->
-            prefixMap.keySet().remove("a.b"));
+        expectThrows(UnsupportedOperationException.class, () -> prefixMap.keySet().remove("a.b"));
         assertEquals("ab1", prefixMap.get("b"));
         assertEquals("ab2", prefixMap.get("b.c"));
         assertEquals("ab3", prefixMap.get("b.c.d"));
@@ -461,8 +445,7 @@ public class SettingsTests extends OpenSearchTestCase {
         assertFalse(filteredSettings.keySet().contains("a.b"));
         assertFalse(filteredSettings.keySet().contains("a.b.c"));
         assertFalse(filteredSettings.keySet().contains("a.b.c.d"));
-        expectThrows(UnsupportedOperationException.class, () ->
-            filteredSettings.keySet().remove("a.b"));
+        expectThrows(UnsupportedOperationException.class, () -> filteredSettings.keySet().remove("a.b"));
         assertNull(filteredSettings.get("a.b"));
         assertNull(filteredSettings.get("a.b.c"));
         assertNull(filteredSettings.get("a.b.c.d"));
@@ -511,20 +494,17 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testSecureSettingIllegalName() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            SecureSetting.secureString("*IllegalName", null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SecureSetting.secureString("*IllegalName", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
-        e = expectThrows(IllegalArgumentException.class, () ->
-            SecureSetting.secureFile("*IllegalName", null));
+        e = expectThrows(IllegalArgumentException.class, () -> SecureSetting.secureFile("*IllegalName", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
     }
 
     public void testGetAsArrayFailsOnDuplicates() {
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Settings.builder()
-            .put("foobar.0", "bar")
-            .put("foobar.1", "baz")
-            .put("foobar", "foo")
-            .build());
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> Settings.builder().put("foobar.0", "bar").put("foobar.1", "baz").put("foobar", "foo").build()
+        );
         assertThat(e, hasToString(containsString("settings builder can't contain values for [foobar=foo] and [foobar.0=bar]")));
     }
 
@@ -539,7 +519,7 @@ public class SettingsTests extends OpenSearchTestCase {
         final boolean flatSettings = randomBoolean();
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
-        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", ""+flatSettings)));
+        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "" + flatSettings)));
         builder.endObject();
         XContentParser parser = createParser(builder);
         Settings build = Settings.fromXContent(parser);
@@ -553,9 +533,7 @@ public class SettingsTests extends OpenSearchTestCase {
 
     public void testSimpleJsonSettings() throws Exception {
         final String json = "/org/opensearch/common/settings/loader/test-settings.json";
-        final Settings settings = Settings.builder()
-            .loadFromStream(json, getClass().getResourceAsStream(json), false)
-            .build();
+        final Settings settings = Settings.builder().loadFromStream(json, getClass().getResourceAsStream(json), false).build();
 
         assertThat(settings.get("test1.value1"), equalTo("value1"));
         assertThat(settings.get("test1.test2.value2"), equalTo("value2"));
@@ -593,16 +571,15 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testLoadEmptyStream() throws IOException {
-        Settings test = Settings.builder().loadFromStream(randomFrom("test.json", "test.yml"), new ByteArrayInputStream(new byte[0]), false)
+        Settings test = Settings.builder()
+            .loadFromStream(randomFrom("test.json", "test.yml"), new ByteArrayInputStream(new byte[0]), false)
             .build();
         assertEquals(0, test.size());
     }
 
     public void testSimpleYamlSettings() throws Exception {
         final String yaml = "/org/opensearch/common/settings/loader/test-settings.yml";
-        final Settings settings = Settings.builder()
-            .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
-            .build();
+        final Settings settings = Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false).build();
 
         assertThat(settings.get("test1.value1"), equalTo("value1"));
         assertThat(settings.get("test1.test2.value2"), equalTo("value2"));
@@ -618,8 +595,12 @@ public class SettingsTests extends OpenSearchTestCase {
 
     public void testYamlLegacyList() throws IOException {
         Settings settings = Settings.builder()
-            .loadFromStream("foo.yml", new ByteArrayInputStream("foo.bar.baz.0: 1\nfoo.bar.baz.1: 2".getBytes(StandardCharsets.UTF_8)),
-                false).build();
+            .loadFromStream(
+                "foo.yml",
+                new ByteArrayInputStream("foo.bar.baz.0: 1\nfoo.bar.baz.1: 2".getBytes(StandardCharsets.UTF_8)),
+                false
+            )
+            .build();
         assertThat(settings.getAsList("foo.bar.baz").size(), equalTo(2));
         assertThat(settings.getAsList("foo.bar.baz").get(0), equalTo("1"));
         assertThat(settings.getAsList("foo.bar.baz").get(1), equalTo("2"));
@@ -627,30 +608,30 @@ public class SettingsTests extends OpenSearchTestCase {
 
     public void testIndentation() throws Exception {
         String yaml = "/org/opensearch/common/settings/loader/indentation-settings.yml";
-        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
-            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
-        });
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
+        );
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 
     public void testIndentationWithExplicitDocumentStart() throws Exception {
         String yaml = "/org/opensearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
-        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
-            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
-        });
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
+        );
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
-
 
     public void testMissingValue() throws Exception {
         Path tmp = createTempFile("test", ".yaml");
         Files.write(tmp, Collections.singletonList("foo: # missing value\n"), StandardCharsets.UTF_8);
-        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
-            Settings.builder().loadFromPath(tmp);
-        });
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> { Settings.builder().loadFromPath(tmp); });
         assertTrue(
             e.getMessage(),
-            e.getMessage().contains("null-valued setting found for key [foo] found at line number [1], column number [5]"));
+            e.getMessage().contains("null-valued setting found for key [foo] found at line number [1], column number [5]")
+        );
     }
 
     public void testReadLegacyFromStream() throws IOException {
@@ -678,13 +659,12 @@ public class SettingsTests extends OpenSearchTestCase {
     public void testWriteLegacyOutput() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_6_1_0));
-        Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3")
-            .put("foo.bar.baz", "baz").putNull("foo.null").build();
+        Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").putNull("foo.null").build();
         Settings.writeSettingsToStream(settings, output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
         assertEquals(6, in.readVInt());
         Map<String, String> keyValues = new HashMap<>();
-        for (int i = 0; i < 6; i++){
+        for (int i = 0; i < 6; i++) {
             keyValues.put(in.readString(), in.readOptionalString());
         }
         assertEquals(keyValues.get("foo.bar.0"), "0");
@@ -728,8 +708,11 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testFractionalTimeValue() {
-        final Setting<TimeValue> setting =
-                Setting.timeSetting("key", TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"), TimeValue.ZERO);
+        final Setting<TimeValue> setting = Setting.timeSetting(
+            "key",
+            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
+            TimeValue.ZERO
+        );
         final TimeValue expected = TimeValue.timeValueMillis(randomNonNegativeLong());
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
@@ -744,8 +727,10 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testFractionalByteSizeValue() {
-        final Setting<ByteSizeValue> setting =
-                Setting.byteSizeSetting("key", ByteSizeValue.parseBytesSizeValue(randomIntBetween(1, 16) + "k", "key"));
+        final Setting<ByteSizeValue> setting = Setting.byteSizeSetting(
+            "key",
+            ByteSizeValue.parseBytesSizeValue(randomIntBetween(1, 16) + "k", "key")
+        );
         final ByteSizeValue expected = new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
@@ -760,8 +745,11 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testSetByTimeUnit() {
-        final Setting<TimeValue> setting =
-                Setting.timeSetting("key", TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"), TimeValue.ZERO);
+        final Setting<TimeValue> setting = Setting.timeSetting(
+            "key",
+            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
+            TimeValue.ZERO
+        );
         final TimeValue expected = new TimeValue(1500, TimeUnit.MICROSECONDS);
         final Settings settings = Settings.builder().put("key", expected.getMicros(), TimeUnit.MICROSECONDS).build();
         /*
@@ -774,22 +762,14 @@ public class SettingsTests extends OpenSearchTestCase {
     }
 
     public void testProcessSetting() throws IOException {
-        Settings test = Settings.builder()
-            .put("ant", "value1")
-            .put("ant.bee.cat", "value2")
-            .put("bee.cat", "value3")
-            .build();
+        Settings test = Settings.builder().put("ant", "value1").put("ant.bee.cat", "value2").put("bee.cat", "value3").build();
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
         assertEquals("{\"ant.bee\":{\"cat\":\"value2\"},\"ant\":\"value1\",\"bee\":{\"cat\":\"value3\"}}", Strings.toString(builder));
 
-        test = Settings.builder()
-            .put("ant", "value1")
-            .put("ant.bee.cat", "value2")
-            .put("ant.bee.cat.dog.ewe", "value3")
-            .build();
+        test = Settings.builder().put("ant", "value1").put("ant.bee.cat", "value2").put("ant.bee.cat.dog.ewe", "value3").build();
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));

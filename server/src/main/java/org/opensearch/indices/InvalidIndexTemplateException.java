@@ -62,7 +62,7 @@ public class InvalidIndexTemplateException extends OpenSearchException {
         out.writeOptionalString(name);
     }
 
-    public InvalidIndexTemplateException(StreamInput in) throws IOException{
+    public InvalidIndexTemplateException(StreamInput in) throws IOException {
         super(in);
         name = in.readOptionalString();
     }

@@ -52,8 +52,7 @@ import java.util.List;
 public class AggregationPhase {
 
     @Inject
-    public AggregationPhase() {
-    }
+    public AggregationPhase() {}
 
     public void preProcess(SearchContext context) {
         if (context.aggregations() != null) {
@@ -70,11 +69,14 @@ public class AggregationPhase {
                 context.aggregations().aggregators(aggregators);
                 if (!collectors.isEmpty()) {
                     Collector collector = MultiBucketCollector.wrap(collectors);
-                    ((BucketCollector)collector).preCollection();
+                    ((BucketCollector) collector).preCollection();
                     if (context.getProfilers() != null) {
-                        collector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION,
-                                // TODO: report on child aggs as well
-                                Collections.emptyList());
+                        collector = new InternalProfileCollector(
+                            collector,
+                            CollectorResult.REASON_AGGREGATION,
+                            // TODO: report on child aggs as well
+                            Collections.emptyList()
+                        );
                     }
                     context.queryCollectors().put(AggregationPhase.class, collector);
                 }
@@ -114,9 +116,11 @@ public class AggregationPhase {
                     collector = globalsCollector;
                 } else {
                     InternalProfileCollector profileCollector = new InternalProfileCollector(
-                            globalsCollector, CollectorResult.REASON_AGGREGATION_GLOBAL,
-                            // TODO: report on sub collectors
-                            Collections.emptyList());
+                        globalsCollector,
+                        CollectorResult.REASON_AGGREGATION_GLOBAL,
+                        // TODO: report on sub collectors
+                        Collections.emptyList()
+                    );
                     collector = profileCollector;
                     // start a new profile with this collector
                     context.getProfilers().addQueryProfiler().setCollector(profileCollector);
@@ -138,8 +142,8 @@ public class AggregationPhase {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
         }
-        context.queryResult().aggregations(new InternalAggregations(aggregations,
-                context.request().source().aggregations()::buildPipelineTree));
+        context.queryResult()
+            .aggregations(new InternalAggregations(aggregations, context.request().source().aggregations()::buildPipelineTree));
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);

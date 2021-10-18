@@ -241,9 +241,7 @@ public abstract class Decision implements ToXContent, Writeable {
             }
 
             Decision.Single s = (Decision.Single) object;
-            return this.type == s.type &&
-                       Objects.equals(label, s.label) &&
-                       Objects.equals(getExplanation(), s.getExplanation());
+            return this.type == s.type && Objects.equals(label, s.label) && Objects.equals(getExplanation(), s.getExplanation());
         }
 
         @Override

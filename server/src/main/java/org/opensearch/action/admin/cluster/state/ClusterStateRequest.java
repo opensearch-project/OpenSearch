@@ -58,8 +58,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public ClusterStateRequest() {
-    }
+    public ClusterStateRequest() {}
 
     public ClusterStateRequest(StreamInput in) throws IOException {
         super(in);
@@ -203,8 +202,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     public ClusterStateRequest waitForMetadataVersion(long waitForMetadataVersion) {
         if (waitForMetadataVersion < 1) {
-            throw new IllegalArgumentException("provided waitForMetadataVersion should be >= 1, but instead is [" +
-                waitForMetadataVersion + "]");
+            throw new IllegalArgumentException(
+                "provided waitForMetadataVersion should be >= 1, but instead is [" + waitForMetadataVersion + "]"
+            );
         }
         this.waitForMetadataVersion = waitForMetadataVersion;
         return this;

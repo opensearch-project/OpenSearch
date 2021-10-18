@@ -34,5 +34,4 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.search.aggregations.metrics.Percentiles;
 
-public interface PercentilesBucket extends Percentiles {
-}
+public interface PercentilesBucket extends Percentiles {}

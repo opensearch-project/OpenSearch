@@ -35,7 +35,6 @@ package org.opensearch.common.util;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 
-
 /** Utility methods to do byte-level encoding. These methods are biased towards little-endian byte order because it is the most
  *  common byte order and reading several bytes at once may be optimizable in the future with the help of sun.mist.Unsafe. */
 public enum ByteUtils {
@@ -112,10 +111,10 @@ public enum ByteUtils {
     /** Same as DataOutput#writeVLong but accepts negative values (written on 9 bytes). */
     public static void writeVLong(ByteArrayDataOutput out, long i) {
         for (int k = 0; k < 8 && (i & ~0x7FL) != 0L; ++k) {
-            out.writeByte((byte)((i & 0x7FL) | 0x80L));
+            out.writeByte((byte) ((i & 0x7FL) | 0x80L));
             i >>>= 7;
         }
-        out.writeByte((byte)i);
+        out.writeByte((byte) i);
     }
 
     /** Same as DataOutput#readVLong but can read negative values (read on 9 bytes). */

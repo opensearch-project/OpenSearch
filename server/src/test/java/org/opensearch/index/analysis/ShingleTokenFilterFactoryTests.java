@@ -57,7 +57,7 @@ public class ShingleTokenFilterFactoryTests extends OpenSearchTokenStreamTestCas
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle");
         String source = "the quick brown fox";
-        String[] expected = new String[]{"the", "the quick", "quick", "quick brown", "brown", "brown fox", "fox"};
+        String[] expected = new String[] { "the", "the quick", "quick", "quick brown", "brown", "brown fox", "fox" };
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
@@ -68,7 +68,7 @@ public class ShingleTokenFilterFactoryTests extends OpenSearchTokenStreamTestCas
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle_inverse");
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick brown fox";
-        String[] expected = new String[]{"the_quick_brown", "quick_brown_fox"};
+        String[] expected = new String[] { "the_quick_brown", "quick_brown_fox" };
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
@@ -79,7 +79,7 @@ public class ShingleTokenFilterFactoryTests extends OpenSearchTokenStreamTestCas
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle_inverse");
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick";
-        String[] expected = new String[]{"the", "quick"};
+        String[] expected = new String[] { "the", "quick" };
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
@@ -89,7 +89,7 @@ public class ShingleTokenFilterFactoryTests extends OpenSearchTokenStreamTestCas
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle_filler");
         String source = "simon the sorcerer";
-        String[] expected = new String[]{"simon FILLER", "simon FILLER sorcerer", "FILLER sorcerer"};
+        String[] expected = new String[] { "simon FILLER", "simon FILLER sorcerer", "FILLER sorcerer" };
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         TokenStream stream = new StopFilter(tokenizer, StopFilter.makeStopSet("the"));
@@ -121,7 +121,7 @@ public class ShingleTokenFilterFactoryTests extends OpenSearchTokenStreamTestCas
     * test that throws an error when trying to get a ShingleTokenFilter where difference between max_shingle_size and min_shingle_size
     * is greater than the allowed value of max_shingle_diff
      */
-    public void testMaxShingleDiffException() throws Exception{
+    public void testMaxShingleDiffException() throws Exception {
         String RESOURCE2 = "/org/opensearch/index/analysis/shingle_analysis2.json";
         int maxAllowedShingleDiff = 3;
         int shingleDiff = 8;
@@ -132,9 +132,16 @@ public class ShingleTokenFilterFactoryTests extends OpenSearchTokenStreamTestCas
         } catch (IllegalArgumentException ex) {
             assertEquals(
                 "In Shingle TokenFilter the difference between max_shingle_size and min_shingle_size (and +1 if outputting unigrams)"
-                    + " must be less than or equal to: [" + maxAllowedShingleDiff + "] but was [" + shingleDiff + "]. This limit"
-                    + " can be set by changing the [" + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey() + "] index level setting.",
-                ex.getMessage());
+                    + " must be less than or equal to: ["
+                    + maxAllowedShingleDiff
+                    + "] but was ["
+                    + shingleDiff
+                    + "]. This limit"
+                    + " can be set by changing the ["
+                    + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey()
+                    + "] index level setting.",
+                ex.getMessage()
+            );
         }
     }
 }

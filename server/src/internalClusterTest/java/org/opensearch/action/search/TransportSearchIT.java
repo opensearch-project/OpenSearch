@@ -114,8 +114,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
              */
             return Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
                 @Override
-                public void setNextReader(LeafReaderContext readerContext) {
-                }
+                public void setNextReader(LeafReaderContext readerContext) {}
 
                 @Override
                 public void process(FetchSubPhase.HitContext hitContext) {
@@ -129,10 +128,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put("indices.breaker.request.type", "memory")
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("indices.breaker.request.type", "memory").build();
     }
 
     @Override
@@ -150,8 +146,13 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY,
-                "local", nowInMillis, randomBoolean());
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(
+                new SearchRequest(),
+                Strings.EMPTY_ARRAY,
+                "local",
+                nowInMillis,
+                randomBoolean()
+            );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
             SearchHit[] hits = searchResponse.getHits().getHits();
@@ -162,8 +163,13 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             assertEquals("1", hit.getId());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY,
-                "", nowInMillis, randomBoolean());
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(
+                new SearchRequest(),
+                Strings.EMPTY_ARRAY,
+                "",
+                nowInMillis,
+                randomBoolean()
+            );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
             SearchHit[] hits = searchResponse.getHits().getHits();
@@ -204,22 +210,19 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             assertEquals(0, searchResponse.getTotalShards());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(),
-                Strings.EMPTY_ARRAY, "", 0, randomBoolean());
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(),
-                Strings.EMPTY_ARRAY, "", 0, randomBoolean());
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             searchRequest.indices("<test-{now/d}>");
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
             assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(),
-                Strings.EMPTY_ARRAY, "", 0, randomBoolean());
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             RangeQueryBuilder rangeQuery = new RangeQueryBuilder("date");
             rangeQuery.gte("1970-01-01");
@@ -232,7 +235,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testFinalReduce()  {
+    public void testFinalReduce() {
         long nowInMillis = randomLongBetween(0, Long.MAX_VALUE);
         {
             IndexRequest indexRequest = new IndexRequest("test");
@@ -260,8 +263,9 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         source.aggregation(terms);
 
         {
-            SearchRequest searchRequest = randomBoolean() ? originalRequest : SearchRequest.subSearchRequest(originalRequest,
-                Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
+            SearchRequest searchRequest = randomBoolean()
+                ? originalRequest
+                : SearchRequest.subSearchRequest(originalRequest, Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
             Aggregations aggregations = searchResponse.getAggregations();
@@ -269,8 +273,13 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             assertEquals(1, longTerms.getBuckets().size());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(originalRequest,
-                Strings.EMPTY_ARRAY, "remote", nowInMillis, false);
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(
+                originalRequest,
+                Strings.EMPTY_ARRAY,
+                "remote",
+                nowInMillis,
+                false
+            );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
             Aggregations aggregations = searchResponse.getAggregations();
@@ -283,39 +292,52 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         try {
             final int numPrimaries1 = randomIntBetween(2, 10);
             final int numPrimaries2 = randomIntBetween(1, 10);
-            assertAcked(prepareCreate("test1")
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries1)));
-            assertAcked(prepareCreate("test2")
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries2)));
+            assertAcked(prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries1)));
+            assertAcked(prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries2)));
 
             // no exception
             client().prepareSearch("test1").get();
 
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                    .setTransientSettings(Collections.singletonMap(
-                            TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1)));
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1)
+                    )
+            );
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> client().prepareSearch("test1").get());
-            assertThat(e.getMessage(), containsString("Trying to query " + numPrimaries1
-                    + " shards, which is over the limit of " + (numPrimaries1 - 1)));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch("test1").get());
+            assertThat(
+                e.getMessage(),
+                containsString("Trying to query " + numPrimaries1 + " shards, which is over the limit of " + (numPrimaries1 - 1))
+            );
 
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                    .setTransientSettings(Collections.singletonMap(
-                            TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1)));
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1))
+            );
 
             // no exception
             client().prepareSearch("test1").get();
 
-            e = expectThrows(IllegalArgumentException.class,
-                    () -> client().prepareSearch("test1", "test2").get());
-            assertThat(e.getMessage(), containsString("Trying to query " + (numPrimaries1 + numPrimaries2)
-                    + " shards, which is over the limit of " + numPrimaries1));
+            e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch("test1", "test2").get());
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "Trying to query " + (numPrimaries1 + numPrimaries2) + " shards, which is over the limit of " + numPrimaries1
+                )
+            );
 
         } finally {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                    .setTransientSettings(Collections.singletonMap(
-                            TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), null)));
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), null))
+            );
         }
     }
 
@@ -342,14 +364,15 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             SearchResponse resp = client().prepareSearch("test")
                 .setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
-                .setPreFilterShardSize(randomIntBetween(1, 3)).get();
+                .setPreFilterShardSize(randomIntBetween(1, 3))
+                .get();
             assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
         });
     }
 
     public void testCircuitBreakerReduceFail() throws Exception {
         int numShards = randomIntBetween(1, 10);
-        indexSomeDocs("test", numShards, numShards*3);
+        indexSomeDocs("test", numShards, numShards * 3);
 
         {
             final AtomicArray<Boolean> responses = new AtomicArray<>(10);
@@ -384,15 +407,14 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         }
 
         try {
-            Settings settings = Settings.builder()
-                .put("indices.breaker.request.limit", "1b")
-                .build();
+            Settings settings = Settings.builder().put("indices.breaker.request.limit", "1b").build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
             final Client client = client();
             assertBusy(() -> {
-                SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class, () -> client.prepareSearch("test")
-                    .addAggregation(new TestAggregationBuilder("test"))
-                    .get());
+                SearchPhaseExecutionException exc = expectThrows(
+                    SearchPhaseExecutionException.class,
+                    () -> client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test")).get()
+                );
                 assertThat(ExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("<reduce_aggs>"));
             });
 
@@ -425,16 +447,14 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
-            Settings settings = Settings.builder()
-                .putNull("indices.breaker.request.limit")
-                .build();
+            Settings settings = Settings.builder().putNull("indices.breaker.request.limit").build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
         }
     }
 
     public void testCircuitBreakerFetchFail() throws Exception {
         int numShards = randomIntBetween(1, 10);
-        int numDocs = numShards*10;
+        int numDocs = numShards * 10;
         indexSomeDocs("boom", numShards, numDocs);
 
         final AtomicArray<Exception> exceptions = new AtomicArray<>(10);
@@ -471,16 +491,16 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", numberOfShards).build());
 
         for (int i = 0; i < numberOfDocs; i++) {
-            IndexResponse indexResponse  = client().prepareIndex(indexName, "_doc")
-                .setSource("number", randomInt())
-                .get();
+            IndexResponse indexResponse = client().prepareIndex(indexName, "_doc").setSource("number", randomInt()).get();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         client().admin().indices().prepareRefresh(indexName).get();
     }
 
     private long requestBreakerUsed() {
-        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats()
+        NodesStatsResponse stats = client().admin()
+            .cluster()
+            .prepareNodesStats()
             .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
             .get();
         long estimated = 0;
@@ -498,8 +518,10 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
     private static class TestAggregationBuilder extends AbstractAggregationBuilder<TestAggregationBuilder> {
         static final String NAME = "test";
 
-        private static final ObjectParser<TestAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, TestAggregationBuilder::new);
+        private static final ObjectParser<TestAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+            NAME,
+            TestAggregationBuilder::new
+        );
 
         TestAggregationBuilder(String name) {
             super(name);
@@ -509,22 +531,25 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             super(input);
         }
 
-
         @Override
         protected void doWriteTo(StreamOutput out) throws IOException {
             // noop
         }
 
         @Override
-        protected AggregatorFactory doBuild(QueryShardContext queryShardContext,
-                                            AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        protected AggregatorFactory doBuild(
+            QueryShardContext queryShardContext,
+            AggregatorFactory parent,
+            AggregatorFactories.Builder subFactoriesBuilder
+        ) throws IOException {
             return new AggregatorFactory(name, queryShardContext, parent, subFactoriesBuilder, metadata) {
                 @Override
-                protected Aggregator createInternal(SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    CardinalityUpperBound cardinality,
-                                                    Map<String, Object> metadata) throws IOException {
+                protected Aggregator createInternal(
+                    SearchContext searchContext,
+                    Aggregator parent,
+                    CardinalityUpperBound cardinality,
+                    Map<String, Object> metadata
+                ) throws IOException {
                     return new TestAggregator(name, parent, searchContext);
                 }
             };
@@ -566,7 +591,6 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             this.context = context;
         }
 
-
         @Override
         public String name() {
             return name;
@@ -589,9 +613,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
 
         @Override
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            return new InternalAggregation[] {
-                new InternalMax(name(), Double.NaN, DocValueFormat.RAW, Collections.emptyMap())
-            };
+            return new InternalAggregation[] { new InternalMax(name(), Double.NaN, DocValueFormat.RAW, Collections.emptyMap()) };
         }
 
         @Override

@@ -60,47 +60,73 @@ public class ShardIndexingPressureMemoryManager {
      * Shard operating factor can be evaluated using currentShardBytes/shardLimits. Outcome of this expression is categorized as
      * lower, optimal and upper boundary, and appropriate action is taken once the below defined threshold values are breached.
      */
-    public static final Setting<Double> LOWER_OPERATING_FACTOR =
-        Setting.doubleSetting("shard_indexing_pressure.operating_factor.lower", 0.75d, 0.0d,
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
-    public static final Setting<Double> OPTIMAL_OPERATING_FACTOR =
-        Setting.doubleSetting("shard_indexing_pressure.operating_factor.optimal", 0.85d, 0.0d,
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
-    public static final Setting<Double> UPPER_OPERATING_FACTOR =
-        Setting.doubleSetting("shard_indexing_pressure.operating_factor.upper", 0.95d, 0.0d,
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<Double> LOWER_OPERATING_FACTOR = Setting.doubleSetting(
+        "shard_indexing_pressure.operating_factor.lower",
+        0.75d,
+        0.0d,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<Double> OPTIMAL_OPERATING_FACTOR = Setting.doubleSetting(
+        "shard_indexing_pressure.operating_factor.optimal",
+        0.85d,
+        0.0d,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<Double> UPPER_OPERATING_FACTOR = Setting.doubleSetting(
+        "shard_indexing_pressure.operating_factor.upper",
+        0.95d,
+        0.0d,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /**
      * This determines the max time elapsed since any request was processed successfully. Appropriate action is taken
      * once the below below defined threshold value is breached.
      */
-    public static final Setting<TimeValue> SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT =
-        Setting.positiveTimeSetting("shard_indexing_pressure.secondary_parameter.successful_request.elapsed_timeout",
-            TimeValue.timeValueMillis(300000), Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<TimeValue> SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT = Setting.positiveTimeSetting(
+        "shard_indexing_pressure.secondary_parameter.successful_request.elapsed_timeout",
+        TimeValue.timeValueMillis(300000),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /**
      * This determines the max outstanding request that are yet to be processed successfully. Appropriate
      * action is taken once the below defined threshold value is breached.
      */
-    public static final Setting<Integer> MAX_OUTSTANDING_REQUESTS =
-        Setting.intSetting("shard_indexing_pressure.secondary_parameter.successful_request.max_outstanding_requests",
-            100, Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<Integer> MAX_OUTSTANDING_REQUESTS = Setting.intSetting(
+        "shard_indexing_pressure.secondary_parameter.successful_request.max_outstanding_requests",
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /**
      * Degradation for a shard can be evaluated using average throughput of last N requests,
      * where N being {@link ShardIndexingPressureSettings#REQUEST_SIZE_WINDOW}, divided by lifetime average throughput.
      * Appropriate action is taken once the outcome of above expression breaches the below defined threshold value is breached.
      */
-    public static final Setting<Double> THROUGHPUT_DEGRADATION_LIMITS =
-        Setting.doubleSetting("shard_indexing_pressure.secondary_parameter.throughput.degradation_factor", 5.0d, 1.0d,
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<Double> THROUGHPUT_DEGRADATION_LIMITS = Setting.doubleSetting(
+        "shard_indexing_pressure.secondary_parameter.throughput.degradation_factor",
+        5.0d,
+        1.0d,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /**
      * The node level soft limit determines when the secondary parameters for shard is to be evaluated for degradation.
      */
-    public static final Setting<Double> NODE_SOFT_LIMIT =
-        Setting.doubleSetting("shard_indexing_pressure.primary_parameter.node.soft_limit", 0.7d, 0.0d,
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<Double> NODE_SOFT_LIMIT = Setting.doubleSetting(
+        "shard_indexing_pressure.primary_parameter.node.soft_limit",
+        0.7d,
+        0.0d,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final AtomicLong totalNodeLimitsBreachedRejections = new AtomicLong();
     private final AtomicLong totalLastSuccessfulRequestLimitsBreachedRejections = new AtomicLong();
@@ -121,8 +147,11 @@ public class ShardIndexingPressureMemoryManager {
 
     private volatile double nodeSoftLimit;
 
-    public ShardIndexingPressureMemoryManager(ShardIndexingPressureSettings shardIndexingPressureSettings,
-                                              ClusterSettings clusterSettings, Settings settings) {
+    public ShardIndexingPressureMemoryManager(
+        ShardIndexingPressureSettings shardIndexingPressureSettings,
+        ClusterSettings clusterSettings,
+        Settings settings
+    ) {
         this.shardIndexingPressureSettings = shardIndexingPressureSettings;
         this.shardIndexingPressureStore = new ShardIndexingPressureStore(shardIndexingPressureSettings, clusterSettings, settings);
 
@@ -153,10 +182,12 @@ public class ShardIndexingPressureMemoryManager {
      * Checks if the node level memory threshold is breached for coordinating operations.
      */
     boolean isCoordinatingNodeLimitBreached(ShardIndexingPressureTracker tracker, long nodeTotalBytes) {
-        if(nodeTotalBytes > this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits()) {
-            logger.debug("Node limits breached for coordinating operation [node_total_bytes={} , " +
-                    "node_primary_and_coordinating_limits={}]", nodeTotalBytes,
-                this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits());
+        if (nodeTotalBytes > this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits()) {
+            logger.debug(
+                "Node limits breached for coordinating operation [node_total_bytes={} , " + "node_primary_and_coordinating_limits={}]",
+                nodeTotalBytes,
+                this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits()
+            );
             incrementNodeLimitBreachedRejectionCount(tracker.getCoordinatingOperationTracker().getRejectionTracker());
             return true;
         }
@@ -170,18 +201,25 @@ public class ShardIndexingPressureMemoryManager {
         // Shard memory limits is breached when the current utilization is greater than operating_factor.upper limit.
         long shardCombinedBytes = tracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes();
         long shardPrimaryAndCoordinatingLimits = tracker.getPrimaryAndCoordinatingLimits();
-        boolean shardMemoryLimitsBreached = ((double)shardCombinedBytes / shardPrimaryAndCoordinatingLimits) > this.upperOperatingFactor;
+        boolean shardMemoryLimitsBreached = ((double) shardCombinedBytes / shardPrimaryAndCoordinatingLimits) > this.upperOperatingFactor;
 
-        if(shardMemoryLimitsBreached) {
-            BooleanSupplier increaseShardLimitSupplier = () -> increaseShardLimits(tracker.getShardId(),
+        if (shardMemoryLimitsBreached) {
+            BooleanSupplier increaseShardLimitSupplier = () -> increaseShardLimits(
+                tracker.getShardId(),
                 this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits(),
                 () -> tracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
                 tracker::getPrimaryAndCoordinatingLimits,
                 ShardIndexingPressureTracker::getPrimaryAndCoordinatingLimits,
-                tracker::compareAndSetPrimaryAndCoordinatingLimits);
+                tracker::compareAndSetPrimaryAndCoordinatingLimits
+            );
 
-            return onShardLimitBreached(nodeTotalBytes, this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits(),
-                requestStartTime, tracker.getCoordinatingOperationTracker(), increaseShardLimitSupplier);
+            return onShardLimitBreached(
+                nodeTotalBytes,
+                this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits(),
+                requestStartTime,
+                tracker.getCoordinatingOperationTracker(),
+                increaseShardLimitSupplier
+            );
         } else {
             return false;
         }
@@ -191,10 +229,12 @@ public class ShardIndexingPressureMemoryManager {
      * Checks if the node level memory threshold is breached for primary operations.
      */
     boolean isPrimaryNodeLimitBreached(ShardIndexingPressureTracker tracker, long nodeTotalBytes) {
-        if(nodeTotalBytes > this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits()) {
-            logger.debug("Node limits breached for primary operation [node_total_bytes={}, " +
-                    "node_primary_and_coordinating_limits={}]", nodeTotalBytes,
-                this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits());
+        if (nodeTotalBytes > this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits()) {
+            logger.debug(
+                "Node limits breached for primary operation [node_total_bytes={}, " + "node_primary_and_coordinating_limits={}]",
+                nodeTotalBytes,
+                this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits()
+            );
             incrementNodeLimitBreachedRejectionCount(tracker.getPrimaryOperationTracker().getRejectionTracker());
             return true;
         }
@@ -208,18 +248,25 @@ public class ShardIndexingPressureMemoryManager {
         // Shard memory limits is breached when the current utilization is greater than operating_factor.upper limit.
         long shardCombinedBytes = tracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes();
         long shardPrimaryAndCoordinatingLimits = tracker.getPrimaryAndCoordinatingLimits();
-        boolean shardMemoryLimitsBreached = ((double)shardCombinedBytes / shardPrimaryAndCoordinatingLimits) > this.upperOperatingFactor;
+        boolean shardMemoryLimitsBreached = ((double) shardCombinedBytes / shardPrimaryAndCoordinatingLimits) > this.upperOperatingFactor;
 
-        if(shardMemoryLimitsBreached) {
-            BooleanSupplier increaseShardLimitSupplier =  () -> increaseShardLimits(tracker.getShardId(),
+        if (shardMemoryLimitsBreached) {
+            BooleanSupplier increaseShardLimitSupplier = () -> increaseShardLimits(
+                tracker.getShardId(),
                 this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits(),
                 () -> tracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
                 tracker::getPrimaryAndCoordinatingLimits,
                 ShardIndexingPressureTracker::getPrimaryAndCoordinatingLimits,
-                tracker::compareAndSetPrimaryAndCoordinatingLimits);
+                tracker::compareAndSetPrimaryAndCoordinatingLimits
+            );
 
-            return onShardLimitBreached(nodeTotalBytes, this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits(),
-                requestStartTime, tracker.getPrimaryOperationTracker(), increaseShardLimitSupplier);
+            return onShardLimitBreached(
+                nodeTotalBytes,
+                this.shardIndexingPressureSettings.getNodePrimaryAndCoordinatingLimits(),
+                requestStartTime,
+                tracker.getPrimaryOperationTracker(),
+                increaseShardLimitSupplier
+            );
         } else {
             return false;
         }
@@ -229,9 +276,12 @@ public class ShardIndexingPressureMemoryManager {
      * Checks if the node level memory threshold is breached for replica operations.
      */
     boolean isReplicaNodeLimitBreached(ShardIndexingPressureTracker tracker, long nodeReplicaBytes) {
-        if(nodeReplicaBytes > this.shardIndexingPressureSettings.getNodeReplicaLimits()) {
-            logger.debug("Node limits breached for replica operation [node_replica_bytes={} , " +
-                "node_replica_limits={}]", nodeReplicaBytes, this.shardIndexingPressureSettings.getNodeReplicaLimits());
+        if (nodeReplicaBytes > this.shardIndexingPressureSettings.getNodeReplicaLimits()) {
+            logger.debug(
+                "Node limits breached for replica operation [node_replica_bytes={} , " + "node_replica_limits={}]",
+                nodeReplicaBytes,
+                this.shardIndexingPressureSettings.getNodeReplicaLimits()
+            );
             incrementNodeLimitBreachedRejectionCount(tracker.getReplicaOperationTracker().getRejectionTracker());
             return true;
         }
@@ -245,37 +295,48 @@ public class ShardIndexingPressureMemoryManager {
         // Shard memory limits is breached when the current utilization is greater than operating_factor.upper limit.
         long shardReplicaBytes = tracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes();
         long shardReplicaLimits = tracker.getReplicaLimits();
-        final boolean shardMemoryLimitsBreached = ((double)shardReplicaBytes / shardReplicaLimits) > this.upperOperatingFactor;
+        final boolean shardMemoryLimitsBreached = ((double) shardReplicaBytes / shardReplicaLimits) > this.upperOperatingFactor;
 
-        if(shardMemoryLimitsBreached) {
-            BooleanSupplier increaseShardLimitSupplier = () -> increaseShardLimits(tracker.getShardId(),
+        if (shardMemoryLimitsBreached) {
+            BooleanSupplier increaseShardLimitSupplier = () -> increaseShardLimits(
+                tracker.getShardId(),
                 this.shardIndexingPressureSettings.getNodeReplicaLimits(),
                 () -> tracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes(),
                 tracker::getReplicaLimits,
                 ShardIndexingPressureTracker::getReplicaLimits,
-                tracker::compareAndSetReplicaLimits);
+                tracker::compareAndSetReplicaLimits
+            );
 
-            return onShardLimitBreached(nodeReplicaBytes, this.shardIndexingPressureSettings.getNodeReplicaLimits(),
-                requestStartTime, tracker.getReplicaOperationTracker(), increaseShardLimitSupplier);
+            return onShardLimitBreached(
+                nodeReplicaBytes,
+                this.shardIndexingPressureSettings.getNodeReplicaLimits(),
+                requestStartTime,
+                tracker.getReplicaOperationTracker(),
+                increaseShardLimitSupplier
+            );
         } else {
             return false;
         }
     }
 
     void decreaseShardPrimaryAndCoordinatingLimits(ShardIndexingPressureTracker tracker) {
-         decreaseShardLimits(tracker.getShardId(),
-             () -> tracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
-             tracker::getPrimaryAndCoordinatingLimits,
-             tracker::compareAndSetPrimaryAndCoordinatingLimits,
-             shardIndexingPressureSettings.getShardPrimaryAndCoordinatingBaseLimits());
+        decreaseShardLimits(
+            tracker.getShardId(),
+            () -> tracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
+            tracker::getPrimaryAndCoordinatingLimits,
+            tracker::compareAndSetPrimaryAndCoordinatingLimits,
+            shardIndexingPressureSettings.getShardPrimaryAndCoordinatingBaseLimits()
+        );
     }
 
     void decreaseShardReplicaLimits(ShardIndexingPressureTracker tracker) {
-        decreaseShardLimits(tracker.getShardId(),
+        decreaseShardLimits(
+            tracker.getShardId(),
             () -> tracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes(),
             tracker::getReplicaLimits,
             tracker::compareAndSetReplicaLimits,
-            shardIndexingPressureSettings.getShardReplicaBaseLimits());
+            shardIndexingPressureSettings.getShardReplicaBaseLimits()
+        );
     }
 
     ShardIndexingPressureTracker getShardIndexingPressureTracker(ShardId shardId) {
@@ -295,7 +356,7 @@ public class ShardIndexingPressureMemoryManager {
     }
 
     double calculateMovingAverage(long currentAverage, double frontValue, double currentValue, int count) {
-        if(count > 0) {
+        if (count > 0) {
             return ((Double.longBitsToDouble(currentAverage) * count) + currentValue - frontValue) / count;
         } else {
             return currentValue;
@@ -318,20 +379,27 @@ public class ShardIndexingPressureMemoryManager {
      * Verifies and returns true if the shard limit is hard-breached i.e. shard limit cannot be increased further. Otherwise
      * increases the shard limit and returns false.
      */
-    private boolean onShardLimitBreached(long nodeTotalBytes, long nodeLimit, long requestStartTime, OperationTracker operationTracker,
-                                         BooleanSupplier increaseShardLimitSupplier) {
+    private boolean onShardLimitBreached(
+        long nodeTotalBytes,
+        long nodeLimit,
+        long requestStartTime,
+        OperationTracker operationTracker,
+        BooleanSupplier increaseShardLimitSupplier
+    ) {
 
         // Secondary Parameters (i.e. LastSuccessfulRequestDuration and Throughput) is taken into consideration when
         // the current node utilization is greater than primary_parameter.node.soft_limit of total node limits.
-        if(((double)nodeTotalBytes / nodeLimit) < this.nodeSoftLimit) {
+        if (((double) nodeTotalBytes / nodeLimit) < this.nodeSoftLimit) {
             boolean isShardLimitsIncreased = increaseShardLimitSupplier.getAsBoolean();
             if (isShardLimitsIncreased == false) {
                 incrementNodeLimitBreachedRejectionCount(operationTracker.getRejectionTracker());
             }
             return !isShardLimitsIncreased;
         } else {
-            boolean shardLastSuccessfulRequestDurationLimitsBreached =
-                evaluateLastSuccessfulRequestDurationLimitsBreached(operationTracker.getPerformanceTracker(), requestStartTime);
+            boolean shardLastSuccessfulRequestDurationLimitsBreached = evaluateLastSuccessfulRequestDurationLimitsBreached(
+                operationTracker.getPerformanceTracker(),
+                requestStartTime
+            );
 
             if (shardLastSuccessfulRequestDurationLimitsBreached) {
                 operationTracker.getRejectionTracker().incrementLastSuccessfulRequestLimitsBreachedRejections();
@@ -339,9 +407,11 @@ public class ShardIndexingPressureMemoryManager {
                 return true;
             }
 
-            boolean shardThroughputDegradationLimitsBreached =
-                evaluateThroughputDegradationLimitsBreached(operationTracker.getPerformanceTracker(),
-                    operationTracker.getStatsTracker(), primaryAndCoordinatingThroughputDegradationLimits);
+            boolean shardThroughputDegradationLimitsBreached = evaluateThroughputDegradationLimitsBreached(
+                operationTracker.getPerformanceTracker(),
+                operationTracker.getStatsTracker(),
+                primaryAndCoordinatingThroughputDegradationLimits
+            );
 
             if (shardThroughputDegradationLimitsBreached) {
                 operationTracker.getRejectionTracker().incrementThroughputDegradationLimitsBreachedRejections();
@@ -357,44 +427,66 @@ public class ShardIndexingPressureMemoryManager {
         }
     }
 
-    private boolean increaseShardLimits(ShardId shardId, long nodeLimit,
-                                        LongSupplier shardCurrentBytesSupplier, LongSupplier shardLimitSupplier,
-                                        ToLongFunction<ShardIndexingPressureTracker> getShardLimitFunction,
-                                        BiPredicate<Long, Long> updateShardLimitPredicate) {
+    private boolean increaseShardLimits(
+        ShardId shardId,
+        long nodeLimit,
+        LongSupplier shardCurrentBytesSupplier,
+        LongSupplier shardLimitSupplier,
+        ToLongFunction<ShardIndexingPressureTracker> getShardLimitFunction,
+        BiPredicate<Long, Long> updateShardLimitPredicate
+    ) {
         long currentShardLimit;
         long newShardLimit;
         do {
             currentShardLimit = shardLimitSupplier.getAsLong();
             long shardCurrentBytes = shardCurrentBytesSupplier.getAsLong();
 
-            if(((double)shardCurrentBytes / currentShardLimit) > this.upperOperatingFactor) {
-                newShardLimit = (long)(shardCurrentBytes / this.optimalOperatingFactor);
+            if (((double) shardCurrentBytes / currentShardLimit) > this.upperOperatingFactor) {
+                newShardLimit = (long) (shardCurrentBytes / this.optimalOperatingFactor);
                 long totalShardLimitsExceptCurrentShard = this.shardIndexingPressureStore.getShardIndexingPressureHotStore()
-                    .entrySet().stream()
+                    .entrySet()
+                    .stream()
                     .filter(entry -> (shardId != entry.getKey()))
                     .map(Map.Entry::getValue)
-                    .mapToLong(getShardLimitFunction).sum();
+                    .mapToLong(getShardLimitFunction)
+                    .sum();
 
                 if (totalShardLimitsExceptCurrentShard + newShardLimit > nodeLimit) {
-                    logger.debug("Failed To Increase Shard Limit [shard_detail=[{}][{}}], " +
-                            "shard_current_limit_bytes={}, " + "total_shard_limits_bytes_except_current_shard={}, " +
-                            "expected_shard_limits_bytes={}]",
-                        shardId.getIndexName(), shardId.id(), currentShardLimit, totalShardLimitsExceptCurrentShard, newShardLimit);
+                    logger.debug(
+                        "Failed To Increase Shard Limit [shard_detail=[{}][{}}], "
+                            + "shard_current_limit_bytes={}, "
+                            + "total_shard_limits_bytes_except_current_shard={}, "
+                            + "expected_shard_limits_bytes={}]",
+                        shardId.getIndexName(),
+                        shardId.id(),
+                        currentShardLimit,
+                        totalShardLimitsExceptCurrentShard,
+                        newShardLimit
+                    );
                     return false;
                 }
             } else {
                 return true;
             }
-        } while(!updateShardLimitPredicate.test(currentShardLimit, newShardLimit));
+        } while (!updateShardLimitPredicate.test(currentShardLimit, newShardLimit));
 
-        logger.debug("Increased Shard Limit [" +
-                "shard_detail=[{}][{}], old_shard_limit_bytes={}, " + "new_shard_limit_bytes={}]",
-            shardId.getIndexName(), shardId.id(), currentShardLimit, newShardLimit);
+        logger.debug(
+            "Increased Shard Limit [" + "shard_detail=[{}][{}], old_shard_limit_bytes={}, " + "new_shard_limit_bytes={}]",
+            shardId.getIndexName(),
+            shardId.id(),
+            currentShardLimit,
+            newShardLimit
+        );
         return true;
     }
 
-    private void decreaseShardLimits(ShardId shardId, LongSupplier shardCurrentBytesSupplier, LongSupplier shardLimitSupplier,
-                                     BiPredicate<Long, Long> updateShardLimitPredicate, long shardBaseLimit) {
+    private void decreaseShardLimits(
+        ShardId shardId,
+        LongSupplier shardCurrentBytesSupplier,
+        LongSupplier shardLimitSupplier,
+        BiPredicate<Long, Long> updateShardLimitPredicate,
+        long shardBaseLimit
+    ) {
 
         long currentShardLimit;
         long newShardLimit;
@@ -403,31 +495,45 @@ public class ShardIndexingPressureMemoryManager {
             long shardCurrentBytes = shardCurrentBytesSupplier.getAsLong();
             newShardLimit = Math.max((long) (shardCurrentBytes / this.optimalOperatingFactor), shardBaseLimit);
 
-            if (((double)shardCurrentBytes / currentShardLimit) > this.lowerOperatingFactor) {
-                logger.debug("Shard Limits Already Decreased [" +
-                        "shard_detail=[{}][{}], " + "current_shard_limit_bytes={}, " +
-                        "expected_shard_limit_bytes={}]",
-                    shardId.getIndexName(), shardId.id(), currentShardLimit, newShardLimit);
+            if (((double) shardCurrentBytes / currentShardLimit) > this.lowerOperatingFactor) {
+                logger.debug(
+                    "Shard Limits Already Decreased ["
+                        + "shard_detail=[{}][{}], "
+                        + "current_shard_limit_bytes={}, "
+                        + "expected_shard_limit_bytes={}]",
+                    shardId.getIndexName(),
+                    shardId.id(),
+                    currentShardLimit,
+                    newShardLimit
+                );
                 return;
             }
-        } while(!updateShardLimitPredicate.test(currentShardLimit,newShardLimit));
+        } while (!updateShardLimitPredicate.test(currentShardLimit, newShardLimit));
 
-        logger.debug("Decreased Shard Limit [shard_detail=[{}][{}], " +
-                "old_shard_limit_bytes={}, new_shard_limit_bytes={}]",
-            shardId.getIndexName(), shardId.id(), currentShardLimit, newShardLimit);
+        logger.debug(
+            "Decreased Shard Limit [shard_detail=[{}][{}], " + "old_shard_limit_bytes={}, new_shard_limit_bytes={}]",
+            shardId.getIndexName(),
+            shardId.id(),
+            currentShardLimit,
+            newShardLimit
+        );
     }
 
     /**
      * This evaluation returns true if throughput of last N request divided by the total lifetime requests throughput is greater than
      * the degradation limits threshold.
      */
-    private boolean evaluateThroughputDegradationLimitsBreached(PerformanceTracker performanceTracker, StatsTracker statsTracker,
-                                                                double degradationLimits) {
-        double throughputMovingAverage =  Double.longBitsToDouble(performanceTracker.getThroughputMovingAverage());
+    private boolean evaluateThroughputDegradationLimitsBreached(
+        PerformanceTracker performanceTracker,
+        StatsTracker statsTracker,
+        double degradationLimits
+    ) {
+        double throughputMovingAverage = Double.longBitsToDouble(performanceTracker.getThroughputMovingAverage());
         long throughputMovingQueueSize = performanceTracker.getThroughputMovingQueueSize();
-        double throughputHistoricalAverage = (double)statsTracker.getTotalBytes() / performanceTracker.getLatencyInMillis();
-        return throughputMovingAverage > 0 && throughputMovingQueueSize >= this.shardIndexingPressureSettings.getRequestSizeWindow() &&
-            throughputHistoricalAverage / throughputMovingAverage > degradationLimits;
+        double throughputHistoricalAverage = (double) statsTracker.getTotalBytes() / performanceTracker.getLatencyInMillis();
+        return throughputMovingAverage > 0
+            && throughputMovingQueueSize >= this.shardIndexingPressureSettings.getRequestSizeWindow()
+            && throughputHistoricalAverage / throughputMovingAverage > degradationLimits;
     }
 
     /**
@@ -436,9 +542,9 @@ public class ShardIndexingPressureMemoryManager {
      * the maximum outstanding request-count threshold.
      */
     private boolean evaluateLastSuccessfulRequestDurationLimitsBreached(PerformanceTracker performanceTracker, long requestStartTime) {
-        return (performanceTracker.getLastSuccessfulRequestTimestamp() > 0) &&
-            (requestStartTime - performanceTracker.getLastSuccessfulRequestTimestamp()) > this.successfulRequestElapsedTimeout.nanos() &&
-            performanceTracker.getTotalOutstandingRequests() > this.maxOutstandingRequests;
+        return (performanceTracker.getLastSuccessfulRequestTimestamp() > 0)
+            && (requestStartTime - performanceTracker.getLastSuccessfulRequestTimestamp()) > this.successfulRequestElapsedTimeout.nanos()
+            && performanceTracker.getTotalOutstandingRequests() > this.maxOutstandingRequests;
     }
 
     private void setLowerOperatingFactor(double lowerOperatingFactor) {

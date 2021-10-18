@@ -61,7 +61,7 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
     private List<BytesReference> newRefList(int length) throws IOException {
         List<BytesReference> referenceList = new ArrayList<>();
         for (int i = 0; i < length;) {
-            int remaining = length-i;
+            int remaining = length - i;
             int sliceLength = randomIntBetween(1, remaining);
             ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(sliceLength, bigarrays);
             for (int j = 0; j < sliceLength; j++) {
@@ -69,7 +69,7 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
             }
             assertEquals(sliceLength, out.size());
             referenceList.add(out.bytes());
-            i+=sliceLength;
+            i += sliceLength;
         }
         return referenceList;
     }
@@ -98,7 +98,7 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
             assertEquals(reference, ref.slice(offset, reference.length()));
             int probes = randomIntBetween(Math.min(10, reference.length()), reference.length());
             for (int i = 0; i < probes; i++) {
-                int index = randomIntBetween(0, reference.length()-1);
+                int index = randomIntBetween(0, reference.length() - 1);
                 assertEquals(ref.get(offset + index), reference.get(index));
             }
             offset += reference.length();
@@ -115,7 +115,7 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
 
     @Override
     public void testToBytesRefSharedPage() throws IOException {
-       // CompositeBytesReference doesn't share pages
+        // CompositeBytesReference doesn't share pages
     }
 
     @Override
@@ -130,9 +130,10 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
 
     public void testSliceIsNotCompositeIfMatchesSingleSubSlice() {
         BytesReference bytesRef = CompositeBytesReference.of(
-                new BytesArray(new byte[12]),
-                new BytesArray(new byte[15]),
-                new BytesArray(new byte[13]));
+            new BytesArray(new byte[12]),
+            new BytesArray(new byte[15]),
+            new BytesArray(new byte[13])
+        );
 
         // Slices that cross boundaries are composite too
         assertThat(bytesRef.slice(5, 8), Matchers.instanceOf(CompositeBytesReference.class));

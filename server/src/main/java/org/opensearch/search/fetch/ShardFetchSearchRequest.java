@@ -58,8 +58,15 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     private final RescoreDocIds rescoreDocIds;
     private final AggregatedDfs aggregatedDfs;
 
-    public ShardFetchSearchRequest(OriginalIndices originalIndices, ShardSearchContextId id, ShardSearchRequest shardSearchRequest,
-                                   IntArrayList list, ScoreDoc lastEmittedDoc, RescoreDocIds rescoreDocIds, AggregatedDfs aggregatedDfs) {
+    public ShardFetchSearchRequest(
+        OriginalIndices originalIndices,
+        ShardSearchContextId id,
+        ShardSearchRequest shardSearchRequest,
+        IntArrayList list,
+        ScoreDoc lastEmittedDoc,
+        RescoreDocIds rescoreDocIds,
+        AggregatedDfs aggregatedDfs
+    ) {
         super(id, list, lastEmittedDoc);
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;

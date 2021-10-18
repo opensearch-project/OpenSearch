@@ -21,8 +21,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
 
     public void testSettings() {
         Settings.Builder settings = Settings.builder();
-        ClusterSettings service = new ClusterSettings(Settings.builder().build(),
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings service = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings.build(), service);
 
         settings = Settings.builder();

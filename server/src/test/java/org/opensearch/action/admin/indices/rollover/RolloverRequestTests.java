@@ -55,11 +55,6 @@ import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.XContentTestUtils;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
-import org.opensearch.action.admin.indices.rollover.Condition;
-import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
-import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
-import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 
 import java.io.IOException;
 import org.junit.Before;
@@ -86,20 +81,20 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
         final XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("conditions")
-                    .field("max_age", "10d")
-                    .field("max_docs", 100)
-                    .field("max_size", "45gb")
-                .endObject()
+            .startObject("conditions")
+            .field("max_age", "10d")
+            .field("max_docs", 100)
+            .field("max_size", "45gb")
+            .endObject()
             .endObject();
         request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(3));
-        MaxAgeCondition maxAgeCondition = (MaxAgeCondition)conditions.get(MaxAgeCondition.NAME);
+        MaxAgeCondition maxAgeCondition = (MaxAgeCondition) conditions.get(MaxAgeCondition.NAME);
         assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
-        MaxDocsCondition maxDocsCondition = (MaxDocsCondition)conditions.get(MaxDocsCondition.NAME);
+        MaxDocsCondition maxDocsCondition = (MaxDocsCondition) conditions.get(MaxDocsCondition.NAME);
         assertThat(maxDocsCondition.value, equalTo(100L));
-        MaxSizeCondition maxSizeCondition = (MaxSizeCondition)conditions.get(MaxSizeCondition.NAME);
+        MaxSizeCondition maxSizeCondition = (MaxSizeCondition) conditions.get(MaxSizeCondition.NAME);
         assertThat(maxSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(45)));
     }
 
@@ -107,26 +102,27 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
         final XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("conditions")
-                    .field("max_age", "10d")
-                    .field("max_docs", 100)
-                .endObject()
-                .startObject("mappings")
-                    .startObject("type1")
-                        .startObject("properties")
-                            .startObject("field1")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .startObject("settings")
-                    .field("number_of_shards", 10)
-                .endObject()
-                .startObject("aliases")
-                    .startObject("alias1").endObject()
-                .endObject()
+            .startObject("conditions")
+            .field("max_age", "10d")
+            .field("max_docs", 100)
+            .endObject()
+            .startObject("mappings")
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("field1")
+            .field("type", "string")
+            .field("index", "not_analyzed")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("settings")
+            .field("number_of_shards", 10)
+            .endObject()
+            .startObject("aliases")
+            .startObject("alias1")
+            .endObject()
+            .endObject()
             .endObject();
         request.fromXContent(true, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
@@ -140,13 +136,13 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
         final XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("mappings")
-                    .startObject("properties")
-                        .startObject("field1")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject("mappings")
+            .startObject("properties")
+            .startObject("field1")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject();
 
         boolean includeTypeName = false;
@@ -156,8 +152,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         String mapping = createIndexRequest.mappings().get(MapperService.SINGLE_MAPPING_NAME);
         assertNotNull(mapping);
 
-        Map<String, Object> parsedMapping = XContentHelper.convertToMap(
-            new BytesArray(mapping), false, XContentType.JSON).v2();
+        Map<String, Object> parsedMapping = XContentHelper.convertToMap(new BytesArray(mapping), false, XContentType.JSON).v2();
 
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) parsedMapping.get(MapperService.SINGLE_MAPPING_NAME);
@@ -179,8 +174,8 @@ public class RolloverRequestTests extends OpenSearchTestCase {
                 assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().get(entry.getKey());
-                    //here we compare the string representation as there is some information loss when serializing
-                    //and de-serializing MaxAgeCondition
+                    // here we compare the string representation as there is some information loss when serializing
+                    // and de-serializing MaxAgeCondition
                     assertEquals(condition.toString(), entry.getValue().toString());
                 }
             }

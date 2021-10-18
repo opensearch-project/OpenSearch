@@ -53,8 +53,15 @@ public abstract class CancellableTask extends Task {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT);
     }
 
-    public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers,
-        TimeValue cancelAfterTimeInterval) {
+    public CancellableTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        TimeValue cancelAfterTimeInterval
+    ) {
         super(id, type, action, description, parentTaskId, headers);
         this.cancelAfterTimeInterval = cancelAfterTimeInterval;
     }
@@ -102,6 +109,5 @@ public abstract class CancellableTask extends Task {
     /**
      * Called after the task is cancelled so that it can take any actions that it has to take.
      */
-    protected void onCancelled() {
-    }
+    protected void onCancelled() {}
 }

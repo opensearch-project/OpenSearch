@@ -108,33 +108,26 @@ public class HotThreads {
         String threadName = threadInfo.getThreadName();
 
         // NOTE: these are likely JVM dependent
-        if (threadName.equals("Signal Dispatcher") ||
-            threadName.equals("Finalizer") ||
-            threadName.equals("Reference Handler")) {
+        if (threadName.equals("Signal Dispatcher") || threadName.equals("Finalizer") || threadName.equals("Reference Handler")) {
             return true;
         }
 
         for (StackTraceElement frame : threadInfo.getStackTrace()) {
             String className = frame.getClassName();
             String methodName = frame.getMethodName();
-            if (className.equals("java.util.concurrent.ThreadPoolExecutor") &&
-                methodName.equals("getTask")) {
+            if (className.equals("java.util.concurrent.ThreadPoolExecutor") && methodName.equals("getTask")) {
                 return true;
             }
-            if (className.equals("sun.nio.ch.SelectorImpl") &&
-                methodName.equals("select")) {
+            if (className.equals("sun.nio.ch.SelectorImpl") && methodName.equals("select")) {
                 return true;
             }
-            if (className.equals("org.opensearch.threadpool.ThreadPool$CachedTimeThread") &&
-                methodName.equals("run")) {
+            if (className.equals("org.opensearch.threadpool.ThreadPool$CachedTimeThread") && methodName.equals("run")) {
                 return true;
             }
-            if (className.equals("org.opensearch.indices.ttl.IndicesTTLService$Notifier") &&
-                methodName.equals("await")) {
+            if (className.equals("org.opensearch.indices.ttl.IndicesTTLService$Notifier") && methodName.equals("await")) {
                 return true;
             }
-            if (className.equals("java.util.concurrent.LinkedTransferQueue") &&
-                methodName.equals("poll")) {
+            if (className.equals("java.util.concurrent.LinkedTransferQueue") && methodName.equals("poll")) {
                 return true;
             }
         }
@@ -246,8 +239,17 @@ public class HotThreads {
                 continue; // thread is not alive yet or died before the first snapshot - ignore it!
             }
             double percent = (((double) time) / interval.nanos()) * 100;
-            sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
-                percent, TimeValue.timeValueNanos(time), interval, type, threadName));
+            sb.append(
+                String.format(
+                    Locale.ROOT,
+                    "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
+                    percent,
+                    TimeValue.timeValueNanos(time),
+                    interval,
+                    type,
+                    threadName
+                )
+            );
             // for each snapshot (2nd array index) find later snapshot for same thread with max number of
             // identical StackTraceElements (starting from end of each)
             boolean[] done = new boolean[threadElementsSnapshotCount];
@@ -280,8 +282,15 @@ public class HotThreads {
                             sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
                         }
                     } else {
-                        sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n",
-                            count, threadElementsSnapshotCount, maxSim));
+                        sb.append(
+                            String.format(
+                                Locale.ROOT,
+                                "  %d/%d snapshots sharing following %d elements%n",
+                                count,
+                                threadElementsSnapshotCount,
+                                maxSim
+                            )
+                        );
                         for (int l = show.length - maxSim; l < show.length; l++) {
                             sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
                         }
@@ -307,7 +316,6 @@ public class HotThreads {
         }
         return rslt;
     }
-
 
     class MyThreadInfo {
         long cpuTime;

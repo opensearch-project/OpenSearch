@@ -48,12 +48,14 @@ import java.util.Map;
 
 class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    SumAggregatorFactory(String name,
-                            ValuesSourceConfig config,
-                            QueryShardContext queryShardContext,
-                            AggregatorFactory parent,
-                            AggregatorFactories.Builder subFactoriesBuilder,
-                            Map<String, Object> metadata) throws IOException {
+    SumAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
@@ -62,14 +64,12 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
             SumAggregationBuilder.REGISTRY_KEY,
             org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             SumAggregator::new,
-                true);
+            true
+        );
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata)
-            throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new SumAggregator(name, config, searchContext, parent, metadata);
     }
 

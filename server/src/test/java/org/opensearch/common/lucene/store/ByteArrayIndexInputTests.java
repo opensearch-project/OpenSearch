@@ -32,7 +32,6 @@
 
 package org.opensearch.common.lucene.store;
 
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
@@ -99,4 +98,3 @@ public class ByteArrayIndexInputTests extends OpenSearchIndexInputTestCase {
     }
 
 }
-

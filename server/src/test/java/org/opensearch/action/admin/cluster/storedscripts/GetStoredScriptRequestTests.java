@@ -35,7 +35,6 @@ package org.opensearch.action.admin.cluster.storedscripts;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 
 import java.io.IOException;
 

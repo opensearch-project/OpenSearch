@@ -53,22 +53,25 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
             VariableWidthHistogramAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.NUMERIC,
             VariableWidthHistogramAggregator::new,
-                true);
+            true
+        );
     }
 
     private final int numBuckets;
     private final int shardSize;
     private final int initialBuffer;
 
-    VariableWidthHistogramAggregatorFactory(String name,
-                                            ValuesSourceConfig config,
-                                            int numBuckets,
-                                            int shardSize,
-                                            int initialBuffer,
-                                            QueryShardContext queryShardContext,
-                                            AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactoriesBuilder,
-                                            Map<String, Object> metadata) throws IOException{
+    VariableWidthHistogramAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        int numBuckets,
+        int shardSize,
+        int initialBuffer,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.numBuckets = numBuckets;
         this.shardSize = shardSize;
@@ -76,10 +79,12 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException{
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         if (cardinality != CardinalityUpperBound.ONE) {
             throw new IllegalArgumentException(
                 "["
@@ -93,10 +98,17 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-        return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, initialBuffer, config,
-            searchContext, parent, metadata);
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new VariableWidthHistogramAggregator(
+            name,
+            factories,
+            numBuckets,
+            shardSize,
+            initialBuffer,
+            config,
+            searchContext,
+            parent,
+            metadata
+        );
     }
 }

@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ClusterScope(scope= Scope.TEST, numDataNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class SimpleNodesInfoIT extends OpenSearchIntegTestCase {
 
     public void testNodesInfos() throws Exception {
@@ -131,9 +131,9 @@ public class SimpleNodesInfoIT extends OpenSearchIntegTestCase {
 
     public void testAllocatedProcessors() throws Exception {
         List<String> nodesIds = internalCluster().startNodes(
-                        Settings.builder().put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 3).build(),
-                        Settings.builder().put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 6).build()
-                );
+            Settings.builder().put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 3).build(),
+            Settings.builder().put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 6).build()
+        );
 
         final String node_1 = nodesIds.get(0);
         final String node_2 = nodesIds.get(1);
@@ -151,10 +151,14 @@ public class SimpleNodesInfoIT extends OpenSearchIntegTestCase {
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        assertThat(response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getAvailableProcessors(),
-                equalTo(Runtime.getRuntime().availableProcessors()));
-        assertThat(response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getAvailableProcessors(),
-                equalTo(Runtime.getRuntime().availableProcessors()));
+        assertThat(
+            response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getAvailableProcessors(),
+            equalTo(Runtime.getRuntime().availableProcessors())
+        );
+        assertThat(
+            response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getAvailableProcessors(),
+            equalTo(Runtime.getRuntime().availableProcessors())
+        );
 
         assertThat(response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getAllocatedProcessors(), equalTo(3));
         assertThat(response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getAllocatedProcessors(), equalTo(6));

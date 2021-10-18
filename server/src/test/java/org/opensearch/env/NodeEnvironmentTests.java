@@ -80,8 +80,9 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
 
     public void testNodeLockSillySettings() {
         try {
-            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(Settings.builder()
-                    .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), between(Integer.MIN_VALUE, 0)).build());
+            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(
+                Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), between(Integer.MIN_VALUE, 0)).build()
+            );
             fail("expected failure");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("must be >= 1"));
@@ -90,10 +91,13 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         // Even though its silly MAXINT nodes is a-ok!
         int value = between(1, Integer.MAX_VALUE);
         int max = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(
-                Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build());
+            Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build()
+        );
         assertEquals(value, max);
-        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testNodeLockSingleEnvironment() throws IOException {
@@ -102,8 +106,10 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
 
         // Reuse the same location and attempt to lock again
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-                new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)));
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            () -> new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))
+        );
         assertThat(ex.getMessage(), containsString("failed to obtain node lock"));
 
         // Close the environment that holds the lock and make sure we can get the lock after release
@@ -116,8 +122,10 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         }
         env.close();
         assertThat(env.lockedShards(), empty());
-        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     @SuppressForbidden(reason = "System.out.*")
@@ -128,12 +136,14 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         try {
             // False means don't hook up std out
             NodeEnvironment.applySegmentInfosTrace(
-                    Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), false).build());
+                Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), false).build()
+            );
             assertNull(SegmentInfos.getInfoStream());
 
             // But true means hook std out up statically
             NodeEnvironment.applySegmentInfosTrace(
-                    Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), true).build());
+                Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), true).build()
+            );
             assertEquals(System.out, SegmentInfos.getInfoStream());
         } finally {
             // Clean up after ourselves
@@ -152,8 +162,10 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
             assertEquals(first.nodeDataPaths()[i].getParent(), second.nodeDataPaths()[i].getParent());
         }
         IOUtils.close(first, second);
-        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testShardLock() throws Exception {
@@ -378,8 +390,13 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length - 1);
                         try {
-                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), "1",
-                                    scaledRandomIntBetween(0, 10))) {
+                            try (
+                                ShardLock autoCloses = env.shardLock(
+                                    new ShardId("foo", "fooUUID", shard),
+                                    "1",
+                                    scaledRandomIntBetween(0, 10)
+                                )
+                            ) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();
                                 assertEquals(flipFlop[shard].incrementAndGet(), 1);
@@ -415,26 +432,40 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         ShardId sid = new ShardId(index, 0);
 
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
-        assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
-            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
+        assertThat(
+            env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
+            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath())
+        );
 
-        assertThat("shard paths with a custom data_path should contain only regular paths",
-                env.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
+        assertThat(
+            "shard paths with a custom data_path should contain only regular paths",
+            env.availableShardPaths(sid),
+            equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0"))
+        );
 
-        assertThat("index paths uses the regular template",
-                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
+        assertThat(
+            "index paths uses the regular template",
+            env.indexPaths(index),
+            equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID()))
+        );
 
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
-        assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
-            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
+        assertThat(
+            env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
+            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath())
+        );
 
-        assertThat("shard paths with a custom data_path should contain only regular paths",
-                env.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
+        assertThat(
+            "shard paths with a custom data_path should contain only regular paths",
+            env.availableShardPaths(sid),
+            equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0"))
+        );
 
-        assertThat("index paths uses the regular template",
-                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
+        assertThat(
+            "index paths uses the regular template",
+            env.indexPaths(index),
+            equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID()))
+        );
 
         env.close();
     }
@@ -442,7 +473,8 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
     public void testNodeIdNotPersistedAtInitialization() throws IOException {
         NodeEnvironment env = newNodeEnvironment(
             new String[0],
-            nonMasterNode(nonDataNode(Settings.builder().put("node.local_storage", false).build())));
+            nonMasterNode(nonDataNode(Settings.builder().put("node.local_storage", false).build()))
+        );
         String nodeID = env.nodeId();
         env.close();
         final String[] paths = tmpPaths();
@@ -456,7 +488,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         env = newNodeEnvironment(Settings.EMPTY);
         assertThat(env.nodeId(), not(equalTo(nodeID)));
         env.close();
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{Node.NODE_LOCAL_STORAGE_SETTING});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { Node.NODE_LOCAL_STORAGE_SETTING });
     }
 
     public void testExistingTempFiles() throws IOException {
@@ -477,7 +509,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         env.close();
 
         // check we clean up
-        for (String path: paths) {
+        for (String path : paths) {
             final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
             final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
             assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
@@ -495,9 +527,12 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         // build settings using same path.data as original but without data and master roles
         Settings noDataNoMasterSettings = Settings.builder()
             .put(settings)
-            .put(NodeRoles.removeRoles(
-                settings,
-                Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))))
+            .put(
+                NodeRoles.removeRoles(
+                    settings,
+                    Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
+                )
+            )
             .build();
 
         // test that we can create data=false and master=false with no meta information
@@ -549,22 +584,24 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
             "Must fail creating NodeEnvironment on a data path that has shard data if node does not have data role",
-            () -> newNodeEnvironment(settings).close());
+            () -> newNodeEnvironment(settings).close()
+        );
 
-        assertThat(ex.getMessage(),
-            containsString(indexPath.resolve(shardDataDirName).toAbsolutePath().toString()));
+        assertThat(ex.getMessage(), containsString(indexPath.resolve(shardDataDirName).toAbsolutePath().toString()));
         assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
     }
 
     private void verifyFailsOnMetadata(Settings settings, Path indexPath) {
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
             "Must fail creating NodeEnvironment on a data path that has index metadata if node does not have data and master roles",
-            () -> newNodeEnvironment(settings).close());
+            () -> newNodeEnvironment(settings).close()
+        );
 
-        assertThat(ex.getMessage(),
-            containsString(indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
+        assertThat(ex.getMessage(), containsString(indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
         assertThat(ex.getMessage(), startsWith("node does not have the data and master roles but has index metadata"));
     }
 
@@ -600,25 +637,28 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
 
     public Settings buildEnvSettings(Settings settings) {
         return Settings.builder()
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                    .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
-                    .put(settings).build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+            .put(settings)
+            .build();
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, Settings settings) throws IOException {
         Settings build = Settings.builder()
-                .put(settings)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+            .put(settings)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths)
+            .build();
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, String sharedDataPath, Settings settings) throws IOException {
         Settings build = Settings.builder()
-                .put(settings)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
-                .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+            .put(settings)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths)
+            .build();
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 }

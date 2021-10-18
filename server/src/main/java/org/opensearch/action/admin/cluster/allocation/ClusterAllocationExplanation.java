@@ -66,9 +66,13 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     private final ClusterInfo clusterInfo;
     private final ShardAllocationDecision shardAllocationDecision;
 
-    public ClusterAllocationExplanation(ShardRouting shardRouting, @Nullable DiscoveryNode currentNode,
-                                        @Nullable DiscoveryNode relocationTargetNode, @Nullable ClusterInfo clusterInfo,
-                                        ShardAllocationDecision shardAllocationDecision) {
+    public ClusterAllocationExplanation(
+        ShardRouting shardRouting,
+        @Nullable DiscoveryNode currentNode,
+        @Nullable DiscoveryNode relocationTargetNode,
+        @Nullable ClusterInfo clusterInfo,
+        ShardAllocationDecision shardAllocationDecision
+    ) {
         this.shardRouting = shardRouting;
         this.currentNode = currentNode;
         this.relocationTargetNode = relocationTargetNode;
@@ -154,7 +158,8 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(); {
+        builder.startObject();
+        {
             builder.field("index", shardRouting.getIndexName());
             builder.field("shard", shardRouting.getId());
             builder.field("primary", shardRouting.primary());
@@ -167,14 +172,15 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
                 {
                     discoveryNodeToXContent(currentNode, true, builder);
                     if (shardAllocationDecision.getMoveDecision().isDecisionTaken()
-                            && shardAllocationDecision.getMoveDecision().getCurrentNodeRanking() > 0) {
+                        && shardAllocationDecision.getMoveDecision().getCurrentNodeRanking() > 0) {
                         builder.field("weight_ranking", shardAllocationDecision.getMoveDecision().getCurrentNodeRanking());
                     }
                 }
                 builder.endObject();
             }
             if (this.clusterInfo != null) {
-                builder.startObject("cluster_info"); {
+                builder.startObject("cluster_info");
+                {
                     this.clusterInfo.toXContent(builder, params);
                 }
                 builder.endObject(); // end "cluster_info"
@@ -184,12 +190,18 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
             } else {
                 String explanation;
                 if (shardRouting.state() == ShardRoutingState.RELOCATING) {
-                    explanation = "the shard is in the process of relocating from node [" + currentNode.getName() + "] " +
-                                  "to node [" + relocationTargetNode.getName() + "], wait until relocation has completed";
+                    explanation = "the shard is in the process of relocating from node ["
+                        + currentNode.getName()
+                        + "] "
+                        + "to node ["
+                        + relocationTargetNode.getName()
+                        + "], wait until relocation has completed";
                 } else {
                     assert shardRouting.state() == ShardRoutingState.INITIALIZING;
-                    explanation = "the shard is in the process of initializing on node [" + currentNode.getName() + "], " +
-                                  "wait until initialization has completed";
+                    explanation = "the shard is in the process of initializing on node ["
+                        + currentNode.getName()
+                        + "], "
+                        + "wait until initialization has completed";
                 }
                 builder.field("explanation", explanation);
             }
@@ -198,14 +210,12 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         return builder;
     }
 
-    private XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder)
-        throws IOException {
+    private XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder) throws IOException {
 
         builder.startObject("unassigned_info");
         builder.field("reason", unassignedInfo.getReason());
-        builder.field("at",
-            UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
-        if (unassignedInfo.getNumFailedAllocations() >  0) {
+        builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
+        if (unassignedInfo.getNumFailedAllocations() > 0) {
             builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
         }
         String details = unassignedInfo.getDetails();

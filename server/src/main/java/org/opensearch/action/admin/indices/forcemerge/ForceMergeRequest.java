@@ -158,10 +158,15 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
     @Override
     public String getDescription() {
-        return "Force-merge indices " + Arrays.toString(indices()) +
-            ", maxSegments[" + maxNumSegments +
-            "], onlyExpungeDeletes[" + onlyExpungeDeletes +
-            "], flush[" + flush + "]";
+        return "Force-merge indices "
+            + Arrays.toString(indices())
+            + ", maxSegments["
+            + maxNumSegments
+            + "], onlyExpungeDeletes["
+            + onlyExpungeDeletes
+            + "], flush["
+            + flush
+            + "]";
     }
 
     @Override
@@ -177,10 +182,13 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
     @Override
     public String toString() {
-        return "ForceMergeRequest{" +
-                "maxNumSegments=" + maxNumSegments +
-                ", onlyExpungeDeletes=" + onlyExpungeDeletes +
-                ", flush=" + flush +
-                '}';
+        return "ForceMergeRequest{"
+            + "maxNumSegments="
+            + maxNumSegments
+            + ", onlyExpungeDeletes="
+            + onlyExpungeDeletes
+            + ", flush="
+            + flush
+            + '}';
     }
 }

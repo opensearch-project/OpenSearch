@@ -85,7 +85,7 @@ public class PercentilesMethodTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 PercentilesMethod.readFromStream(in);
                 fail("Expected IOException");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown PercentilesMethod ordinal ["));
             }
 

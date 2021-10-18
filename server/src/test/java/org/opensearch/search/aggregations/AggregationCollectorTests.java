@@ -72,8 +72,8 @@ public class AggregationCollectorTests extends OpenSearchSingleNodeTestCase {
         try (XContentParser aggParser = createParser(JsonXContent.jsonXContent, agg)) {
             aggParser.nextToken();
             SearchContext context = createSearchContext(index);
-            final AggregatorFactories factories =
-                AggregatorFactories.parseAggregators(aggParser).build(context.getQueryShardContext(), null);
+            final AggregatorFactories factories = AggregatorFactories.parseAggregators(aggParser)
+                .build(context.getQueryShardContext(), null);
             final Aggregator[] aggregators = factories.createTopLevelAggregators(context);
             assertEquals(1, aggregators.length);
             return aggregators[0].scoreMode().needsScores();

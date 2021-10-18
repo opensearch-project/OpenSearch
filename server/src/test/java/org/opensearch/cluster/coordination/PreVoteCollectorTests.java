@@ -87,8 +87,12 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final MockTransport mockTransport = new MockTransport() {
             @Override
-            protected void onSendRequest(final long requestId, final String action, final TransportRequest request,
-                                         final DiscoveryNode node) {
+            protected void onSendRequest(
+                final long requestId,
+                final String action,
+                final TransportRequest request,
+                final DiscoveryNode node
+            ) {
                 super.onSendRequest(requestId, action, request, node);
                 assertThat(action, is(REQUEST_PRE_VOTE_ACTION_NAME));
                 assertThat(request, instanceOf(PreVoteRequest.class));
@@ -125,17 +129,21 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(localNode, new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion));
         healthStatus = new StatusInfo(HEALTHY, "healthy-info");
-        transportService = mockTransport.createTransportService(settings,
-            deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundTransportAddress -> localNode, null, emptySet());
+        transportService = mockTransport.createTransportService(
+            settings,
+            deterministicTaskQueue.getThreadPool(),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
 
         preVoteCollector = new PreVoteCollector(transportService, () -> {
             assert electionOccurred == false;
             electionOccurred = true;
-        }, l -> {
-        }, ElectionStrategy.DEFAULT_INSTANCE, () -> healthStatus);
+        }, l -> {}, ElectionStrategy.DEFAULT_INSTANCE, () -> healthStatus);
         preVoteCollector.update(getLocalPreVoteResponse(), null);
     }
 
@@ -157,8 +165,14 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
 
     private ClusterState makeClusterState(DiscoveryNode[] votingNodes) {
         final VotingConfiguration votingConfiguration = VotingConfiguration.of(votingNodes);
-        return CoordinationStateTests.clusterState(lastAcceptedTerm, lastAcceptedVersion, localNode,
-            votingConfiguration, votingConfiguration, 0);
+        return CoordinationStateTests.clusterState(
+            lastAcceptedTerm,
+            lastAcceptedVersion,
+            localNode,
+            votingConfiguration,
+            votingConfiguration,
+            0
+        );
     }
 
     private Releasable startCollector(DiscoveryNode... votingNodes) {
@@ -184,7 +198,6 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         assertTrue(electionOccurred);
     }
 
-
     public void testStartsElectionIfOtherNodeIsQuorum() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, getLocalPreVoteResponse());
@@ -203,8 +216,10 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         final long term = randomNonNegativeLong();
         healthStatus = new StatusInfo(UNHEALTHY, "unhealthy-info");
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        RemoteTransportException remoteTransportException = expectThrows(RemoteTransportException.class, () ->
-            handlePreVoteRequestViaTransportService(new PreVoteRequest(otherNode, term)));
+        RemoteTransportException remoteTransportException = expectThrows(
+            RemoteTransportException.class,
+            () -> handlePreVoteRequestViaTransportService(new PreVoteRequest(otherNode, term))
+        );
         assertThat(remoteTransportException.getCause(), instanceOf(NodeHealthCheckFailureException.class));
     }
 
@@ -220,8 +235,10 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         assumeTrue("unluckily chose lastAcceptedTerm too close to currentTerm, no later terms", lastAcceptedTerm < currentTerm - 1);
 
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(otherNode,
-            new PreVoteResponse(currentTerm, randomLongBetween(lastAcceptedTerm + 1, currentTerm - 1), randomNonNegativeLong()));
+        responsesByNode.put(
+            otherNode,
+            new PreVoteResponse(currentTerm, randomLongBetween(lastAcceptedTerm + 1, currentTerm - 1), randomNonNegativeLong())
+        );
         startAndRunCollector(otherNode);
         assertFalse(electionOccurred);
     }
@@ -230,8 +247,10 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         assumeTrue("unluckily hit Long.MAX_VALUE for lastAcceptedVersion, cannot increment", lastAcceptedVersion < Long.MAX_VALUE);
 
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(otherNode,
-            new PreVoteResponse(currentTerm, lastAcceptedTerm, randomLongBetween(lastAcceptedVersion + 1, Long.MAX_VALUE)));
+        responsesByNode.put(
+            otherNode,
+            new PreVoteResponse(currentTerm, lastAcceptedTerm, randomLongBetween(lastAcceptedVersion + 1, Long.MAX_VALUE))
+        );
         startAndRunCollector(otherNode);
         assertFalse(electionOccurred);
     }
@@ -240,8 +259,10 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         assumeTrue("unluckily hit 0 for lastAcceptedTerm, cannot decrement", 0 < lastAcceptedTerm);
 
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(otherNode,
-            new PreVoteResponse(currentTerm, randomLongBetween(0, lastAcceptedTerm - 1), randomNonNegativeLong()));
+        responsesByNode.put(
+            otherNode,
+            new PreVoteResponse(currentTerm, randomLongBetween(0, lastAcceptedTerm - 1), randomNonNegativeLong())
+        );
         startAndRunCollector(otherNode);
         assertTrue(electionOccurred);
     }
@@ -269,8 +290,11 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         DiscoveryNode[] votingNodes = votingNodesSet.toArray(new DiscoveryNode[0]);
         startAndRunCollector(votingNodes);
 
-        final CoordinationState coordinationState = new CoordinationState(localNode,
-            new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes)), ElectionStrategy.DEFAULT_INSTANCE);
+        final CoordinationState coordinationState = new CoordinationState(
+            localNode,
+            new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes)),
+            ElectionStrategy.DEFAULT_INSTANCE
+        );
 
         final long newTerm = randomLongBetween(currentTerm + 1, Long.MAX_VALUE);
 
@@ -279,8 +303,15 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         responsesByNode.forEach((otherNode, preVoteResponse) -> {
             if (preVoteResponse != null) {
                 try {
-                    coordinationState.handleJoin(new Join(otherNode, localNode, newTerm,
-                        preVoteResponse.getLastAcceptedTerm(), preVoteResponse.getLastAcceptedVersion()));
+                    coordinationState.handleJoin(
+                        new Join(
+                            otherNode,
+                            localNode,
+                            newTerm,
+                            preVoteResponse.getLastAcceptedTerm(),
+                            preVoteResponse.getLastAcceptedVersion()
+                        )
+                    );
                 } catch (CoordinationStateRejectedException ignored) {
                     // ok to reject some joins.
                 }
@@ -294,7 +325,10 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         final AtomicReference<PreVoteResponse> responseRef = new AtomicReference<>();
         final AtomicReference<TransportException> exceptionRef = new AtomicReference<>();
 
-        transportService.sendRequest(localNode, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
+        transportService.sendRequest(
+            localNode,
+            REQUEST_PRE_VOTE_ACTION_NAME,
+            preVoteRequest,
             new TransportResponseHandler<PreVoteResponse>() {
                 @Override
                 public PreVoteResponse read(StreamInput in) throws IOException {
@@ -315,7 +349,8 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
                 public String executor() {
                     return SAME;
                 }
-            });
+            }
+        );
 
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(deterministicTaskQueue.hasDeferredTasks());
@@ -350,8 +385,10 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         PreVoteResponse newPreVoteResponse = new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion);
         preVoteCollector.update(newPreVoteResponse, leaderNode);
 
-        RemoteTransportException remoteTransportException = expectThrows(RemoteTransportException.class, () ->
-            handlePreVoteRequestViaTransportService(new PreVoteRequest(otherNode, term)));
+        RemoteTransportException remoteTransportException = expectThrows(
+            RemoteTransportException.class,
+            () -> handlePreVoteRequestViaTransportService(new PreVoteRequest(otherNode, term))
+        );
         assertThat(remoteTransportException.getCause(), instanceOf(CoordinationStateRejectedException.class));
     }
 

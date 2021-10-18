@@ -96,7 +96,7 @@ public class BinarySearcherTests extends OpenSearchTestCase {
 
         // Sanity check: confirm that ArrayUtils.binarySearch() returns the same index
         int arraysIndex = Arrays.binarySearch(array, searchFor);
-        if(arraysIndex < 0){
+        if (arraysIndex < 0) {
             // Arrays.binarySearch didn't find an exact match
             arraysIndex = -(arraysIndex + 1);
         }
@@ -139,10 +139,10 @@ public class BinarySearcherTests extends OpenSearchTestCase {
         int searchFor = randomInt();
         BinarySearcher searcher = new IntBinarySearcher(array, searchFor);
 
-        int searcherIndex = searcher.search(0, size-1);
+        int searcherIndex = searcher.search(0, size - 1);
         int arraysIndex = Arrays.binarySearch(array, searchFor);
 
-        if(arraysIndex < 0){
+        if (arraysIndex < 0) {
             // Arrays.binarySearch didn't find an exact match
             arraysIndex = -(arraysIndex + 1);
         }

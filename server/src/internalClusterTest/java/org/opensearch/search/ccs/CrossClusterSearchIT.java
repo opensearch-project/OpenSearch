@@ -81,9 +81,17 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("demo"));
         indexDocs(client(LOCAL_CLUSTER), "demo");
         final String remoteNode = cluster("cluster_a").startDataOnlyNode();
-        assertAcked(client("cluster_a").admin().indices().prepareCreate("prod")
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", remoteNode)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()));
+        assertAcked(
+            client("cluster_a").admin()
+                .indices()
+                .prepareCreate("prod")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", remoteNode)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build()
+                )
+        );
         indexDocs(client("cluster_a"), "prod");
         SearchListenerPlugin.blockQueryPhase();
         try {

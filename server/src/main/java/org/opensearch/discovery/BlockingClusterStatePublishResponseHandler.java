@@ -40,7 +40,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-
 /**
  * Handles responses obtained when publishing a new cluster state from master to all non master nodes.
  * Allows to await a reply from all non master nodes, up to a timeout

@@ -51,11 +51,22 @@ import java.io.IOException;
 public class GetPipelineTransportAction extends TransportMasterNodeReadAction<GetPipelineRequest, GetPipelineResponse> {
 
     @Inject
-    public GetPipelineTransportAction(ThreadPool threadPool, ClusterService clusterService,
-                                      TransportService transportService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, GetPipelineRequest::new,
-                indexNameExpressionResolver);
+    public GetPipelineTransportAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetPipelineAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetPipelineRequest::new,
+            indexNameExpressionResolver
+        );
     }
 
     @Override
@@ -70,7 +81,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected void masterOperation(GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener)
-            throws Exception {
+        throws Exception {
         listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(state, request.getIds())));
     }
 

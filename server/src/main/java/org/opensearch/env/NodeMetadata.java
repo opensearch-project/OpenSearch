@@ -68,8 +68,7 @@ public final class NodeMetadata {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeMetadata that = (NodeMetadata) o;
-        return nodeId.equals(that.nodeId) &&
-            nodeVersion.equals(that.nodeVersion);
+        return nodeId.equals(that.nodeId) && nodeVersion.equals(that.nodeVersion);
     }
 
     @Override
@@ -79,10 +78,7 @@ public final class NodeMetadata {
 
     @Override
     public String toString() {
-        return "NodeMetadata{" +
-            "nodeId='" + nodeId + '\'' +
-            ", nodeVersion=" + nodeVersion +
-            '}';
+        return "NodeMetadata{" + "nodeId='" + nodeId + '\'' + ", nodeVersion=" + nodeVersion + '}';
     }
 
     public String nodeId() {
@@ -101,12 +97,14 @@ public final class NodeMetadata {
 
         if (nodeVersion.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
             throw new IllegalStateException(
-                "cannot upgrade a node from version [" + nodeVersion + "] directly to version [" + Version.CURRENT + "]");
+                "cannot upgrade a node from version [" + nodeVersion + "] directly to version [" + Version.CURRENT + "]"
+            );
         }
 
         if (nodeVersion.after(Version.CURRENT)) {
             throw new IllegalStateException(
-                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]");
+                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]"
+            );
         }
 
         return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT);
@@ -127,8 +125,8 @@ public final class NodeMetadata {
         public NodeMetadata build() {
             final Version nodeVersion;
             if (this.nodeVersion == null) {
-                assert Version.CURRENT.major <= LegacyESVersion.V_7_0_0.major + 1 :
-                    "version is required in the node metadata from v9 onwards";
+                assert Version.CURRENT.major <= LegacyESVersion.V_7_0_0.major
+                    + 1 : "version is required in the node metadata from v9 onwards";
                 nodeVersion = Version.V_EMPTY;
             } else {
                 nodeVersion = this.nodeVersion;

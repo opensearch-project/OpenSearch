@@ -57,8 +57,11 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
         GeoGridAggregatorSupplier.class
     );
 
-    public static final ObjectParser<GeoHashGridAggregationBuilder, String> PARSER =
-            createParser(NAME, GeoUtils::parsePrecision, GeoHashGridAggregationBuilder::new);
+    public static final ObjectParser<GeoHashGridAggregationBuilder, String> PARSER = createParser(
+        NAME,
+        GeoUtils::parsePrecision,
+        GeoHashGridAggregationBuilder::new
+    );
 
     public GeoHashGridAggregationBuilder(String name) {
         super(name);
@@ -83,16 +86,36 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     @Override
     protected ValuesSourceAggregatorFactory createFactory(
-        String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
-            GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metadata) throws IOException {
-        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox,
-            queryShardContext, parent, subFactoriesBuilder, metadata);
+        String name,
+        ValuesSourceConfig config,
+        int precision,
+        int requiredSize,
+        int shardSize,
+        GeoBoundingBox geoBoundingBox,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return new GeoHashGridAggregatorFactory(
+            name,
+            config,
+            precision,
+            requiredSize,
+            shardSize,
+            geoBoundingBox,
+            queryShardContext,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 
-    private GeoHashGridAggregationBuilder(GeoHashGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,
-                                          Map<String, Object> metadata) {
+    private GeoHashGridAggregationBuilder(
+        GeoHashGridAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 

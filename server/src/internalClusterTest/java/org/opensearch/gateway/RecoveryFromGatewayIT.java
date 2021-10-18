@@ -112,21 +112,40 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         internalCluster().startNode();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("appAccountIds").field("type", "text").endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type1")
+                .startObject("properties")
+                .startObject("appAccountIds")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
 
-        client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
-            .startArray("appAccountIds").value(14).value(179).endArray().endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "10990473").setSource(jsonBuilder().startObject()
-            .startArray("appAccountIds").value(14).endArray().endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "10990513").setSource(jsonBuilder().startObject()
-            .startArray("appAccountIds").value(14).value(179).endArray().endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "10990695").setSource(jsonBuilder().startObject()
-            .startArray("appAccountIds").value(14).endArray().endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "11026351").setSource(jsonBuilder().startObject()
-            .startArray("appAccountIds").value(14).endArray().endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "10990239")
+            .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject())
+            .execute()
+            .actionGet();
+        client().prepareIndex("test", "type1", "10990473")
+            .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
+            .execute()
+            .actionGet();
+        client().prepareIndex("test", "type1", "10990513")
+            .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject())
+            .execute()
+            .actionGet();
+        client().prepareIndex("test", "type1", "10990695")
+            .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
+            .execute()
+            .actionGet();
+        client().prepareIndex("test", "type1", "11026351")
+            .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
+            .execute()
+            .actionGet();
 
         refresh();
         assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
@@ -169,8 +188,11 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             } else {
                 assertThat("number of terms changed for index [" + index + "]", current.length, equalTo(previous.length));
                 for (int shard = 0; shard < current.length; shard++) {
-                    assertThat("primary term didn't increase for [" + index + "][" + shard + "]", current[shard],
-                        greaterThan(previous[shard]));
+                    assertThat(
+                        "primary term didn't increase for [" + index + "][" + shard + "]",
+                        current[shard],
+                        greaterThan(previous[shard])
+                    );
                 }
                 result.put(index, current);
             }
@@ -182,14 +204,28 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     public void testSingleNodeNoFlush() throws Exception {
         internalCluster().startNode();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("field").field("type", "text").endObject().startObject("num").field("type", "integer")
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type1")
+                .startObject("properties")
+                .startObject("field")
+                .field("type", "text")
+                .endObject()
+                .startObject("num")
+                .field("type", "integer")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
-            .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))).addMapping("type1", mapping, XContentType.JSON));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards()).put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+            ).addMapping("type1", mapping, XContentType.JSON)
+        );
 
         int value1Docs;
         int value2Docs;
@@ -206,16 +242,21 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             value2Docs = 1;
         }
 
-
         for (int i = 0; i < 1 + randomInt(100); i++) {
             for (int id = 0; id < Math.max(value1Docs, value2Docs); id++) {
                 if (id < value1Docs) {
-                    index("test", "type1", "1_" + id,
+                    index(
+                        "test",
+                        "type1",
+                        "1_" + id,
                         jsonBuilder().startObject().field("field", "value1").startArray("num").value(14).value(179).endArray().endObject()
                     );
                 }
                 if (id < value2Docs) {
-                    index("test", "type1", "2_" + id,
+                    index(
+                        "test",
+                        "type1",
+                        "2_" + id,
                         jsonBuilder().startObject().field("field", "value2").startArray("num").value(14).endArray().endObject()
                     );
                 }
@@ -254,7 +295,6 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         internalCluster().fullRestart();
 
-
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ensureYellow();
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
@@ -269,10 +309,14 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
     public void testSingleNodeWithFlush() throws Exception {
         internalCluster().startNode();
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute()
+        client().prepareIndex("test", "type1", "1")
+            .setSource(jsonBuilder().startObject().field("field", "value1").endObject())
+            .execute()
             .actionGet();
         flush();
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute()
+        client().prepareIndex("test", "type1", "2")
+            .setSource(jsonBuilder().startObject().field("field", "value2").endObject())
+            .execute()
             .actionGet();
         refresh();
 
@@ -308,10 +352,14 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         final String firstNode = internalCluster().startNode();
         internalCluster().startNode();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute()
+        client().prepareIndex("test", "type1", "1")
+            .setSource(jsonBuilder().startObject().field("field", "value1").endObject())
+            .execute()
             .actionGet();
         flush();
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute()
+        client().prepareIndex("test", "type1", "2")
+            .setSource(jsonBuilder().startObject().field("field", "value2").endObject())
+            .execute()
             .actionGet();
         refresh();
 
@@ -360,10 +408,14 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
 
         assertAcked(client().admin().indices().prepareCreate("test"));
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute()
+        client().prepareIndex("test", "type1", "1")
+            .setSource(jsonBuilder().startObject().field("field", "value1").endObject())
+            .execute()
             .actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute()
+        client().prepareIndex("test", "type1", "2")
+            .setSource(jsonBuilder().startObject().field("field", "value2").endObject())
+            .execute()
             .actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -381,7 +433,9 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         logger.info("--> one node is closed - start indexing data into the second one");
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute()
+        client().prepareIndex("test", "type1", "3")
+            .setSource(jsonBuilder().startObject().field("field", "value3").endObject())
+            .execute()
             .actionGet();
         // TODO: remove once refresh doesn't fail immediately if there a master block:
         // https://github.com/elastic/elasticsearch/issues/9997
@@ -395,15 +449,36 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         }
 
         logger.info("--> add some metadata and additional template");
-        client().admin().indices().preparePutTemplate("template_1")
+        client().admin()
+            .indices()
+            .preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
-            .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "text").field("store", true).endObject()
-                .startObject("field2").field("type", "keyword").field("store", true).endObject()
-                .endObject().endObject().endObject())
-            .execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).execute()
+            .addMapping(
+                "type1",
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("type1")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("type", "text")
+                    .field("store", true)
+                    .endObject()
+                    .startObject("field2")
+                    .field("type", "keyword")
+                    .field("store", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .execute()
+            .actionGet();
+        client().admin()
+            .indices()
+            .prepareAliases()
+            .addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value"))
+            .execute()
             .actionGet();
 
         logger.info("--> stopping the second node");
@@ -413,7 +488,8 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         internalCluster().startNodes(
             Settings.builder().put(node1DataPathSettings).put("gateway.recover_after_nodes", 2).build(),
-            Settings.builder().put(node2DataPathSettings).put("gateway.recover_after_nodes", 2).build());
+            Settings.builder().put(node2DataPathSettings).put("gateway.recover_after_nodes", 2).build()
+        );
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();
@@ -435,20 +511,21 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         final String primaryNode = internalCluster().startDataOnlyNode(nodeSettings(0));
 
         // create the index with our mapping
-        client(primaryNode)
-            .admin()
+        client(primaryNode).admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put("number_of_shards", 1)
-                .put("number_of_replicas", 1)
+            .setSettings(
+                Settings.builder()
+                    .put("number_of_shards", 1)
+                    .put("number_of_replicas", 1)
 
-                // disable merges to keep segments the same
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    // disable merges to keep segments the same
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
 
-                // expire retention leases quickly
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-            ).get();
+                    // expire retention leases quickly
+                    .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            )
+            .get();
 
         logger.info("--> indexing docs");
         int numDocs = randomIntBetween(1, 1024);
@@ -475,7 +552,10 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         logger.info("--> restart replica node");
         boolean softDeleteEnabled = internalCluster().getInstance(IndicesService.class, primaryNode)
-            .indexServiceSafe(resolveIndex("test")).getShard(0).indexSettings().isSoftDeleteEnabled();
+            .indexServiceSafe(resolveIndex("test"))
+            .getShard(0)
+            .indexSettings()
+            .isSoftDeleteEnabled();
 
         int moreDocs = randomIntBetween(1, 1024);
         internalCluster().restartNode(replicaNode, new RestartCallback() {
@@ -487,14 +567,26 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
                 }
 
                 // prevent a sequence-number-based recovery from being possible
-                client(primaryNode).admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
-                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "0s")
-                ).get();
-                assertBusy(() -> assertThat(client().admin().indices().prepareStats("test").get().getShards()[0]
-                    .getRetentionLeaseStats().retentionLeases().leases().size(), equalTo(1)));
+                client(primaryNode).admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(
+                        Settings.builder()
+                            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+                            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
+                            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "0s")
+                    )
+                    .get();
+                assertBusy(
+                    () -> assertThat(
+                        client().admin().indices().prepareStats("test").get().getShards()[0].getRetentionLeaseStats()
+                            .retentionLeases()
+                            .leases()
+                            .size(),
+                        equalTo(1)
+                    )
+                );
                 client().admin().indices().prepareFlush("test").setForce(true).get();
                 if (softDeleteEnabled) { // We need an extra flush to advance the min_retained_seqno of the SoftDeletesPolicy
                     client().admin().indices().prepareFlush("test").setForce(true).get();
@@ -526,19 +618,33 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
                 assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
             } else {
-                logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
-                    recoveryState.getShardId().getId(), recoveryState.getSourceNode().getName(), recoveryState.getTargetNode().getName(),
-                    recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
+                logger.info(
+                    "--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
+                    recoveryState.getShardId().getId(),
+                    recoveryState.getSourceNode().getName(),
+                    recoveryState.getTargetNode().getName(),
+                    recoveryState.getIndex().recoveredBytes(),
+                    recoveryState.getIndex().reusedBytes()
+                );
                 assertThat("bytes should have been recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
                 assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
                 // we have to recover the segments file since we commit the translog ID on engine startup
-                assertThat("all existing files should be reused, byte count mismatch", recoveryState.getIndex().reusedBytes(),
-                    equalTo(reused));
+                assertThat(
+                    "all existing files should be reused, byte count mismatch",
+                    recoveryState.getIndex().reusedBytes(),
+                    equalTo(reused)
+                );
                 assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes() - recovered));
-                assertThat("the segment from the last round of indexing should be recovered", recoveryState.getIndex().recoveredFileCount(),
-                    equalTo(filesRecovered));
-                assertThat("all existing files should be reused, file count mismatch", recoveryState.getIndex().reusedFileCount(),
-                    equalTo(filesReused));
+                assertThat(
+                    "the segment from the last round of indexing should be recovered",
+                    recoveryState.getIndex().recoveredFileCount(),
+                    equalTo(filesRecovered)
+                );
+                assertThat(
+                    "all existing files should be reused, file count mismatch",
+                    recoveryState.getIndex().reusedFileCount(),
+                    equalTo(filesReused)
+                );
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount() - filesRecovered));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
                 assertThat("no translog ops should be recovered", recoveryState.getTranslog().recoveredOperations(), equalTo(0));
@@ -558,7 +664,8 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         final String nodeName = internalCluster().startNode();
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build());
         final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
-            client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test"));
+            client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test")
+        );
         final Index index = resolveIndex("test");
         final ShardId shardId = new ShardId(index, 0);
         index("test", "type", "1");
@@ -594,8 +701,10 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
 
         TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response;
-        response = ActionTestUtils.executeBlocking(internalCluster().getInstance(TransportNodesListGatewayStartedShards.class),
-            new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, new DiscoveryNode[]{node}));
+        response = ActionTestUtils.executeBlocking(
+            internalCluster().getInstance(TransportNodesListGatewayStartedShards.class),
+            new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, new DiscoveryNode[] { node })
+        );
 
         assertThat(response.getNodes(), hasSize(1));
         assertThat(response.getNodes().get(0).allocationId(), notNullValue());
@@ -610,12 +719,18 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     }
 
     public void testMessyElectionsStillMakeClusterGoGreen() throws Exception {
-        internalCluster().startNodes(3,
-            Settings.builder().put(ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING.getKey(),
-                "2ms").build());
-        createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms").build());
+        internalCluster().startNodes(
+            3,
+            Settings.builder().put(ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), "2ms").build()
+        );
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .build()
+        );
         ensureGreen("test");
         internalCluster().fullRestart();
         ensureGreen("test");

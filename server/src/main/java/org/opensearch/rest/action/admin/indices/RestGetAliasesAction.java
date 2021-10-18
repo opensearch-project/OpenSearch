@@ -71,15 +71,18 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_alias"),
-            new Route(GET, "/_aliases"),
-            new Route(GET, "/_alias/{name}"),
-            new Route(HEAD, "/_alias/{name}"),
-            new Route(GET, "/{index}/_alias"),
-            new Route(HEAD, "/{index}/_alias"),
-            new Route(GET, "/{index}/_alias/{name}"),
-            new Route(HEAD, "/{index}/_alias/{name}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_alias"),
+                new Route(GET, "/_aliases"),
+                new Route(GET, "/_alias/{name}"),
+                new Route(HEAD, "/_alias/{name}"),
+                new Route(GET, "/{index}/_alias"),
+                new Route(HEAD, "/{index}/_alias"),
+                new Route(GET, "/{index}/_alias/{name}"),
+                new Route(HEAD, "/{index}/_alias/{name}")
+            )
+        );
     }
 
     @Override
@@ -87,9 +90,12 @@ public class RestGetAliasesAction extends BaseRestHandler {
         return "get_aliases_action";
     }
 
-    static RestResponse buildRestResponse(boolean aliasesExplicitlyRequested, String[] requestedAliases,
-                                          ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
-                                          XContentBuilder builder) throws Exception {
+    static RestResponse buildRestResponse(
+        boolean aliasesExplicitlyRequested,
+        String[] requestedAliases,
+        ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
+        XContentBuilder builder
+    ) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
         for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {
@@ -113,8 +119,9 @@ public class RestGetAliasesAction extends BaseRestHandler {
             }
         }
         for (int i = 0; i < requestedAliases.length; i++) {
-            if (Metadata.ALL.equals(requestedAliases[i]) || Regex.isSimpleMatchPattern(requestedAliases[i])
-                    || (i > firstWildcardIndex && requestedAliases[i].charAt(0) == '-')) {
+            if (Metadata.ALL.equals(requestedAliases[i])
+                || Regex.isSimpleMatchPattern(requestedAliases[i])
+                || (i > firstWildcardIndex && requestedAliases[i].charAt(0) == '-')) {
                 // only explicitly requested aliases will be called out as missing (404)
                 continue;
             }
@@ -124,7 +131,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 if (requestedAliases[j].charAt(0) == '-') {
                     // this is an exclude pattern
                     if (Regex.simpleMatch(requestedAliases[j].substring(1), requestedAliases[i])
-                            || Metadata.ALL.equals(requestedAliases[j].substring(1))) {
+                        || Metadata.ALL.equals(requestedAliases[j].substring(1))) {
                         // aliases[i] is excluded by aliases[j]
                         break;
                     }
@@ -190,8 +197,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
-        //we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
-        //not always be available there (they may get replaced so retrieving request.aliases is not quite the same).
+        // we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
+        // not always be available there (they may get replaced so retrieving request.aliases is not quite the same).
         return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {

@@ -154,7 +154,6 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, org.opensearch.geom
             return false;
         }
         EnvelopeBuilder other = (EnvelopeBuilder) obj;
-        return Objects.equals(topLeft, other.topLeft) &&
-                Objects.equals(bottomRight, other.bottomRight);
+        return Objects.equals(topLeft, other.topLeft) && Objects.equals(bottomRight, other.bottomRight);
     }
 }

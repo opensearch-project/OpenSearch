@@ -85,7 +85,6 @@ public enum AllocationDecision implements Writeable {
      */
     NO_ATTEMPT((byte) 7);
 
-
     private final byte id;
 
     AllocationDecision(byte id) {

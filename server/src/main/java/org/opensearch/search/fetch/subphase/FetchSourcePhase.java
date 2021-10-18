@@ -78,8 +78,9 @@ public final class FetchSourcePhase implements FetchSubPhase {
         // If source is disabled in the mapping, then attempt to return early.
         if (source.source() == null && source.internalSourceRef() == null) {
             if (containsFilters(fetchSourceContext)) {
-                throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
-                    "for index [" + index + "]");
+                throw new IllegalArgumentException(
+                    "unable to fetch fields from _source field: _source is disabled in the mappings " + "for index [" + index + "]"
+                );
             }
             return;
         }

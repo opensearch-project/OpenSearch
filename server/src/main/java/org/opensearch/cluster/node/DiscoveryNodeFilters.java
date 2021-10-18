@@ -113,7 +113,8 @@ public class DiscoveryNodeFilters {
             return null;
         }
 
-        Map<String, String[]> newFilters = original.filters.entrySet().stream()
+        Map<String, String[]> newFilters = original.filters.entrySet()
+            .stream()
             // Remove all entries that start with "_tier", as these will be handled elsewhere
             .filter(entry -> {
                 String attr = entry.getKey();

@@ -80,8 +80,7 @@ import java.util.function.Supplier;
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends ParametrizedFieldMapper {
 
-    public static final Setting<Boolean> COERCE_SETTING =
-            Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
+    public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
 
     private static NumberFieldMapper toType(FieldMapper in) {
         return (NumberFieldMapper) in;
@@ -115,12 +114,20 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         public Builder(String name, NumberType type, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
             this.type = type;
-            this.ignoreMalformed
-                = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
-            this.coerce
-                = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
-            this.nullValue = new Parameter<>("null_value", false, () -> null,
-                (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
+            this.ignoreMalformed = Parameter.explicitBoolParam(
+                "ignore_malformed",
+                true,
+                m -> toType(m).ignoreMalformed,
+                ignoreMalformedByDefault
+            );
+            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
+            this.nullValue = new Parameter<>(
+                "null_value",
+                false,
+                () -> null,
+                (n, c, o) -> o == null ? null : type.parse(o, false),
+                m -> toType(m).nullValue
+            ).acceptsNull();
         }
 
         Builder nullValue(Number number) {
@@ -191,9 +198,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
-                                    boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+            public Query rangeQuery(
+                String field,
+                Object lowerTerm,
+                Object upperTerm,
+                boolean includeLower,
+                boolean includeUpper,
+                boolean hasDocValues,
+                QueryShardContext context
+            ) {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
@@ -212,24 +225,24 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
                 Query query = HalfFloatPoint.newRangeQuery(field, l, u);
                 if (hasDocValues) {
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field,
-                            HalfFloatPoint.halfFloatToSortableShort(l),
-                            HalfFloatPoint.halfFloatToSortableShort(u));
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(
+                        field,
+                        HalfFloatPoint.halfFloatToSortableShort(l),
+                        HalfFloatPoint.halfFloatToSortableShort(u)
+                    );
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
                 return query;
             }
 
             @Override
-            public List<Field> createFields(String name, Number value,
-                                            boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new HalfFloatPoint(name, value.floatValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name,
-                        HalfFloatPoint.halfFloatToSortableShort(value.floatValue())));
+                    fields.add(new SortedNumericDocValuesField(name, HalfFloatPoint.halfFloatToSortableShort(value.floatValue())));
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.floatValue()));
@@ -288,9 +301,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
-                                    boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+            public Query rangeQuery(
+                String field,
+                Object lowerTerm,
+                Object upperTerm,
+                boolean includeLower,
+                boolean includeUpper,
+                boolean hasDocValues,
+                QueryShardContext context
+            ) {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
@@ -307,24 +326,24 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
                 Query query = FloatPoint.newRangeQuery(field, l, u);
                 if (hasDocValues) {
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field,
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(
+                        field,
                         NumericUtils.floatToSortableInt(l),
-                        NumericUtils.floatToSortableInt(u));
+                        NumericUtils.floatToSortableInt(u)
+                    );
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
                 return query;
             }
 
             @Override
-            public List<Field> createFields(String name, Number value,
-                                            boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new FloatPoint(name, value.floatValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name,
-                        NumericUtils.floatToSortableInt(value.floatValue())));
+                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value.floatValue())));
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.floatValue()));
@@ -374,15 +393,23 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
-                                    boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+            public Query rangeQuery(
+                String field,
+                Object lowerTerm,
+                Object upperTerm,
+                boolean includeLower,
+                boolean includeUpper,
+                boolean hasDocValues,
+                QueryShardContext context
+            ) {
                 return doubleRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
                     Query query = DoublePoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
-                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field,
-                                NumericUtils.doubleToSortableLong(l),
-                                NumericUtils.doubleToSortableLong(u));
+                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(
+                            field,
+                            NumericUtils.doubleToSortableLong(l),
+                            NumericUtils.doubleToSortableLong(u)
+                        );
                         query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
                     return query;
@@ -390,15 +417,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value,
-                                            boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new DoublePoint(name, value.doubleValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name,
-                        NumericUtils.doubleToSortableLong(value.doubleValue())));
+                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(value.doubleValue())));
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.doubleValue()));
@@ -456,15 +481,20 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
-                                    boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+            public Query rangeQuery(
+                String field,
+                Object lowerTerm,
+                Object upperTerm,
+                boolean includeLower,
+                boolean includeUpper,
+                boolean hasDocValues,
+                QueryShardContext context
+            ) {
                 return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context);
             }
 
             @Override
-            public List<Field> createFields(String name, Number value,
-                                            boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 return INTEGER.createFields(name, value, indexed, docValued, stored);
             }
 
@@ -513,15 +543,20 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
-                                    boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+            public Query rangeQuery(
+                String field,
+                Object lowerTerm,
+                Object upperTerm,
+                boolean includeLower,
+                boolean includeUpper,
+                boolean hasDocValues,
+                QueryShardContext context
+            ) {
                 return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context);
             }
 
             @Override
-            public List<Field> createFields(String name, Number value,
-                                            boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 return INTEGER.createFields(name, value, indexed, docValued, stored);
             }
 
@@ -590,21 +625,26 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
-                                    boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+            public Query rangeQuery(
+                String field,
+                Object lowerTerm,
+                Object upperTerm,
+                boolean includeLower,
+                boolean includeUpper,
+                boolean hasDocValues,
+                QueryShardContext context
+            ) {
                 int l = Integer.MIN_VALUE;
                 int u = Integer.MAX_VALUE;
                 if (lowerTerm != null) {
                     l = parse(lowerTerm, true);
                     // if the lower bound is decimal:
                     // - if the bound is positive then we increment it:
-                    //      if lowerTerm=1.5 then the (inclusive) bound becomes 2
+                    // if lowerTerm=1.5 then the (inclusive) bound becomes 2
                     // - if the bound is negative then we leave it as is:
-                    //      if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
+                    // if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
                     boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
-                    if ((lowerTermHasDecimalPart == false && includeLower == false) ||
-                            (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
+                    if ((lowerTermHasDecimalPart == false && includeLower == false) || (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
                         if (l == Integer.MAX_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -614,8 +654,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 if (upperTerm != null) {
                     u = parse(upperTerm, true);
                     boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
-                    if ((upperTermHasDecimalPart == false && includeUpper == false) ||
-                            (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
+                    if ((upperTermHasDecimalPart == false && includeUpper == false) || (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
                         if (u == Integer.MIN_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -634,8 +673,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value,
-                                            boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new IntPoint(name, value.intValue()));
@@ -696,9 +734,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
-                                    boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+            public Query rangeQuery(
+                String field,
+                Object lowerTerm,
+                Object upperTerm,
+                boolean includeLower,
+                boolean includeUpper,
+                boolean hasDocValues,
+                QueryShardContext context
+            ) {
                 return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
                     Query query = LongPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
@@ -713,8 +757,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value,
-                                            boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new LongPoint(name, value.longValue()));
@@ -743,23 +786,38 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         public final String typeName() {
             return name;
         }
+
         /** Get the associated numeric type */
         public final NumericType numericType() {
             return numericType;
         }
+
         public final TypeParser parser() {
             return parser;
         }
+
         public abstract Query termQuery(String field, Object value);
+
         public abstract Query termsQuery(String field, List<Object> values);
-        public abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
-                                         boolean includeLower, boolean includeUpper,
-                                         boolean hasDocValues, QueryShardContext context);
+
+        public abstract Query rangeQuery(
+            String field,
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            boolean hasDocValues,
+            QueryShardContext context
+        );
+
         public abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
+
         public abstract Number parse(Object value, boolean coerce);
+
         public abstract Number parsePoint(byte[] value);
-        public abstract List<Field> createFields(String name, Number value, boolean indexed,
-                                                 boolean docValued, boolean stored);
+
+        public abstract List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored);
+
         Number valueForSearch(Number value) {
             return value;
         }
@@ -818,7 +876,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
          */
         public static long objectToLong(Object value, boolean coerce) {
             if (value instanceof Long) {
-                return (Long)value;
+                return (Long) value;
             }
 
             double doubleValue = objectToDouble(value);
@@ -908,8 +966,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         private final boolean coerce;
         private final Number nullValue;
 
-        public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
-                               boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta) {
+        public NumberFieldType(
+            String name,
+            NumberType type,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            boolean coerce,
+            Number nullValue,
+            Map<String, String> meta
+        ) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
@@ -918,8 +984,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         NumberFieldType(String name, Builder builder) {
-            this(name, builder.type, builder.indexed.getValue(), builder.stored.getValue(), builder.hasDocValues.getValue(),
-                builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue());
+            this(
+                name,
+                builder.type,
+                builder.indexed.getValue(),
+                builder.stored.getValue(),
+                builder.hasDocValues.getValue(),
+                builder.coerce.getValue().value(),
+                builder.nullValue.getValue(),
+                builder.meta.getValue()
+            );
         }
 
         public NumberFieldType(String name, NumberType type) {
@@ -1007,8 +1081,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
+                throw new IllegalArgumentException(
+                    "Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones"
+                );
             }
             if (format == null) {
                 return DocValueFormat.RAW;
@@ -1034,12 +1109,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
 
-    private NumberFieldMapper(
-            String simpleName,
-            MappedFieldType mappedFieldType,
-            MultiFields multiFields,
-            CopyTo copyTo,
-            Builder builder) {
+    private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
@@ -1084,9 +1154,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             value = context.externalValue();
         } else if (parser.currentToken() == Token.VALUE_NULL) {
             value = null;
-        } else if (coerce.value()
-                && parser.currentToken() == Token.VALUE_STRING
-                && parser.textLength() == 0) {
+        } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
             value = null;
         } else {
             try {
@@ -1114,8 +1182,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
 
-        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue,
-            indexed, hasDocValues, stored));
+        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored));
 
         if (hasDocValues == false && (stored || indexed)) {
             createFieldNamesField(context);

@@ -49,7 +49,7 @@ import static org.opensearch.geometry.utils.Geohash.stringEncode;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.is;
 
-public class GeoPointParsingTests  extends OpenSearchTestCase {
+public class GeoPointParsingTests extends OpenSearchTestCase {
     private static final double TOLERANCE = 1E-5;
 
     public void testGeoPointReset() throws IOException {
@@ -75,28 +75,31 @@ public class GeoPointParsingTests  extends OpenSearchTestCase {
 
     public void testParseWktInvalid() {
         GeoPoint point = new GeoPoint(0, 0);
-        Exception e = expectThrows(
-            OpenSearchParseException.class,
-            () -> point.resetFromString("NOT A POINT(1 2)")
-        );
+        Exception e = expectThrows(OpenSearchParseException.class, () -> point.resetFromString("NOT A POINT(1 2)"));
         assertEquals("Invalid WKT format", e.getMessage());
 
-        Exception e2 = expectThrows(
-            OpenSearchParseException.class,
-            () -> point.resetFromString("MULTIPOINT(1 2, 3 4)")
-        );
+        Exception e2 = expectThrows(OpenSearchParseException.class, () -> point.resetFromString("MULTIPOINT(1 2, 3 4)"));
         assertEquals("[geo_point] supports only POINT among WKT primitives, but found MULTIPOINT", e2.getMessage());
     }
 
     public void testEqualsHashCodeContract() {
         // GeoPoint doesn't care about coordinate system bounds, this simply validates equality and hashCode.
         final DoubleSupplier randomDelta = () -> randomValueOtherThan(0.0, () -> randomDoubleBetween(-1000000, 1000000, true));
-        checkEqualsAndHashCode(RandomGeoGenerator.randomPoint(random()), GeoPoint::new,
-            pt -> new GeoPoint(pt.lat() + randomDelta.getAsDouble(), pt.lon()));
-        checkEqualsAndHashCode(RandomGeoGenerator.randomPoint(random()), GeoPoint::new,
-            pt -> new GeoPoint(pt.lat(), pt.lon() + randomDelta.getAsDouble()));
-        checkEqualsAndHashCode(RandomGeoGenerator.randomPoint(random()), GeoPoint::new,
-            pt -> new GeoPoint(pt.lat() + randomDelta.getAsDouble(), pt.lon() + randomDelta.getAsDouble()));
+        checkEqualsAndHashCode(
+            RandomGeoGenerator.randomPoint(random()),
+            GeoPoint::new,
+            pt -> new GeoPoint(pt.lat() + randomDelta.getAsDouble(), pt.lon())
+        );
+        checkEqualsAndHashCode(
+            RandomGeoGenerator.randomPoint(random()),
+            GeoPoint::new,
+            pt -> new GeoPoint(pt.lat(), pt.lon() + randomDelta.getAsDouble())
+        );
+        checkEqualsAndHashCode(
+            RandomGeoGenerator.randomPoint(random()),
+            GeoPoint::new,
+            pt -> new GeoPoint(pt.lat() + randomDelta.getAsDouble(), pt.lon() + randomDelta.getAsDouble())
+        );
     }
 
     public void testGeoPointParsing() throws IOException {
@@ -143,8 +146,7 @@ public class GeoPointParsingTests  extends OpenSearchTestCase {
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
-            Exception e = expectThrows(OpenSearchParseException.class, () ->
-                GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
             assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
         }
     }
@@ -162,8 +164,7 @@ public class GeoPointParsingTests  extends OpenSearchTestCase {
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
-            Exception e = expectThrows(OpenSearchParseException.class, () ->
-                GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
             assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
         }
     }
@@ -182,8 +183,7 @@ public class GeoPointParsingTests  extends OpenSearchTestCase {
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
-            Exception e = expectThrows(OpenSearchParseException.class, () ->
-                GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
             assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
         }
     }
@@ -202,8 +202,7 @@ public class GeoPointParsingTests  extends OpenSearchTestCase {
 
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
-            Exception e = expectThrows(OpenSearchParseException.class, () ->
-                GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
             assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
         }
     }

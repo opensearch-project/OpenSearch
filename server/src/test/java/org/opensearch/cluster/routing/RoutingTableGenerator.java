@@ -36,11 +36,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.cluster.routing.IndexRoutingTable;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.ShardRoutingState;
-import org.opensearch.cluster.routing.TestShardRouting;
 
 import static org.opensearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 
@@ -62,14 +57,32 @@ public class RoutingTableGenerator {
 
         switch (state) {
             case STARTED:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
-                                                        null, primary, ShardRoutingState.STARTED);
+                return TestShardRouting.newShardRouting(
+                    index,
+                    shardId,
+                    "node_" + Integer.toString(node_id++),
+                    null,
+                    primary,
+                    ShardRoutingState.STARTED
+                );
             case INITIALIZING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
-                                                        null, primary, ShardRoutingState.INITIALIZING);
+                return TestShardRouting.newShardRouting(
+                    index,
+                    shardId,
+                    "node_" + Integer.toString(node_id++),
+                    null,
+                    primary,
+                    ShardRoutingState.INITIALIZING
+                );
             case RELOCATING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
-                                                        "node_" + Integer.toString(node_id++), primary, ShardRoutingState.RELOCATING);
+                return TestShardRouting.newShardRouting(
+                    index,
+                    shardId,
+                    "node_" + Integer.toString(node_id++),
+                    "node_" + Integer.toString(node_id++),
+                    primary,
+                    ShardRoutingState.RELOCATING
+                );
             default:
                 throw new OpenSearchException("Unknown state: " + state.name());
         }

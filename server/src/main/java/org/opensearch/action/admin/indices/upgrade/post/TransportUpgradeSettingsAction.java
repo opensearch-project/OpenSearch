@@ -60,11 +60,23 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
     private final MetadataUpdateSettingsService updateSettingsService;
 
     @Inject
-    public TransportUpgradeSettingsAction(TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, MetadataUpdateSettingsService updateSettingsService,
-                                          IndexNameExpressionResolver indexNameExpressionResolver, ActionFilters actionFilters) {
-        super(UpgradeSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            UpgradeSettingsRequest::new, indexNameExpressionResolver);
+    public TransportUpgradeSettingsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataUpdateSettingsService updateSettingsService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ActionFilters actionFilters
+    ) {
+        super(
+            UpgradeSettingsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            UpgradeSettingsRequest::new,
+            indexNameExpressionResolver
+        );
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -85,12 +97,14 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
     }
 
     @Override
-    protected void masterOperation(final UpgradeSettingsRequest request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
-        UpgradeSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpgradeSettingsClusterStateUpdateRequest()
-                .ackTimeout(request.timeout())
-                .versions(request.versions())
-                .masterNodeTimeout(request.masterNodeTimeout());
+    protected void masterOperation(
+        final UpgradeSettingsRequest request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        UpgradeSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpgradeSettingsClusterStateUpdateRequest().ackTimeout(
+            request.timeout()
+        ).versions(request.versions()).masterNodeTimeout(request.masterNodeTimeout());
 
         updateSettingsService.upgradeIndexSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
@@ -100,8 +114,13 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
 
             @Override
             public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to upgrade minimum compatibility version settings on indices [{}]",
-                    request.versions().keySet()), t);
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "failed to upgrade minimum compatibility version settings on indices [{}]",
+                        request.versions().keySet()
+                    ),
+                    t
+                );
                 listener.onFailure(t);
             }
         });

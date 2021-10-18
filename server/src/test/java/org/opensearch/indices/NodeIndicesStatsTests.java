@@ -49,7 +49,8 @@ public class NodeIndicesStatsTests extends OpenSearchTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContent(null, params));
         assertThat(
             e,
-            hasToString(containsString("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]")));
+            hasToString(containsString("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]"))
+        );
     }
 
 }

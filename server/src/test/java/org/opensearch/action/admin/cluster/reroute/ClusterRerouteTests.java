@@ -80,8 +80,7 @@ public class ClusterRerouteTests extends OpenSearchAllocationTestCase {
         req.writeTo(out);
         BytesReference bytes = out.bytes();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(NetworkModule.getNamedWriteables());
-        StreamInput wrap = new NamedWriteableAwareStreamInput(bytes.streamInput(),
-            namedWriteableRegistry);
+        StreamInput wrap = new NamedWriteableAwareStreamInput(bytes.streamInput(), namedWriteableRegistry);
         ClusterRerouteRequest deserializedReq = new ClusterRerouteRequest(wrap);
 
         assertEquals(req.isRetryFailed(), deserializedReq.isRetryFailed());
@@ -95,8 +94,11 @@ public class ClusterRerouteTests extends OpenSearchAllocationTestCase {
     public void testClusterStateUpdateTask() {
         AllocationService allocationService = new AllocationService(
             new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE);
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
         ClusterState clusterState = createInitialClusterState(allocationService);
         ClusterRerouteRequest req = new ClusterRerouteRequest();
         req.dryRun(true);
@@ -113,8 +115,12 @@ public class ClusterRerouteTests extends OpenSearchAllocationTestCase {
             }
         };
         TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask task =
-            new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, req,
-                responseActionListener );
+            new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(
+                logger,
+                allocationService,
+                req,
+                responseActionListener
+            );
         ClusterState execute = task.execute(clusterState);
         assertSame(execute, clusterState); // dry-run
         task.onAllNodesAcked(null);
@@ -133,21 +139,25 @@ public class ClusterRerouteTests extends OpenSearchAllocationTestCase {
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i);
             List<FailedShard> failedShards = Collections.singletonList(
-                new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
-                    new UnsupportedOperationException(), randomBoolean()));
+                new FailedShard(
+                    routingTable.index("idx").shard(0).shards().get(0),
+                    "boom" + i,
+                    new UnsupportedOperationException(),
+                    randomBoolean()
+                )
+            );
             newState = allocationService.applyFailedShards(clusterState, failedShards);
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = clusterState.routingTable();
             assertEquals(routingTable.index("idx").shards().size(), 1);
-            if (i == retries-1) {
+            if (i == retries - 1) {
                 assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
             } else {
                 assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
             }
-            assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i+1);
+            assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i + 1);
         }
-
 
         // without retry_failed we won't allocate that shard
         ClusterState newState = task.execute(clusterState);
@@ -177,10 +187,12 @@ public class ClusterRerouteTests extends OpenSearchAllocationTestCase {
         routingTableBuilder.addAsNew(metadata.index("idx"));
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY))
-            .metadata(metadata).routingTable(routingTable).build();
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = service.reroute(clusterState, "reroute").routingTable();

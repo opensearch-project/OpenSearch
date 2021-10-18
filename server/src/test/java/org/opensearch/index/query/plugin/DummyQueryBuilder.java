@@ -46,8 +46,7 @@ import java.io.IOException;
 public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
     public static final String NAME = "dummy";
 
-    public DummyQueryBuilder() {
-    }
+    public DummyQueryBuilder() {}
 
     public DummyQueryBuilder(StreamInput in) throws IOException {
         super(in);

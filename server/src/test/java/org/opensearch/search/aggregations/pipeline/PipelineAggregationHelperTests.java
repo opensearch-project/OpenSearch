@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -100,7 +99,7 @@ public class PipelineAggregationHelperTests extends OpenSearchTestCase {
         }
 
         if (emptyHisto) {
-            int idx = randomIntBetween(0, values.size()-1);
+            int idx = randomIntBetween(0, values.size() - 1);
             MockBucket bucket = values.get(idx);
             bucket.count = randomIntBetween(1, 50);
             bucket.docValues = new double[bucket.count];
@@ -162,9 +161,10 @@ public class PipelineAggregationHelperTests extends OpenSearchTestCase {
     static AggregationBuilder getRandomSequentiallyOrderedParentAgg() throws IOException {
         @SuppressWarnings("unchecked")
         Function<String, AggregationBuilder> builder = randomFrom(
-                HistogramAggregationBuilder::new,
-                DateHistogramAggregationBuilder::new,
-                AutoDateHistogramAggregationBuilder::new);
+            HistogramAggregationBuilder::new,
+            DateHistogramAggregationBuilder::new,
+            AutoDateHistogramAggregationBuilder::new
+        );
         return builder.apply("name");
     }
 }

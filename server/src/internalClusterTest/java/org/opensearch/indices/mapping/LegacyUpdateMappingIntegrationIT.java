@@ -70,44 +70,56 @@ public class LegacyUpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
                 defaultMapping.endObject();
             }
             defaultMapping.endObject();
-            client()
-                    .admin()
-                    .indices()
-                    .prepareCreate("test")
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_3_0).build())
-                    .addMapping(MapperService.DEFAULT_MAPPING, defaultMapping)
-                    .get();
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_3_0).build())
+                .addMapping(MapperService.DEFAULT_MAPPING, defaultMapping)
+                .get();
         }
 
         {
-            final GetMappingsResponse getResponse =
-                    client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
-            final Map<String, Object> defaultMapping =
-                    getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
+            final GetMappingsResponse getResponse = client().admin()
+                .indices()
+                .prepareGetMappings("test")
+                .addTypes(MapperService.DEFAULT_MAPPING)
+                .get();
+            final Map<String, Object> defaultMapping = getResponse.getMappings()
+                .get("test")
+                .get(MapperService.DEFAULT_MAPPING)
+                .sourceAsMap();
             assertThat(defaultMapping, hasKey("date_detection"));
         }
 
         logger.info("Emptying _default_ mappings");
         // now remove it
-        try (XContentBuilder mappingBuilder =
-                     JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING).endObject().endObject()) {
-            final AcknowledgedResponse putResponse =
-                    client()
-                            .admin()
-                            .indices()
-                            .preparePutMapping("test")
-                            .setType(MapperService.DEFAULT_MAPPING)
-                            .setSource(mappingBuilder)
-                            .get();
+        try (
+            XContentBuilder mappingBuilder = JsonXContent.contentBuilder()
+                .startObject()
+                .startObject(MapperService.DEFAULT_MAPPING)
+                .endObject()
+                .endObject()
+        ) {
+            final AcknowledgedResponse putResponse = client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setType(MapperService.DEFAULT_MAPPING)
+                .setSource(mappingBuilder)
+                .get();
             assertThat(putResponse.isAcknowledged(), equalTo(true));
         }
         logger.info("Done Emptying _default_ mappings");
 
         {
-            final GetMappingsResponse getResponse =
-                    client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
-            final Map<String, Object> defaultMapping =
-                    getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
+            final GetMappingsResponse getResponse = client().admin()
+                .indices()
+                .prepareGetMappings("test")
+                .addTypes(MapperService.DEFAULT_MAPPING)
+                .get();
+            final Map<String, Object> defaultMapping = getResponse.getMappings()
+                .get("test")
+                .get(MapperService.DEFAULT_MAPPING)
+                .sourceAsMap();
             assertThat(defaultMapping, not(hasKey("date_detection")));
         }
 
@@ -134,13 +146,12 @@ public class LegacyUpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             }
             defaultMapping.endObject();
 
-            final AcknowledgedResponse putResponse =
-                    client()
-                            .admin()
-                            .indices()
-                            .preparePutMapping("test")
-                            .setType(MapperService.DEFAULT_MAPPING).setSource(defaultMapping)
-                            .get();
+            final AcknowledgedResponse putResponse = client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setType(MapperService.DEFAULT_MAPPING)
+                .setSource(defaultMapping)
+                .get();
             assertThat(putResponse.isAcknowledged(), equalTo(true));
         }
 
@@ -165,24 +176,27 @@ public class LegacyUpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
                 }
                 mappingBuilder.endObject();
 
-                final AcknowledgedResponse putResponse =
-                        client()
-                                .admin()
-                                .indices()
-                                .preparePutMapping("test")
-                                .setType(MapperService.DEFAULT_MAPPING)
-                                .setSource(mappingBuilder)
-                                .get();
+                final AcknowledgedResponse putResponse = client().admin()
+                    .indices()
+                    .preparePutMapping("test")
+                    .setType(MapperService.DEFAULT_MAPPING)
+                    .setSource(mappingBuilder)
+                    .get();
                 assertThat(putResponse.isAcknowledged(), equalTo(true));
             }
         }
         logger.info("Done changing _default_ mappings field from analyzed to non-analyzed");
 
         {
-            final GetMappingsResponse getResponse =
-                    client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
-            final Map<String, Object> defaultMapping =
-                    getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
+            final GetMappingsResponse getResponse = client().admin()
+                .indices()
+                .prepareGetMappings("test")
+                .addTypes(MapperService.DEFAULT_MAPPING)
+                .get();
+            final Map<String, Object> defaultMapping = getResponse.getMappings()
+                .get("test")
+                .get(MapperService.DEFAULT_MAPPING)
+                .sourceAsMap();
             final Map<String, Object> fieldSettings = (Map<String, Object>) ((Map) defaultMapping.get("properties")).get("f");
             assertThat(fieldSettings, hasEntry("type", "keyword"));
         }
@@ -210,14 +224,14 @@ public class LegacyUpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             mappingBuilder.endObject();
 
             expectThrows(
-                    MapperParsingException.class,
-                    () -> client()
-                            .admin()
-                            .indices()
-                            .preparePutMapping("test")
-                            .setType(MapperService.DEFAULT_MAPPING)
-                            .setSource(mappingBuilder)
-                            .get());
+                MapperParsingException.class,
+                () -> client().admin()
+                    .indices()
+                    .preparePutMapping("test")
+                    .setType(MapperService.DEFAULT_MAPPING)
+                    .setSource(mappingBuilder)
+                    .get()
+            );
         }
 
     }

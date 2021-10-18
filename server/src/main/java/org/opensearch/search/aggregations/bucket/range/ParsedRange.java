@@ -60,18 +60,25 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
         return buckets;
     }
 
-    protected static void declareParsedRangeFields(final ObjectParser<? extends ParsedRange, Void> objectParser,
-                                         final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser,
-                                         final CheckedFunction<XContentParser, ParsedBucket, IOException> keyedBucketParser) {
+    protected static void declareParsedRangeFields(
+        final ObjectParser<? extends ParsedRange, Void> objectParser,
+        final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser,
+        final CheckedFunction<XContentParser, ParsedBucket, IOException> keyedBucketParser
+    ) {
         declareMultiBucketAggregationFields(objectParser, bucketParser::apply, keyedBucketParser::apply);
     }
 
-    private static final ObjectParser<ParsedRange, Void> PARSER =
-            new ObjectParser<>(ParsedRange.class.getSimpleName(), true, ParsedRange::new);
+    private static final ObjectParser<ParsedRange, Void> PARSER = new ObjectParser<>(
+        ParsedRange.class.getSimpleName(),
+        true,
+        ParsedRange::new
+    );
     static {
-        declareParsedRangeFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
+        declareParsedRangeFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser, false),
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
     }
 
     public static ParsedRange fromXContent(XContentParser parser, String name) throws IOException {
@@ -158,9 +165,11 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
             return Double.isInfinite(d) ? null : Double.toString(d);
         }
 
-        protected static <B extends ParsedBucket> B parseRangeBucketXContent(final XContentParser parser,
-                                                                             final Supplier<B> bucketSupplier,
-                                                                             final boolean keyed) throws IOException {
+        protected static <B extends ParsedBucket> B parseRangeBucketXContent(
+            final XContentParser parser,
+            final Supplier<B> bucketSupplier,
+            final boolean keyed
+        ) throws IOException {
             final B bucket = bucketSupplier.get();
             bucket.setKeyed(keyed);
             XContentParser.Token token = parser.currentToken();
@@ -192,8 +201,12 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
                         bucket.toAsString = parser.text();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
-                            aggregations::add);
+                    XContentParserUtils.parseTypedKeysObject(
+                        parser,
+                        Aggregation.TYPED_KEYS_DELIMITER,
+                        Aggregation.class,
+                        aggregations::add
+                    );
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

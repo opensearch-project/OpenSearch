@@ -99,16 +99,26 @@ public class TranslogDeletionPolicy {
      * @deprecated EXPERT: this ctor is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
-    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles,
-                                  Supplier<RetentionLeases> retentionLeasesSupplier) {
+    public TranslogDeletionPolicy(
+        long retentionSizeInBytes,
+        long retentionAgeInMillis,
+        int retentionTotalFiles,
+        Supplier<RetentionLeases> retentionLeasesSupplier
+    ) {
         this(retentionSizeInBytes, retentionAgeInMillis, retentionTotalFiles);
         this.retentionLeasesSupplier = retentionLeasesSupplier;
     }
 
     public synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
         if (newCheckpoint < this.localCheckpointOfSafeCommit) {
-            throw new IllegalArgumentException("local checkpoint of the safe commit can't go backwards: " +
-                "current [" + this.localCheckpointOfSafeCommit + "] new [" + newCheckpoint + "]");
+            throw new IllegalArgumentException(
+                "local checkpoint of the safe commit can't go backwards: "
+                    + "current ["
+                    + this.localCheckpointOfSafeCommit
+                    + "] new ["
+                    + newCheckpoint
+                    + "]"
+            );
         }
         this.localCheckpointOfSafeCommit = newCheckpoint;
     }
@@ -192,7 +202,7 @@ public class TranslogDeletionPolicy {
         long minByAge = getMinTranslogGenByAge(readers, writer, retentionAgeInMillis, currentTime());
         long minBySize = getMinTranslogGenBySize(readers, writer, retentionSizeInBytes);
         long minByRetentionLeasesAndSize = Long.MAX_VALUE;
-        if(shouldPruneTranslogByRetentionLease) {
+        if (shouldPruneTranslogByRetentionLease) {
             // If retention size is specified, size takes precedence.
             long minByRetentionLeases = getMinTranslogGenByRetentionLease(readers, writer, retentionLeasesSupplier);
             minByRetentionLeasesAndSize = Math.max(minBySize, minByRetentionLeases);
@@ -214,8 +224,11 @@ public class TranslogDeletionPolicy {
      * @deprecated EXPERT: this configuration is specific to CCR and will be moved to a plugin in the next release
      */
     @Deprecated
-    static long getMinTranslogGenByRetentionLease(List<TranslogReader> readers, TranslogWriter writer,
-                                                  Supplier<RetentionLeases> retentionLeasesSupplier) {
+    static long getMinTranslogGenByRetentionLease(
+        List<TranslogReader> readers,
+        TranslogWriter writer,
+        Supplier<RetentionLeases> retentionLeasesSupplier
+    ) {
         long minGen = writer.getGeneration();
         final long minimumRetainingSequenceNumber = retentionLeasesSupplier.get()
             .leases()
@@ -226,8 +239,8 @@ public class TranslogDeletionPolicy {
 
         for (int i = readers.size() - 1; i >= 0; i--) {
             final TranslogReader reader = readers.get(i);
-            if(reader.getCheckpoint().minSeqNo <= minimumRetainingSequenceNumber &&
-                reader.getCheckpoint().maxSeqNo >= minimumRetainingSequenceNumber) {
+            if (reader.getCheckpoint().minSeqNo <= minimumRetainingSequenceNumber
+                && reader.getCheckpoint().maxSeqNo >= minimumRetainingSequenceNumber) {
                 minGen = Math.min(minGen, reader.getGeneration());
             }
         }
@@ -252,7 +265,7 @@ public class TranslogDeletionPolicy {
     static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now)
         throws IOException {
         if (maxRetentionAgeInMillis >= 0) {
-            for (TranslogReader reader: readers) {
+            for (TranslogReader reader : readers) {
                 if (now - reader.getLastModifiedTime() <= maxRetentionAgeInMillis) {
                     return reader.getGeneration();
                 }

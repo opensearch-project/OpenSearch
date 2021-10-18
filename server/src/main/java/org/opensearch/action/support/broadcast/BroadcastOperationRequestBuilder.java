@@ -38,10 +38,11 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.OpenSearchClient;
 
 public abstract class BroadcastOperationRequestBuilder<
-            Request extends BroadcastRequest<Request>,
-            Response extends BroadcastResponse,
-            RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>
-        > extends ActionRequestBuilder<Request, Response> {
+    Request extends BroadcastRequest<Request>,
+    Response extends BroadcastResponse,
+    RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
+        Request,
+        Response> {
 
     protected BroadcastOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

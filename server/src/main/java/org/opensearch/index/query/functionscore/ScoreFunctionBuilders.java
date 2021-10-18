@@ -50,8 +50,13 @@ public class ScoreFunctionBuilders {
         return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset);
     }
 
-    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale, Object offset,
-            double decay) {
+    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        double decay
+    ) {
         return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
     }
 
@@ -75,8 +80,13 @@ public class ScoreFunctionBuilders {
         return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset);
     }
 
-    public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object origin, Object scale, Object offset,
-            double decay) {
+    public static LinearDecayFunctionBuilder linearDecayFunction(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        double decay
+    ) {
         return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
     }
 
@@ -93,7 +103,7 @@ public class ScoreFunctionBuilders {
     }
 
     public static WeightBuilder weightFactorFunction(float weight) {
-        return (WeightBuilder)(new WeightBuilder().setWeight(weight));
+        return (WeightBuilder) (new WeightBuilder().setWeight(weight));
     }
 
     public static FieldValueFactorFunctionBuilder fieldValueFactorFunction(String fieldName) {

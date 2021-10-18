@@ -89,32 +89,42 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         List<ResyncReplicationRequest> resyncRequests = new ArrayList<>();
-        PrimaryReplicaSyncer.SyncAction syncAction =
-            (request, parentTask, allocationId, primaryTerm, listener) -> {
-                logger.info("Sending off {} operations", request.getOperations().length);
-                syncActionCalled.set(true);
-                resyncRequests.add(request);
-                assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
-                listener.onResponse(new ResyncReplicationResponse());
-            };
+        PrimaryReplicaSyncer.SyncAction syncAction = (request, parentTask, allocationId, primaryTerm, listener) -> {
+            logger.info("Sending off {} operations", request.getOperations().length);
+            syncActionCalled.set(true);
+            resyncRequests.add(request);
+            assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
+            listener.onResponse(new ResyncReplicationResponse());
+        };
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(taskManager, syncAction);
         syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
 
         int numDocs = randomInt(10);
         for (int i = 0; i < numDocs; i++) {
             // Index doc but not advance local checkpoint.
-            shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
+            shard.applyIndexOperationOnPrimary(
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
                 new SourceToParse(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
-                SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, true);
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                0,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                true
+            );
         }
 
         long globalCheckPoint = numDocs > 0 ? randomIntBetween(0, numDocs - 1) : 0;
         boolean syncNeeded = numDocs > 0;
 
         String allocationId = shard.routingEntry().allocationId().getId();
-        shard.updateShardState(shard.routingEntry(), shard.getPendingPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
-            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build());
+        shard.updateShardState(
+            shard.routingEntry(),
+            shard.getPendingPrimaryTerm(),
+            null,
+            1000L,
+            Collections.singleton(allocationId),
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build()
+        );
         shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
         assertEquals(globalCheckPoint, shard.getLastKnownGlobalCheckpoint());
 
@@ -129,12 +139,15 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             ResyncReplicationRequest resyncRequest = resyncRequests.remove(0);
             assertThat(resyncRequest.getTrimAboveSeqNo(), equalTo(numDocs - 1L));
 
-            assertThat("trimAboveSeqNo has to be specified in request #0 only", resyncRequests.stream()
+            assertThat(
+                "trimAboveSeqNo has to be specified in request #0 only",
+                resyncRequests.stream()
                     .mapToLong(ResyncReplicationRequest::getTrimAboveSeqNo)
                     .filter(seqNo -> seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO)
                     .findFirst()
                     .isPresent(),
-                is(false));
+                is(false)
+            );
 
             assertThat(resyncRequest.getMaxSeenAutoIdTimestampOnPrimary(), equalTo(shard.getMaxSeenAutoIdTimestamp()));
         }
@@ -157,27 +170,40 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     public void testSyncerOnClosingShard() throws Exception {
         IndexShard shard = newStartedShard(true);
         AtomicBoolean syncActionCalled = new AtomicBoolean();
-        PrimaryReplicaSyncer.SyncAction syncAction =
-            (request, parentTask, allocationId, primaryTerm, listener) -> {
-                logger.info("Sending off {} operations", request.getOperations().length);
-                syncActionCalled.set(true);
-                threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
-            };
+        PrimaryReplicaSyncer.SyncAction syncAction = (request, parentTask, allocationId, primaryTerm, listener) -> {
+            logger.info("Sending off {} operations", request.getOperations().length);
+            syncActionCalled.set(true);
+            threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
+        };
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), syncAction);
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            syncAction
+        );
         syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately
 
         int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {
             // Index doc but not advance local checkpoint.
-            shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
+            shard.applyIndexOperationOnPrimary(
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
                 new SourceToParse(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
-                SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                0,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false
+            );
         }
 
         String allocationId = shard.routingEntry().allocationId().getId();
-        shard.updateShardState(shard.routingEntry(), shard.getPendingPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
-            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build());
+        shard.updateShardState(
+            shard.routingEntry(),
+            shard.getPendingPrimaryTerm(),
+            null,
+            1000L,
+            Collections.singleton(allocationId),
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build()
+        );
 
         CountDownLatch syncCalledLatch = new CountDownLatch(1);
         PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<PrimaryReplicaSyncer.ResyncTask>() {
@@ -189,6 +215,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                     syncCalledLatch.countDown();
                 }
             }
+
             @Override
             public void onResponse(PrimaryReplicaSyncer.ResyncTask result) {
                 try {
@@ -198,9 +225,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 }
             }
         };
-        threadPool.generic().execute(() -> {
-            syncer.resync(shard, fut);
-        });
+        threadPool.generic().execute(() -> { syncer.resync(shard, fut); });
         if (randomBoolean()) {
             syncCalledLatch.await();
         }
@@ -219,11 +244,19 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         int numOps = between(0, 20);
         List<Translog.Operation> operations = new ArrayList<>();
         for (int i = 0; i < numOps; i++) {
-            operations.add(new Translog.Index(
-                "_doc", Integer.toString(i), randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : i, primaryTerm, new byte[]{1}));
+            operations.add(
+                new Translog.Index(
+                    "_doc",
+                    Integer.toString(i),
+                    randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : i,
+                    primaryTerm,
+                    new byte[] { 1 }
+                )
+            );
         }
-        Engine.HistorySource source =
-            shard.indexSettings.isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG;
+        Engine.HistorySource source = shard.indexSettings.isSoftDeleteEnabled()
+            ? Engine.HistorySource.INDEX
+            : Engine.HistorySource.TRANSLOG;
         doReturn(TestTranslog.newSnapshotFromOperations(operations)).when(shard).getHistoryOperations(anyString(), eq(source), anyLong());
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         List<Translog.Operation> sentOperations = new ArrayList<>();
@@ -241,8 +274,12 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     }
 
     public void testStatusSerialization() throws IOException {
-        PrimaryReplicaSyncer.ResyncTask.Status status = new PrimaryReplicaSyncer.ResyncTask.Status(randomAlphaOfLength(10),
-            randomIntBetween(0, 1000), randomIntBetween(0, 1000), randomIntBetween(0, 1000));
+        PrimaryReplicaSyncer.ResyncTask.Status status = new PrimaryReplicaSyncer.ResyncTask.Status(
+            randomAlphaOfLength(10),
+            randomIntBetween(0, 1000),
+            randomIntBetween(0, 1000),
+            randomIntBetween(0, 1000)
+        );
         final BytesStreamOutput out = new BytesStreamOutput();
         status.writeTo(out);
         final ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes));
@@ -251,21 +288,34 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     }
 
     public void testStatusSerializationAsNamedWriteable() throws IOException {
-        PrimaryReplicaSyncer.ResyncTask.Status status = new PrimaryReplicaSyncer.ResyncTask.Status(randomAlphaOfLength(10),
-            randomIntBetween(0, 1000), randomIntBetween(0, 1000), randomIntBetween(0, 1000));
+        PrimaryReplicaSyncer.ResyncTask.Status status = new PrimaryReplicaSyncer.ResyncTask.Status(
+            randomAlphaOfLength(10),
+            randomIntBetween(0, 1000),
+            randomIntBetween(0, 1000),
+            randomIntBetween(0, 1000)
+        );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeNamedWriteable(status);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(
-                new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes)),
-                new NamedWriteableRegistry(NetworkModule.getNamedWriteables()))) {
+            try (
+                StreamInput in = new NamedWriteableAwareStreamInput(
+                    new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes)),
+                    new NamedWriteableRegistry(NetworkModule.getNamedWriteables())
+                )
+            ) {
                 assertThat(in.readNamedWriteable(Task.Status.class), equalTo(status));
             }
         }
     }
 
     public void testStatusEquals() throws IOException {
-        PrimaryReplicaSyncer.ResyncTask task =
-            new PrimaryReplicaSyncer.ResyncTask(0, "type", "action", "desc", null, Collections.emptyMap());
+        PrimaryReplicaSyncer.ResyncTask task = new PrimaryReplicaSyncer.ResyncTask(
+            0,
+            "type",
+            "action",
+            "desc",
+            null,
+            Collections.emptyMap()
+        );
         task.setPhase(randomAlphaOfLength(10));
         task.setResyncedOperations(randomIntBetween(0, 1000));
         task.setTotalOperations(randomIntBetween(0, 1000));
@@ -296,8 +346,14 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     }
 
     public void testStatusReportsCorrectNumbers() throws IOException {
-        PrimaryReplicaSyncer.ResyncTask task =
-            new PrimaryReplicaSyncer.ResyncTask(0, "type", "action", "desc", null, Collections.emptyMap());
+        PrimaryReplicaSyncer.ResyncTask task = new PrimaryReplicaSyncer.ResyncTask(
+            0,
+            "type",
+            "action",
+            "desc",
+            null,
+            Collections.emptyMap()
+        );
         task.setPhase(randomAlphaOfLength(10));
         task.setResyncedOperations(randomIntBetween(0, 1000));
         task.setTotalOperations(randomIntBetween(0, 1000));

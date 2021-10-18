@@ -84,11 +84,10 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         String index = "test-index";
         String type = ".test-type";
         String field = "field";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            client().admin().indices().prepareCreate(index)
-                    .addMapping(type, field, "type=text")
-                    .execute().actionGet();
-        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { client().admin().indices().prepareCreate(index).addMapping(type, field, "type=text").execute().actionGet(); }
+        );
         assertTrue(e.getMessage(), e.getMessage().contains("mapping type name [.test-type] must not start with a '.'"));
     }
 
@@ -97,13 +96,14 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         String field = "field";
         String type = new String(new char[256]).replace("\0", "a");
 
-        MapperException e = expectThrows(MapperException.class, () -> {
-            client().admin().indices().prepareCreate(index)
-                    .addMapping(type, field, "type=text")
-                    .execute().actionGet();
-        });
-        assertTrue(e.getMessage(), e.getMessage().contains("mapping type name [" + type
-            + "] is too long; limit is length 255 but was [256]"));
+        MapperException e = expectThrows(
+            MapperException.class,
+            () -> { client().admin().indices().prepareCreate(index).addMapping(type, field, "type=text").execute().actionGet(); }
+        );
+        assertTrue(
+            e.getMessage(),
+            e.getMessage().contains("mapping type name [" + type + "] is too long; limit is length 255 but was [256]")
+        );
     }
 
     public void testTypeValidation() {
@@ -118,9 +118,10 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexIntoDefaultMapping() throws Throwable {
         // 1. test implicit index creation
-        ExecutionException e = expectThrows(ExecutionException.class,
-            () -> client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "1")
-                .setSource("{}", XContentType.JSON).execute().get());
+        ExecutionException e = expectThrows(
+            ExecutionException.class,
+            () -> client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "1").setSource("{}", XContentType.JSON).execute().get()
+        );
         Throwable throwable = ExceptionsHelper.unwrapCause(e.getCause());
         if (throwable instanceof IllegalArgumentException) {
             assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
@@ -130,9 +131,10 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
 
         // 2. already existing index
         IndexService indexService = createIndex("index2");
-        e = expectThrows(ExecutionException.class, () -> {
-            client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "2").setSource().execute().get();
-        });
+        e = expectThrows(
+            ExecutionException.class,
+            () -> { client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "2").setSource().execute().get(); }
+        );
         throwable = ExceptionsHelper.unwrapCause(e.getCause());
         if (throwable instanceof IllegalArgumentException) {
             assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
@@ -157,23 +159,22 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
      */
     public void testTotalFieldsLimit() throws Throwable {
         int totalFieldsLimit = randomIntBetween(1, 10);
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldsLimit)
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldsLimit)
             .build();
-        createIndex("test1", settings).mapperService().merge("type", createMappingSpecifyingNumberOfFields(totalFieldsLimit),
-                MergeReason.MAPPING_UPDATE);
+        createIndex("test1", settings).mapperService()
+            .merge("type", createMappingSpecifyingNumberOfFields(totalFieldsLimit), MergeReason.MAPPING_UPDATE);
 
         // adding one more field should trigger exception
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            createIndex("test2", settings).mapperService().merge("type",
-                createMappingSpecifyingNumberOfFields(totalFieldsLimit + 1), updateOrPreflight());
+            createIndex("test2", settings).mapperService()
+                .merge("type", createMappingSpecifyingNumberOfFields(totalFieldsLimit + 1), updateOrPreflight());
         });
-        assertTrue(e.getMessage(),
-                e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
+        assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
     }
 
     private CompressedXContent createMappingSpecifyingNumberOfFields(int numberOfFields) throws IOException {
-        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().startObject()
-                .startObject("properties");
+        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().startObject().startObject("properties");
         for (int i = 0; i < numberOfFields; i++) {
             mappingBuilder.startObject("field" + i);
             mappingBuilder.field("type", randomFrom("long", "integer", "date", "keyword", "text"));
@@ -184,24 +185,34 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMappingDepthExceedsLimit() throws Throwable {
-        IndexService indexService1 = createIndex("test1",
-            Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build());
+        IndexService indexService1 = createIndex(
+            "test1",
+            Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build()
+        );
         // no exception
         indexService1.mapperService().merge("type", createMappingSpecifyingNumberOfFields(1), MergeReason.MAPPING_UPDATE);
 
-        CompressedXContent objectMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .startObject("properties")
+        CompressedXContent objectMapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
                     .startObject("object1")
-                        .field("type", "object")
+                    .field("type", "object")
                     .endObject()
-                .endObject().endObject()));
+                    .endObject()
+                    .endObject()
+            )
+        );
 
         IndexService indexService2 = createIndex("test2");
         // no exception
         indexService2.mapperService().merge("type", objectMapping, MergeReason.MAPPING_UPDATE);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> indexService1.mapperService().merge("type", objectMapping, updateOrPreflight()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexService1.mapperService().merge("type", objectMapping, updateOrPreflight())
+        );
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] has been exceeded"));
     }
 
@@ -216,107 +227,134 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testPartitionedConstraints() {
         // partitioned index must have routing
-         IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
-            client().admin().indices().prepareCreate("test-index")
-                    .addMapping("type", "{\"type\":{}}", XContentType.JSON)
-                    .setSettings(Settings.builder()
-                        .put("index.number_of_shards", 4)
-                        .put("index.routing_partition_size", 2))
-                    .execute().actionGet();
+        IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
+            client().admin()
+                .indices()
+                .prepareCreate("test-index")
+                .addMapping("type", "{\"type\":{}}", XContentType.JSON)
+                .setSettings(Settings.builder().put("index.number_of_shards", 4).put("index.routing_partition_size", 2))
+                .execute()
+                .actionGet();
         });
         assertTrue(noRoutingException.getMessage(), noRoutingException.getMessage().contains("must have routing"));
 
         // valid partitioned index
-        assertTrue(client().admin().indices().prepareCreate("test-index")
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
-            .setSettings(Settings.builder()
-                .put("index.number_of_shards", 4)
-                .put("index.routing_partition_size", 2))
-            .execute().actionGet().isAcknowledged());
+        assertTrue(
+            client().admin()
+                .indices()
+                .prepareCreate("test-index")
+                .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+                .setSettings(Settings.builder().put("index.number_of_shards", 4).put("index.routing_partition_size", 2))
+                .execute()
+                .actionGet()
+                .isAcknowledged()
+        );
     }
 
     public void testIndexSortWithNestedFields() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.sort.field", "foo")
-            .build();
-        IllegalArgumentException invalidNestedException = expectThrows(IllegalArgumentException.class,
-           () -> createIndex("test", settings, "t", "nested_field", "type=nested", "foo", "type=keyword"));
-        assertThat(invalidNestedException.getMessage(),
-            containsString("cannot have nested fields when index sort is activated"));
-        IndexService indexService =  createIndex("test", settings, "t", "foo", "type=keyword");
-        CompressedXContent nestedFieldMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("nested_field")
-            .field("type", "nested")
-            .endObject()
-            .endObject().endObject()));
-        invalidNestedException = expectThrows(IllegalArgumentException.class,
-            () -> indexService.mapperService().merge("t", nestedFieldMapping,
-                updateOrPreflight()));
-        assertThat(invalidNestedException.getMessage(),
-            containsString("cannot have nested fields when index sort is activated"));
+        Settings settings = Settings.builder().put("index.sort.field", "foo").build();
+        IllegalArgumentException invalidNestedException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex("test", settings, "t", "nested_field", "type=nested", "foo", "type=keyword")
+        );
+        assertThat(invalidNestedException.getMessage(), containsString("cannot have nested fields when index sort is activated"));
+        IndexService indexService = createIndex("test", settings, "t", "foo", "type=keyword");
+        CompressedXContent nestedFieldMapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("nested_field")
+                    .field("type", "nested")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        invalidNestedException = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexService.mapperService().merge("t", nestedFieldMapping, updateOrPreflight())
+        );
+        assertThat(invalidNestedException.getMessage(), containsString("cannot have nested fields when index sort is activated"));
     }
 
-     public void testFieldAliasWithMismatchedNestedScope() throws Throwable {
+    public void testFieldAliasWithMismatchedNestedScope() throws Throwable {
         IndexService indexService = createIndex("test");
         MapperService mapperService = indexService.mapperService();
 
-        CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(
-            XContentFactory.jsonBuilder().startObject()
-                .startObject("properties")
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
                     .startObject("nested")
-                        .field("type", "nested")
-                        .startObject("properties")
-                            .startObject("field")
-                                .field("type", "text")
-                            .endObject()
-                        .endObject()
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "text")
                     .endObject()
-                .endObject()
-            .endObject()));
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
 
         mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
 
-        CompressedXContent mappingUpdate = new CompressedXContent(BytesReference.bytes(
-            XContentFactory.jsonBuilder().startObject()
-                .startObject("properties")
+        CompressedXContent mappingUpdate = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
                     .startObject("alias")
-                        .field("type", "alias")
-                        .field("path", "nested.field")
+                    .field("type", "alias")
+                    .field("path", "nested.field")
                     .endObject()
-                .endObject()
-            .endObject()));
+                    .endObject()
+                    .endObject()
+            )
+        );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> mapperService.merge("type", mappingUpdate, updateOrPreflight()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapperService.merge("type", mappingUpdate, updateOrPreflight())
+        );
         assertThat(e.getMessage(), containsString("Invalid [path] value [nested.field] for field alias [alias]"));
     }
 
     public void testTotalFieldsLimitWithFieldAlias() throws Throwable {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
                 .startObject("alias")
-                    .field("type", "alias")
-                    .field("path", "field")
+                .field("type", "alias")
+                .field("path", "field")
                 .endObject()
                 .startObject("field")
-                    .field("type", "text")
+                .field("type", "text")
                 .endObject()
-            .endObject()
-        .endObject().endObject());
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         int numberOfFieldsIncludingAlias = 2;
-        createIndex("test1", Settings.builder()
-                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsIncludingAlias).build()).mapperService()
-                        .merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        createIndex(
+            "test1",
+            Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsIncludingAlias).build()
+        ).mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         // Set the total fields limit to the number of non-alias fields, to verify that adding
         // a field alias pushes the mapping over the limit.
         int numberOfNonAliasFields = 1;
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            createIndex("test2",
-                    Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfNonAliasFields).build())
-                            .mapperService().merge("type", new CompressedXContent(mapping), updateOrPreflight());
+            createIndex(
+                "test2",
+                Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfNonAliasFields).build()
+            ).mapperService().merge("type", new CompressedXContent(mapping), updateOrPreflight());
         });
         assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] has been exceeded", e.getMessage());
     }
@@ -324,113 +362,147 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
     public void testDefaultMappingIsRejectedOn7() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE)
+        );
         assertEquals(MapperService.DEFAULT_MAPPING_ERROR_MESSAGE, e.getMessage());
     }
 
     public void testFieldNameLengthLimit() throws Throwable {
         int maxFieldNameLength = randomIntBetween(25, 30);
         String testString = new String(new char[maxFieldNameLength + 1]).replace("\0", "a");
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), maxFieldNameLength)
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), maxFieldNameLength)
             .build();
         MapperService mapperService = createIndex("test1", settings).mapperService();
 
-        CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(
-            XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("type")
+                    .startObject("properties")
                     .startObject("field")
-                        .field("type", "text")
+                    .field("type", "text")
                     .endObject()
-                .endObject()
-            .endObject().endObject()));
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
 
         mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
 
-        CompressedXContent mappingUpdate = new CompressedXContent(BytesReference.bytes(
-            XContentFactory.jsonBuilder().startObject()
-                .startObject("properties")
+        CompressedXContent mappingUpdate = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
                     .startObject(testString)
-                        .field("type", "text")
+                    .field("type", "text")
                     .endObject()
-                .endObject()
-            .endObject()));
+                    .endObject()
+                    .endObject()
+            )
+        );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            mapperService.merge("type", mappingUpdate, updateOrPreflight());
-        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { mapperService.merge("type", mappingUpdate, updateOrPreflight()); }
+        );
 
-        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters",
-            e.getMessage());
+        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
     }
 
     public void testObjectNameLengthLimit() throws Throwable {
         int maxFieldNameLength = randomIntBetween(15, 20);
         String testString = new String(new char[maxFieldNameLength + 1]).replace("\0", "a");
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), maxFieldNameLength)
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), maxFieldNameLength)
             .build();
         MapperService mapperService = createIndex("test1", settings).mapperService();
 
-        CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(
-            XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("type")
+                    .startObject("properties")
                     .startObject(testString)
-                        .field("type", "object")
+                    .field("type", "object")
                     .endObject()
-                .endObject()
-            .endObject().endObject()));
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            mapperService.merge("type", mapping, updateOrPreflight());
-        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { mapperService.merge("type", mapping, updateOrPreflight()); }
+        );
 
-        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters",
-            e.getMessage());
+        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
     }
 
     public void testAliasFieldNameLengthLimit() throws Throwable {
         int maxFieldNameLength = randomIntBetween(25, 30);
         String testString = new String(new char[maxFieldNameLength + 1]).replace("\0", "a");
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), maxFieldNameLength)
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), maxFieldNameLength)
             .build();
         MapperService mapperService = createIndex("test1", settings).mapperService();
 
-        CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(
-            XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("type")
+                    .startObject("properties")
                     .startObject(testString)
-                        .field("type", "alias")
-                        .field("path", "field")
+                    .field("type", "alias")
+                    .field("path", "field")
                     .endObject()
                     .startObject("field")
-                        .field("type", "text")
+                    .field("type", "text")
                     .endObject()
-                .endObject()
-            .endObject().endObject()));
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            mapperService.merge("type", mapping, updateOrPreflight());
-        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { mapperService.merge("type", mapping, updateOrPreflight()); }
+        );
 
-        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters",
-            e.getMessage());
+        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
     }
 
     public void testMappingRecoverySkipFieldNameLengthLimit() throws Throwable {
         int maxFieldNameLength = randomIntBetween(15, 20);
         String testString = new String(new char[maxFieldNameLength + 1]).replace("\0", "a");
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), maxFieldNameLength)
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), maxFieldNameLength)
             .build();
         MapperService mapperService = createIndex("test1", settings).mapperService();
 
-        CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(
-            XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("type")
+                    .startObject("properties")
                     .startObject(testString)
-                        .field("type", "text")
+                    .field("type", "text")
                     .endObject()
-                .endObject()
-            .endObject().endObject()));
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
 
         DocumentMapper documentMapper = mapperService.merge("type", mapping, MergeReason.MAPPING_RECOVERY);
 
@@ -438,30 +510,38 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testReloadSearchAnalyzers() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
-                .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
-                .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter").build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+            .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter")
+            .build();
 
         MapperService mapperService = createIndex("test_index", settings).mapperService();
-        CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(
-                XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
                     .startObject("properties")
-                        .startObject("field")
-                            .field("type", "text")
-                            .field("analyzer", "simple")
-                            .field("search_analyzer", "reloadableAnalyzer")
-                            .field("search_quote_analyzer", "stop")
-                        .endObject()
-                        .startObject("otherField")
-                            .field("type", "text")
-                            .field("analyzer", "standard")
-                            .field("search_analyzer", "simple")
-                            .field("search_quote_analyzer", "reloadableAnalyzer")
-                        .endObject()
+                    .startObject("field")
+                    .field("type", "text")
+                    .field("analyzer", "simple")
+                    .field("search_analyzer", "reloadableAnalyzer")
+                    .field("search_quote_analyzer", "stop")
                     .endObject()
-                .endObject().endObject()));
+                    .startObject("otherField")
+                    .field("type", "text")
+                    .field("analyzer", "standard")
+                    .field("search_analyzer", "simple")
+                    .field("search_quote_analyzer", "reloadableAnalyzer")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
 
         mapperService.merge("_doc", mapping, MergeReason.MAPPING_UPDATE);
         IndexAnalyzers current = mapperService.getIndexAnalyzers();
@@ -480,10 +560,15 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertSame(current.getDefaultSearchQuoteAnalyzer(), updatedAnalyzers.getDefaultSearchQuoteAnalyzer());
 
         assertFalse(assertSameContainedFilters(originalTokenFilters, current.get("reloadableAnalyzer")));
-        assertFalse(assertSameContainedFilters(originalTokenFilters,
-            mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer()));
-        assertFalse(assertSameContainedFilters(originalTokenFilters,
-            mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()));
+        assertFalse(
+            assertSameContainedFilters(originalTokenFilters, mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer())
+        );
+        assertFalse(
+            assertSameContainedFilters(
+                originalTokenFilters,
+                mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()
+            )
+        );
     }
 
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {
@@ -491,7 +576,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         TokenFilterFactory[] newTokenFilters = updatedReloadableAnalyzer.getComponents().getTokenFilters();
         assertEquals(originalTokenFilter.length, newTokenFilters.length);
         int i = 0;
-        for (TokenFilterFactory tf : newTokenFilters ) {
+        for (TokenFilterFactory tf : newTokenFilters) {
             assertEquals(originalTokenFilter[i].name(), tf.name());
             if (originalTokenFilter[i] != tf) {
                 return false;
@@ -513,7 +598,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
 
                 @Override
                 public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
-                        throws IOException {
+                    throws IOException {
                     return new TokenFilterFactory() {
 
                         @Override

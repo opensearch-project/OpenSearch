@@ -141,12 +141,13 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      *                          use Sort.RELEVANCE.
      * @param topN              How many top groups to keep.
      */
-    public static CollapsingTopDocsCollector<?> createNumeric(String collapseField,
-                                                              MappedFieldType collapseFieldType,
-                                                              Sort sort,
-                                                              int topN)  {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseFieldType),
-                collapseField, sort, topN);
+    public static CollapsingTopDocsCollector<?> createNumeric(
+        String collapseField,
+        MappedFieldType collapseFieldType,
+        Sort sort,
+        int topN
+    ) {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseFieldType), collapseField, sort, topN);
     }
 
     /**
@@ -162,11 +163,12 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      *                          This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
      * @param topN              How many top groups to keep.
      */
-    public static CollapsingTopDocsCollector<?> createKeyword(String collapseField,
-                                                              MappedFieldType collapseFieldType,
-                                                              Sort sort,
-                                                              int topN)  {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType),
-                collapseField, sort, topN);
+    public static CollapsingTopDocsCollector<?> createKeyword(
+        String collapseField,
+        MappedFieldType collapseFieldType,
+        Sort sort,
+        int topN
+    ) {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType), collapseField, sort, topN);
     }
 }

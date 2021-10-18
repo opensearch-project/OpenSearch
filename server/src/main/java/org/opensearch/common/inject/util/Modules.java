@@ -62,13 +62,11 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
  * @since 2.0
  */
 public final class Modules {
-    private Modules() {
-    }
+    private Modules() {}
 
     public static final Module EMPTY_MODULE = new Module() {
         @Override
-        public void configure(Binder binder) {
-        }
+        public void configure(Binder binder) {}
     };
 
     /**
@@ -212,8 +210,7 @@ public final class Modules {
 
                         @Override
                         public Void visit(PrivateElements privateElements) {
-                            PrivateBinder privateBinder = binder.withSource(privateElements.getSource())
-                                    .newPrivateBinder();
+                            PrivateBinder privateBinder = binder.withSource(privateElements.getSource()).newPrivateBinder();
 
                             Set<Key<?>> skippedExposes = new HashSet<>();
 
@@ -228,8 +225,7 @@ public final class Modules {
                             // we're not skipping deep exposes, but that should be okay. If we ever need to, we
                             // have to search through this set of elements for PrivateElements, recursively
                             for (Element element : privateElements.getElements()) {
-                                if (element instanceof Binding
-                                        && skippedExposes.contains(((Binding) element).getKey())) {
+                                if (element instanceof Binding && skippedExposes.contains(((Binding) element).getKey())) {
                                     continue;
                                 }
                                 element.applyTo(privateBinder);
@@ -255,9 +251,11 @@ public final class Modules {
                             } else {
                                 Object source = scopeInstancesInUse.get(scopeBinding.getScope());
                                 if (source != null) {
-                                    binder().withSource(source).addError(
+                                    binder().withSource(source)
+                                        .addError(
                                             "The scope for @%s is bound directly and cannot be overridden.",
-                                            scopeBinding.getAnnotationType().getSimpleName());
+                                            scopeBinding.getAnnotationType().getSimpleName()
+                                        );
                                 }
                             }
                             return null;

@@ -38,7 +38,6 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.index.mapper.MapperTestCase;
 
 import java.io.IOException;
 import java.io.OutputStream;

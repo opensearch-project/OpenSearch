@@ -52,8 +52,10 @@ public class ScriptCacheTests extends OpenSearchTestCase {
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
         scripts.put("1+1", p -> null); // only care about compilation, not execution
         ScriptEngine engine = new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, scripts, Collections.emptyMap());
-        GeneralScriptException ex = expectThrows(GeneralScriptException.class, () ->
-            cache.compile(context, engine, "1+1", "1+1", ScriptType.INLINE, Collections.emptyMap()));
+        GeneralScriptException ex = expectThrows(
+            GeneralScriptException.class,
+            () -> cache.compile(context, engine, "1+1", "1+1", ScriptType.INLINE, Collections.emptyMap())
+        );
         assertEquals(RestStatus.TOO_MANY_REQUESTS, ex.status());
     }
 
@@ -78,8 +80,12 @@ public class ScriptCacheTests extends OpenSearchTestCase {
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
         cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(0, TimeValue.timeValueMinutes(1)), settingName);
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire,
-                                new ScriptCache.CompilationRate(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)), settingName);
+        cache = new ScriptCache(
+            size,
+            expire,
+            new ScriptCache.CompilationRate(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)),
+            settingName
+        );
         int largeLimit = randomIntBetween(1000, 10000);
         for (int i = 0; i < largeLimit; i++) {
             cache.checkCompilationLimit();
@@ -92,7 +98,7 @@ public class ScriptCacheTests extends OpenSearchTestCase {
         String settingName = ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey();
         ScriptCache cache = new ScriptCache(size, expire, ScriptCache.UNLIMITED_COMPILATION_RATE, settingName);
         ScriptCache.TokenBucketState initialState = cache.tokenBucketState.get();
-        for(int i=0; i < 3000; i++) {
+        for (int i = 0; i < 3000; i++) {
             cache.checkCompilationLimit();
             ScriptCache.TokenBucketState currentState = cache.tokenBucketState.get();
             assertEquals(initialState.lastInlineCompileTime, currentState.lastInlineCompileTime);

@@ -35,15 +35,18 @@ package org.opensearch.action.admin.indices.refresh;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractBroadcastResponseTestCase;
-import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 
 import java.util.List;
 
 public class RefreshResponseTests extends AbstractBroadcastResponseTestCase<RefreshResponse> {
 
     @Override
-    protected RefreshResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                                 List<DefaultShardOperationFailedException> failures) {
+    protected RefreshResponse createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    ) {
         return new RefreshResponse(totalShards, successfulShards, failedShards, failures);
     }
 

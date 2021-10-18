@@ -94,8 +94,15 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", new String[] {Metadata.ALL},
-            clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
+            "bla",
+            new String[] { Metadata.ALL },
+            clusterState,
+            pendingTasks,
+            inFlight,
+            delayedUnassigned,
+            pendingTaskInQueueTime
+        );
         clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth);
         assertThat(clusterHealth.getNumberOfPendingTasks(), Matchers.equalTo(pendingTasks));
@@ -107,19 +114,23 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
 
     public void testClusterHealthVerifyMasterNodeDiscovery() throws IOException {
         DiscoveryNode localNode = new DiscoveryNode("node", OpenSearchTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
-        //set the node information to verify master_node discovery in ClusterHealthResponse
+        // set the node information to verify master_node discovery in ClusterHealthResponse
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .nodes(DiscoveryNodes.builder()
-                .add(localNode)
-                .localNodeId(localNode.getId())
-                .masterNodeId(localNode.getId()))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .build();
         int pendingTasks = randomIntBetween(0, 200);
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", new String[] {Metadata.ALL},
-            clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
+            "bla",
+            new String[] { Metadata.ALL },
+            clusterState,
+            pendingTasks,
+            inFlight,
+            delayedUnassigned,
+            pendingTaskInQueueTime
+        );
         clusterHealth = maybeSerialize(clusterHealth);
         assertThat(clusterHealth.getClusterStateHealth().hasDiscoveredMaster(), Matchers.equalTo(true));
         assertClusterHealth(clusterHealth);
@@ -148,13 +159,30 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
                 indices.put(indexName, ClusterIndexHealthTests.randomIndexHealth(indexName, level));
             }
         }
-        ClusterStateHealth stateHealth = new ClusterStateHealth(randomInt(100), randomInt(100), randomInt(100),
-            randomInt(100), randomInt(100), randomInt(100), randomInt(100), hasDiscoveredMaster,
-            randomDoubleBetween(0d, 100d, true), randomFrom(ClusterHealthStatus.values()), indices);
-        //Create the Cluster Health Response object with discovered master as false,
-        //to verify serialization puts default value for the field
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("test-cluster", randomInt(100), randomInt(100),
-            randomInt(100), TimeValue.timeValueMillis(randomInt(10000)), randomBoolean(), stateHealth);
+        ClusterStateHealth stateHealth = new ClusterStateHealth(
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            hasDiscoveredMaster,
+            randomDoubleBetween(0d, 100d, true),
+            randomFrom(ClusterHealthStatus.values()),
+            indices
+        );
+        // Create the Cluster Health Response object with discovered master as false,
+        // to verify serialization puts default value for the field
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
+            "test-cluster",
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            TimeValue.timeValueMillis(randomInt(10000)),
+            randomBoolean(),
+            stateHealth
+        );
 
         BytesStreamOutput out_lt_1_0 = new BytesStreamOutput();
         Version old_version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_6_8_0);
@@ -166,18 +194,18 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         out_gt_1_0.setVersion(new_version);
         clusterHealth.writeTo(out_gt_1_0);
 
-        //The serialized output byte stream will not be same; and different by a boolean field "discovered_master"
+        // The serialized output byte stream will not be same; and different by a boolean field "discovered_master"
         assertNotEquals(out_lt_1_0.size(), out_gt_1_0.size());
         assertThat(out_gt_1_0.size() - out_lt_1_0.size(), Matchers.equalTo(1));
 
-        //Input stream constructed from Version 6_8 or less will not have field "discovered_master";
-        //hence fallback to default as no value retained
+        // Input stream constructed from Version 6_8 or less will not have field "discovered_master";
+        // hence fallback to default as no value retained
         StreamInput in_lt_6_8 = out_lt_1_0.bytes().streamInput();
         in_lt_6_8.setVersion(old_version);
         clusterHealth = ClusterHealthResponse.readResponseFrom(in_lt_6_8);
         assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(true));
 
-        //Input stream constructed from Version 7_0 and above will have field "discovered_master"; hence value will be retained
+        // Input stream constructed from Version 7_0 and above will have field "discovered_master"; hence value will be retained
         StreamInput in_gt_7_0 = out_gt_1_0.bytes().streamInput();
         in_gt_7_0.setVersion(new_version);
         clusterHealth = ClusterHealthResponse.readResponseFrom(in_gt_7_0);
@@ -195,13 +223,18 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
     }
 
     public void testParseFromXContentWithDiscoveredMasterField() throws IOException {
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, "{\"cluster_name\":\"535799904437:7-1-3-node\",\"status\":\"green\"," +
-                "\"timed_out\":false,\"number_of_nodes\":6,\"number_of_data_nodes\":3,\"discovered_master\":false," +
-                "\"active_primary_shards\":4,\"active_shards\":5,\"relocating_shards\":0,\"initializing_shards\":0," +
-                "\"unassigned_shards\":0,\"delayed_unassigned_shards\":0,\"number_of_pending_tasks\":0," +
-                "\"number_of_in_flight_fetch\":0,\"task_max_waiting_in_queue_millis\":0," +
-                "\"active_shards_percent_as_number\":100}")) {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                "{\"cluster_name\":\"535799904437:7-1-3-node\",\"status\":\"green\","
+                    + "\"timed_out\":false,\"number_of_nodes\":6,\"number_of_data_nodes\":3,\"discovered_master\":false,"
+                    + "\"active_primary_shards\":4,\"active_shards\":5,\"relocating_shards\":0,\"initializing_shards\":0,"
+                    + "\"unassigned_shards\":0,\"delayed_unassigned_shards\":0,\"number_of_pending_tasks\":0,"
+                    + "\"number_of_in_flight_fetch\":0,\"task_max_waiting_in_queue_millis\":0,"
+                    + "\"active_shards_percent_as_number\":100}"
+            )
+        ) {
 
             ClusterHealthResponse clusterHealth = ClusterHealthResponse.fromXContent(parser);
             assertNotNull(clusterHealth);
@@ -226,12 +259,29 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
                 indices.put(indexName, ClusterIndexHealthTests.randomIndexHealth(indexName, level));
             }
         }
-        ClusterStateHealth stateHealth = new ClusterStateHealth(randomInt(100), randomInt(100), randomInt(100),
-                randomInt(100), randomInt(100), randomInt(100), randomInt(100), randomBoolean(),
-                randomDoubleBetween(0d, 100d, true), randomFrom(ClusterHealthStatus.values()), indices);
+        ClusterStateHealth stateHealth = new ClusterStateHealth(
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            randomBoolean(),
+            randomDoubleBetween(0d, 100d, true),
+            randomFrom(ClusterHealthStatus.values()),
+            indices
+        );
 
-        return new ClusterHealthResponse(randomAlphaOfLengthBetween(1, 10), randomInt(100), randomInt(100), randomInt(100),
-                TimeValue.timeValueMillis(randomInt(10000)), randomBoolean(), stateHealth);
+        return new ClusterHealthResponse(
+            randomAlphaOfLengthBetween(1, 10),
+            randomInt(100),
+            randomInt(100),
+            randomInt(100),
+            TimeValue.timeValueMillis(randomInt(10000)),
+            randomBoolean(),
+            stateHealth
+        );
     }
 
     @Override
@@ -259,50 +309,101 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
 
     @Override
     protected ClusterHealthResponse mutateInstance(ClusterHealthResponse instance) {
-        String mutate = randomFrom("clusterName", "numberOfPendingTasks","numberOfInFlightFetch", "delayedUnassignedShards",
-                "taskMaxWaitingTime", "timedOut", "clusterStateHealth");
+        String mutate = randomFrom(
+            "clusterName",
+            "numberOfPendingTasks",
+            "numberOfInFlightFetch",
+            "delayedUnassignedShards",
+            "taskMaxWaitingTime",
+            "timedOut",
+            "clusterStateHealth"
+        );
         switch (mutate) {
             case "clusterName":
-                return new ClusterHealthResponse(instance.getClusterName() + randomAlphaOfLengthBetween(2, 5),
-                        instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch(),
-                        instance.getDelayedUnassignedShards(), instance.getTaskMaxWaitingTime(),
-                        instance.isTimedOut(), instance.getClusterStateHealth());
+                return new ClusterHealthResponse(
+                    instance.getClusterName() + randomAlphaOfLengthBetween(2, 5),
+                    instance.getNumberOfPendingTasks(),
+                    instance.getNumberOfInFlightFetch(),
+                    instance.getDelayedUnassignedShards(),
+                    instance.getTaskMaxWaitingTime(),
+                    instance.isTimedOut(),
+                    instance.getClusterStateHealth()
+                );
             case "numberOfPendingTasks":
-                return new ClusterHealthResponse(instance.getClusterName(),
-                        instance.getNumberOfPendingTasks() + between(1, 10), instance.getNumberOfInFlightFetch(),
-                        instance.getDelayedUnassignedShards(), instance.getTaskMaxWaitingTime(),
-                        instance.isTimedOut(), instance.getClusterStateHealth());
+                return new ClusterHealthResponse(
+                    instance.getClusterName(),
+                    instance.getNumberOfPendingTasks() + between(1, 10),
+                    instance.getNumberOfInFlightFetch(),
+                    instance.getDelayedUnassignedShards(),
+                    instance.getTaskMaxWaitingTime(),
+                    instance.isTimedOut(),
+                    instance.getClusterStateHealth()
+                );
             case "numberOfInFlightFetch":
-                return new ClusterHealthResponse(instance.getClusterName(),
-                        instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch() + between(1, 10),
-                        instance.getDelayedUnassignedShards(), instance.getTaskMaxWaitingTime(),
-                        instance.isTimedOut(), instance.getClusterStateHealth());
+                return new ClusterHealthResponse(
+                    instance.getClusterName(),
+                    instance.getNumberOfPendingTasks(),
+                    instance.getNumberOfInFlightFetch() + between(1, 10),
+                    instance.getDelayedUnassignedShards(),
+                    instance.getTaskMaxWaitingTime(),
+                    instance.isTimedOut(),
+                    instance.getClusterStateHealth()
+                );
             case "delayedUnassignedShards":
-                return new ClusterHealthResponse(instance.getClusterName(),
-                        instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch(),
-                        instance.getDelayedUnassignedShards() + between(1, 10), instance.getTaskMaxWaitingTime(),
-                        instance.isTimedOut(), instance.getClusterStateHealth());
+                return new ClusterHealthResponse(
+                    instance.getClusterName(),
+                    instance.getNumberOfPendingTasks(),
+                    instance.getNumberOfInFlightFetch(),
+                    instance.getDelayedUnassignedShards() + between(1, 10),
+                    instance.getTaskMaxWaitingTime(),
+                    instance.isTimedOut(),
+                    instance.getClusterStateHealth()
+                );
             case "taskMaxWaitingTime":
 
-                return new ClusterHealthResponse(instance.getClusterName(),
-                        instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch(),
-                        instance.getDelayedUnassignedShards(), new TimeValue(instance.getTaskMaxWaitingTime().millis() + between(1, 10)),
-                        instance.isTimedOut(), instance.getClusterStateHealth());
+                return new ClusterHealthResponse(
+                    instance.getClusterName(),
+                    instance.getNumberOfPendingTasks(),
+                    instance.getNumberOfInFlightFetch(),
+                    instance.getDelayedUnassignedShards(),
+                    new TimeValue(instance.getTaskMaxWaitingTime().millis() + between(1, 10)),
+                    instance.isTimedOut(),
+                    instance.getClusterStateHealth()
+                );
             case "timedOut":
-                return new ClusterHealthResponse(instance.getClusterName(),
-                        instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch(),
-                        instance.getDelayedUnassignedShards(), instance.getTaskMaxWaitingTime(),
-                        instance.isTimedOut() == false, instance.getClusterStateHealth());
+                return new ClusterHealthResponse(
+                    instance.getClusterName(),
+                    instance.getNumberOfPendingTasks(),
+                    instance.getNumberOfInFlightFetch(),
+                    instance.getDelayedUnassignedShards(),
+                    instance.getTaskMaxWaitingTime(),
+                    instance.isTimedOut() == false,
+                    instance.getClusterStateHealth()
+                );
             case "clusterStateHealth":
                 ClusterStateHealth state = instance.getClusterStateHealth();
-                ClusterStateHealth newState = new ClusterStateHealth(state.getActivePrimaryShards() + between(1, 10),
-                        state.getActiveShards(), state.getRelocatingShards(), state.getInitializingShards(), state.getUnassignedShards(),
-                        state.getNumberOfNodes(), state.getNumberOfDataNodes(), state.hasDiscoveredMaster(), state.getActiveShardsPercent(),
-                        state.getStatus(), state.getIndices());
-                return new ClusterHealthResponse(instance.getClusterName(),
-                        instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch(),
-                        instance.getDelayedUnassignedShards(), instance.getTaskMaxWaitingTime(),
-                        instance.isTimedOut(), newState);
+                ClusterStateHealth newState = new ClusterStateHealth(
+                    state.getActivePrimaryShards() + between(1, 10),
+                    state.getActiveShards(),
+                    state.getRelocatingShards(),
+                    state.getInitializingShards(),
+                    state.getUnassignedShards(),
+                    state.getNumberOfNodes(),
+                    state.getNumberOfDataNodes(),
+                    state.hasDiscoveredMaster(),
+                    state.getActiveShardsPercent(),
+                    state.getStatus(),
+                    state.getIndices()
+                );
+                return new ClusterHealthResponse(
+                    instance.getClusterName(),
+                    instance.getNumberOfPendingTasks(),
+                    instance.getNumberOfInFlightFetch(),
+                    instance.getDelayedUnassignedShards(),
+                    instance.getTaskMaxWaitingTime(),
+                    instance.isTimedOut(),
+                    newState
+                );
             default:
                 throw new UnsupportedOperationException();
         }

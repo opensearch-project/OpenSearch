@@ -100,10 +100,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ContextIndexSearcherTests extends OpenSearchTestCase {
     public void testIntersectScorerAndRoleBits() throws Exception {
         final Directory directory = newDirectory();
-        IndexWriter iw = new IndexWriter(
-            directory,
-            new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
-        );
+        IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE));
 
         Document document = new Document();
         document.add(new StringField("field1", "value1", Field.Store.NO));
@@ -132,13 +129,16 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         IndexSearcher searcher = new IndexSearcher(directoryReader);
         Weight weight = searcher.createWeight(
             new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("field2", "value1"))), 3f),
-            ScoreMode.COMPLETE, 1f);
+            ScoreMode.COMPLETE,
+            1f
+        );
 
         LeafReaderContext leaf = directoryReader.leaves().get(0);
 
         CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
         LeafCollector leafCollector = new LeafBucketCollector() {
             Scorable scorer;
+
             @Override
             public void setScorer(Scorable scorer) throws IOException {
                 this.scorer = scorer;
@@ -159,7 +159,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 assertThat(doc, equalTo(1));
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
         bitSet = new CombinedBitSet(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
@@ -168,7 +168,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 fail("docId [" + doc + "] should have been deleted");
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
         bitSet = new CombinedBitSet(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
@@ -177,7 +177,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 assertThat(doc, equalTo(3));
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
         directoryReader.close();
         directory.close();
@@ -240,8 +240,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
 
             }
         };
-        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(w),
-            new ShardId(settings.getIndex(), 0));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(settings.getIndex(), 0));
         BitsetFilterCache cache = new BitsetFilterCache(settings, listener);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
@@ -253,8 +252,13 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
 
-        ContextIndexSearcher searcher = new ContextIndexSearcher(filteredReader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            filteredReader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
 
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
             assertThat(context.reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
@@ -323,7 +327,6 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new DocumentSubsetDirectoryReader(in, bitsetFilterCache, roleQuery);
         }
-
 
         @Override
         public CacheHelper getReaderCacheHelper() {
@@ -433,8 +436,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         }
 
         @Override
-        public BulkScorer bulkScorer(LeafReaderContext context)
-            throws IOException {
+        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
             assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
             return weight.bulkScorer(context);
         }

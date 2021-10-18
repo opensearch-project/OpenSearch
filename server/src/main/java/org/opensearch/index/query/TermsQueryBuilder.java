@@ -140,8 +140,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, float... values) {
-        this(fieldName, values != null ? IntStream.range(0, values.length)
-                           .mapToObj(i -> values[i]).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(
+            fieldName,
+            values != null ? IntStream.range(0, values.length).mapToObj(i -> values[i]).collect(Collectors.toList()) : (Iterable<?>) null
+        );
     }
 
     /**
@@ -228,9 +230,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
-            Arrays.asList(Byte.class, Short.class, Integer.class, Long.class));
-    private static final Set<Class<?>> STRING_TYPES = new HashSet<>(
-            Arrays.asList(BytesRef.class, String.class));
+        Arrays.asList(Byte.class, Short.class, Integer.class, Long.class)
+    );
+    private static final Set<Class<?>> STRING_TYPES = new HashSet<>(Arrays.asList(BytesRef.class, String.class));
 
     /**
      * Same as {@link #convert(List)} but on an {@link Iterable}.
@@ -271,6 +273,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 public Object get(int index) {
                     return elements[index];
                 }
+
                 @Override
                 public int size() {
                     return elements.length;
@@ -298,7 +301,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     if (i == 0) {
                         endOffsets[0] = b.length;
                     } else {
-                        endOffsets[i] = Math.addExact(endOffsets[i-1], b.length);
+                        endOffsets[i] = Math.addExact(endOffsets[i - 1], b.length);
                     }
                     ++i;
                 }
@@ -306,10 +309,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 return new AbstractList<Object>() {
                     @Override
                     public Object get(int i) {
-                        final int startOffset = i == 0 ? 0 : endOffsets[i-1];
+                        final int startOffset = i == 0 ? 0 : endOffsets[i - 1];
                         final int endOffset = endOffsets[i];
                         return bytes.slice(startOffset, endOffset - startOffset).toBytesRef();
                     }
+
                     @Override
                     public int size() {
                         return endOffsets.length;
@@ -333,6 +337,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             public int size() {
                 return list.size();
             }
+
             @Override
             public Object get(int index) {
                 Object o = list.get(index);
@@ -374,17 +379,27 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if  (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[" + TermsQueryBuilder.NAME + "] query does not support multiple fields");
+                if (fieldName != null) {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + TermsQueryBuilder.NAME + "] query does not support multiple fields"
+                    );
                 }
                 fieldName = currentFieldName;
                 values = parseValues(parser);
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if  (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[" + TermsQueryBuilder.NAME + "] query does not support more than one field. "
-                            + "Already got: [" + fieldName + "] but also found [" + currentFieldName +"]");
+                if (fieldName != null) {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "["
+                            + TermsQueryBuilder.NAME
+                            + "] query does not support more than one field. "
+                            + "Already got: ["
+                            + fieldName
+                            + "] but also found ["
+                            + currentFieldName
+                            + "]"
+                    );
                 }
                 fieldName = currentFieldName;
                 termsLookup = TermsLookup.parseTermsLookup(parser);
@@ -394,23 +409,30 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[" + TermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + TermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[" + TermsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + TermsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
 
         if (fieldName == null) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query requires a field name, " +
-                    "followed by array of terms or a document lookup specification");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "["
+                    + TermsQueryBuilder.NAME
+                    + "] query requires a field name, "
+                    + "followed by array of terms or a document lookup specification"
+            );
         }
 
-        return new TermsQueryBuilder(fieldName, values, termsLookup)
-            .boost(boost)
-            .queryName(queryName);
+        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName);
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {
@@ -436,11 +458,18 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
-        if (values.size() > maxTermsCount){
+        if (values.size() > maxTermsCount) {
             throw new IllegalArgumentException(
-                "The number of terms ["  + values.size() +  "] used in the Terms Query request has exceeded " +
-                    "the allowed maximum of [" + maxTermsCount + "]. " + "This maximum can be set by changing the [" +
-                    IndexSettings.MAX_TERMS_COUNT_SETTING.getKey() + "] index level setting.");
+                "The number of terms ["
+                    + values.size()
+                    + "] used in the Terms Query request has exceeded "
+                    + "the allowed maximum of ["
+                    + maxTermsCount
+                    + "]. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_TERMS_COUNT_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
@@ -471,10 +500,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected boolean doEquals(TermsQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(values, other.values) &&
-                Objects.equals(termsLookup, other.termsLookup) &&
-                Objects.equals(supplier, other.supplier);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(values, other.values)
+            && Objects.equals(termsLookup, other.termsLookup)
+            && Objects.equals(supplier, other.supplier);
     }
 
     @Override
@@ -483,8 +512,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
         } else if (this.termsLookup != null) {
             SetOnce<List<?>> supplier = new SetOnce<>();
-            queryRewriteContext.registerAsyncAction((client, listener) ->
-                fetch(termsLookup, client, ActionListener.map(listener, list -> {
+            queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, ActionListener.map(listener, list -> {
                 supplier.set(list);
                 return null;
             })));
@@ -510,7 +538,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 } else if (query instanceof MatchNoDocsQuery) {
                     return new MatchNoneQueryBuilder();
                 } else {
-                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query;
                 }
             }
         }

@@ -60,12 +60,13 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
 public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = org.opensearch.common.collect.Map.of(
-            "_type", value -> {
-                deprecationLogger.deprecate("conditional-processor__type",
-                        "[types removal] Looking up doc types [_type] in scripts is deprecated.");
-                return value;
-            });
+    private static final Map<String, Function<Object, Object>> FUNCTIONS = org.opensearch.common.collect.Map.of("_type", value -> {
+        deprecationLogger.deprecate(
+            "conditional-processor__type",
+            "[types removal] Looking up doc types [_type] in scripts is deprecated."
+        );
+        return value;
+    });
 
     static final String TYPE = "conditional";
 
@@ -80,8 +81,14 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         this(tag, description, script, scriptService, processor, System::nanoTime);
     }
 
-    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor,
-                         LongSupplier relativeTimeProvider) {
+    ConditionalProcessor(
+        String tag,
+        String description,
+        Script script,
+        ScriptService scriptService,
+        Processor processor,
+        LongSupplier relativeTimeProvider
+    ) {
         super(tag, description);
         this.condition = script;
         this.scriptService = scriptService;
@@ -157,7 +164,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         return TYPE;
     }
 
-    public String getCondition(){
+    public String getCondition() {
         return condition.getIdOrCode();
     }
 
@@ -243,33 +250,32 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
 
         @Override
         public Set<Entry<String, Object>> entrySet() {
-            return data.entrySet().stream().map(entry ->
-                new Entry<String, Object>() {
-                    @Override
-                    public String getKey() {
-                        return entry.getKey();
-                    }
+            return data.entrySet().stream().map(entry -> new Entry<String, Object>() {
+                @Override
+                public String getKey() {
+                    return entry.getKey();
+                }
 
-                    @Override
-                    public Object getValue() {
-                        return wrapUnmodifiable(entry.getValue());
-                    }
+                @Override
+                public Object getValue() {
+                    return wrapUnmodifiable(entry.getValue());
+                }
 
-                    @Override
-                    public Object setValue(final Object value) {
-                        throw unmodifiableException();
-                    }
+                @Override
+                public Object setValue(final Object value) {
+                    throw unmodifiableException();
+                }
 
-                    @Override
-                    public boolean equals(final Object o) {
-                        return entry.equals(o);
-                    }
+                @Override
+                public boolean equals(final Object o) {
+                    return entry.equals(o);
+                }
 
-                    @Override
-                    public int hashCode() {
-                        return entry.hashCode();
-                    }
-                }).collect(Collectors.toSet());
+                @Override
+                public int hashCode() {
+                    return entry.hashCode();
+                }
+            }).collect(Collectors.toSet());
         }
     }
 

@@ -57,11 +57,23 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     private final RepositoriesService repositoriesService;
 
     @Inject
-    public TransportPutRepositoryAction(TransportService transportService, ClusterService clusterService,
-                                        RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              PutRepositoryRequest::new, indexNameExpressionResolver);
+    public TransportPutRepositoryAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            PutRepositoryAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutRepositoryRequest::new,
+            indexNameExpressionResolver
+        );
         this.repositoriesService = repositoriesService;
     }
 
@@ -81,9 +93,17 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     }
 
     @Override
-    protected void masterOperation(final PutRepositoryRequest request, ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
-        repositoriesService.registerRepository(request, ActionListener.delegateFailure(listener,
-            (delegatedListener, response) -> delegatedListener.onResponse(new AcknowledgedResponse(response.isAcknowledged()))));
+    protected void masterOperation(
+        final PutRepositoryRequest request,
+        ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        repositoriesService.registerRepository(
+            request,
+            ActionListener.delegateFailure(
+                listener,
+                (delegatedListener, response) -> delegatedListener.onResponse(new AcknowledgedResponse(response.isAcknowledged()))
+            )
+        );
     }
 }

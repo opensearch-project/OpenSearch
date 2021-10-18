@@ -86,13 +86,26 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {});
-        OutboundHandler outboundHandler = new OutboundHandler("node", version, new String[0], new StatsTracker(), threadPool,
-                BigArrays.NON_RECYCLING_INSTANCE);
+        OutboundHandler outboundHandler = new OutboundHandler(
+            "node",
+            version,
+            new String[0],
+            new StatsTracker(),
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE
+        );
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, outboundHandler::sendBytes);
         requestHandlers = new Transport.RequestHandlers();
         responseHandlers = new Transport.ResponseHandlers();
-        handler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, handshaker, keepAlive, requestHandlers,
-            responseHandlers);
+        handler = new InboundHandler(
+            threadPool,
+            outboundHandler,
+            namedWriteableRegistry,
+            handshaker,
+            keepAlive,
+            requestHandlers,
+            responseHandlers
+        );
     }
 
     @After
@@ -103,8 +116,15 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
     public void testPing() throws Exception {
         AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
-        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>("test-request", TestRequest::new, taskManager,
-            (request, channel, task) -> channelCaptor.set(channel), ThreadPool.Names.SAME, false, true);
+        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
+            "test-request",
+            TestRequest::new,
+            taskManager,
+            (request, channel, task) -> channelCaptor.set(channel),
+            ThreadPool.Names.SAME,
+            false,
+            true
+        );
         requestHandlers.registerHandler(registry);
 
         handler.inboundMessage(channel, new InboundMessage(null, true));
@@ -145,15 +165,30 @@ public class InboundHandlerTests extends OpenSearchTestCase {
                 return new TestResponse(in);
             }
         }, null, action));
-        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(action, TestRequest::new, taskManager,
+        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
+            action,
+            TestRequest::new,
+            taskManager,
             (request, channel, task) -> {
                 channelCaptor.set(channel);
                 requestCaptor.set(request);
-            }, ThreadPool.Names.SAME, false, true);
+            },
+            ThreadPool.Names.SAME,
+            false,
+            true
+        );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(), new String[0],
-            new TestRequest(requestValue), version, action, requestId, false, false);
+        OutboundMessage.Request request = new OutboundMessage.Request(
+            threadPool.getThreadContext(),
+            new String[0],
+            new TestRequest(requestValue),
+            version,
+            action,
+            requestId,
+            false,
+            false
+        );
 
         BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
@@ -200,8 +235,12 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
         final Version remoteVersion = VersionUtils.randomCompatibleVersion(random(), version);
         final long requestId = randomNonNegativeLong();
-        final Header requestHeader = new Header(between(0, 100), requestId,
-            TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)), remoteVersion);
+        final Header requestHeader = new Header(
+            between(0, 100),
+            requestId,
+            TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
+            remoteVersion
+        );
         final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
         requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
         requestHeader.headers = Tuple.tuple(org.opensearch.common.collect.Map.of(), org.opensearch.common.collect.Map.of());
@@ -213,7 +252,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         assertTrue(responseHeader.isResponse());
         assertTrue(responseHeader.isError());
     }
-
 
     public void testClosesChannelOnErrorInHandshakeWithIncompatibleVersion() throws Exception {
         // Nodes use their minimum compatibility version for the TCP handshake, so a node from v(major-1).x will report its version as
@@ -229,7 +267,9 @@ public class InboundHandlerTests extends OpenSearchTestCase {
                 "expected message",
                 InboundHandler.class.getCanonicalName(),
                 Level.WARN,
-                "could not send error response to handshake"));
+                "could not send error response to handshake"
+            )
+        );
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
         Loggers.addAppender(inboundHandlerLogger, mockAppender);
 
@@ -239,8 +279,12 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
             final Version remoteVersion = Version.fromId(randomIntBetween(0, version.minimumCompatibilityVersion().id - 1));
             final long requestId = randomNonNegativeLong();
-            final Header requestHeader = new Header(between(0, 100), requestId,
-                TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)), remoteVersion);
+            final Header requestHeader = new Header(
+                between(0, 100),
+                requestId,
+                TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
+                remoteVersion
+            );
             final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(org.opensearch.common.collect.Map.of(), org.opensearch.common.collect.Map.of());
@@ -259,11 +303,13 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                        "expected message",
-                        InboundHandler.class.getCanonicalName(),
-                        Level.WARN,
-                        "handling inbound transport message "));
+            new MockLogAppender.SeenEventExpectation(
+                "expected message",
+                InboundHandler.class.getCanonicalName(),
+                Level.WARN,
+                "handling inbound transport message "
+            )
+        );
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
         Loggers.addAppender(inboundHandlerLogger, mockAppender);
 
@@ -271,16 +317,19 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         try {
             final Version remoteVersion = Version.CURRENT;
             final long requestId = randomNonNegativeLong();
-            final Header requestHeader = new Header(between(0, 100), requestId,
-                    TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)), remoteVersion);
-            final InboundMessage requestMessage =
-                    new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {
-                        try {
-                            TimeUnit.SECONDS.sleep(1L);
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
-                    });
+            final Header requestHeader = new Header(
+                between(0, 100),
+                requestId,
+                TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
+                remoteVersion
+            );
+            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {
+                try {
+                    TimeUnit.SECONDS.sleep(1L);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            });
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Collections.emptyMap(), Collections.emptyMap());
             requestHeader.features = org.opensearch.common.collect.Set.of();
@@ -294,7 +343,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
     }
 
     private static InboundMessage unreadableInboundHandshake(Version remoteVersion, Header requestHeader) {
-        return new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> { }) {
+        return new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {}) {
             @Override
             public StreamInput openOrGetStreamInput() {
                 final StreamInput streamInput = new InputStreamStreamInput(new InputStream() {

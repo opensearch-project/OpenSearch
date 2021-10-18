@@ -61,12 +61,16 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 public final class RestReloadSecureSettingsAction extends BaseRestHandler implements RestRequestFilter {
 
-    static final ObjectParser<NodesReloadSecureSettingsRequest, String> PARSER =
-        new ObjectParser<>("reload_secure_settings", NodesReloadSecureSettingsRequest::new);
+    static final ObjectParser<NodesReloadSecureSettingsRequest, String> PARSER = new ObjectParser<>(
+        "reload_secure_settings",
+        NodesReloadSecureSettingsRequest::new
+    );
 
     static {
-        PARSER.declareString((request, value) -> request.setSecureStorePassword(new SecureString(value.toCharArray())),
-            new ParseField("secure_settings_password"));
+        PARSER.declareString(
+            (request, value) -> request.setSecureStorePassword(new SecureString(value.toCharArray())),
+            new ParseField("secure_settings_password")
+        );
     }
 
     @Override
@@ -76,9 +80,9 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/_nodes/reload_secure_settings"),
-            new Route(POST, "/_nodes/{nodeId}/reload_secure_settings")));
+        return unmodifiableList(
+            asList(new Route(POST, "/_nodes/reload_secure_settings"), new Route(POST, "/_nodes/{nodeId}/reload_secure_settings"))
+        );
     }
 
     @Override
@@ -96,20 +100,18 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
             }
         });
 
-        return channel -> nodesRequestBuilder
-                .execute(new RestBuilderListener<NodesReloadSecureSettingsResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)
-                        throws Exception {
-                        builder.startObject();
-                        RestActions.buildNodesHeader(builder, channel.request(), response);
-                        builder.field("cluster_name", response.getClusterName().value());
-                        response.toXContent(builder, channel.request());
-                        builder.endObject();
-                        nodesRequestBuilder.request().closePassword();
-                        return new BytesRestResponse(RestStatus.OK, builder);
-                    }
-                });
+        return channel -> nodesRequestBuilder.execute(new RestBuilderListener<NodesReloadSecureSettingsResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                RestActions.buildNodesHeader(builder, channel.request(), response);
+                builder.field("cluster_name", response.getClusterName().value());
+                response.toXContent(builder, channel.request());
+                builder.endObject();
+                nodesRequestBuilder.request().closePassword();
+                return new BytesRestResponse(RestStatus.OK, builder);
+            }
+        });
     }
 
     @Override

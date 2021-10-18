@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.template.post;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.admin.indices.template.post.SimulateTemplateAction;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
@@ -73,14 +72,23 @@ public class SimulateTemplateRequestTests extends AbstractWireSerializingTestCas
 
     public void testIndexNameCannotBeNullOrEmpty() {
         expectThrows(IllegalArgumentException.class, () -> new SimulateTemplateAction.Request((String) null));
-        expectThrows(IllegalArgumentException.class,
-            () -> new SimulateTemplateAction.Request((PutComposableIndexTemplateAction.Request) null));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new SimulateTemplateAction.Request((PutComposableIndexTemplateAction.Request) null)
+        );
     }
 
     public void testAddingGlobalTemplateWithHiddenIndexSettingIsIllegal() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(Collections.singletonList("*"),
-                template, null, null, null, null, null);
+        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(
+            Collections.singletonList("*"),
+            template,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);

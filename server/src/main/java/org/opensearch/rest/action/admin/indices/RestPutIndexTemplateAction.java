@@ -55,15 +55,13 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutIndexTemplateAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-            " Specifying include_type_name in put index template requests is deprecated."+
-            " The parameter will be removed in the next major version.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
+        + " Specifying include_type_name in put index template requests is deprecated."
+        + " The parameter will be removed in the next major version.";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/_template/{name}"),
-            new Route(PUT, "/_template/{name}")));
+        return unmodifiableList(asList(new Route(POST, "/_template/{name}"), new Route(PUT, "/_template/{name}")));
     }
 
     @Override
@@ -80,8 +78,10 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             deprecationLogger.deprecate("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         if (request.hasParam("template")) {
-            deprecationLogger.deprecate("put_index_template_deprecated_parameter",
-                "Deprecated parameter [template] used, replaced by [index_patterns]");
+            deprecationLogger.deprecate(
+                "put_index_template_deprecated_parameter",
+                "Deprecated parameter [template] used, replaced by [index_patterns]"
+            );
             putRequest.patterns(Collections.singletonList(request.param("template")));
         } else {
             putRequest.patterns(Arrays.asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
@@ -91,8 +91,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
 
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
-            request.getXContentType()).v2();
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
         sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap, includeTypeName);
         putRequest.source(sourceAsMap);
 

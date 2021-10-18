@@ -50,35 +50,38 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
     private final boolean unmapped;
     private final ObjectMapper parentObjectMapper;
 
-    public ReverseNestedAggregatorFactory(String name, boolean unmapped, ObjectMapper parentObjectMapper,
-                                          QueryShardContext queryShardContext, AggregatorFactory parent,
-                                          AggregatorFactories.Builder subFactories,
-                                          Map<String, Object> metadata) throws IOException {
+    public ReverseNestedAggregatorFactory(
+        String name,
+        boolean unmapped,
+        ObjectMapper parentObjectMapper,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactories,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, queryShardContext, parent, subFactories, metadata);
         this.unmapped = unmapped;
         this.parentObjectMapper = parentObjectMapper;
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         if (unmapped) {
             return new Unmapped(name, searchContext, parent, factories, metadata);
         } else {
-            return new ReverseNestedAggregator(name, factories, parentObjectMapper,
-                searchContext, parent, cardinality, metadata);
+            return new ReverseNestedAggregator(name, factories, parentObjectMapper, searchContext, parent, cardinality, metadata);
         }
     }
 
     private static final class Unmapped extends NonCollectingAggregator {
 
-        Unmapped(String name,
-                    SearchContext context,
-                    Aggregator parent,
-                    AggregatorFactories factories,
-                    Map<String, Object> metadata) throws IOException {
+        Unmapped(String name, SearchContext context, Aggregator parent, AggregatorFactories factories, Map<String, Object> metadata)
+            throws IOException {
             super(name, context, parent, factories, metadata);
         }
 

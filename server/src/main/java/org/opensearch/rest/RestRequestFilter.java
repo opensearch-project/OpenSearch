@@ -71,8 +71,11 @@ public interface RestRequestFilter {
                     if (filteredBytes == null) {
                         BytesReference content = restRequest.content();
                         Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(content, true);
-                        Map<String, Object> transformedSource = XContentMapValues.filter(result.v2(), null,
-                                fields.toArray(Strings.EMPTY_ARRAY));
+                        Map<String, Object> transformedSource = XContentMapValues.filter(
+                            result.v2(),
+                            null,
+                            fields.toArray(Strings.EMPTY_ARRAY)
+                        );
                         try {
                             XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                             filteredBytes = BytesReference.bytes(xContentBuilder);

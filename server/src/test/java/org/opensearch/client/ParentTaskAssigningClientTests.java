@@ -45,13 +45,16 @@ import org.opensearch.test.client.NoOpClient;
 
 public class ParentTaskAssigningClientTests extends OpenSearchTestCase {
     public void testSetsParentId() {
-        TaskId[] parentTaskId = new TaskId[] {new TaskId(randomAlphaOfLength(3), randomLong())};
+        TaskId[] parentTaskId = new TaskId[] { new TaskId(randomAlphaOfLength(3), randomLong()) };
 
         // This mock will do nothing but verify that parentTaskId is set on all requests sent to it.
         NoOpClient mock = new NoOpClient(getTestName()) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 assertEquals(parentTaskId[0], request.getParentTask());
                 super.doExecute(action, request, listener);
             }

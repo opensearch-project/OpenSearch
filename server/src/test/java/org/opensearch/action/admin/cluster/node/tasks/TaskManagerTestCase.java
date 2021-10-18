@@ -115,7 +115,6 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
         threadPool = null;
     }
 
-
     static class NodeResponse extends BaseNodeResponse {
 
         protected NodeResponse(StreamInput in) throws IOException {
@@ -151,15 +150,28 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
     /**
      * Simulates node-based task that can be used to block node tasks so they are guaranteed to be registered by task manager
      */
-    abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends BaseNodeRequest>
-            extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
+    abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends BaseNodeRequest> extends
+        TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
-        AbstractTestNodesAction(String actionName, ThreadPool threadPool,
-                                ClusterService clusterService, TransportService transportService, Writeable.Reader<NodesRequest> request,
-                                Writeable.Reader<NodeRequest> nodeRequest) {
-            super(actionName, threadPool, clusterService, transportService,
-                    new ActionFilters(new HashSet<>()),
-                request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
+        AbstractTestNodesAction(
+            String actionName,
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            Writeable.Reader<NodesRequest> request,
+            Writeable.Reader<NodeRequest> nodeRequest
+        ) {
+            super(
+                actionName,
+                threadPool,
+                clusterService,
+                transportService,
+                new ActionFilters(new HashSet<>()),
+                request,
+                nodeRequest,
+                ThreadPool.Names.GENERIC,
+                NodeResponse.class
+            );
         }
 
         @Override
@@ -179,17 +191,27 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
 
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
-            final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction =
-                address -> {
-                 discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
-                 return discoveryNode.get();
-                };
-            transportService = new TransportService(settings,
-                new MockNioTransport(settings, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
-                    PageCacheRecycler.NON_RECYCLING_INSTANCE, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    new NoneCircuitBreakerService()),
-                threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null,
-                Collections.emptySet()) {
+            final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction = address -> {
+                discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
+                return discoveryNode.get();
+            };
+            transportService = new TransportService(
+                settings,
+                new MockNioTransport(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    new NetworkService(Collections.emptyList()),
+                    PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                    new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                    new NoneCircuitBreakerService()
+                ),
+                threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                boundTransportAddressDiscoveryNodeFunction,
+                null,
+                Collections.emptySet()
+            ) {
                 @Override
                 protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
@@ -225,7 +247,9 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
             return discoveryNode().getId();
         }
 
-        public DiscoveryNode discoveryNode() { return  discoveryNode.get(); }
+        public DiscoveryNode discoveryNode() {
+            return discoveryNode.get();
+        }
     }
 
     public static void connectNodes(TestNode... nodes) {

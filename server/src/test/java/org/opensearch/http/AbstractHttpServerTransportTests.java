@@ -101,33 +101,50 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
         int boundPort = randomIntBetween(9000, 9100);
         int otherBoundPort = randomIntBetween(9200, 9300);
 
-        int publishPort = resolvePublishPort(Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT.getKey(), 9080).build(),
-            randomAddresses(), getByName("127.0.0.2"));
+        int publishPort = resolvePublishPort(
+            Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT.getKey(), 9080).build(),
+            randomAddresses(),
+            getByName("127.0.0.2")
+        );
         assertThat("Publish port should be explicitly set to 9080", publishPort, equalTo(9080));
 
-        publishPort = resolvePublishPort(Settings.EMPTY, asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
-            getByName("127.0.0.1"));
+        publishPort = resolvePublishPort(
+            Settings.EMPTY,
+            asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
+            getByName("127.0.0.1")
+        );
         assertThat("Publish port should be derived from matched address", publishPort, equalTo(boundPort));
 
-        publishPort = resolvePublishPort(Settings.EMPTY, asList(address("127.0.0.1", boundPort), address("127.0.0.2", boundPort)),
-            getByName("127.0.0.3"));
+        publishPort = resolvePublishPort(
+            Settings.EMPTY,
+            asList(address("127.0.0.1", boundPort), address("127.0.0.2", boundPort)),
+            getByName("127.0.0.3")
+        );
         assertThat("Publish port should be derived from unique port of bound addresses", publishPort, equalTo(boundPort));
 
-        final BindHttpException e =
-            expectThrows(BindHttpException.class,
-                () -> resolvePublishPort(
-                    Settings.EMPTY,
-                    asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
-                    getByName("127.0.0.3")));
+        final BindHttpException e = expectThrows(
+            BindHttpException.class,
+            () -> resolvePublishPort(
+                Settings.EMPTY,
+                asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
+                getByName("127.0.0.3")
+            )
+        );
         assertThat(e.getMessage(), containsString("Failed to auto-resolve http publish port"));
 
-        publishPort = resolvePublishPort(Settings.EMPTY, asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
-            getByName("127.0.0.1"));
+        publishPort = resolvePublishPort(
+            Settings.EMPTY,
+            asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
+            getByName("127.0.0.1")
+        );
         assertThat("Publish port should be derived from matching wildcard address", publishPort, equalTo(boundPort));
 
         if (NetworkUtils.SUPPORTS_V6) {
-            publishPort = resolvePublishPort(Settings.EMPTY, asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
-                getByName("::1"));
+            publishPort = resolvePublishPort(
+                Settings.EMPTY,
+                asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
+                getByName("::1")
+            );
             assertThat("Publish port should be derived from matching wildcard address", publishPort, equalTo(boundPort));
         }
     }
@@ -142,39 +159,45 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void dispatchBadRequest(final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
                 threadContext.putHeader("foo_bad", "bar");
                 threadContext.putTransient("bar_bad", "baz");
             }
 
         };
 
-        try (AbstractHttpServerTransport transport =
-                 new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher,
-                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
+        try (
+            AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            ) {
 
-                     @Override
-                     protected HttpServerChannel bind(InetSocketAddress hostAddress) {
-                         return null;
-                     }
+                @Override
+                protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
 
-                     @Override
-                     protected void doStart() {
+                @Override
+                protected void doStart() {
 
-                     }
+                }
 
-                     @Override
-                     protected void stopInternal() {
+                @Override
+                protected void stopInternal() {
 
-                     }
+                }
 
-                     @Override
-                     public HttpStats stats() {
-                         return null;
-                     }
-                 }) {
+                @Override
+                public HttpStats stats() {
+                    return null;
+                }
+            }
+        ) {
 
             transport.dispatchRequest(null, null, null);
             assertNull(threadPool.getThreadContext().getHeader("foo"));
@@ -186,9 +209,7 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
         }
     }
 
-    @TestLogging(
-        value = "org.opensearch.http.HttpTracer:trace",
-        reason = "to ensure we log REST requests on TRACE level")
+    @TestLogging(value = "org.opensearch.http.HttpTracer:trace", reason = "to ensure we log REST requests on TRACE level")
     public void testTracerLog() throws Exception {
         final String includeSettings;
         final String excludeSettings;
@@ -200,43 +221,53 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
         excludeSettings = "/internal/testNotSeen";
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        try (AbstractHttpServerTransport transport =
-                 new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(),
-                     new HttpServerTransport.Dispatcher() {
-                         @Override
-                         public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                             channel.sendResponse(emptyResponse(RestStatus.OK));
-                         }
+        try (
+            AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                new HttpServerTransport.Dispatcher() {
+                    @Override
+                    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                        channel.sendResponse(emptyResponse(RestStatus.OK));
+                    }
 
-                         @Override
-                         public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                             channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
-                         }
-                     }, clusterSettings) {
-                     @Override
-                     protected HttpServerChannel bind(InetSocketAddress hostAddress) {
-                         return null;
-                     }
+                    @Override
+                    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                    }
+                },
+                clusterSettings
+            ) {
+                @Override
+                protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
 
-                     @Override
-                     protected void doStart() {
+                @Override
+                protected void doStart() {
 
-                     }
+                }
 
-                     @Override
-                     protected void stopInternal() {
+                @Override
+                protected void stopInternal() {
 
-                     }
+                }
 
-                     @Override
-                     public HttpStats stats() {
-                         return null;
-                     }
-                 }) {
-            clusterSettings.applySettings(Settings.builder()
-                .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE.getKey(), includeSettings)
-                .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
-                .build());
+                @Override
+                public HttpStats stats() {
+                    return null;
+                }
+            }
+        ) {
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE.getKey(), includeSettings)
+                    .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
+                    .build()
+            );
             MockLogAppender appender = new MockLogAppender();
             final String traceLoggerName = "org.opensearch.http.HttpTracer";
             try {
@@ -246,22 +277,36 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
                 final String opaqueId = UUIDs.randomBase64UUID(random());
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation(
-                        "received request", traceLoggerName, Level.TRACE,
-                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/test\\] received request from \\[.*"));
+                        "received request",
+                        traceLoggerName,
+                        Level.TRACE,
+                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/test\\] received request from \\[.*"
+                    )
+                );
 
                 final boolean badRequest = randomBoolean();
 
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation(
-                        "sent response", traceLoggerName, Level.TRACE,
-                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[" +
-                            (badRequest ? "BAD_REQUEST" : "OK")
-                            + "\\]\\[null\\]\\[0\\] sent response to \\[.*"));
+                        "sent response",
+                        traceLoggerName,
+                        Level.TRACE,
+                        "\\[\\d+\\]\\["
+                            + opaqueId
+                            + "\\]\\["
+                            + (badRequest ? "BAD_REQUEST" : "OK")
+                            + "\\]\\[null\\]\\[0\\] sent response to \\[.*"
+                    )
+                );
 
                 appender.addExpectation(
                     new MockLogAppender.UnseenEventExpectation(
-                        "received other request", traceLoggerName, Level.TRACE,
-                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"));
+                        "received other request",
+                        traceLoggerName,
+                        Level.TRACE,
+                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"
+                    )
+                );
 
                 final Exception inboundException;
                 if (badRequest) {
@@ -270,8 +315,9 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
                     inboundException = null;
                 }
 
-                final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                    .withMethod(RestRequest.Method.OPTIONS)
+                final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
+                    RestRequest.Method.OPTIONS
+                )
                     .withPath("/internal/test")
                     .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                     .withInboundException(inboundException)
@@ -286,8 +332,9 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
                     inboundExceptionExcludedPath = null;
                 }
 
-                final FakeRestRequest fakeRestRequestExcludedPath = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                    .withMethod(RestRequest.Method.OPTIONS)
+                final FakeRestRequest fakeRestRequestExcludedPath = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
+                    RestRequest.Method.OPTIONS
+                )
                     .withPath("/internal/testNotSeen")
                     .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                     .withInboundException(inboundExceptionExcludedPath)

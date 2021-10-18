@@ -54,7 +54,7 @@ public enum ScriptType implements Writeable {
      * (Groovy and others), but can be overridden by the specific {@link ScriptEngine}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    INLINE ( 0 , new ParseField("source", "inline")),
+    INLINE(0, new ParseField("source", "inline")),
 
     /**
      * STORED scripts are saved as part of the {@link org.opensearch.cluster.ClusterState}
@@ -63,7 +63,7 @@ public enum ScriptType implements Writeable {
      * (Groovy and others), but can be overridden by the specific {@link ScriptEngine}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    STORED ( 1 , new ParseField("id", "stored"));
+    STORED(1, new ParseField("id", "stored"));
 
     /**
      * Reads an int from the input stream and converts it to a {@link ScriptType}.
@@ -78,9 +78,19 @@ public enum ScriptType implements Writeable {
         } else if (INLINE.id == id) {
             return INLINE;
         } else {
-            throw new IllegalStateException("Error reading ScriptType id [" + id + "] from stream, expected one of [" +
-                STORED.id + " [" + STORED.parseField.getPreferredName() + "], " +
-                INLINE.id + " [" + INLINE.parseField.getPreferredName() + "]]");
+            throw new IllegalStateException(
+                "Error reading ScriptType id ["
+                    + id
+                    + "] from stream, expected one of ["
+                    + STORED.id
+                    + " ["
+                    + STORED.parseField.getPreferredName()
+                    + "], "
+                    + INLINE.id
+                    + " ["
+                    + INLINE.parseField.getPreferredName()
+                    + "]]"
+            );
         }
     }
 
