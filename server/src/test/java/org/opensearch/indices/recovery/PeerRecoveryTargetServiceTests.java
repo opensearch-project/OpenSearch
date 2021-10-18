@@ -49,6 +49,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -315,7 +316,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             shard,
             ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE),
             indexMetadata,
-            NoOpEngine::new
+            NoOpEngine::new,
+            new EngineConfigFactory(shard.indexSettings())
         );
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();

@@ -106,6 +106,7 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
@@ -707,6 +708,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings,
             analysisRegistry,
             getEngineFactory(idxSettings),
+            getEngineConfigFactory(idxSettings),
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
@@ -737,6 +739,10 @@ public class IndicesService extends AbstractLifecycleComponent
             this::isIdFieldDataEnabled,
             valuesSourceRegistry
         );
+    }
+
+    private EngineConfigFactory getEngineConfigFactory(final IndexSettings idxSettings) {
+        return new EngineConfigFactory(this.pluginsService, idxSettings);
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
@@ -781,6 +787,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings,
             analysisRegistry,
             getEngineFactory(idxSettings),
+            getEngineConfigFactory(idxSettings),
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
