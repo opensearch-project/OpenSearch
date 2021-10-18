@@ -8,11 +8,8 @@
 
 package org.opensearch.index;
 
-import org.junit.BeforeClass;
 import org.opensearch.Version;
-import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -23,9 +20,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
