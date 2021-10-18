@@ -44,8 +44,30 @@ opensearchplugin {
 }
 
 dependencies {
-  api 'com.microsoft.azure:azure-storage:8.6.2'
-  api 'com.microsoft.azure:azure-keyvault-core:1.0.0'
+  api 'com.azure:azure-core:1.20.0'
+  api 'com.azure:azure-storage-common:12.12.0'
+  api 'com.azure:azure-core-http-netty:1.11.0'
+  api "io.netty:netty-codec-dns:${versions.netty}"
+  api "io.netty:netty-codec-socks:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-handler-proxy:${versions.netty}"
+  api "io.netty:netty-resolver-dns:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  implementation project(':modules:transport-netty4')
+  api 'com.azure:azure-storage-blob:12.13.0'
+  api 'org.reactivestreams:reactive-streams:1.0.3'
+  api 'io.projectreactor:reactor-core:3.4.10'
+  api 'io.projectreactor.netty:reactor-netty:1.0.11'
+  api 'io.projectreactor.netty:reactor-netty-core:1.0.11'
+  api 'io.projectreactor.netty:reactor-netty-http:1.0.11'
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
+  api 'org.codehaus.woodstox:stax2-api:4.2.1'
+  implementation 'com.fasterxml.woodstox:woodstox-core:6.1.1'
   runtimeOnly 'com.google.guava:guava:30.1.1-jre'
   api 'org.apache.commons:commons-lang3:3.4'
   testImplementation project(':test:fixtures:azure-fixture')
@@ -63,15 +85,108 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jersey-.*/, to: 'jersey'
   mapping from: /jaxb-.*/, to: 'jaxb'
   mapping from: /stax-.*/, to: 'stax'
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /reactor-.*/, to: 'reactor'
 }
 
 thirdPartyAudit {
   ignoreMissingClasses(
     // Optional and not enabled by Elasticsearch
-    'org.slf4j.Logger',
-    'org.slf4j.LoggerFactory',
     'com.google.common.util.concurrent.internal.InternalFutureFailureAccess',
-    'com.google.common.util.concurrent.internal.InternalFutures'
+    'com.google.common.util.concurrent.internal.InternalFutures',
+    'com.azure.storage.internal.avro.implementation.AvroObject',
+    'com.azure.storage.internal.avro.implementation.AvroReader',
+    'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
+    'com.azure.storage.internal.avro.implementation.schema.AvroSchema',
+    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Gauge',
+    'io.micrometer.core.instrument.Gauge$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.search.Search',
+    'io.netty.channel.epoll.Epoll',
+    'io.netty.channel.epoll.EpollDatagramChannel',
+    'io.netty.channel.epoll.EpollDomainDatagramChannel',
+    'io.netty.channel.epoll.EpollDomainSocketChannel',
+    'io.netty.channel.epoll.EpollEventLoopGroup',
+    'io.netty.channel.epoll.EpollServerDomainSocketChannel',
+    'io.netty.channel.epoll.EpollServerSocketChannel',
+    'io.netty.channel.epoll.EpollSocketChannel',
+    'io.netty.channel.kqueue.KQueue',
+    'io.netty.channel.kqueue.KQueueDatagramChannel',
+    'io.netty.channel.kqueue.KQueueDomainDatagramChannel',
+    'io.netty.channel.kqueue.KQueueDomainSocketChannel',
+    'io.netty.channel.kqueue.KQueueEventLoopGroup',
+    'io.netty.channel.kqueue.KQueueServerDomainSocketChannel',
+    'io.netty.channel.kqueue.KQueueServerSocketChannel',
+    'io.netty.channel.kqueue.KQueueSocketChannel',
+    'io.netty.channel.unix.DomainDatagramChannel',
+    'io.netty.handler.codec.haproxy.HAProxyMessage',
+    'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
+    'io.netty.incubator.channel.uring.IOUring',
+    'io.netty.incubator.channel.uring.IOUringDatagramChannel',
+    'io.netty.incubator.channel.uring.IOUringEventLoopGroup',
+    'io.netty.incubator.channel.uring.IOUringServerSocketChannel',
+    'io.netty.incubator.channel.uring.IOUringSocketChannel',
+    'javax.activation.DataHandler',
+    'javax.activation.DataSource',
+    'javax.xml.bind.JAXBElement',
+    'javax.xml.bind.annotation.XmlAccessOrder',
+    'javax.xml.bind.annotation.XmlAccessType',
+    'javax.xml.bind.annotation.XmlAccessorOrder',
+    'javax.xml.bind.annotation.XmlAccessorType', 
+    'javax.xml.bind.annotation.XmlAttribute',
+    'javax.xml.bind.annotation.XmlElement',
+    'javax.xml.bind.annotation.XmlElement$DEFAULT',
+    'javax.xml.bind.annotation.XmlElementRef',
+    'javax.xml.bind.annotation.XmlElementRefs',
+    'javax.xml.bind.annotation.XmlElementWrapper',
+    'javax.xml.bind.annotation.XmlElements',
+    'javax.xml.bind.annotation.XmlEnum',
+    'javax.xml.bind.annotation.XmlEnumValue',
+    'javax.xml.bind.annotation.XmlID',
+    'javax.xml.bind.annotation.XmlIDREF',
+    'javax.xml.bind.annotation.XmlRootElement',
+    'javax.xml.bind.annotation.XmlSeeAlso',
+    'javax.xml.bind.annotation.XmlTransient',
+    'javax.xml.bind.annotation.XmlType',
+    'javax.xml.bind.annotation.XmlValue',
+    'javax.xml.bind.annotation.adapters.XmlAdapter',
+    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter',
+    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter$DEFAULT',
+    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapters',
+    'kotlin.TypeCastException',
+    'kotlin.collections.ArraysKt',
+    'kotlin.jvm.JvmClassMappingKt',
+    'kotlin.jvm.functions.Function0',
+    'kotlin.jvm.functions.Function1',
+    'kotlin.jvm.internal.FunctionReference',
+    'kotlin.jvm.internal.Intrinsics',
+    'kotlin.jvm.internal.Reflection',
+    'kotlin.jvm.internal.markers.KMappedMarker',
+    'kotlin.reflect.KClass',
+    'kotlin.reflect.KDeclarationContainer',
+    'kotlin.sequences.Sequence',
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
   )
 
   ignoreViolations(
@@ -89,7 +204,8 @@ thirdPartyAudit {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
   )
 }
 
