@@ -32,8 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.client.Cancellable;
-import org.opensearch.client.RequestOptions;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.GetPipelineRequest;
@@ -69,8 +67,13 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse putPipeline(PutPipelineRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::putPipeline, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IngestRequestConverters::putPipeline,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -82,8 +85,14 @@ public final class IngestClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable putPipelineAsync(PutPipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::putPipeline, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IngestRequestConverters::putPipeline,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -95,8 +104,13 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetPipelineResponse getPipeline(GetPipelineRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::getPipeline, options,
-            GetPipelineResponse::fromXContent, Collections.singleton(404));
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IngestRequestConverters::getPipeline,
+            options,
+            GetPipelineResponse::fromXContent,
+            Collections.singleton(404)
+        );
     }
 
     /**
@@ -108,8 +122,14 @@ public final class IngestClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable getPipelineAsync(GetPipelineRequest request, RequestOptions options, ActionListener<GetPipelineResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::getPipeline, options,
-            GetPipelineResponse::fromXContent, listener, Collections.singleton(404));
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IngestRequestConverters::getPipeline,
+            options,
+            GetPipelineResponse::fromXContent,
+            listener,
+            Collections.singleton(404)
+        );
     }
 
     /**
@@ -121,8 +141,13 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse deletePipeline(DeletePipelineRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::deletePipeline, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IngestRequestConverters::deletePipeline,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -133,11 +158,19 @@ public final class IngestClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deletePipelineAsync(DeletePipelineRequest request, RequestOptions options,
-                                           ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity( request,
-            IngestRequestConverters::deletePipeline, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable deletePipelineAsync(
+        DeletePipelineRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IngestRequestConverters::deletePipeline,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -150,8 +183,13 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public SimulatePipelineResponse simulate(SimulatePipelineRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::simulatePipeline, options,
-            SimulatePipelineResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IngestRequestConverters::simulatePipeline,
+            options,
+            SimulatePipelineResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -163,10 +201,18 @@ public final class IngestClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable simulateAsync(SimulatePipelineRequest request,
-                                     RequestOptions options,
-                                     ActionListener<SimulatePipelineResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::simulatePipeline, options,
-            SimulatePipelineResponse::fromXContent, listener, emptySet());
+    public Cancellable simulateAsync(
+        SimulatePipelineRequest request,
+        RequestOptions options,
+        ActionListener<SimulatePipelineResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IngestRequestConverters::simulatePipeline,
+            options,
+            SimulatePipelineResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 }

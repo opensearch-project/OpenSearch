@@ -63,12 +63,14 @@ public class GetIndexResponse {
     private Map<String, String> dataStreams;
     private String[] indices;
 
-    GetIndexResponse(String[] indices,
-                     Map<String, MappingMetadata> mappings,
-                     Map<String, List<AliasMetadata>> aliases,
-                     Map<String, Settings> settings,
-                     Map<String, Settings> defaultSettings,
-                     Map<String, String> dataStreams) {
+    GetIndexResponse(
+        String[] indices,
+        Map<String, MappingMetadata> mappings,
+        Map<String, List<AliasMetadata>> aliases,
+        Map<String, Settings> settings,
+        Map<String, Settings> defaultSettings,
+        Map<String, String> dataStreams
+    ) {
         this.indices = indices;
         // to have deterministic order
         Arrays.sort(indices);
@@ -205,8 +207,14 @@ public class GetIndexResponse {
         Settings indexSettings = Settings.EMPTY;
         Settings indexDefaultSettings = Settings.EMPTY;
         String dataStream;
-        IndexEntry(List<AliasMetadata> indexAliases, MappingMetadata indexMappings, Settings indexSettings, Settings indexDefaultSettings,
-                   String dataStream) {
+
+        IndexEntry(
+            List<AliasMetadata> indexAliases,
+            MappingMetadata indexMappings,
+            Settings indexSettings,
+            Settings indexDefaultSettings,
+            String dataStream
+        ) {
             if (indexAliases != null) this.indexAliases = indexAliases;
             if (indexMappings != null) this.indexMappings = indexMappings;
             if (indexSettings != null) this.indexSettings = indexSettings;

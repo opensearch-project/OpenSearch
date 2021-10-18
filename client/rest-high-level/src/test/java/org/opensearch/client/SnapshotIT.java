@@ -78,15 +78,13 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         PutRepositoryRequest request = new PutRepositoryRequest(repository);
         request.settings(settings, XContentType.JSON);
         request.type(type);
-        return execute(request, highLevelClient().snapshot()::createRepository,
-            highLevelClient().snapshot()::createRepositoryAsync);
+        return execute(request, highLevelClient().snapshot()::createRepository, highLevelClient().snapshot()::createRepositoryAsync);
     }
 
     private CreateSnapshotResponse createTestSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
         // assumes the repository already exists
 
-        return execute(createSnapshotRequest, highLevelClient().snapshot()::create,
-            highLevelClient().snapshot()::createAsync);
+        return execute(createSnapshotRequest, highLevelClient().snapshot()::create, highLevelClient().snapshot()::createAsync);
     }
 
     public void testCreateRepository() throws IOException {
@@ -100,9 +98,12 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         assertTrue(createTestRepository("other", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
         GetRepositoriesRequest request = new GetRepositoriesRequest();
-        request.repositories(new String[]{testRepository});
-        GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepository,
-            highLevelClient().snapshot()::getRepositoryAsync);
+        request.repositories(new String[] { testRepository });
+        GetRepositoriesResponse response = execute(
+            request,
+            highLevelClient().snapshot()::getRepository,
+            highLevelClient().snapshot()::getRepositoryAsync
+        );
         assertThat(1, equalTo(response.repositories().size()));
     }
 
@@ -110,20 +111,27 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         assertTrue(createTestRepository("other", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
         assertTrue(createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
-        GetRepositoriesResponse response = execute(new GetRepositoriesRequest(), highLevelClient().snapshot()::getRepository,
-            highLevelClient().snapshot()::getRepositoryAsync);
+        GetRepositoriesResponse response = execute(
+            new GetRepositoriesRequest(),
+            highLevelClient().snapshot()::getRepository,
+            highLevelClient().snapshot()::getRepositoryAsync
+        );
         assertThat(2, equalTo(response.repositories().size()));
     }
 
     public void testSnapshotGetRepositoriesNonExistent() {
         String repository = "doesnotexist";
-        GetRepositoriesRequest request = new GetRepositoriesRequest(new String[]{repository});
-        OpenSearchException exception = expectThrows(OpenSearchException.class, () -> execute(request,
-            highLevelClient().snapshot()::getRepository, highLevelClient().snapshot()::getRepositoryAsync));
+        GetRepositoriesRequest request = new GetRepositoriesRequest(new String[] { repository });
+        OpenSearchException exception = expectThrows(
+            OpenSearchException.class,
+            () -> execute(request, highLevelClient().snapshot()::getRepository, highLevelClient().snapshot()::getRepositoryAsync)
+        );
 
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(exception.getMessage(), equalTo(
-            "OpenSearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]"));
+        assertThat(
+            exception.getMessage(),
+            equalTo("OpenSearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]")
+        );
     }
 
     public void testSnapshotDeleteRepository() throws IOException {
@@ -131,13 +139,19 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         assertTrue(createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
         GetRepositoriesRequest request = new GetRepositoriesRequest();
-        GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepository,
-            highLevelClient().snapshot()::getRepositoryAsync);
+        GetRepositoriesResponse response = execute(
+            request,
+            highLevelClient().snapshot()::getRepository,
+            highLevelClient().snapshot()::getRepositoryAsync
+        );
         assertThat(1, equalTo(response.repositories().size()));
 
         DeleteRepositoryRequest deleteRequest = new DeleteRepositoryRequest(repository);
-        AcknowledgedResponse deleteResponse = execute(deleteRequest, highLevelClient().snapshot()::deleteRepository,
-            highLevelClient().snapshot()::deleteRepositoryAsync);
+        AcknowledgedResponse deleteResponse = execute(
+            deleteRequest,
+            highLevelClient().snapshot()::deleteRepository,
+            highLevelClient().snapshot()::deleteRepositoryAsync
+        );
 
         assertTrue(deleteResponse.isAcknowledged());
     }
@@ -147,8 +161,11 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         VerifyRepositoryRequest request = new VerifyRepositoryRequest("test");
-        VerifyRepositoryResponse response = execute(request, highLevelClient().snapshot()::verifyRepository,
-            highLevelClient().snapshot()::verifyRepositoryAsync);
+        VerifyRepositoryResponse response = execute(
+            request,
+            highLevelClient().snapshot()::verifyRepository,
+            highLevelClient().snapshot()::verifyRepositoryAsync
+        );
         assertThat(response.getNodes().size(), equalTo(1));
     }
 
@@ -157,8 +174,11 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         CleanupRepositoryRequest request = new CleanupRepositoryRequest("test");
-        CleanupRepositoryResponse response = execute(request, highLevelClient().snapshot()::cleanupRepository,
-            highLevelClient().snapshot()::cleanupRepositoryAsync);
+        CleanupRepositoryResponse response = execute(
+            request,
+            highLevelClient().snapshot()::cleanupRepository,
+            highLevelClient().snapshot()::cleanupRepositoryAsync
+        );
         assertThat(response.result().bytes(), equalTo(0L));
         assertThat(response.result().blobs(), equalTo(0L));
     }
@@ -182,8 +202,9 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         if (waitForCompletion == false) {
             // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
             AcknowledgedResponse deleteResponse = execute(
-                    new DeleteSnapshotRequest(repository, snapshot),
-                    highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
+                new DeleteSnapshotRequest(repository, snapshot),
+                highLevelClient().snapshot()::delete,
+                highLevelClient().snapshot()::deleteAsync
             );
             assertTrue(deleteResponse.isAcknowledged());
         }
@@ -213,17 +234,20 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         if (randomBoolean()) {
             request = new GetSnapshotsRequest(repository);
         } else if (randomBoolean()) {
-            request = new GetSnapshotsRequest(repository, new String[] {"_all"});
+            request = new GetSnapshotsRequest(repository, new String[] { "_all" });
 
         } else {
-            request = new GetSnapshotsRequest(repository, new String[] {snapshot1, snapshot2});
+            request = new GetSnapshotsRequest(repository, new String[] { snapshot1, snapshot2 });
         }
         GetSnapshotsResponse response = execute(request, highLevelClient().snapshot()::get, highLevelClient().snapshot()::getAsync);
 
         assertEquals(2, response.getSnapshots().size());
-        assertThat(response.getSnapshots().stream().map((s) -> s.snapshotId().getName()).collect(Collectors.toList()),
-            contains("test_snapshot1", "test_snapshot2"));
-        Optional<Map<String, Object>> returnedMetadata = response.getSnapshots().stream()
+        assertThat(
+            response.getSnapshots().stream().map((s) -> s.snapshotId().getName()).collect(Collectors.toList()),
+            contains("test_snapshot1", "test_snapshot2")
+        );
+        Optional<Map<String, Object>> returnedMetadata = response.getSnapshots()
+            .stream()
             .filter(s -> s.snapshotId().getName().equals("test_snapshot2"))
             .findFirst()
             .map(SnapshotInfo::userMetadata);
@@ -253,9 +277,12 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
 
         SnapshotsStatusRequest request = new SnapshotsStatusRequest();
         request.repository(testRepository);
-        request.snapshots(new String[]{testSnapshot});
-        SnapshotsStatusResponse response = execute(request, highLevelClient().snapshot()::status,
-            highLevelClient().snapshot()::statusAsync);
+        request.snapshots(new String[] { testSnapshot });
+        SnapshotsStatusResponse response = execute(
+            request,
+            highLevelClient().snapshot()::status,
+            highLevelClient().snapshot()::statusAsync
+        );
         assertThat(response.getSnapshots().size(), equalTo(1));
         assertThat(response.getSnapshots().get(0).getSnapshot().getRepository(), equalTo(testRepository));
         assertThat(response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo(testSnapshot));
@@ -291,8 +318,11 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         request.renamePattern(testIndex);
         request.renameReplacement(restoredIndex);
 
-        RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
-            highLevelClient().snapshot()::restoreAsync);
+        RestoreSnapshotResponse response = execute(
+            request,
+            highLevelClient().snapshot()::restore,
+            highLevelClient().snapshot()::restoreAsync
+        );
 
         RestoreInfo restoreInfo = response.getRestoreInfo();
         assertThat(restoreInfo.name(), equalTo(testSnapshot));
@@ -309,11 +339,14 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         AcknowledgedResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
-        createIndex(testIndex, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1,3))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-            .build());
+        createIndex(
+            testIndex,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                .build()
+        );
         assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
 
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
@@ -333,8 +366,11 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         request.indices(randomFrom(testIndex, "test_*"));
         request.renamePattern(testIndex);
 
-        RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
-            highLevelClient().snapshot()::restoreAsync);
+        RestoreSnapshotResponse response = execute(
+            request,
+            highLevelClient().snapshot()::restore,
+            highLevelClient().snapshot()::restoreAsync
+        );
 
         RestoreInfo restoreInfo = response.getRestoreInfo();
         assertThat(restoreInfo.name(), equalTo(testSnapshot));
@@ -369,7 +405,7 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         String repository = "test_repository";
         String snapshot = "source_snapshot";
         String targetSnapshot = "target_snapshot";
-        final String testIndex =  "test_idx";
+        final String testIndex = "test_idx";
 
         createIndex(testIndex, Settings.EMPTY);
         assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
@@ -383,7 +419,7 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
 
-        CloneSnapshotRequest request = new CloneSnapshotRequest(repository, snapshot, targetSnapshot, new String[]{testIndex});
+        CloneSnapshotRequest request = new CloneSnapshotRequest(repository, snapshot, targetSnapshot, new String[] { testIndex });
         AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::clone, highLevelClient().snapshot()::cloneAsync);
 
         assertTrue(response.isAcknowledged());
@@ -398,16 +434,20 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
         long fields = randomLongBetween(0, 4);
         for (int i = 0; i < fields; i++) {
             if (randomBoolean()) {
-                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
-                    randomAlphaOfLengthBetween(5, 5));
+                metadata.put(
+                    randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2, 10)),
+                    randomAlphaOfLengthBetween(5, 5)
+                );
             } else {
                 Map<String, Object> nested = new HashMap<>();
                 long nestedFields = randomLongBetween(0, 4);
                 for (int j = 0; j < nestedFields; j++) {
-                    nested.put(randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
-                        randomAlphaOfLengthBetween(5, 5));
+                    nested.put(
+                        randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2, 10)),
+                        randomAlphaOfLengthBetween(5, 5)
+                    );
                 }
-                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)), nested);
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2, 10)), nested);
             }
         }
         return metadata;

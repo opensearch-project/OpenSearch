@@ -183,12 +183,11 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
                             URI publishAddressAsURI;
 
                             // ES7 cname/ip:port format
-                            if(address.contains("/")) {
+                            if (address.contains("/")) {
                                 String[] cnameAndURI = address.split("/", 2);
                                 publishAddressAsURI = URI.create(scheme + "://" + cnameAndURI[1]);
                                 host = cnameAndURI[0];
-                            }
-                            else {
+                            } else {
                                 publishAddressAsURI = URI.create(scheme + "://" + address);
                                 host = publishAddressAsURI.getHost();
                             }
@@ -196,8 +195,9 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
                         } else if (parser.currentToken() == JsonToken.START_ARRAY && "bound_address".equals(parser.getCurrentName())) {
                             while (parser.nextToken() != JsonToken.END_ARRAY) {
                                 URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
-                                boundHosts.add(new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(),
-                                        boundAddressAsURI.getScheme()));
+                                boundHosts.add(
+                                    new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(), boundAddressAsURI.getScheme())
+                                );
                             }
                         } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
                             parser.skipChildren();
@@ -234,7 +234,7 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
                 }
             }
         }
-        //http section is not present if http is not enabled on the node, ignore such nodes
+        // http section is not present if http is not enabled on the node, ignore such nodes
         if (publishedHost == null) {
             logger.debug("skipping node [" + nodeId + "] with http disabled");
             return null;
@@ -279,11 +279,9 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
         } else {
             assert sawRoles : "didn't see roles for [" + nodeId + "]";
         }
-        assert boundHosts.contains(publishedHost) :
-                "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
+        assert boundHosts.contains(publishedHost) : "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
         logger.trace("adding node [" + nodeId + "]");
-        return new Node(publishedHost, boundHosts, name, version, new Roles(roles),
-                unmodifiableMap(realAttributes));
+        return new Node(publishedHost, boundHosts, name, version, new Roles(roles), unmodifiableMap(realAttributes));
     }
 
     /**
@@ -292,24 +290,22 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
      * either of those, or throws an IOException if the attribute
      * came back in a strange way.
      */
-    private static Boolean v2RoleAttributeValue(Map<String, List<String>> attributes,
-            String name, Boolean defaultValue) throws IOException {
+    private static Boolean v2RoleAttributeValue(Map<String, List<String>> attributes, String name, Boolean defaultValue)
+        throws IOException {
         List<String> valueList = attributes.remove(name);
         if (valueList == null) {
             return defaultValue;
         }
         if (valueList.size() != 1) {
-            throw new IOException("expected only a single attribute value for [" + name + "] but got "
-                    + valueList);
+            throw new IOException("expected only a single attribute value for [" + name + "] but got " + valueList);
         }
         switch (valueList.get(0)) {
-        case "true":
-            return true;
-        case "false":
-            return false;
-        default:
-            throw new IOException("expected [" + name + "] to be either [true] or [false] but was ["
-                    + valueList.get(0) + "]");
+            case "true":
+                return true;
+            case "false":
+                return false;
+            default:
+                throw new IOException("expected [" + name + "] to be either [true] or [false] but was [" + valueList.get(0) + "]");
         }
     }
 

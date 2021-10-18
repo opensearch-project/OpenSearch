@@ -52,7 +52,11 @@ public final class RequestOptions {
      * Default request options.
      */
     public static final RequestOptions DEFAULT = new Builder(
-            Collections.emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT, null, null).build();
+        Collections.emptyList(),
+        HeapBufferedResponseConsumerFactory.DEFAULT,
+        null,
+        null
+    ).build();
 
     private final List<Header> headers;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
@@ -159,8 +163,8 @@ public final class RequestOptions {
 
         RequestOptions other = (RequestOptions) obj;
         return headers.equals(other.headers)
-                && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory)
-                && Objects.equals(warningsHandler, other.warningsHandler);
+            && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory)
+            && Objects.equals(warningsHandler, other.warningsHandler);
     }
 
     @Override
@@ -179,8 +183,12 @@ public final class RequestOptions {
         private WarningsHandler warningsHandler;
         private RequestConfig requestConfig;
 
-        private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                WarningsHandler warningsHandler, RequestConfig requestConfig) {
+        private Builder(
+            List<Header> headers,
+            HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+            WarningsHandler warningsHandler,
+            RequestConfig requestConfig
+        ) {
             this.headers = new ArrayList<>(headers);
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
             this.warningsHandler = warningsHandler;
@@ -218,8 +226,10 @@ public final class RequestOptions {
          * @throws NullPointerException if {@code httpAsyncResponseConsumerFactory} is null.
          */
         public void setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
-            this.httpAsyncResponseConsumerFactory =
-                    Objects.requireNonNull(httpAsyncResponseConsumerFactory, "httpAsyncResponseConsumerFactory cannot be null");
+            this.httpAsyncResponseConsumerFactory = Objects.requireNonNull(
+                httpAsyncResponseConsumerFactory,
+                "httpAsyncResponseConsumerFactory cannot be null"
+            );
         }
 
         /**
@@ -274,8 +284,7 @@ public final class RequestOptions {
             }
             if (other instanceof ReqHeader) {
                 Header otherHeader = (Header) other;
-                return Objects.equals(getName(), otherHeader.getName()) &&
-                        Objects.equals(getValue(), otherHeader.getValue());
+                return Objects.equals(getName(), otherHeader.getName()) && Objects.equals(getValue(), otherHeader.getValue());
             }
             return false;
         }

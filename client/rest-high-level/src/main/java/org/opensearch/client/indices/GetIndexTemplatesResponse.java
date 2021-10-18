@@ -39,8 +39,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-
-public class GetIndexTemplatesResponse  {
+public class GetIndexTemplatesResponse {
 
     @Override
     public String toString() {
@@ -63,7 +62,6 @@ public class GetIndexTemplatesResponse  {
         return indexTemplates;
     }
 
-
     public static GetIndexTemplatesResponse fromXContent(XContentParser parser) throws IOException {
         final List<IndexTemplateMetadata> templates = new ArrayList<>();
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
@@ -84,12 +82,9 @@ public class GetIndexTemplatesResponse  {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (getClass() != obj.getClass()) return false;
         // To compare results we need to make sure the templates are listed in the same order
         GetIndexTemplatesResponse other = (GetIndexTemplatesResponse) obj;
         List<IndexTemplateMetadata> thisList = new ArrayList<>(this.indexTemplates);
@@ -98,6 +93,5 @@ public class GetIndexTemplatesResponse  {
         otherList.sort(Comparator.comparing(IndexTemplateMetadata::name));
         return Objects.equals(thisList, otherList);
     }
-
 
 }
