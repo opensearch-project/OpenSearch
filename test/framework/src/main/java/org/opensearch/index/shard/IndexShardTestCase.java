@@ -405,7 +405,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     mapperService,
                     similarityService,
                     engineFactory,
-                    new EngineConfigFactory(indexSettings),
+                    engineConfigFactory,
                     indexEventListener,
                     indexReaderWrapper,
                     threadPool,
