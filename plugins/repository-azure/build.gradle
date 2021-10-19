@@ -133,7 +133,6 @@ thirdPartyAudit {
     'io.netty.channel.kqueue.KQueueServerDomainSocketChannel',
     'io.netty.channel.kqueue.KQueueServerSocketChannel',
     'io.netty.channel.kqueue.KQueueSocketChannel',
-    'io.netty.channel.unix.DomainDatagramChannel',
     'io.netty.handler.codec.haproxy.HAProxyMessage',
     'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
     'io.netty.incubator.channel.uring.IOUring',
