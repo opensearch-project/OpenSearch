@@ -36,7 +36,6 @@ import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.cluster.metadata.ComponentTemplateTests;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.action.admin.indices.template.get.GetComponentTemplateAction;
 
 import java.io.IOException;
 import java.util.Collections;

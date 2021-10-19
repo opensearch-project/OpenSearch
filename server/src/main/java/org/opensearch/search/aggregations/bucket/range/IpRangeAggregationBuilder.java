@@ -65,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-
 public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuilder<IpRangeAggregationBuilder> {
     public static final String NAME = "ip_range";
     public static final ValuesSourceRegistry.RegistryKey<IpRangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
@@ -74,15 +73,18 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
     );
     private static final ParseField MASK_FIELD = new ParseField("mask");
 
-    public static final ObjectParser<IpRangeAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, IpRangeAggregationBuilder::new);
+    public static final ObjectParser<IpRangeAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        IpRangeAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
 
         PARSER.declareBoolean(IpRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {
-            for (Range range : ranges) agg.addRange(range);
+            for (Range range : ranges)
+                agg.addRange(range);
         }, (p, c) -> IpRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
     }
 
@@ -200,9 +202,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
                 return false;
             }
             Range that = (Range) obj;
-            return Objects.equals(key, that.key)
-                    && Objects.equals(from, that.from)
-                    && Objects.equals(to, that.to);
+            return Objects.equals(key, that.key) && Objects.equals(from, that.from) && Objects.equals(to, that.to);
         }
 
         @Override
@@ -240,7 +240,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
 
     protected IpRangeAggregationBuilder(IpRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
-        this.ranges =  new ArrayList<>(clone.ranges);
+        this.ranges = new ArrayList<>(clone.ranges);
         this.keyed = clone.keyed;
     }
 
@@ -395,18 +395,19 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(
-        QueryShardContext queryShardContext, ValuesSourceConfig config,
-        AggregatorFactory parent, Builder subFactoriesBuilder)
-                    throws IOException {
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
-        if(this.ranges.size() == 0){
+        if (this.ranges.size() == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
         for (Range range : this.ranges) {
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }
-        return new BinaryRangeAggregatorFactory(name, config, ranges,
-                keyed, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new BinaryRangeAggregatorFactory(name, config, ranges, keyed, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -427,7 +428,6 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         IpRangeAggregationBuilder that = (IpRangeAggregationBuilder) obj;
-        return keyed == that.keyed
-            && ranges.equals(that.ranges);
+        return keyed == that.keyed && ranges.equals(that.ranges);
     }
 }

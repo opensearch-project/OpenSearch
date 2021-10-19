@@ -173,7 +173,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         }
     }
 
-
     @Override
     public String getWriteableName() {
         return NAME;
@@ -222,7 +221,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected boolean doEquals(IdsQueryBuilder other) {
-        return Objects.equals(ids, other.ids) &&
-               Arrays.equals(types, other.types);
+        return Objects.equals(ids, other.ids) && Arrays.equals(types, other.types);
     }
 }

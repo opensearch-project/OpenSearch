@@ -21,7 +21,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 public class IndexingPressureServiceTests extends OpenSearchTestCase {
 
-    private final Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
+    private final Settings settings = Settings.builder()
+        .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
         .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
         .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 1)
         .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
@@ -55,9 +56,12 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
         Settings.Builder updated = Settings.builder();
-        clusterSettings.updateDynamicSettings(Settings.builder()
-                .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build(),
-            Settings.builder().put(settings), updated, getTestClass().getName());
+        clusterSettings.updateDynamicSettings(
+            Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build(),
+            Settings.builder().put(settings),
+            updated,
+            getTestClass().getName()
+        );
         clusterSettings.applySettings(updated.build());
 
         Releasable releasable = service.markCoordinatingOperationStarted(1024, false);
@@ -85,9 +89,12 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
         Settings.Builder updated = Settings.builder();
-        clusterSettings.updateDynamicSettings(Settings.builder()
-                .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build(),
-            Settings.builder().put(settings), updated, getTestClass().getName());
+        clusterSettings.updateDynamicSettings(
+            Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build(),
+            Settings.builder().put(settings),
+            updated,
+            getTestClass().getName()
+        );
         clusterSettings.applySettings(updated.build());
 
         Releasable releasable = service.markPrimaryOperationStarted(shardId, 1024, false);
@@ -116,9 +123,12 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
         Settings.Builder updated = Settings.builder();
-        clusterSettings.updateDynamicSettings(Settings.builder()
-                .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build(),
-            Settings.builder().put(settings), updated, getTestClass().getName());
+        clusterSettings.updateDynamicSettings(
+            Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build(),
+            Settings.builder().put(settings),
+            updated,
+            getTestClass().getName()
+        );
         clusterSettings.applySettings(updated.build());
 
         Releasable releasable = service.markPrimaryOperationLocalToCoordinatingNodeStarted(shardId, 1024);
@@ -147,9 +157,12 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
         Settings.Builder updated = Settings.builder();
-        clusterSettings.updateDynamicSettings(Settings.builder()
-                .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build(),
-            Settings.builder().put(settings), updated, getTestClass().getName());
+        clusterSettings.updateDynamicSettings(
+            Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build(),
+            Settings.builder().put(settings),
+            updated,
+            getTestClass().getName()
+        );
         clusterSettings.applySettings(updated.build());
 
         Releasable releasable = service.markReplicaOperationStarted(shardId, 1024, false);

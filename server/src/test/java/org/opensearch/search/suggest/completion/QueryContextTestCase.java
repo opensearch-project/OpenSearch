@@ -40,7 +40,6 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-
 public abstract class QueryContextTestCase<QC extends ToXContent> extends OpenSearchTestCase {
     private static final int NUMBER_OF_RUNS = 20;
 

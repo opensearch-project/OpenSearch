@@ -60,7 +60,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * tests using all versions
  */
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-@OpenSearchIntegTestCase.ClusterScope(scope= OpenSearchIntegTestCase.Scope.SUITE)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
 public class DateHistogramOffsetIT extends OpenSearchIntegTestCase {
 
     private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
@@ -80,13 +80,13 @@ public class DateHistogramOffsetIT extends OpenSearchIntegTestCase {
         internalCluster().wipeIndices("idx2");
     }
 
-    private void prepareIndex(ZonedDateTime date, int numHours, int stepSizeHours, int idxIdStart)
-        throws IOException, InterruptedException {
+    private void prepareIndex(ZonedDateTime date, int numHours, int stepSizeHours, int idxIdStart) throws IOException,
+        InterruptedException {
 
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[numHours];
         for (int i = idxIdStart; i < idxIdStart + reqs.length; i++) {
             reqs[i - idxIdStart] = client().prepareIndex("idx2", "type", "" + i)
-                    .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
+                .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
             date = date.plusHours(stepSizeHours);
         }
         indexRandom(true, reqs);
@@ -96,13 +96,11 @@ public class DateHistogramOffsetIT extends OpenSearchIntegTestCase {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 5, 1, 0);
 
         SearchResponse response = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(dateHistogram("date_histo")
-                        .field("date")
-                        .offset("2h")
-                        .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                dateHistogram("date_histo").field("date").offset("2h").format(DATE_FORMAT).dateHistogramInterval(DateHistogramInterval.DAY)
+            )
+            .get();
 
         assertThat(response.getHits().getTotalHits().value, equalTo(5L));
 
@@ -118,13 +116,11 @@ public class DateHistogramOffsetIT extends OpenSearchIntegTestCase {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 5, -1, 0);
 
         SearchResponse response = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(dateHistogram("date_histo")
-                        .field("date")
-                        .offset("-2h")
-                        .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                dateHistogram("date_histo").field("date").offset("-2h").format(DATE_FORMAT).dateHistogramInterval(DateHistogramInterval.DAY)
+            )
+            .get();
 
         assertThat(response.getHits().getTotalHits().value, equalTo(5L));
 
@@ -144,14 +140,15 @@ public class DateHistogramOffsetIT extends OpenSearchIntegTestCase {
         prepareIndex(date("2014-03-14T00:00:00+00:00"), 12, 1, 13);
 
         SearchResponse response = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(dateHistogram("date_histo")
-                        .field("date")
-                        .offset("6h")
-                        .minDocCount(0)
-                        .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                dateHistogram("date_histo").field("date")
+                    .offset("6h")
+                    .minDocCount(0)
+                    .format(DATE_FORMAT)
+                    .dateHistogramInterval(DateHistogramInterval.DAY)
+            )
+            .get();
 
         assertThat(response.getHits().getTotalHits().value, equalTo(24L));
 

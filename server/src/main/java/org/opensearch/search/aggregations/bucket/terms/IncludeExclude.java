@@ -93,8 +93,9 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         String includeMethod = include.isRegexBased() ? "regex" : "set";
         String excludeMethod = exclude.isRegexBased() ? "regex" : "set";
         if (includeMethod.equals(excludeMethod) == false) {
-            throw new IllegalArgumentException("Cannot mix a " + includeMethod + "-based include with a "
-                    + excludeMethod + "-based method");
+            throw new IllegalArgumentException(
+                "Cannot mix a " + includeMethod + "-based include with a " + excludeMethod + "-based method"
+            );
         }
         if (include.isRegexBased()) {
             return new IncludeExclude(include.include, exclude.exclude);
@@ -120,17 +121,18 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
                 } else if (PARTITION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     partition = parser.intValue();
                 } else {
-                    throw new OpenSearchParseException(
-                            "Unknown parameter in Include/Exclude clause: " + currentFieldName);
+                    throw new OpenSearchParseException("Unknown parameter in Include/Exclude clause: " + currentFieldName);
                 }
             }
             if (partition == null) {
-                throw new IllegalArgumentException("Missing [" + PARTITION_FIELD.getPreferredName()
-                    + "] parameter for partition-based include");
+                throw new IllegalArgumentException(
+                    "Missing [" + PARTITION_FIELD.getPreferredName() + "] parameter for partition-based include"
+                );
             }
             if (numPartitions == null) {
-                throw new IllegalArgumentException("Missing [" + NUM_PARTITIONS_FIELD.getPreferredName()
-                    + "] parameter for partition-based include");
+                throw new IllegalArgumentException(
+                    "Missing [" + NUM_PARTITIONS_FIELD.getPreferredName() + "] parameter for partition-based include"
+                );
             }
             return new IncludeExclude(partition, numPartitions);
         } else {
@@ -167,7 +169,6 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             return Math.floorMod(hashCode, incNumPartitions) == incZeroBasedPartition;
         }
     }
-
 
     public static class SetBackedLongFilter extends LongFilter {
         private LongSet valids;
@@ -260,8 +261,10 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
             BytesRef term = termEnum.next();
             while (term != null) {
-                if (Math.floorMod(StringHelper.murmurhash3_x86_32(term, HASH_PARTITIONING_SEED),
-                        incNumPartitions) == incZeroBasedPartition) {
+                if (Math.floorMod(
+                    StringHelper.murmurhash3_x86_32(term, HASH_PARTITIONING_SEED),
+                    incNumPartitions
+                ) == incZeroBasedPartition) {
                     acceptedGlobalOrdinals.set(termEnum.ord());
                 }
                 term = termEnum.next();
@@ -389,7 +392,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     public IncludeExclude(int partition, int numPartitions) {
         if (partition < 0 || partition >= numPartitions) {
-            throw new IllegalArgumentException("Partition must be >=0 and < numPartition which is "+numPartitions);
+            throw new IllegalArgumentException("Partition must be >=0 and < numPartition which is " + numPartitions);
         }
         this.incZeroBasedPartition = partition;
         this.incNumPartitions = numPartitions;
@@ -399,8 +402,6 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         this.excludeValues = null;
 
     }
-
-
 
     /**
      * Read from a stream.
@@ -604,7 +605,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (isRegexBased()) {
             return new AutomatonBackedStringFilter(toAutomaton());
         }
-        if (isPartitionBased()){
+        if (isPartitionBased()) {
             return new PartitionedStringFilter();
         }
         return new TermListBackedStringFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
@@ -628,7 +629,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (isRegexBased()) {
             return new AutomatonBackedOrdinalsFilter(toAutomaton());
         }
-        if (isPartitionBased()){
+        if (isPartitionBased()) {
             return new PartitionedOrdinalsFilter();
         }
 
@@ -637,7 +638,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     public LongFilter convertToLongFilter(DocValueFormat format) {
 
-        if(isPartitionBased()){
+        if (isPartitionBased()) {
             return new PartitionedLongFilter();
         }
 
@@ -658,7 +659,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     public LongFilter convertToDoubleFilter() {
-        if(isPartitionBased()){
+        if (isPartitionBased()) {
             return new PartitionedLongFilter();
         }
 
@@ -711,26 +712,36 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     @Override
     public int hashCode() {
         return Objects.hash(
-                include == null ? null : include.getOriginalString(),
-                exclude == null ? null : exclude.getOriginalString(),
-                includeValues, excludeValues, incZeroBasedPartition, incNumPartitions);
+            include == null ? null : include.getOriginalString(),
+            exclude == null ? null : exclude.getOriginalString(),
+            includeValues,
+            excludeValues,
+            incZeroBasedPartition,
+            incNumPartitions
+        );
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
             return false;
-        } if (getClass() != obj.getClass()) {
+        }
+        if (getClass() != obj.getClass()) {
             return false;
         }
         IncludeExclude other = (IncludeExclude) obj;
-        return Objects.equals(include == null ? null : include.getOriginalString(),
-                other.include == null ? null : other.include.getOriginalString())
-                && Objects.equals(exclude == null ? null : exclude.getOriginalString(),
-                        other.exclude == null ? null : other.exclude.getOriginalString())
-                && Objects.equals(includeValues, other.includeValues) && Objects.equals(excludeValues, other.excludeValues)
-                && Objects.equals(incZeroBasedPartition, other.incZeroBasedPartition)
-                && Objects.equals(incNumPartitions, other.incNumPartitions);
+        return Objects.equals(
+            include == null ? null : include.getOriginalString(),
+            other.include == null ? null : other.include.getOriginalString()
+        )
+            && Objects.equals(
+                exclude == null ? null : exclude.getOriginalString(),
+                other.exclude == null ? null : other.exclude.getOriginalString()
+            )
+            && Objects.equals(includeValues, other.includeValues)
+            && Objects.equals(excludeValues, other.excludeValues)
+            && Objects.equals(incZeroBasedPartition, other.incZeroBasedPartition)
+            && Objects.equals(incNumPartitions, other.incNumPartitions);
     }
 
 }

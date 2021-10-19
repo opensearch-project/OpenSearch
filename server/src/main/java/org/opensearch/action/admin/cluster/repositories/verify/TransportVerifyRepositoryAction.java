@@ -52,18 +52,28 @@ import java.io.IOException;
 /**
  * Transport action for verifying repository operation
  */
-public class TransportVerifyRepositoryAction extends
-    TransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
+public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
 
     private final RepositoriesService repositoriesService;
 
-
     @Inject
-    public TransportVerifyRepositoryAction(TransportService transportService, ClusterService clusterService,
-                                           RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              VerifyRepositoryRequest::new, indexNameExpressionResolver);
+    public TransportVerifyRepositoryAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            VerifyRepositoryAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            VerifyRepositoryRequest::new,
+            indexNameExpressionResolver
+        );
         this.repositoriesService = repositoriesService;
     }
 
@@ -83,10 +93,19 @@ public class TransportVerifyRepositoryAction extends
     }
 
     @Override
-    protected void masterOperation(final VerifyRepositoryRequest request, ClusterState state,
-                                   final ActionListener<VerifyRepositoryResponse> listener) {
-        repositoriesService.verifyRepository(request.name(), ActionListener.delegateFailure(listener,
-            (delegatedListener, verifyResponse) ->
-                delegatedListener.onResponse(new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0])))));
+    protected void masterOperation(
+        final VerifyRepositoryRequest request,
+        ClusterState state,
+        final ActionListener<VerifyRepositoryResponse> listener
+    ) {
+        repositoriesService.verifyRepository(
+            request.name(),
+            ActionListener.delegateFailure(
+                listener,
+                (delegatedListener, verifyResponse) -> delegatedListener.onResponse(
+                    new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0]))
+                )
+            )
+        );
     }
 }

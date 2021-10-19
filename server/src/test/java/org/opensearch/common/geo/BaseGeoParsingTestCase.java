@@ -57,12 +57,19 @@ abstract class BaseGeoParsingTestCase extends OpenSearchTestCase {
     protected static final GeometryFactory GEOMETRY_FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
 
     public abstract void testParsePoint() throws IOException, ParseException;
+
     public abstract void testParseMultiPoint() throws IOException, ParseException;
+
     public abstract void testParseLineString() throws IOException, ParseException;
+
     public abstract void testParseMultiLineString() throws IOException, ParseException;
+
     public abstract void testParsePolygon() throws IOException, ParseException;
+
     public abstract void testParseMultiPolygon() throws IOException, ParseException;
+
     public abstract void testParseEnvelope() throws IOException, ParseException;
+
     public abstract void testParseGeometryCollection() throws IOException, ParseException;
 
     protected void assertValidException(XContentBuilder builder, Class<?> expectedException) throws IOException {

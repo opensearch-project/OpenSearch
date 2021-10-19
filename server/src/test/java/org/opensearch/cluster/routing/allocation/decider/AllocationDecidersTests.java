@@ -46,9 +46,6 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.opensearch.cluster.routing.allocation.decider.Decision;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -118,15 +115,17 @@ public class AllocationDecidersTests extends OpenSearchTestCase {
         }));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
-        final RoutingAllocation allocation = new RoutingAllocation(deciders,
-            clusterState.getRoutingNodes(), clusterState, null, null,0L);
+        final RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState.getRoutingNodes(), clusterState, null, null, 0L);
 
         allocation.setDebugMode(mode);
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId("test", "testUUID", 0), true,
-            RecoverySource.ExistingStoreRecoverySource.INSTANCE, unassignedInfo);
-        IndexMetadata idx =
-            IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
+        final ShardRouting shardRouting = ShardRouting.newUnassigned(
+            new ShardId("test", "testUUID", 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            unassignedInfo
+        );
+        IndexMetadata idx = IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
 
         RoutingNode routingNode = new RoutingNode("testNode", null);
         verify(deciders.canAllocate(shardRouting, routingNode, allocation), matcher);

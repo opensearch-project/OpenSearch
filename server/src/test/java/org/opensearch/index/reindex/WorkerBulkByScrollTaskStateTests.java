@@ -164,22 +164,20 @@ public class WorkerBulkByScrollTaskStateTests extends OpenSearchTestCase {
             }
         };
         try {
-            workerState.delayPrepareBulkRequest(threadPool, System.nanoTime(), batchSizeForMaxDelay,
-                new AbstractRunnable() {
-                    @Override
-                    protected void doRun() throws Exception {
-                        boolean oldValue = done.getAndSet(true);
-                        if (oldValue) {
-                            throw new RuntimeException("Ran twice oh no!");
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        errors.add(e);
+            workerState.delayPrepareBulkRequest(threadPool, System.nanoTime(), batchSizeForMaxDelay, new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    boolean oldValue = done.getAndSet(true);
+                    if (oldValue) {
+                        throw new RuntimeException("Ran twice oh no!");
                     }
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    errors.add(e);
+                }
+            });
 
             // Rethrottle on a random number of threads, one of which is this thread.
             Runnable test = () -> {
@@ -239,8 +237,8 @@ public class WorkerBulkByScrollTaskStateTests extends OpenSearchTestCase {
             // Have the task use the thread pool to delay a task that does nothing
             workerState.delayPrepareBulkRequest(threadPool, 0, 1, new AbstractRunnable() {
                 @Override
-                protected void doRun() throws Exception {
-                }
+                protected void doRun() throws Exception {}
+
                 @Override
                 public void onFailure(Exception e) {
                     throw new UnsupportedOperationException();
@@ -259,7 +257,9 @@ public class WorkerBulkByScrollTaskStateTests extends OpenSearchTestCase {
 
         int total = between(0, 1000000);
         workerState.rethrottle(1);
-        assertThat((double) workerState.perfectlyThrottledBatchTime(total),
-                closeTo(TimeUnit.SECONDS.toNanos(total), TimeUnit.SECONDS.toNanos(1)));
+        assertThat(
+            (double) workerState.perfectlyThrottledBatchTime(total),
+            closeTo(TimeUnit.SECONDS.toNanos(total), TimeUnit.SECONDS.toNanos(1))
+        );
     }
 }

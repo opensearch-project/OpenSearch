@@ -52,8 +52,7 @@ final class RecoveryTranslogOperationsResponse extends TransportResponse {
         // before 6.0.0 we received an empty response so we have to maintain that
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
             localCheckpoint = in.readZLong();
-        }
-        else {
+        } else {
             localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }

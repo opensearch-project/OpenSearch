@@ -123,18 +123,27 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
     public void testGuessRootCause() {
         {
-            OpenSearchException exception = new OpenSearchException("foo", new OpenSearchException("bar",
-                    new IndexNotFoundException("foo", new RuntimeException("foobar"))));
+            OpenSearchException exception = new OpenSearchException(
+                "foo",
+                new OpenSearchException("bar", new IndexNotFoundException("foo", new RuntimeException("foobar")))
+            );
             OpenSearchException[] rootCauses = exception.guessRootCauses();
             assertEquals(rootCauses.length, 1);
             assertEquals(OpenSearchException.getExceptionName(rootCauses[0]), "index_not_found_exception");
             assertEquals("no such index [foo]", rootCauses[0].getMessage());
-            ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
-            ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE));
-            SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
-                    new ShardSearchFailure[]{failure, failure1});
+            ShardSearchFailure failure = new ShardSearchFailure(
+                new ParsingException(1, 2, "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE)
+            );
+            ShardSearchFailure failure1 = new ShardSearchFailure(
+                new ParsingException(1, 2, "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE)
+            );
+            SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+                "search",
+                "all shards failed",
+                new ShardSearchFailure[] { failure, failure1 }
+            );
             if (randomBoolean()) {
                 rootCauses = (randomBoolean() ? new RemoteTransportException("remoteboom", ex) : ex).guessRootCauses();
             } else {
@@ -150,14 +159,22 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(
-                    new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
-            ShardSearchFailure failure1 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 1), null, OriginalIndices.NONE));
-            ShardSearchFailure failure2 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 2), null, OriginalIndices.NONE));
-            SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
-                    new ShardSearchFailure[]{failure, failure1, failure2});
+                new ParsingException(1, 2, "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE)
+            );
+            ShardSearchFailure failure1 = new ShardSearchFailure(
+                new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 1), null, OriginalIndices.NONE)
+            );
+            ShardSearchFailure failure2 = new ShardSearchFailure(
+                new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 2), null, OriginalIndices.NONE)
+            );
+            SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+                "search",
+                "all shards failed",
+                new ShardSearchFailure[] { failure, failure1, failure2 }
+            );
             final OpenSearchException[] rootCauses = ex.guessRootCauses();
             assertEquals(rootCauses.length, 2);
             assertEquals(OpenSearchException.getExceptionName(rootCauses[0]), "parsing_exception");
@@ -180,7 +197,8 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
         {
             final OpenSearchException[] foobars = OpenSearchException.guessRootCauses(
-                new RemoteTransportException("abc", new IllegalArgumentException("foobar")));
+                new RemoteTransportException("abc", new IllegalArgumentException("foobar"))
+            );
             assertEquals(foobars.length, 1);
             assertThat(foobars[0], instanceOf(OpenSearchException.class));
             assertEquals("foobar", foobars[0].getMessage());
@@ -211,58 +229,83 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
     public void testDeduplicate() throws IOException {
         {
-            ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
-            ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE));
-            SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
-                    randomBoolean() ? failure1.getCause() : failure.getCause(), new ShardSearchFailure[]{failure, failure1});
+            ShardSearchFailure failure = new ShardSearchFailure(
+                new ParsingException(1, 2, "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE)
+            );
+            ShardSearchFailure failure1 = new ShardSearchFailure(
+                new ParsingException(1, 2, "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE)
+            );
+            SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+                "search",
+                "all shards failed",
+                randomBoolean() ? failure1.getCause() : failure.getCause(),
+                new ShardSearchFailure[] { failure, failure1 }
+            );
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\"," +
-                    "\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":" +
-                    "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]}";
+            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\","
+                + "\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":"
+                + "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]}";
             assertEquals(expected, Strings.toString(builder));
         }
         {
-            ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
-            ShardSearchFailure failure1 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 1), null, OriginalIndices.NONE));
-            ShardSearchFailure failure2 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 2), null, OriginalIndices.NONE));
-            SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
-                    new ShardSearchFailure[]{failure, failure1, failure2});
+            ShardSearchFailure failure = new ShardSearchFailure(
+                new ParsingException(1, 2, "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE)
+            );
+            ShardSearchFailure failure1 = new ShardSearchFailure(
+                new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 1), null, OriginalIndices.NONE)
+            );
+            ShardSearchFailure failure2 = new ShardSearchFailure(
+                new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 2), null, OriginalIndices.NONE)
+            );
+            SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+                "search",
+                "all shards failed",
+                new ShardSearchFailure[] { failure, failure1, failure2 }
+            );
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\"," +
-                    "\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\"," +
-                    "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}},{\"shard\":1," +
-                    "\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_shard_exception\",\"reason\":\"foobar\"," +
-                    "\"index\":\"foo1\",\"index_uuid\":\"_na_\"}}]}";
+            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\","
+                + "\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\","
+                + "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}},{\"shard\":1,"
+                + "\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_shard_exception\",\"reason\":\"foobar\","
+                + "\"index\":\"foo1\",\"index_uuid\":\"_na_\"}}]}";
             assertEquals(expected, Strings.toString(builder));
         }
         {
-            ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
-            ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE));
+            ShardSearchFailure failure = new ShardSearchFailure(
+                new ParsingException(1, 2, "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE)
+            );
+            ShardSearchFailure failure1 = new ShardSearchFailure(
+                new ParsingException(1, 2, "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE)
+            );
             NullPointerException nullPointerException = new NullPointerException();
-            SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", nullPointerException,
-                    new ShardSearchFailure[]{failure, failure1});
+            SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+                "search",
+                "all shards failed",
+                nullPointerException,
+                new ShardSearchFailure[] { failure, failure1 }
+            );
             assertEquals(nullPointerException, ex.getCause());
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\"," +
-                    "\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\"," +
-                    "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]," +
-                    "\"caused_by\":{\"type\":\"null_pointer_exception\",\"reason\":null}}";
+            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\","
+                + "\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\","
+                + "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}],"
+                + "\"caused_by\":{\"type\":\"null_pointer_exception\",\"reason\":null}}";
             assertEquals(expected, Strings.toString(builder));
         }
     }
@@ -289,18 +332,25 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
     public void testGetRootCause() {
         Exception root = new RuntimeException("foobar");
-        OpenSearchException exception = new OpenSearchException("foo", new OpenSearchException("bar",
-                new IllegalArgumentException("index is closed", root)));
+        OpenSearchException exception = new OpenSearchException(
+            "foo",
+            new OpenSearchException("bar", new IllegalArgumentException("index is closed", root))
+        );
         assertEquals(root, exception.getRootCause());
         assertTrue(contains(exception, RuntimeException.class));
         assertFalse(contains(exception, EOFException.class));
     }
 
     public void testToString() {
-        OpenSearchException exception = new OpenSearchException("foo", new OpenSearchException("bar",
-                new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
-        assertEquals("OpenSearchException[foo]; nested: OpenSearchException[bar]; nested: IllegalArgumentException" +
-                "[index is closed]; nested: RuntimeException[foobar];", exception.toString());
+        OpenSearchException exception = new OpenSearchException(
+            "foo",
+            new OpenSearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar")))
+        );
+        assertEquals(
+            "OpenSearchException[foo]; nested: OpenSearchException[bar]; nested: IllegalArgumentException"
+                + "[index is closed]; nested: RuntimeException[foobar];",
+            exception.toString()
+        );
     }
 
     public void testToXContent() throws IOException {
@@ -310,40 +360,57 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }
         {
             OpenSearchException e = new IndexShardRecoveringException(new ShardId("_test", "_0", 5));
-            assertExceptionAsJson(e, "{\"type\":\"index_shard_recovering_exception\"," +
-                    "\"reason\":\"CurrentState[RECOVERING] Already recovering\",\"index_uuid\":\"_0\"," +
-                    "\"shard\":\"5\",\"index\":\"_test\"}");
+            assertExceptionAsJson(
+                e,
+                "{\"type\":\"index_shard_recovering_exception\","
+                    + "\"reason\":\"CurrentState[RECOVERING] Already recovering\",\"index_uuid\":\"_0\","
+                    + "\"shard\":\"5\",\"index\":\"_test\"}"
+            );
         }
         {
-            OpenSearchException e = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 12), "foo",
-                    new IllegalStateException("bar"));
+            OpenSearchException e = new BroadcastShardOperationFailedException(
+                new ShardId("_index", "_uuid", 12),
+                "foo",
+                new IllegalStateException("bar")
+            );
             assertExceptionAsJson(e, "{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}");
         }
         {
             OpenSearchException e = new OpenSearchException(new IllegalArgumentException("foo"));
-            assertExceptionAsJson(e, "{\"type\":\"exception\",\"reason\":\"java.lang.IllegalArgumentException: foo\"," +
-                    "\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}");
+            assertExceptionAsJson(
+                e,
+                "{\"type\":\"exception\",\"reason\":\"java.lang.IllegalArgumentException: foo\","
+                    + "\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}"
+            );
         }
         {
-            OpenSearchException e = new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(1,0));
+            OpenSearchException e = new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(1, 0));
             assertExceptionAsJson(e, "{\"type\":\"search_parse_exception\",\"reason\":\"foo\",\"line\":1,\"col\":0}");
         }
         {
-            OpenSearchException ex = new OpenSearchException("foo",
-                    new OpenSearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
-            assertExceptionAsJson(ex, "{\"type\":\"exception\",\"reason\":\"foo\",\"caused_by\":{\"type\":\"exception\"," +
-                    "\"reason\":\"bar\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"index is closed\"," +
-                    "\"caused_by\":{\"type\":\"runtime_exception\",\"reason\":\"foobar\"}}}}");
+            OpenSearchException ex = new OpenSearchException(
+                "foo",
+                new OpenSearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar")))
+            );
+            assertExceptionAsJson(
+                ex,
+                "{\"type\":\"exception\",\"reason\":\"foo\",\"caused_by\":{\"type\":\"exception\","
+                    + "\"reason\":\"bar\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"index is closed\","
+                    + "\"caused_by\":{\"type\":\"runtime_exception\",\"reason\":\"foobar\"}}}}"
+            );
         }
         {
             OpenSearchException e = new OpenSearchException("foo", new IllegalStateException("bar"));
-            assertExceptionAsJson(e, "{\"type\":\"exception\",\"reason\":\"foo\"," +
-                    "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}");
+            assertExceptionAsJson(
+                e,
+                "{\"type\":\"exception\",\"reason\":\"foo\"," + "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}"
+            );
 
             // Test the same exception but with the "rest.exception.stacktrace.skip" parameter disabled: the stack_trace must be present
             // in the JSON. Since the stack can be large, it only checks the beginning of the JSON.
             ToXContent.Params params = new ToXContent.MapParams(
-                    Collections.singletonMap(OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
+                Collections.singletonMap(OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false")
+            );
             String actual;
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                 builder.startObject();
@@ -351,11 +418,16 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
                 builder.endObject();
                 actual = Strings.toString(builder);
             }
-            assertThat(actual, startsWith("{\"type\":\"exception\",\"reason\":\"foo\"," +
-                    "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"," +
-                    "\"stack_trace\":\"java.lang.IllegalStateException: bar" +
-                    (Constants.WINDOWS ? "\\r\\n" : "\\n") +
-                    "\\tat org.opensearch."));
+            assertThat(
+                actual,
+                startsWith(
+                    "{\"type\":\"exception\",\"reason\":\"foo\","
+                        + "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\","
+                        + "\"stack_trace\":\"java.lang.IllegalStateException: bar"
+                        + (Constants.WINDOWS ? "\\r\\n" : "\\n")
+                        + "\\tat org.opensearch."
+                )
+            );
         }
     }
 
@@ -376,7 +448,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }
 
         { // test equivalence
-            OpenSearchException ex =  new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
+            OpenSearchException ex = new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
             String toXContentString = Strings.toString(ex);
             String throwableString = Strings.toString((builder, params) -> {
                 OpenSearchException.generateThrowableXContent(builder, params, ex);
@@ -393,19 +465,22 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             ex.addMetadata("opensearch.test2", "value2");
             ex.addHeader("test", "some value");
             ex.addHeader("test_multi", "some value", "another value");
-            String expected = "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2," +
-                    "\"test1\":\"value1\",\"test2\":\"value2\"," +
-                    "\"header\":{\"test_multi\":" +
-                    "[\"some value\",\"another value\"],\"test\":\"some value\"}}";
+            String expected = "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2,"
+                + "\"test1\":\"value1\",\"test2\":\"value2\","
+                + "\"header\":{\"test_multi\":"
+                + "[\"some value\",\"another value\"],\"test\":\"some value\"}}";
             assertExceptionAsJson(ex, expected);
         }
     }
 
     public void testToXContentWithHeadersAndMetadata() throws IOException {
-        OpenSearchException e = new OpenSearchException("foo",
-            new OpenSearchException("bar",
-                new OpenSearchException("baz",
-                    new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)))));
+        OpenSearchException e = new OpenSearchException(
+            "foo",
+            new OpenSearchException(
+                "bar",
+                new OpenSearchException("baz", new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)))
+            )
+        );
         e.addHeader("foo_0", "0");
         e.addHeader("foo_1", "1");
         e.addMetadata("opensearch.metadata_foo_0", "foo_0");
@@ -417,22 +492,22 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             + "\"metadata_foo_0\":\"foo_0\","
             + "\"metadata_foo_1\":\"foo_1\","
             + "\"caused_by\":{"
-                + "\"type\":\"exception\","
-                + "\"reason\":\"bar\","
-                + "\"caused_by\":{"
-                    + "\"type\":\"exception\","
-                    + "\"reason\":\"baz\","
-                    + "\"caused_by\":{"
-                        + "\"type\":\"cluster_block_exception\","
-                        + "\"reason\":\"blocked by: [SERVICE_UNAVAILABLE/2/no master];\""
-                    + "}"
-                + "}"
+            + "\"type\":\"exception\","
+            + "\"reason\":\"bar\","
+            + "\"caused_by\":{"
+            + "\"type\":\"exception\","
+            + "\"reason\":\"baz\","
+            + "\"caused_by\":{"
+            + "\"type\":\"cluster_block_exception\","
+            + "\"reason\":\"blocked by: [SERVICE_UNAVAILABLE/2/no master];\""
+            + "}"
+            + "}"
             + "},"
             + "\"header\":{"
-                    + "\"foo_0\":\"0\","
-                    + "\"foo_1\":\"1\""
-                + "}"
-        + "}";
+            + "\"foo_0\":\"0\","
+            + "\"foo_1\":\"1\""
+            + "}"
+            + "}";
 
         assertExceptionAsJson(e, expectedJson);
 
@@ -460,18 +535,20 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         assertEquals(cause.getMessage(), "OpenSearch exception [type=exception, reason=baz]");
 
         cause = (OpenSearchException) cause.getCause();
-        assertEquals(cause.getMessage(),
-                "OpenSearch exception [type=cluster_block_exception, reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
+        assertEquals(
+            cause.getMessage(),
+            "OpenSearch exception [type=cluster_block_exception, reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]"
+        );
     }
 
     public void testFromXContent() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         XContentBuilder builder = XContentBuilder.builder(xContent)
-                                                    .startObject()
-                                                        .field("type", "foo")
-                                                        .field("reason", "something went wrong")
-                                                        .field("stack_trace", "...")
-                                                    .endObject();
+            .startObject()
+            .field("type", "foo")
+            .field("reason", "something went wrong")
+            .field("stack_trace", "...")
+            .endObject();
 
         builder = shuffleXContent(builder);
         OpenSearchException parsed;
@@ -487,10 +564,10 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
     }
 
     public void testFromXContentWithCause() throws IOException {
-        OpenSearchException e = new OpenSearchException("foo",
-                new OpenSearchException("bar",
-                        new OpenSearchException("baz",
-                                new RoutingMissingException("_test", "_type", "_id"))));
+        OpenSearchException e = new OpenSearchException(
+            "foo",
+            new OpenSearchException("bar", new OpenSearchException("baz", new RoutingMissingException("_test", "_type", "_id")))
+        );
 
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(e).endObject();
@@ -515,8 +592,10 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         assertEquals(cause.getMessage(), "OpenSearch exception [type=exception, reason=baz]");
 
         cause = (OpenSearchException) cause.getCause();
-        assertEquals(cause.getMessage(),
-                "OpenSearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
+        assertEquals(
+            cause.getMessage(),
+            "OpenSearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]"
+        );
         assertThat(cause.getHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
         assertThat(cause.getMetadata("opensearch.index"), hasItem("_test"));
@@ -575,8 +654,10 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         assertThat(cause.getMetadata("opensearch.baz_3"), hasItem("baz3"));
 
         cause = (OpenSearchException) cause.getCause();
-        assertEquals(cause.getMessage(),
-                "OpenSearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
+        assertEquals(
+            cause.getMessage(),
+            "OpenSearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]"
+        );
         assertThat(cause.getHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
         assertThat(cause.getMetadata("opensearch.index"), hasItem("_test"));
@@ -596,30 +677,30 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         BytesReference originalBytes;
         try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
             builder.startObject()
-                    .field("metadata_int", 1)
-                    .array("metadata_array_of_ints", new int[]{8, 13, 21})
-                    .field("reason", "Custom reason")
-                    .array("metadata_array_of_boolean", new boolean[]{false, false})
-                    .startArray("metadata_array_of_objects")
-                        .startObject()
-                            .field("object_array_one", "value_one")
-                        .endObject()
-                        .startObject()
-                            .field("object_array_two", "value_two")
-                        .endObject()
-                    .endArray()
-                    .field("type", "custom_exception")
-                    .field("metadata_long", 1L)
-                    .array("metadata_array_of_longs", new long[]{2L, 3L, 5L})
-                    .field("metadata_other", "some metadata")
-                    .startObject("header")
-                        .field("header_string", "some header")
-                        .array("header_array_of_strings", new String[]{"foo", "bar", "baz"})
-                    .endObject()
-                    .startObject("metadata_object")
-                        .field("object_field", "value")
-                    .endObject()
-            .endObject();
+                .field("metadata_int", 1)
+                .array("metadata_array_of_ints", new int[] { 8, 13, 21 })
+                .field("reason", "Custom reason")
+                .array("metadata_array_of_boolean", new boolean[] { false, false })
+                .startArray("metadata_array_of_objects")
+                .startObject()
+                .field("object_array_one", "value_one")
+                .endObject()
+                .startObject()
+                .field("object_array_two", "value_two")
+                .endObject()
+                .endArray()
+                .field("type", "custom_exception")
+                .field("metadata_long", 1L)
+                .array("metadata_array_of_longs", new long[] { 2L, 3L, 5L })
+                .field("metadata_other", "some metadata")
+                .startObject("header")
+                .field("header_string", "some header")
+                .array("header_array_of_strings", new String[] { "foo", "bar", "baz" })
+                .endObject()
+                .startObject("metadata_object")
+                .field("object_field", "value")
+                .endObject()
+                .endObject();
             try (XContentBuilder shuffledBuilder = shuffleXContent(builder)) {
                 originalBytes = BytesReference.bytes(shuffledBuilder);
             }
@@ -800,8 +881,9 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
                 failureCause = new RoutingMissingException("idx", "type", "id");
                 failure = new RuntimeException("E", failureCause);
 
-                expectedCause = new OpenSearchException("OpenSearch exception [type=routing_missing_exception, " +
-                        "reason=routing is required for [idx]/[type]/[id]]");
+                expectedCause = new OpenSearchException(
+                    "OpenSearch exception [type=routing_missing_exception, " + "reason=routing is required for [idx]/[type]/[id]]"
+                );
                 expectedCause.addMetadata("opensearch.index", "idx");
                 expectedCause.addMetadata("opensearch.index_uuid", "_na_");
                 expected = new OpenSearchException("OpenSearch exception [type=runtime_exception, reason=E]", expectedCause);
@@ -822,33 +904,47 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
                 DiscoveryNode node = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
                 failureCause = new NodeClosedException(node);
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
-                ShardSearchFailure[] shardFailures = new ShardSearchFailure[]{
-                        new ShardSearchFailure(new ParsingException(0, 0, "Parsing g", null),
-                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61), null,
-                                    OriginalIndices.NONE)), new ShardSearchFailure(new RepositoryException("repository_g", "Repo"),
-                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null,
-                                    OriginalIndices.NONE)), new ShardSearchFailure(
-                                        new SearchContextMissingException(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L)), null)
-                };
+                ShardSearchFailure[] shardFailures = new ShardSearchFailure[] {
+                    new ShardSearchFailure(
+                        new ParsingException(0, 0, "Parsing g", null),
+                        new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61), null, OriginalIndices.NONE)
+                    ),
+                    new ShardSearchFailure(
+                        new RepositoryException("repository_g", "Repo"),
+                        new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null, OriginalIndices.NONE)
+                    ),
+                    new ShardSearchFailure(
+                        new SearchContextMissingException(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L)),
+                        null
+                    ) };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
 
-                expectedCause = new OpenSearchException("OpenSearch exception [type=node_closed_exception, " +
-                        "reason=node closed " + node + "]");
-                expectedCause = new OpenSearchException("OpenSearch exception [type=no_shard_available_action_exception, " +
-                        "reason=node_g]", expectedCause);
+                expectedCause = new OpenSearchException(
+                    "OpenSearch exception [type=node_closed_exception, " + "reason=node closed " + node + "]"
+                );
+                expectedCause = new OpenSearchException(
+                    "OpenSearch exception [type=no_shard_available_action_exception, " + "reason=node_g]",
+                    expectedCause
+                );
                 expectedCause.addMetadata("opensearch.index", "_index_g");
                 expectedCause.addMetadata("opensearch.index_uuid", "_uuid_g");
                 expectedCause.addMetadata("opensearch.shard", "6");
 
-                expected = new OpenSearchException("OpenSearch exception [type=search_phase_execution_exception, " +
-                        "reason=G]", expectedCause);
+                expected = new OpenSearchException(
+                    "OpenSearch exception [type=search_phase_execution_exception, " + "reason=G]",
+                    expectedCause
+                );
                 expected.addMetadata("opensearch.phase", "phase_g");
 
                 expected.addSuppressed(new OpenSearchException("OpenSearch exception [type=parsing_exception, reason=Parsing g]"));
-                expected.addSuppressed(new OpenSearchException("OpenSearch exception [type=repository_exception, " +
-                        "reason=[repository_g] Repo]"));
-                expected.addSuppressed(new OpenSearchException("OpenSearch exception [type=search_context_missing_exception, " +
-                        "reason=No search context found for id [0]]"));
+                expected.addSuppressed(
+                    new OpenSearchException("OpenSearch exception [type=repository_exception, " + "reason=[repository_g] Repo]")
+                );
+                expected.addSuppressed(
+                    new OpenSearchException(
+                        "OpenSearch exception [type=search_context_missing_exception, " + "reason=No search context found for id [0]]"
+                    )
+                );
                 break;
             default:
                 throw new UnsupportedOperationException("Failed to generate randomized failure");
@@ -937,8 +1033,9 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         switch (type) {
             case 0:
                 actual = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
-                expected = new OpenSearchException("OpenSearch exception [type=cluster_block_exception, " +
-                        "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
+                expected = new OpenSearchException(
+                    "OpenSearch exception [type=cluster_block_exception, " + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]"
+                );
                 break;
             case 1: // Simple opensearch exception with headers (other metadata of type number are not parsed)
                 actual = new ParsingException(3, 2, "Unknown identifier", null);
@@ -950,27 +1047,36 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
                 break;
             case 3:
                 actual = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
-                expected = new OpenSearchException("OpenSearch exception [type=illegal_argument_exception, reason=Closed resource]",
-                                new OpenSearchException("OpenSearch exception [type=runtime_exception, reason=Resource]"));
+                expected = new OpenSearchException(
+                    "OpenSearch exception [type=illegal_argument_exception, reason=Closed resource]",
+                    new OpenSearchException("OpenSearch exception [type=runtime_exception, reason=Resource]")
+                );
                 break;
             case 4:
-                actual = new SearchPhaseExecutionException("search", "all shards failed",
-                            new ShardSearchFailure[]{
-                                    new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                                            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE))
-                            });
-                expected = new OpenSearchException("OpenSearch exception [type=search_phase_execution_exception, " +
-                        "reason=all shards failed]");
+                actual = new SearchPhaseExecutionException(
+                    "search",
+                    "all shards failed",
+                    new ShardSearchFailure[] {
+                        new ShardSearchFailure(
+                            new ParsingException(1, 2, "foobar", null),
+                            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE)
+                        ) }
+                );
+                expected = new OpenSearchException(
+                    "OpenSearch exception [type=search_phase_execution_exception, " + "reason=all shards failed]"
+                );
                 expected.addMetadata("opensearch.phase", "search");
                 break;
             case 5:
-                actual = new OpenSearchException("Parsing failed",
-                            new ParsingException(9, 42, "Wrong state",
-                                new NullPointerException("Unexpected null value")));
+                actual = new OpenSearchException(
+                    "Parsing failed",
+                    new ParsingException(9, 42, "Wrong state", new NullPointerException("Unexpected null value"))
+                );
 
-                OpenSearchException expectedCause = new OpenSearchException("OpenSearch exception [type=parsing_exception, " +
-                        "reason=Wrong state]", new OpenSearchException("OpenSearch exception [type=null_pointer_exception, " +
-                        "reason=Unexpected null value]"));
+                OpenSearchException expectedCause = new OpenSearchException(
+                    "OpenSearch exception [type=parsing_exception, " + "reason=Wrong state]",
+                    new OpenSearchException("OpenSearch exception [type=null_pointer_exception, " + "reason=Unexpected null value]")
+                );
                 expected = new OpenSearchException("OpenSearch exception [type=exception, reason=Parsing failed]", expectedCause);
                 break;
             default:

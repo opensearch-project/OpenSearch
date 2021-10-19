@@ -95,10 +95,19 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
     public static void beforeClass() throws Exception {
         threadPool = new TestThreadPool(TransportMultiGetActionTests.class.getSimpleName());
 
-        transportService = new TransportService(Settings.EMPTY, mock(Transport.class), threadPool,
+        transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(Settings.builder().put("node.name", "node1").build(),
-                boundAddress.publishAddress(), randomBase64UUID()), null, emptySet()) {
+            boundAddress -> DiscoveryNode.createLocal(
+                Settings.builder().put("node.name", "node1").build(),
+                boundAddress.publishAddress(),
+                randomBase64UUID()
+            ),
+            null,
+            emptySet()
+        ) {
             @Override
             public TaskManager getTaskManager() {
                 return taskManager;
@@ -108,35 +117,61 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
         final Index index1 = new Index("index1", randomBase64UUID());
         final Index index2 = new Index("index2", randomBase64UUID());
         final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportMultiGetActionTests.class.getSimpleName()))
-            .metadata(new Metadata.Builder()
-                .put(new IndexMetadata.Builder(index1.getName())
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT)
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1)
-                        .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID()))
-                    .putMapping("_doc",
-                        XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
-                            .startObject()
-                                .startObject("_doc")
-                                    .startObject("_routing")
+            .metadata(
+                new Metadata.Builder().put(
+                    new IndexMetadata.Builder(index1.getName()).settings(
+                        Settings.builder()
+                            .put("index.version.created", Version.CURRENT)
+                            .put("index.number_of_shards", 1)
+                            .put("index.number_of_replicas", 1)
+                            .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                    )
+                        .putMapping(
+                            "_doc",
+                            XContentHelper.convertToJson(
+                                BytesReference.bytes(
+                                    XContentFactory.jsonBuilder()
+                                        .startObject()
+                                        .startObject("_doc")
+                                        .startObject("_routing")
                                         .field("required", false)
-                                    .endObject()
-                                .endObject()
-                            .endObject()), true, XContentType.JSON)))
-                .put(new IndexMetadata.Builder(index2.getName())
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT)
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1)
-                        .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID()))
-                    .putMapping("_doc",
-                        XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
-                            .startObject()
-                                .startObject("_doc")
-                                    .startObject("_routing")
-                                        .field("required", true)
-                                    .endObject()
-                                .endObject()
-                            .endObject()), true, XContentType.JSON)))).build();
+                                        .endObject()
+                                        .endObject()
+                                        .endObject()
+                                ),
+                                true,
+                                XContentType.JSON
+                            )
+                        )
+                )
+                    .put(
+                        new IndexMetadata.Builder(index2.getName()).settings(
+                            Settings.builder()
+                                .put("index.version.created", Version.CURRENT)
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 1)
+                                .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                        )
+                            .putMapping(
+                                "_doc",
+                                XContentHelper.convertToJson(
+                                    BytesReference.bytes(
+                                        XContentFactory.jsonBuilder()
+                                            .startObject()
+                                            .startObject("_doc")
+                                            .startObject("_routing")
+                                            .field("required", true)
+                                            .endObject()
+                                            .endObject()
+                                            .endObject()
+                                    ),
+                                    true,
+                                    XContentType.JSON
+                                )
+                            )
+                    )
+            )
+            .build();
 
         final ShardIterator index1ShardIterator = mock(ShardIterator.class);
         when(index1ShardIterator.shardId()).thenReturn(new ShardId(index1, randomInt()));
@@ -145,25 +180,34 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
         when(index2ShardIterator.shardId()).thenReturn(new ShardId(index2, randomInt()));
 
         final OperationRouting operationRouting = mock(OperationRouting.class);
-        when(operationRouting.getShards(eq(clusterState), eq(index1.getName()), anyString(), nullable(String.class), 
-            nullable(String.class))).thenReturn(index1ShardIterator);
-        when(operationRouting.shardId(eq(clusterState), eq(index1.getName()), nullable(String.class), nullable(String.class)))
-            .thenReturn(new ShardId(index1, randomInt()));
-        when(operationRouting.getShards(eq(clusterState), eq(index2.getName()), anyString(), nullable(String.class), 
-            nullable(String.class))).thenReturn(index2ShardIterator);
-        when(operationRouting.shardId(eq(clusterState), eq(index2.getName()), nullable(String.class), nullable(String.class)))
-            .thenReturn(new ShardId(index2, randomInt()));
+        when(
+            operationRouting.getShards(eq(clusterState), eq(index1.getName()), anyString(), nullable(String.class), nullable(String.class))
+        ).thenReturn(index1ShardIterator);
+        when(operationRouting.shardId(eq(clusterState), eq(index1.getName()), nullable(String.class), nullable(String.class))).thenReturn(
+            new ShardId(index1, randomInt())
+        );
+        when(
+            operationRouting.getShards(eq(clusterState), eq(index2.getName()), anyString(), nullable(String.class), nullable(String.class))
+        ).thenReturn(index2ShardIterator);
+        when(operationRouting.shardId(eq(clusterState), eq(index2.getName()), nullable(String.class), nullable(String.class))).thenReturn(
+            new ShardId(index2, randomInt())
+        );
 
         clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(transportService.getLocalNode());
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
 
-        shardAction = new TransportShardMultiGetAction(clusterService, transportService, mock(IndicesService.class), threadPool,
-            new ActionFilters(emptySet()), new Resolver()) {
+        shardAction = new TransportShardMultiGetAction(
+            clusterService,
+            transportService,
+            mock(IndicesService.class),
+            threadPool,
+            new ActionFilters(emptySet()),
+            new Resolver()
+        ) {
             @Override
-            protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {
-            }
+            protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {}
         };
     }
 
@@ -185,12 +229,19 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
         request.add(new MultiGetRequest.Item("index1", "_doc", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiGetAction(transportService, clusterService, shardAction,
-            new ActionFilters(emptySet()), new Resolver()) {
+        transportAction = new TransportMultiGetAction(
+            transportService,
+            clusterService,
+            shardAction,
+            new ActionFilters(emptySet()),
+            new Resolver()
+        ) {
             @Override
-            protected void executeShardAction(final ActionListener<MultiGetResponse> listener,
-                                              final AtomicArray<MultiGetItemResponse> responses,
-                                              final Map<ShardId, MultiGetShardRequest> shardRequests) {
+            protected void executeShardAction(
+                final ActionListener<MultiGetResponse> listener,
+                final AtomicArray<MultiGetItemResponse> responses,
+                final Map<ShardId, MultiGetShardRequest> shardRequests
+            ) {
                 shardActionInvoked.set(true);
                 assertEquals(2, responses.length());
                 assertNull(responses.get(0));
@@ -210,18 +261,24 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
         request.add(new MultiGetRequest.Item("index2", "_doc", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiGetAction(transportService, clusterService, shardAction,
-            new ActionFilters(emptySet()), new Resolver()) {
+        transportAction = new TransportMultiGetAction(
+            transportService,
+            clusterService,
+            shardAction,
+            new ActionFilters(emptySet()),
+            new Resolver()
+        ) {
             @Override
-            protected void executeShardAction(final ActionListener<MultiGetResponse> listener,
-                                              final AtomicArray<MultiGetItemResponse> responses,
-                                              final Map<ShardId, MultiGetShardRequest> shardRequests) {
+            protected void executeShardAction(
+                final ActionListener<MultiGetResponse> listener,
+                final AtomicArray<MultiGetItemResponse> responses,
+                final Map<ShardId, MultiGetShardRequest> shardRequests
+            ) {
                 shardActionInvoked.set(true);
                 assertEquals(2, responses.length());
                 assertNull(responses.get(0));
                 assertThat(responses.get(1).getFailure().getFailure(), instanceOf(RoutingMissingException.class));
-                assertThat(responses.get(1).getFailure().getFailure().getMessage(),
-                    equalTo("routing is required for [index2]/[_doc]/[2]"));
+                assertThat(responses.get(1).getFailure().getFailure().getMessage(), equalTo("routing is required for [index2]/[_doc]/[2]"));
             }
         };
 
@@ -231,8 +288,14 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
     }
 
     private static Task createTask() {
-        return new Task(randomLong(), "transport", MultiGetAction.NAME, "description",
-            new TaskId(randomLong() + ":" + randomLong()), emptyMap());
+        return new Task(
+            randomLong(),
+            "transport",
+            MultiGetAction.NAME,
+            "description",
+            new TaskId(randomLong() + ":" + randomLong()),
+            emptyMap()
+        );
     }
 
     static class Resolver extends IndexNameExpressionResolver {
@@ -250,11 +313,9 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
     static class ActionListenerAdapter implements ActionListener<MultiGetResponse> {
 
         @Override
-        public void onResponse(MultiGetResponse response) {
-        }
+        public void onResponse(MultiGetResponse response) {}
 
         @Override
-        public void onFailure(Exception e) {
-        }
+        public void onFailure(Exception e) {}
     }
 }

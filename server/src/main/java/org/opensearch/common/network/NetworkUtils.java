@@ -206,10 +206,11 @@ public abstract class NetworkUtils {
     /** Returns all global scope addresses for interfaces that are up. */
     static InetAddress[] getGlobalAddresses() throws IOException {
         return filterAllAddresses(
-                address -> address.isLoopbackAddress() == false
-                        && address.isSiteLocalAddress() == false
-                        && address.isLinkLocalAddress() == false,
-                "no up-and-running global-scope (public) addresses found");
+            address -> address.isLoopbackAddress() == false
+                && address.isSiteLocalAddress() == false
+                && address.isLinkLocalAddress() == false,
+            "no up-and-running global-scope (public) addresses found"
+        );
     }
 
     /** Returns all addresses (any scope) for interfaces that are up.

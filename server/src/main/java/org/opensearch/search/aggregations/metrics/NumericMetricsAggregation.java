@@ -44,6 +44,5 @@ public interface NumericMetricsAggregation extends Aggregation {
 
     }
 
-    interface MultiValue extends NumericMetricsAggregation {
-    }
+    interface MultiValue extends NumericMetricsAggregation {}
 }

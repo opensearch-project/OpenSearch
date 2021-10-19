@@ -116,12 +116,14 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
         startCluster(rarely() ? 5 : 3);
 
         final int numberOfShards = 1 + randomInt(2);
-        assertAcked(prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-            ));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+            )
+        );
         ensureGreen();
 
         AtomicBoolean stopGlobalCheckpointFetcher = new AtomicBoolean();
@@ -147,8 +149,17 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
 
         globalCheckpointSampler.start();
 
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "_doc", client(), -1, RandomizedTest.scaledRandomIntBetween(2, 5),
-            false, random())) {
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                "test",
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
             indexer.setRequestTimeout(TimeValue.ZERO);
             indexer.setIgnoreIndexingFailures(true);
             indexer.setFailureAssertion(e -> {});

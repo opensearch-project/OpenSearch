@@ -127,8 +127,16 @@ public class LocalTimeOffsetTests extends OpenSearchTestCase {
         assertTransitions(zone, min, max, time("2020-06-01", zone), min + hours(1), 3, hours(-5), hours(-4));
     }
 
-    private void assertTransitions(ZoneId zone, long min, long max, long between, long sameOffsetAsMin,
-            int size, long minMaxOffset, long betweenOffset) {
+    private void assertTransitions(
+        ZoneId zone,
+        long min,
+        long max,
+        long between,
+        long sameOffsetAsMin,
+        int size,
+        long minMaxOffset,
+        long betweenOffset
+    ) {
         LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(zone, min, max);
         assertThat(lookup.size(), equalTo(size));
         assertRoundingAtOffset(lookup.lookup(min), min, minMaxOffset);
@@ -221,12 +229,16 @@ public class LocalTimeOffsetTests extends OpenSearchTestCase {
         assertThat(firstMidnightOffset.localToUtcInThisOffset(localFirstMidnight), equalTo(firstMidnight));
         assertThat(secondMidnightOffset.localToUtcInThisOffset(localFirstMidnight), equalTo(secondMidnight));
         assertThat(secondMidnightOffset.localToUtcInThisOffset(localOverlapEnds), equalTo(overlapEnds));
-        assertThat(secondMidnightOffset.localToUtcInThisOffset(localOverlappingTime),
-                equalTo(firstMidnightOffset.localToUtcInThisOffset(localOverlappingTime) + overlapMillis));
+        assertThat(
+            secondMidnightOffset.localToUtcInThisOffset(localOverlappingTime),
+            equalTo(firstMidnightOffset.localToUtcInThisOffset(localOverlappingTime) + overlapMillis)
+        );
 
         long beforeOverlapValue = randomLong();
-        assertThat(secondMidnightOffset.localToUtc(localFirstMidnight - 1, useValueForBeforeOverlap(beforeOverlapValue)),
-                equalTo(beforeOverlapValue));
+        assertThat(
+            secondMidnightOffset.localToUtc(localFirstMidnight - 1, useValueForBeforeOverlap(beforeOverlapValue)),
+            equalTo(beforeOverlapValue)
+        );
         long overlapValue = randomLong();
         assertThat(secondMidnightOffset.localToUtc(localFirstMidnight, useValueForOverlap(overlapValue)), equalTo(overlapValue));
         assertThat(secondMidnightOffset.localToUtc(localOverlapEnds, unusedStrategy()), equalTo(overlapEnds));
@@ -294,7 +306,7 @@ public class LocalTimeOffsetTests extends OpenSearchTestCase {
      */
     private static ZoneOffsetTransition lastTransitionIn(ZoneId zone) {
         List<ZoneOffsetTransition> transitions = zone.getRules().getTransitions();
-        return transitions.get(transitions.size() -1);
+        return transitions.get(transitions.size() - 1);
     }
 
     private static LocalTimeOffset.Strategy unusedStrategy() {
@@ -405,7 +417,6 @@ public class LocalTimeOffsetTests extends OpenSearchTestCase {
             }
         };
     }
-
 
     private static LocalTimeOffset.Strategy useValueForBeforeOverlap(long beforeOverlapValue) {
         return new LocalTimeOffset.Strategy() {

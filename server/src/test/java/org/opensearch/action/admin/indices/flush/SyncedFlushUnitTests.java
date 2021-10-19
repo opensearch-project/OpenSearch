@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.flush;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
-import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.opensearch.action.admin.indices.flush.SyncedFlushResponse.ShardCounts;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -120,8 +119,8 @@ public class SyncedFlushUnitTests extends OpenSearchTestCase {
                 assertThat(originalShardResult.syncId(), equalTo(readShardResult.syncId()));
                 assertThat(originalShardResult.totalShards(), equalTo(readShardResult.totalShards()));
                 assertThat(originalShardResult.failedShards().size(), equalTo(readShardResult.failedShards().size()));
-                for (Map.Entry<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardEntry
-                        : originalShardResult.failedShards().entrySet()) {
+                for (Map.Entry<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardEntry : originalShardResult.failedShards()
+                    .entrySet()) {
                     SyncedFlushService.ShardSyncedFlushResponse readShardResponse = readShardResult.failedShards().get(shardEntry.getKey());
                     assertNotNull(readShardResponse);
                     SyncedFlushService.ShardSyncedFlushResponse originalShardResponse = shardEntry.getValue();
@@ -129,8 +128,8 @@ public class SyncedFlushUnitTests extends OpenSearchTestCase {
                     assertThat(originalShardResponse.success(), equalTo(readShardResponse.success()));
                 }
                 assertThat(originalShardResult.shardResponses().size(), equalTo(readShardResult.shardResponses().size()));
-                for (Map.Entry<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardEntry
-                        : originalShardResult.shardResponses().entrySet()) {
+                for (Map.Entry<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardEntry : originalShardResult.shardResponses()
+                    .entrySet()) {
                     SyncedFlushService.ShardSyncedFlushResponse readShardResponse = readShardResult.shardResponses()
                         .get(shardEntry.getKey());
                     assertNotNull(readShardResponse);
@@ -173,8 +172,14 @@ public class SyncedFlushUnitTests extends OpenSearchTestCase {
                 } else {
                     Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses = new HashMap<>();
                     for (int copy = 0; copy < replicas + 1; copy++) {
-                        final ShardRouting shardRouting = TestShardRouting.newShardRouting(index, shard, "node_" + shardId + "_" + copy,
-                            null, copy == 0, ShardRoutingState.STARTED);
+                        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                            index,
+                            shard,
+                            "node_" + shardId + "_" + copy,
+                            null,
+                            copy == 0,
+                            ShardRoutingState.STARTED
+                        );
                         if (randomInt(5) < 2) {
                             // shard copy failure
                             failed++;

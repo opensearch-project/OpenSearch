@@ -42,7 +42,7 @@ public class IndexShardStartedException extends IllegalIndexShardStateException 
         super(shardId, IndexShardState.STARTED, "Already started");
     }
 
-    public IndexShardStartedException(StreamInput in) throws IOException{
+    public IndexShardStartedException(StreamInput in) throws IOException {
         super(in);
     }
 }

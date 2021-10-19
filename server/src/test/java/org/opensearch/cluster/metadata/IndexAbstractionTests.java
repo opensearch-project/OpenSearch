@@ -35,9 +35,6 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.metadata.AliasMetadata;
-import org.opensearch.cluster.metadata.IndexAbstraction;
-import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.util.Objects;
 
@@ -82,15 +79,27 @@ public class IndexAbstractionTests extends OpenSearchTestCase {
             oneNonHidden.addIndex(hidden2);
             oneNonHidden.addIndex(hidden3);
             oneNonHidden.addIndex(indexWithNonHiddenAlias);
-            IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> oneNonHidden.computeAndValidateAliasProperties());
-            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName +
-                "] has is_hidden set to true on indices ["));
-            assertThat(exception.getMessage(), allOf(containsString(hidden1.getIndex().getName()),
-                containsString(hidden2.getIndex().getName()),
-                containsString(hidden3.getIndex().getName())));
-            assertThat(exception.getMessage(), containsString("but does not have is_hidden set to true on indices [" +
-                indexWithNonHiddenAlias.getIndex().getName() + "]; alias must have the same is_hidden setting on all indices"));
+            IllegalStateException exception = expectThrows(
+                IllegalStateException.class,
+                () -> oneNonHidden.computeAndValidateAliasProperties()
+            );
+            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] has is_hidden set to true on indices ["));
+            assertThat(
+                exception.getMessage(),
+                allOf(
+                    containsString(hidden1.getIndex().getName()),
+                    containsString(hidden2.getIndex().getName()),
+                    containsString(hidden3.getIndex().getName())
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                containsString(
+                    "but does not have is_hidden set to true on indices ["
+                        + indexWithNonHiddenAlias.getIndex().getName()
+                        + "]; alias must have the same is_hidden setting on all indices"
+                )
+            );
         }
 
         {
@@ -98,15 +107,27 @@ public class IndexAbstractionTests extends OpenSearchTestCase {
             oneUnspecified.addIndex(hidden2);
             oneUnspecified.addIndex(hidden3);
             oneUnspecified.addIndex(indexWithUnspecifiedAlias);
-            IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> oneUnspecified.computeAndValidateAliasProperties());
-            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName +
-                "] has is_hidden set to true on indices ["));
-            assertThat(exception.getMessage(), allOf(containsString(hidden1.getIndex().getName()),
-                containsString(hidden2.getIndex().getName()),
-                containsString(hidden3.getIndex().getName())));
-            assertThat(exception.getMessage(), containsString("but does not have is_hidden set to true on indices [" +
-                indexWithUnspecifiedAlias.getIndex().getName() + "]; alias must have the same is_hidden setting on all indices"));
+            IllegalStateException exception = expectThrows(
+                IllegalStateException.class,
+                () -> oneUnspecified.computeAndValidateAliasProperties()
+            );
+            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] has is_hidden set to true on indices ["));
+            assertThat(
+                exception.getMessage(),
+                allOf(
+                    containsString(hidden1.getIndex().getName()),
+                    containsString(hidden2.getIndex().getName()),
+                    containsString(hidden3.getIndex().getName())
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                containsString(
+                    "but does not have is_hidden set to true on indices ["
+                        + indexWithUnspecifiedAlias.getIndex().getName()
+                        + "]; alias must have the same is_hidden setting on all indices"
+                )
+            );
         }
 
         {
@@ -120,24 +141,44 @@ public class IndexAbstractionTests extends OpenSearchTestCase {
             }
             final IndexMetadata hiddenIndex = randomFrom(hidden1, hidden2, hidden3);
             mostlyVisibleOneHidden.addIndex(hiddenIndex);
-            IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> mostlyVisibleOneHidden.computeAndValidateAliasProperties());
-            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] has is_hidden set to true on " +
-                "indices [" + hiddenIndex.getIndex().getName() + "] but does not have is_hidden set to true on indices ["));
-            assertThat(exception.getMessage(), allOf(containsString(indexWithUnspecifiedAlias.getIndex().getName()),
-                containsString(indexWithNonHiddenAlias.getIndex().getName())));
+            IllegalStateException exception = expectThrows(
+                IllegalStateException.class,
+                () -> mostlyVisibleOneHidden.computeAndValidateAliasProperties()
+            );
+            assertThat(
+                exception.getMessage(),
+                containsString(
+                    "alias ["
+                        + hiddenAliasName
+                        + "] has is_hidden set to true on "
+                        + "indices ["
+                        + hiddenIndex.getIndex().getName()
+                        + "] but does not have is_hidden set to true on indices ["
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                allOf(
+                    containsString(indexWithUnspecifiedAlias.getIndex().getName()),
+                    containsString(indexWithNonHiddenAlias.getIndex().getName())
+                )
+            );
             assertThat(exception.getMessage(), containsString("but does not have is_hidden set to true on indices ["));
         }
     }
 
-    private IndexMetadata buildIndexWithAlias(String indexName, String aliasName, @Nullable Boolean aliasIsHidden,
-                                              Version indexCreationVersion, boolean isSystem) {
+    private IndexMetadata buildIndexWithAlias(
+        String indexName,
+        String aliasName,
+        @Nullable Boolean aliasIsHidden,
+        Version indexCreationVersion,
+        boolean isSystem
+    ) {
         final AliasMetadata.Builder aliasMetadata = new AliasMetadata.Builder(aliasName);
         if (Objects.nonNull(aliasIsHidden) || randomBoolean()) {
             aliasMetadata.isHidden(aliasIsHidden);
         }
-        return new IndexMetadata.Builder(indexName)
-            .settings(settings(indexCreationVersion))
+        return new IndexMetadata.Builder(indexName).settings(settings(indexCreationVersion))
             .system(isSystem)
             .numberOfShards(1)
             .numberOfReplicas(0)

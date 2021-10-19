@@ -66,11 +66,22 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     private final IndicesService indicesService;
 
     @Inject
-    public TransportRecoveryAction(ClusterService clusterService,
-                                   TransportService transportService, IndicesService indicesService,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(RecoveryAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                RecoveryRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportRecoveryAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            RecoveryAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            RecoveryRequest::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.indicesService = indicesService;
     }
 
@@ -79,11 +90,16 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
         return RecoveryState.readRecoveryState(in);
     }
 
-
     @Override
-    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards,
-                                           List<RecoveryState> responses, List<DefaultShardOperationFailedException> shardFailures,
-                                           ClusterState clusterState) {
+    protected RecoveryResponse newResponse(
+        RecoveryRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<RecoveryState> responses,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
         Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
         for (RecoveryState recoveryState : responses) {
             if (recoveryState == null) {

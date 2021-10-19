@@ -91,8 +91,6 @@ public class UpgradeRequest extends BroadcastRequest<UpgradeRequest> {
 
     @Override
     public String toString() {
-        return "UpgradeRequest{" +
-                "upgradeOnlyAncientSegments=" + upgradeOnlyAncientSegments +
-                '}';
+        return "UpgradeRequest{" + "upgradeOnlyAncientSegments=" + upgradeOnlyAncientSegments + '}';
     }
 }

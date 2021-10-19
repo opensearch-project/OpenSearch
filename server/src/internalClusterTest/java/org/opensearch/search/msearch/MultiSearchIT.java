@@ -53,13 +53,13 @@ public class MultiSearchIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test", "type", "2").setSource("field", "yyy").get();
         refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
-                .get();
+            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
+            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
+            .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+            .get();
 
         for (MultiSearchResponse.Item item : response) {
-           assertNoFailures(item.getResponse());
+            assertNoFailures(item.getResponse());
         }
         assertThat(response.getResponses().length, equalTo(3));
         assertHitCount(response.getResponses()[0].getResponse(), 1L);

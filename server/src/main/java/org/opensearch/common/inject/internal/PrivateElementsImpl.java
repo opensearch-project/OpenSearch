@@ -158,9 +158,6 @@ public final class PrivateElementsImpl implements PrivateElements {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(PrivateElements.class)
-                .add("exposedKeys", getExposedKeys())
-                .add("source", getSource())
-                .toString();
+        return new ToStringBuilder(PrivateElements.class).add("exposedKeys", getExposedKeys()).add("source", getSource()).toString();
     }
 }

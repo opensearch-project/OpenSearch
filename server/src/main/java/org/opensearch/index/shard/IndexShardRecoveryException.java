@@ -43,7 +43,7 @@ public class IndexShardRecoveryException extends OpenSearchException {
         setShard(shardId);
     }
 
-    public IndexShardRecoveryException(StreamInput in) throws IOException{
+    public IndexShardRecoveryException(StreamInput in) throws IOException {
         super(in);
     }
 }

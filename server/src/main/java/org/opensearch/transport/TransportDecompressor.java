@@ -66,9 +66,13 @@ public class TransportDecompressor implements Closeable {
         if (hasReadHeader == false) {
             if (CompressorFactory.COMPRESSOR.isCompressed(bytesReference) == false) {
                 int maxToRead = Math.min(bytesReference.length(), 10);
-                StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
-                    .append(maxToRead).append("] content bytes out of [").append(bytesReference.length())
-                    .append("] readable bytes with message size [").append(bytesReference.length()).append("] ").append("] are [");
+                StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
+                    .append("] content bytes out of [")
+                    .append(bytesReference.length())
+                    .append("] readable bytes with message size [")
+                    .append(bytesReference.length())
+                    .append("] ")
+                    .append("] are [");
                 for (int i = 0; i < maxToRead; i++) {
                     sb.append(bytesReference.get(i)).append(",");
                 }

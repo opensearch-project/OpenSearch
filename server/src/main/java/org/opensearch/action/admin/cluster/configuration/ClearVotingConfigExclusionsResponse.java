@@ -44,8 +44,7 @@ import java.io.IOException;
  * cluster state.
  */
 public class ClearVotingConfigExclusionsResponse extends ActionResponse implements ToXContentObject {
-    public ClearVotingConfigExclusionsResponse() {
-    }
+    public ClearVotingConfigExclusionsResponse() {}
 
     public ClearVotingConfigExclusionsResponse(StreamInput in) throws IOException {
         super(in);

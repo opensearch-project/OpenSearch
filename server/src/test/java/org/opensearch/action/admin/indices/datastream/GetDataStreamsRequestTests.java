@@ -31,7 +31,6 @@
 
 package org.opensearch.action.admin.indices.datastream;
 
-import org.opensearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction.Request;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -72,7 +71,7 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
                 searchParameter = parameters;
                 break;
             case 3:
-                searchParameter = new String[]{"*"};
+                searchParameter = new String[] { "*" };
                 break;
             default:
                 searchParameter = null;
@@ -84,85 +83,123 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = getClusterStateWithDataStreams(
-            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, 1)), org.opensearch.common.collect.List.of());
-        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[]{dataStreamName});
-        List<DataStream> dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), req);
+            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, 1)),
+            org.opensearch.common.collect.List.of()
+        );
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        List<DataStream> dataStreams = GetDataStreamAction.TransportAction.getDataStreams(
+            cs,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            req
+        );
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamName));
     }
 
     public void testGetDataStreamsWithWildcards() {
-        final String[] dataStreamNames = {"my-data-stream", "another-data-stream"};
+        final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
         ClusterState cs = getClusterStateWithDataStreams(
             org.opensearch.common.collect.List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
-            org.opensearch.common.collect.List.of());
+            org.opensearch.common.collect.List.of()
+        );
 
-        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[]{dataStreamNames[1].substring(0, 5) + "*"});
-        List<DataStream> dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), req);
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[1].substring(0, 5) + "*" });
+        List<DataStream> dataStreams = GetDataStreamAction.TransportAction.getDataStreams(
+            cs,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            req
+        );
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
 
-        req = new GetDataStreamAction.Request(new String[]{"*"});
-        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), req);
+        req = new GetDataStreamAction.Request(new String[] { "*" });
+        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(
+            cs,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            req
+        );
         assertThat(dataStreams.size(), equalTo(2));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
         assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
 
         req = new GetDataStreamAction.Request((String[]) null);
-        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), req);
+        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(
+            cs,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            req
+        );
         assertThat(dataStreams.size(), equalTo(2));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
         assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
 
-        req = new GetDataStreamAction.Request(new String[]{"matches-none*"});
-        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), req);
+        req = new GetDataStreamAction.Request(new String[] { "matches-none*" });
+        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(
+            cs,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            req
+        );
         assertThat(dataStreams.size(), equalTo(0));
     }
 
     public void testGetDataStreamsWithoutWildcards() {
-        final String[] dataStreamNames = {"my-data-stream", "another-data-stream"};
+        final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
         ClusterState cs = getClusterStateWithDataStreams(
             org.opensearch.common.collect.List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
-            org.opensearch.common.collect.List.of());
+            org.opensearch.common.collect.List.of()
+        );
 
-        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[]{dataStreamNames[0], dataStreamNames[1]});
-        List<DataStream> dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), req);
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[0], dataStreamNames[1] });
+        List<DataStream> dataStreams = GetDataStreamAction.TransportAction.getDataStreams(
+            cs,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            req
+        );
         assertThat(dataStreams.size(), equalTo(2));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
         assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
 
-        req = new GetDataStreamAction.Request(new String[]{dataStreamNames[1]});
-        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), req);
+        req = new GetDataStreamAction.Request(new String[] { dataStreamNames[1] });
+        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(
+            cs,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            req
+        );
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
 
-        req = new GetDataStreamAction.Request(new String[]{dataStreamNames[0]});
-        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), req);
+        req = new GetDataStreamAction.Request(new String[] { dataStreamNames[0] });
+        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(
+            cs,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            req
+        );
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[0]));
 
-        GetDataStreamAction.Request req2 = new GetDataStreamAction.Request(new String[]{"foo"});
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-            () -> GetDataStreamAction.TransportAction.getDataStreams(cs,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), req2));
+        GetDataStreamAction.Request req2 = new GetDataStreamAction.Request(new String[] { "foo" });
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> GetDataStreamAction.TransportAction.getDataStreams(
+                cs,
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                req2
+            )
+        );
         assertThat(e.getMessage(), containsString("no such index [foo]"));
     }
 
     public void testGetNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
-        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[]{dataStreamName});
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-            () -> GetDataStreamAction.TransportAction.getDataStreams(cs,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), req));
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> GetDataStreamAction.TransportAction.getDataStreams(
+                cs,
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                req
+            )
+        );
         assertThat(e.getMessage(), containsString("no such index [" + dataStreamName + "]"));
     }
 

@@ -87,18 +87,32 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     @Nullable
     private volatile Set<Path> unhealthyPaths;
 
-    public static final Setting<Boolean> ENABLED_SETTING =
-        Setting.boolSetting("monitor.fs.health.enabled", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
-    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.fs.health.refresh_interval", TimeValue.timeValueSeconds(60), TimeValue.timeValueMillis(1),
-            Setting.Property.NodeScope);
-    public static final Setting<TimeValue> SLOW_PATH_LOGGING_THRESHOLD_SETTING =
-        Setting.timeSetting("monitor.fs.health.slow_path_logging_threshold", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(1),
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
-    public static final Setting<TimeValue> HEALTHY_TIMEOUT_SETTING =
-        Setting.timeSetting("monitor.fs.health.healthy_timeout_threshold", TimeValue.timeValueSeconds(60), TimeValue.timeValueMillis(1),
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
-
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
+        "monitor.fs.health.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "monitor.fs.health.refresh_interval",
+        TimeValue.timeValueSeconds(60),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<TimeValue> SLOW_PATH_LOGGING_THRESHOLD_SETTING = Setting.timeSetting(
+        "monitor.fs.health.slow_path_logging_threshold",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<TimeValue> HEALTHY_TIMEOUT_SETTING = Setting.timeSetting(
+        "monitor.fs.health.healthy_timeout_threshold",
+        TimeValue.timeValueSeconds(60),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     public FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv) {
         this.threadPool = threadPool;
@@ -115,8 +129,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     @Override
     protected void doStart() {
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval,
-                ThreadPool.Names.GENERIC);
+        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval, ThreadPool.Names.GENERIC);
     }
 
     @Override
@@ -125,8 +138,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
@@ -148,20 +160,21 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
         } else if (brokenLock) {
             statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
-        } else if (checkInProgress.get() && currentTimeMillisSupplier.getAsLong() -
-            lastRunStartTimeMillis.get() > healthyTimeoutThreshold.millis()) {
-            statusInfo = new StatusInfo(UNHEALTHY, "healthy threshold breached");
-        } else if (unhealthyPaths == null) {
-            statusInfo = new StatusInfo(HEALTHY, "health check passed");
-        } else {
-            String info = "health check failed on [" + unhealthyPaths.stream()
-                .map(k -> k.toString()).collect(Collectors.joining(",")) + "]";
-            statusInfo = new StatusInfo(UNHEALTHY, info);
-        }
+        } else if (checkInProgress.get()
+            && currentTimeMillisSupplier.getAsLong() - lastRunStartTimeMillis.get() > healthyTimeoutThreshold.millis()) {
+                statusInfo = new StatusInfo(UNHEALTHY, "healthy threshold breached");
+            } else if (unhealthyPaths == null) {
+                statusInfo = new StatusInfo(HEALTHY, "health check passed");
+            } else {
+                String info = "health check failed on ["
+                    + unhealthyPaths.stream().map(k -> k.toString()).collect(Collectors.joining(","))
+                    + "]";
+                statusInfo = new StatusInfo(UNHEALTHY, info);
+            }
         return statusInfo;
     }
 
-     class FsHealthMonitor implements Runnable {
+    class FsHealthMonitor implements Runnable {
 
         static final String TEMP_FILE_NAME = ".opensearch_temp_file";
         private byte[] byteToWrite;
@@ -215,12 +228,20 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                         Files.delete(tempDataPath);
                         final long elapsedTime = currentTimeMillisSupplier.getAsLong() - executionStartTime;
                         if (elapsedTime > slowPathLoggingThreshold.millis()) {
-                            logger.warn("health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
-                                path, elapsedTime, slowPathLoggingThreshold);
+                            logger.warn(
+                                "health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
+                                path,
+                                elapsedTime,
+                                slowPathLoggingThreshold
+                            );
                         }
                         if (elapsedTime > healthyTimeoutThreshold.millis()) {
-                            logger.error("health check of [{}] failed, took [{}ms] which is above the healthy threshold of [{}]",
-                                path, elapsedTime, healthyTimeoutThreshold);
+                            logger.error(
+                                "health check of [{}] failed, took [{}ms] which is above the healthy threshold of [{}]",
+                                path,
+                                elapsedTime,
+                                healthyTimeoutThreshold
+                            );
                             if (currentUnhealthyPaths == null) {
                                 currentUnhealthyPaths = new HashSet<>(1);
                             }
@@ -244,4 +265,3 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         lastRunStartTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
     }
 }
-

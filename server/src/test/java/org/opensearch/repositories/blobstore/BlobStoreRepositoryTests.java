@@ -87,15 +87,21 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
     public static class FsLikeRepoPlugin extends Plugin implements RepositoryPlugin {
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
-            return Collections.singletonMap(REPO_TYPE,
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            RecoverySettings recoverySettings
+        ) {
+            return Collections.singletonMap(
+                REPO_TYPE,
                 (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings) {
                     @Override
                     protected void assertSnapshotOrGenericThread() {
                         // eliminate thread name check as we access blobStore on test/main threads
                     }
-                });
+                }
+            );
         }
     }
 
@@ -105,11 +111,12 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
         final String repositoryName = "test-repo";
 
         logger.info("-->  creating repository");
-        AcknowledgedResponse putRepositoryResponse =
-            client.admin().cluster().preparePutRepository(repositoryName)
-                                    .setType(REPO_TYPE)
-                                    .setSettings(Settings.builder().put(node().settings()).put("location", location))
-                                    .get();
+        AcknowledgedResponse putRepositoryResponse = client.admin()
+            .cluster()
+            .preparePutRepository(repositoryName)
+            .setType(REPO_TYPE)
+            .setSettings(Settings.builder().put(node().settings()).put("location", location))
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> creating an index and indexing documents");
@@ -125,30 +132,32 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
 
         logger.info("--> create first snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
-                                                              .cluster()
-                                                              .prepareCreateSnapshot(repositoryName, "test-snap-1")
-                                                              .setWaitForCompletion(true)
-                                                              .setIndices(indexName)
-                                                              .get();
+            .cluster()
+            .prepareCreateSnapshot(repositoryName, "test-snap-1")
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
         final SnapshotId snapshotId1 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
         logger.info("--> create second snapshot");
         createSnapshotResponse = client.admin()
-                                       .cluster()
-                                       .prepareCreateSnapshot(repositoryName, "test-snap-2")
-                                       .setWaitForCompletion(true)
-                                       .setIndices(indexName)
-                                       .get();
+            .cluster()
+            .prepareCreateSnapshot(repositoryName, "test-snap-2")
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
         final SnapshotId snapshotId2 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
         logger.info("--> make sure the node's repository can resolve the snapshots");
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
-        final BlobStoreRepository repository =
-            (BlobStoreRepository) repositoriesService.repository(repositoryName);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
         final List<SnapshotId> originalSnapshots = Arrays.asList(snapshotId1, snapshotId2);
 
-        List<SnapshotId> snapshotIds = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getSnapshotIds().stream()
-            .sorted((s1, s2) -> s1.getName().compareTo(s2.getName())).collect(Collectors.toList());
+        List<SnapshotId> snapshotIds = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
+            .getSnapshotIds()
+            .stream()
+            .sorted((s1, s2) -> s1.getName().compareTo(s2.getName()))
+            .collect(Collectors.toList());
         assertThat(snapshotIds, equalTo(originalSnapshots));
     }
 
@@ -198,8 +207,8 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 1L));
 
         // removing a snapshot and writing to a new index generational file
-        repositoryData = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).removeSnapshots(
-            Collections.singleton(repositoryData.getSnapshotIds().iterator().next()), ShardGenerations.EMPTY);
+        repositoryData = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
+            .removeSnapshots(Collections.singleton(repositoryData.getSnapshotIds().iterator().next()), ShardGenerations.EMPTY);
         writeIndexGen(repository, repositoryData, repositoryData.getGenId());
         assertEquals(OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(expectedGeneration + 2L));
@@ -213,12 +222,14 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
         final PlainActionFuture<RepositoryData> future1 = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, Function.identity(),future1);
+        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, Function.identity(), future1);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
-        expectThrows(RepositoryException.class,
-            () -> writeIndexGen(repository, repositoryData.withGenId(startingGeneration + 1), repositoryData.getGenId()));
+        expectThrows(
+            RepositoryException.class,
+            () -> writeIndexGen(repository, repositoryData.withGenId(startingGeneration + 1), repositoryData.getGenId())
+        );
     }
 
     public void testBadChunksize() throws Exception {
@@ -226,13 +237,20 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
         final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
 
-        expectThrows(RepositoryException.class, () ->
-            client.admin().cluster().preparePutRepository(repositoryName)
+        expectThrows(
+            RepositoryException.class,
+            () -> client.admin()
+                .cluster()
+                .preparePutRepository(repositoryName)
                 .setType(REPO_TYPE)
-                .setSettings(Settings.builder().put(node().settings())
-                    .put("location", location)
-                    .put("chunk_size", randomLongBetween(-10, 0), ByteSizeUnit.BYTES))
-                .get());
+                .setSettings(
+                    Settings.builder()
+                        .put(node().settings())
+                        .put("location", location)
+                        .put("chunk_size", randomLongBetween(-10, 0), ByteSizeUnit.BYTES)
+                )
+                .get()
+        );
     }
 
     public void testFsRepositoryCompressDeprecated() {
@@ -244,18 +262,20 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
             .put(node().getEnvironment().settings())
             .put(FsRepository.REPOSITORIES_COMPRESS_SETTING.getKey(), true)
             .build();
-        Environment useCompressEnvironment =
-            new Environment(useCompressSettings, node().getEnvironment().configFile());
+        Environment useCompressEnvironment = new Environment(useCompressSettings, node().getEnvironment().configFile());
 
         new FsRepository(metadata, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService(), null);
 
-        assertWarnings("[repositories.fs.compress] setting was deprecated in OpenSearch and will be removed in a future release!" +
-            " See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[repositories.fs.compress] setting was deprecated in OpenSearch and will be removed in a future release!"
+                + " See the breaking changes documentation for the next major version."
+        );
     }
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
         PlainActionFuture.<RepositoryData, Exception>get(
-                f -> repository.writeIndexGen(repositoryData, generation, Version.CURRENT, Function.identity(), f));
+            f -> repository.writeIndexGen(repositoryData, generation, Version.CURRENT, Function.identity(), f)
+        );
     }
 
     private BlobStoreRepository setupRepo() {
@@ -263,16 +283,16 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
         final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
 
-        AcknowledgedResponse putRepositoryResponse =
-            client.admin().cluster().preparePutRepository(repositoryName)
-                                    .setType(REPO_TYPE)
-                                    .setSettings(Settings.builder().put(node().settings()).put("location", location))
-                                    .get();
+        AcknowledgedResponse putRepositoryResponse = client.admin()
+            .cluster()
+            .preparePutRepository(repositoryName)
+            .setType(REPO_TYPE)
+            .setSettings(Settings.builder().put(node().settings()).put("location", location))
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
-        final BlobStoreRepository repository =
-            (BlobStoreRepository) repositoriesService.repository(repositoryName);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
         assertThat("getBlobContainer has to be lazy initialized", repository.getBlobContainer(), nullValue());
         return repository;
     }
@@ -287,12 +307,17 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
                 builder.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), 0, "1");
             }
             final ShardGenerations shardGenerations = builder.build();
-            final Map<IndexId, String> indexLookup =
-                shardGenerations.indices().stream().collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
-            repoData = repoData.addSnapshot(snapshotId,
-                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), Version.CURRENT, shardGenerations,
+            final Map<IndexId, String> indexLookup = shardGenerations.indices()
+                .stream()
+                .collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
+            repoData = repoData.addSnapshot(
+                snapshotId,
+                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
+                Version.CURRENT,
+                shardGenerations,
                 indexLookup,
-                indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))));
+                indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
+            );
         }
         return repoData;
     }

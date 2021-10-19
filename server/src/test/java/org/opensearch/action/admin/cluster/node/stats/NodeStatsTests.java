@@ -96,36 +96,49 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(nodeStats.getOs().getCpu().getPercent(), deserializedNodeStats.getOs().getCpu().getPercent());
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuAcctControlGroup(),
-                        deserializedNodeStats.getOs().getCgroup().getCpuAcctControlGroup());
+                        deserializedNodeStats.getOs().getCgroup().getCpuAcctControlGroup()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuAcctUsageNanos(),
-                        deserializedNodeStats.getOs().getCgroup().getCpuAcctUsageNanos());
+                        deserializedNodeStats.getOs().getCgroup().getCpuAcctUsageNanos()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuControlGroup(),
-                        deserializedNodeStats.getOs().getCgroup().getCpuControlGroup());
+                        deserializedNodeStats.getOs().getCgroup().getCpuControlGroup()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuCfsPeriodMicros(),
-                        deserializedNodeStats.getOs().getCgroup().getCpuCfsPeriodMicros());
+                        deserializedNodeStats.getOs().getCgroup().getCpuCfsPeriodMicros()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuCfsQuotaMicros(),
-                        deserializedNodeStats.getOs().getCgroup().getCpuCfsQuotaMicros());
+                        deserializedNodeStats.getOs().getCgroup().getCpuCfsQuotaMicros()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuStat().getNumberOfElapsedPeriods(),
-                        deserializedNodeStats.getOs().getCgroup().getCpuStat().getNumberOfElapsedPeriods());
+                        deserializedNodeStats.getOs().getCgroup().getCpuStat().getNumberOfElapsedPeriods()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuStat().getNumberOfTimesThrottled(),
-                        deserializedNodeStats.getOs().getCgroup().getCpuStat().getNumberOfTimesThrottled());
+                        deserializedNodeStats.getOs().getCgroup().getCpuStat().getNumberOfTimesThrottled()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuStat().getTimeThrottledNanos(),
-                        deserializedNodeStats.getOs().getCgroup().getCpuStat().getTimeThrottledNanos());
+                        deserializedNodeStats.getOs().getCgroup().getCpuStat().getTimeThrottledNanos()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getMemoryLimitInBytes(),
-                        deserializedNodeStats.getOs().getCgroup().getMemoryLimitInBytes());
+                        deserializedNodeStats.getOs().getCgroup().getMemoryLimitInBytes()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getMemoryUsageInBytes(),
-                        deserializedNodeStats.getOs().getCgroup().getMemoryUsageInBytes());
-                    assertArrayEquals(nodeStats.getOs().getCpu().getLoadAverage(),
-                            deserializedNodeStats.getOs().getCpu().getLoadAverage(), 0);
+                        deserializedNodeStats.getOs().getCgroup().getMemoryUsageInBytes()
+                    );
+                    assertArrayEquals(
+                        nodeStats.getOs().getCpu().getLoadAverage(),
+                        deserializedNodeStats.getOs().getCpu().getLoadAverage(),
+                        0
+                    );
                 }
                 if (nodeStats.getProcess() == null) {
                     assertNull(deserializedNodeStats.getProcess());
@@ -133,12 +146,18 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(nodeStats.getProcess().getTimestamp(), deserializedNodeStats.getProcess().getTimestamp());
                     assertEquals(nodeStats.getProcess().getCpu().getTotal(), deserializedNodeStats.getProcess().getCpu().getTotal());
                     assertEquals(nodeStats.getProcess().getCpu().getPercent(), deserializedNodeStats.getProcess().getCpu().getPercent());
-                    assertEquals(nodeStats.getProcess().getMem().getTotalVirtual(),
-                            deserializedNodeStats.getProcess().getMem().getTotalVirtual());
-                    assertEquals(nodeStats.getProcess().getMaxFileDescriptors(),
-                            deserializedNodeStats.getProcess().getMaxFileDescriptors());
-                    assertEquals(nodeStats.getProcess().getOpenFileDescriptors(),
-                            deserializedNodeStats.getProcess().getOpenFileDescriptors());
+                    assertEquals(
+                        nodeStats.getProcess().getMem().getTotalVirtual(),
+                        deserializedNodeStats.getProcess().getMem().getTotalVirtual()
+                    );
+                    assertEquals(
+                        nodeStats.getProcess().getMaxFileDescriptors(),
+                        deserializedNodeStats.getProcess().getMaxFileDescriptors()
+                    );
+                    assertEquals(
+                        nodeStats.getProcess().getOpenFileDescriptors(),
+                        deserializedNodeStats.getProcess().getOpenFileDescriptors()
+                    );
                 }
                 JvmStats jvm = nodeStats.getJvm();
                 JvmStats deserializedJvm = deserializedNodeStats.getJvm();
@@ -154,34 +173,38 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(mem.getNonHeapCommitted(), deserializedMem.getNonHeapCommitted());
                     assertEquals(mem.getNonHeapUsed(), deserializedMem.getNonHeapUsed());
                     assertEquals(mem.getHeapMax(), deserializedMem.getHeapMax());
-                    
-                    final Map<String, JvmStats.MemoryPool> pools = StreamSupport
-                        .stream(mem.spliterator(), false)
+
+                    final Map<String, JvmStats.MemoryPool> pools = StreamSupport.stream(mem.spliterator(), false)
                         .collect(Collectors.toMap(JvmStats.MemoryPool::getName, Function.identity()));
-                    
-                    final Map<String, JvmStats.MemoryPool> deserializedPools = StreamSupport
-                        .stream(deserializedMem.spliterator(), false)
+
+                    final Map<String, JvmStats.MemoryPool> deserializedPools = StreamSupport.stream(deserializedMem.spliterator(), false)
                         .collect(Collectors.toMap(JvmStats.MemoryPool::getName, Function.identity()));
-                    
+
                     assertThat(pools.keySet(), not(empty()));
                     assertThat(deserializedPools.keySet(), not(empty()));
 
-                    for (final Map.Entry<String, JvmStats.MemoryPool> entry: pools.entrySet()) {
+                    for (final Map.Entry<String, JvmStats.MemoryPool> entry : pools.entrySet()) {
                         assertThat(deserializedPools.containsKey(entry.getKey()), is(true));
                         assertEquals(entry.getValue().getName(), deserializedPools.get(entry.getKey()).getName());
                         assertEquals(entry.getValue().getMax(), deserializedPools.get(entry.getKey()).getMax());
                         assertEquals(entry.getValue().getPeakMax(), deserializedPools.get(entry.getKey()).getPeakMax());
                         assertEquals(entry.getValue().getPeakUsed(), deserializedPools.get(entry.getKey()).getPeakUsed());
                         assertEquals(entry.getValue().getUsed(), deserializedPools.get(entry.getKey()).getUsed());
-                        
-                        assertEquals(entry.getValue().getLastGcStats().getUsed(), 
-                                deserializedPools.get(entry.getKey()).getLastGcStats().getUsed());
-                        assertEquals(entry.getValue().getLastGcStats().getMax(), 
-                                deserializedPools.get(entry.getKey()).getLastGcStats().getMax());
-                        assertEquals(entry.getValue().getLastGcStats().getUsagePercent(), 
-                                deserializedPools.get(entry.getKey()).getLastGcStats().getUsagePercent());
+
+                        assertEquals(
+                            entry.getValue().getLastGcStats().getUsed(),
+                            deserializedPools.get(entry.getKey()).getLastGcStats().getUsed()
+                        );
+                        assertEquals(
+                            entry.getValue().getLastGcStats().getMax(),
+                            deserializedPools.get(entry.getKey()).getLastGcStats().getMax()
+                        );
+                        assertEquals(
+                            entry.getValue().getLastGcStats().getUsagePercent(),
+                            deserializedPools.get(entry.getKey()).getLastGcStats().getUsagePercent()
+                        );
                     }
-                    
+
                     JvmStats.Classes classes = jvm.getClasses();
                     assertEquals(classes.getLoadedClassCount(), deserializedJvm.getClasses().getLoadedClassCount());
                     assertEquals(classes.getTotalLoadedClassCount(), deserializedJvm.getClasses().getTotalLoadedClassCount());
@@ -321,23 +344,31 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(ingestStats.getPipelineStats().size(), deserializedIngestStats.getPipelineStats().size());
                     for (IngestStats.PipelineStat pipelineStat : ingestStats.getPipelineStats()) {
                         String pipelineId = pipelineStat.getPipelineId();
-                        IngestStats.Stats deserializedPipelineStats =
-                            getPipelineStats(deserializedIngestStats.getPipelineStats(), pipelineId);
+                        IngestStats.Stats deserializedPipelineStats = getPipelineStats(
+                            deserializedIngestStats.getPipelineStats(),
+                            pipelineId
+                        );
                         assertEquals(pipelineStat.getStats().getIngestFailedCount(), deserializedPipelineStats.getIngestFailedCount());
                         assertEquals(pipelineStat.getStats().getIngestTimeInMillis(), deserializedPipelineStats.getIngestTimeInMillis());
                         assertEquals(pipelineStat.getStats().getIngestCurrent(), deserializedPipelineStats.getIngestCurrent());
                         assertEquals(pipelineStat.getStats().getIngestCount(), deserializedPipelineStats.getIngestCount());
                         List<IngestStats.ProcessorStat> processorStats = ingestStats.getProcessorStats().get(pipelineId);
-                        //intentionally validating identical order
+                        // intentionally validating identical order
                         Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.getProcessorStats().get(pipelineId).iterator();
                         for (IngestStats.ProcessorStat processorStat : processorStats) {
                             IngestStats.ProcessorStat deserializedProcessorStat = it.next();
-                            assertEquals(processorStat.getStats().getIngestFailedCount(),
-                                deserializedProcessorStat.getStats().getIngestFailedCount());
-                            assertEquals(processorStat.getStats().getIngestTimeInMillis(),
-                                deserializedProcessorStat.getStats().getIngestTimeInMillis());
-                            assertEquals(processorStat.getStats().getIngestCurrent(),
-                                deserializedProcessorStat.getStats().getIngestCurrent());
+                            assertEquals(
+                                processorStat.getStats().getIngestFailedCount(),
+                                deserializedProcessorStat.getStats().getIngestFailedCount()
+                            );
+                            assertEquals(
+                                processorStat.getStats().getIngestTimeInMillis(),
+                                deserializedProcessorStat.getStats().getIngestTimeInMillis()
+                            );
+                            assertEquals(
+                                processorStat.getStats().getIngestCurrent(),
+                                deserializedProcessorStat.getStats().getIngestCurrent()
+                            );
                             assertEquals(processorStat.getStats().getIngestCount(), deserializedProcessorStat.getStats().getIngestCount());
                         }
                         assertFalse(it.hasNext());
@@ -369,7 +400,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     long limited = 0;
                     long compilations = 0;
                     Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
-                    for (String context: stats.keySet()) {
+                    for (String context : stats.keySet()) {
                         ScriptStats deserStats = deserialized.get(context);
                         ScriptStats generatedStats = stats.get(context);
 
@@ -392,8 +423,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
     }
 
     public static NodeStats createNodeStats() {
-        DiscoveryNode node = new DiscoveryNode("test_node", buildNewFakeTransportAddress(),
-                emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
+        DiscoveryNode node = new DiscoveryNode(
+            "test_node",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            VersionUtils.randomVersion(random())
+        );
         OsStats osStats = null;
         if (frequently()) {
             double loadAverages[] = new double[3];
@@ -402,43 +438,58 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             long memTotal = randomNonNegativeLong();
             long swapTotal = randomNonNegativeLong();
-            osStats = new OsStats(System.currentTimeMillis(), new OsStats.Cpu(randomShort(), loadAverages),
-                    new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)),
-                    new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
-                    new OsStats.Cgroup(
-                        randomAlphaOfLength(8),
-                        randomNonNegativeLong(),
-                        randomAlphaOfLength(8),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-                        randomAlphaOfLength(8),
-                        Long.toString(randomNonNegativeLong()),
-                        Long.toString(randomNonNegativeLong())));
+            osStats = new OsStats(
+                System.currentTimeMillis(),
+                new OsStats.Cpu(randomShort(), loadAverages),
+                new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)),
+                new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
+                new OsStats.Cgroup(
+                    randomAlphaOfLength(8),
+                    randomNonNegativeLong(),
+                    randomAlphaOfLength(8),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                    randomAlphaOfLength(8),
+                    Long.toString(randomNonNegativeLong()),
+                    Long.toString(randomNonNegativeLong())
+                )
+            );
         }
-        ProcessStats processStats = frequently() ?
-            new ProcessStats(
+        ProcessStats processStats = frequently()
+            ? new ProcessStats(
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 new ProcessStats.Cpu(randomShort(), randomNonNegativeLong()),
-                new ProcessStats.Mem(randomNonNegativeLong())) :
-            null;
+                new ProcessStats.Mem(randomNonNegativeLong())
+            )
+            : null;
         JvmStats jvmStats = null;
         if (frequently()) {
             int numMemoryPools = randomIntBetween(0, 10);
             List<JvmStats.MemoryPool> memoryPools = new ArrayList<>(numMemoryPools);
             for (int i = 0; i < numMemoryPools; i++) {
-                memoryPools.add(new JvmStats.MemoryPool(randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong(),
-                    randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                        new JvmStats.MemoryPoolGcStats(randomNonNegativeLong(), randomNonNegativeLong())));
+                memoryPools.add(
+                    new JvmStats.MemoryPool(
+                        randomAlphaOfLengthBetween(3, 10),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        new JvmStats.MemoryPoolGcStats(randomNonNegativeLong(), randomNonNegativeLong())
+                    )
+                );
             }
             JvmStats.Threads threads = new JvmStats.Threads(randomIntBetween(1, 1000), randomIntBetween(1, 1000));
             int numGarbageCollectors = randomIntBetween(0, 10);
             JvmStats.GarbageCollector[] garbageCollectorsArray = new JvmStats.GarbageCollector[numGarbageCollectors];
             for (int i = 0; i < numGarbageCollectors; i++) {
-                garbageCollectorsArray[i] = new JvmStats.GarbageCollector(randomAlphaOfLengthBetween(3, 10),
-                        randomNonNegativeLong(), randomNonNegativeLong());
+                garbageCollectorsArray[i] = new JvmStats.GarbageCollector(
+                    randomAlphaOfLengthBetween(3, 10),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                );
             }
             JvmStats.GarbageCollectors garbageCollectors = new JvmStats.GarbageCollectors(garbageCollectorsArray);
             int numBufferPools = randomIntBetween(0, 10);
@@ -449,22 +500,46 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         randomAlphaOfLengthBetween(3, 10),
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
-                        randomNonNegativeLong()));
+                        randomNonNegativeLong()
+                    )
+                );
             }
             JvmStats.Classes classes = new JvmStats.Classes(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
-            jvmStats =
-                frequently() ? new JvmStats(randomNonNegativeLong(), randomNonNegativeLong(), new JvmStats.Mem(randomNonNegativeLong(),
-                    randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), memoryPools),
-                    threads, garbageCollectors, randomBoolean() ? Collections.emptyList() : bufferPoolList, classes) : null;
+            jvmStats = frequently()
+                ? new JvmStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    new JvmStats.Mem(
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        memoryPools
+                    ),
+                    threads,
+                    garbageCollectors,
+                    randomBoolean() ? Collections.emptyList() : bufferPoolList,
+                    classes
+                )
+                : null;
         }
         ThreadPoolStats threadPoolStats = null;
         if (frequently()) {
             int numThreadPoolStats = randomIntBetween(0, 10);
             List<ThreadPoolStats.Stats> threadPoolStatsList = new ArrayList<>();
             for (int i = 0; i < numThreadPoolStats; i++) {
-                threadPoolStatsList.add(new ThreadPoolStats.Stats(randomAlphaOfLengthBetween(3, 10), randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000), randomIntBetween(1, 1000), randomNonNegativeLong(),
-                        randomIntBetween(1, 1000), randomIntBetween(1, 1000)));
+                threadPoolStatsList.add(
+                    new ThreadPoolStats.Stats(
+                        randomAlphaOfLengthBetween(3, 10),
+                        randomIntBetween(1, 1000),
+                        randomIntBetween(1, 1000),
+                        randomIntBetween(1, 1000),
+                        randomNonNegativeLong(),
+                        randomIntBetween(1, 1000),
+                        randomIntBetween(1, 1000)
+                    )
+                );
             }
             threadPoolStats = new ThreadPoolStats(threadPoolStatsList);
         }
@@ -473,76 +548,125 @@ public class NodeStatsTests extends OpenSearchTestCase {
             int numDeviceStats = randomIntBetween(0, 10);
             FsInfo.DeviceStats[] deviceStatsArray = new FsInfo.DeviceStats[numDeviceStats];
             for (int i = 0; i < numDeviceStats; i++) {
-                FsInfo.DeviceStats previousDeviceStats = randomBoolean() ? null :
-                        new FsInfo.DeviceStats(randomInt(), randomInt(), randomAlphaOfLengthBetween(3, 10),
-                                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), null);
-                deviceStatsArray[i] =
-                    new FsInfo.DeviceStats(randomInt(), randomInt(), randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong(),
-                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), previousDeviceStats);
+                FsInfo.DeviceStats previousDeviceStats = randomBoolean()
+                    ? null
+                    : new FsInfo.DeviceStats(
+                        randomInt(),
+                        randomInt(),
+                        randomAlphaOfLengthBetween(3, 10),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        null
+                    );
+                deviceStatsArray[i] = new FsInfo.DeviceStats(
+                    randomInt(),
+                    randomInt(),
+                    randomAlphaOfLengthBetween(3, 10),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    previousDeviceStats
+                );
             }
             FsInfo.IoStats ioStats = new FsInfo.IoStats(deviceStatsArray);
             int numPaths = randomIntBetween(0, 10);
             FsInfo.Path[] paths = new FsInfo.Path[numPaths];
             for (int i = 0; i < numPaths; i++) {
-                paths[i] = new FsInfo.Path(randomAlphaOfLengthBetween(3, 10), randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null,
-                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+                paths[i] = new FsInfo.Path(
+                    randomAlphaOfLengthBetween(3, 10),
+                    randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                );
             }
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }
-        TransportStats transportStats = frequently() ? new TransportStats(randomNonNegativeLong(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        TransportStats transportStats = frequently()
+            ? new TransportStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            )
+            : null;
         HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
             int numCircuitBreakerStats = randomIntBetween(0, 10);
             CircuitBreakerStats[] circuitBreakerStatsArray = new CircuitBreakerStats[numCircuitBreakerStats];
             for (int i = 0; i < numCircuitBreakerStats; i++) {
-                circuitBreakerStatsArray[i] = new CircuitBreakerStats(randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong(),
-                        randomNonNegativeLong(), randomDouble(), randomNonNegativeLong());
+                circuitBreakerStatsArray[i] = new CircuitBreakerStats(
+                    randomAlphaOfLengthBetween(3, 10),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomDouble(),
+                    randomNonNegativeLong()
+                );
             }
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
-        ScriptStats scriptStats = frequently() ?
-                new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        ScriptStats scriptStats = frequently()
+            ? new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+            : null;
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
+                randomBoolean() ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt()) : null,
                 randomBoolean()
-                ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt())
-                : null,
-                randomBoolean()
-                ? new PublishClusterStateStats(
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong())
-                : null)
+                    ? new PublishClusterStateStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+                    : null
+            )
             : null;
         IngestStats ingestStats = null;
         if (frequently()) {
-            IngestStats.Stats totalStats = new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                    randomNonNegativeLong());
+            IngestStats.Stats totalStats = new IngestStats.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
             int numPipelines = randomIntBetween(0, 10);
             int numProcessors = randomIntBetween(0, 10);
             List<IngestStats.PipelineStat> ingestPipelineStats = new ArrayList<>(numPipelines);
             Map<String, List<IngestStats.ProcessorStat>> ingestProcessorStats = new HashMap<>(numPipelines);
             for (int i = 0; i < numPipelines; i++) {
                 String pipelineId = randomAlphaOfLengthBetween(3, 10);
-                ingestPipelineStats.add(new IngestStats.PipelineStat(pipelineId,  new IngestStats.Stats
-                    (randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())));
+                ingestPipelineStats.add(
+                    new IngestStats.PipelineStat(
+                        pipelineId,
+                        new IngestStats.Stats(
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong()
+                        )
+                    )
+                );
 
                 List<IngestStats.ProcessorStat> processorPerPipeline = new ArrayList<>(numProcessors);
-                for (int j =0; j < numProcessors;j++) {
-                    IngestStats.Stats processorStats = new IngestStats.Stats
-                        (randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
-                    processorPerPipeline.add(new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10),
-                        randomAlphaOfLengthBetween(3, 10), processorStats));
+                for (int j = 0; j < numProcessors; j++) {
+                    IngestStats.Stats processorStats = new IngestStats.Stats(
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong()
+                    );
+                    processorPerPipeline.add(
+                        new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), processorStats)
+                    );
                 }
-                ingestProcessorStats.put(pipelineId,processorPerPipeline);
+                ingestProcessorStats.put(pipelineId, processorPerPipeline);
             }
             ingestStats = new IngestStats(totalStats, ingestPipelineStats, ingestProcessorStats);
         }
         AdaptiveSelectionStats adaptiveSelectionStats = null;
         if (frequently()) {
-            int numNodes = randomIntBetween(0,10);
+            int numNodes = randomIntBetween(0, 10);
             Map<String, Long> nodeConnections = new HashMap<>();
             Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats = new HashMap<>();
             for (int i = 0; i < numNodes; i++) {
@@ -553,20 +677,40 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 }
                 // add node calculations
                 if (frequently()) {
-                    ResponseCollectorService.ComputedNodeStats stats = new ResponseCollectorService.ComputedNodeStats(nodeId,
-                            randomIntBetween(1,10), randomIntBetween(0, 2000),
-                            randomDoubleBetween(1.0, 10000000.0, true),
-                            randomDoubleBetween(1.0, 10000000.0, true));
+                    ResponseCollectorService.ComputedNodeStats stats = new ResponseCollectorService.ComputedNodeStats(
+                        nodeId,
+                        randomIntBetween(1, 10),
+                        randomIntBetween(0, 2000),
+                        randomDoubleBetween(1.0, 10000000.0, true),
+                        randomDoubleBetween(1.0, 10000000.0, true)
+                    );
                     nodeStats.put(nodeId, stats);
                 }
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
         ScriptCacheStats scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
-        //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
-        return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
-                fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
-                ingestStats, adaptiveSelectionStats, scriptCacheStats, null, null);
+        // TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
+        return new NodeStats(
+            node,
+            randomNonNegativeLong(),
+            null,
+            osStats,
+            processStats,
+            jvmStats,
+            threadPoolStats,
+            fsInfo,
+            transportStats,
+            httpStats,
+            allCircuitBreakerStats,
+            scriptStats,
+            discoveryStats,
+            ingestStats,
+            adaptiveSelectionStats,
+            scriptCacheStats,
+            null,
+            null
+        );
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

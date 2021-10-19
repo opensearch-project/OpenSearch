@@ -53,21 +53,21 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     private final ValuesSource valuesSource;
 
     public MissingAggregator(
-            String name,
-            AggregatorFactories factories,
-            ValuesSourceConfig valuesSourceConfig,
-            SearchContext aggregationContext,
-            Aggregator parent,
-            CardinalityUpperBound cardinality,
-            Map<String, Object> metadata) throws IOException {
+        String name,
+        AggregatorFactories factories,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, aggregationContext, parent, cardinality, metadata);
         // TODO: Stop using nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         final DocValueBits docsWithValue;
         if (valuesSource != null) {
             docsWithValue = valuesSource.docsWithValue(ctx);
@@ -91,8 +91,15 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalMissing(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalMissing(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override
@@ -101,5 +108,3 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     }
 
 }
-
-

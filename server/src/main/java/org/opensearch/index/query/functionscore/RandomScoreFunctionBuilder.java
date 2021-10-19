@@ -57,8 +57,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     private String field;
     private Integer seed;
 
-    public RandomScoreFunctionBuilder() {
-    }
+    public RandomScoreFunctionBuilder() {}
 
     /**
      * Read from a stream.
@@ -178,8 +177,10 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             if (field != null) {
                 fieldType = context.getMapperService().fieldType(field);
             } else {
-                deprecationLogger.deprecate("seed_requires_field",
-                    "OpenSearch requires that a [field] parameter is provided when a [seed] is set");
+                deprecationLogger.deprecate(
+                    "seed_requires_field",
+                    "OpenSearch requires that a [field] parameter is provided when a [seed] is set"
+                );
                 fieldType = context.getMapperService().fieldType(IdFieldMapper.NAME);
             }
             if (fieldType == null) {
@@ -187,8 +188,9 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                     // no mappings: the index is empty anyway
                     return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
                 }
-                throw new IllegalArgumentException("Field [" + field + "] is not mapped on [" + context.index() +
-                        "] and cannot be used as a source of random numbers.");
+                throw new IllegalArgumentException(
+                    "Field [" + field + "] is not mapped on [" + context.index() + "] and cannot be used as a source of random numbers."
+                );
             }
             int seed;
             if (this.seed != null) {
@@ -204,8 +206,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         return Long.hashCode(value);
     }
 
-    public static RandomScoreFunctionBuilder fromXContent(XContentParser parser)
-            throws IOException, ParsingException {
+    public static RandomScoreFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilder();
         String currentFieldName = null;
         XContentParser.Token token;
@@ -220,14 +221,18 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                         } else if (parser.numberType() == XContentParser.NumberType.LONG) {
                             randomScoreFunctionBuilder.seed(parser.longValue());
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int, long or string, not '"
-                                    + token.toString() + "'");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "random_score seed must be an int, long or string, not '" + token.toString() + "'"
+                            );
                         }
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         randomScoreFunctionBuilder.seed(parser.text());
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int/long or string, not '"
-                                + token.toString() + "'");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "random_score seed must be an int/long or string, not '" + token.toString() + "'"
+                        );
                     }
                 } else if ("field".equals(currentFieldName)) {
                     randomScoreFunctionBuilder.setField(parser.text());

@@ -73,8 +73,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses);
     }
 
-    private FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap,
-                                      List<FieldCapabilitiesIndexResponse> indexResponses) {
+    private FieldCapabilitiesResponse(
+        String[] indices,
+        Map<String, Map<String, FieldCapabilities>> responseMap,
+        List<FieldCapabilitiesIndexResponse> indexResponses
+    ) {
         this.responseMap = Objects.requireNonNull(responseMap);
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.indices = indices;
@@ -105,14 +108,12 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         return indices;
     }
 
-
     /**
      * Get the field capabilities map.
      */
     public Map<String, Map<String, FieldCapabilities>> get() {
         return responseMap;
     }
-
 
     /**
      * Returns the actual per-index field caps responses
@@ -163,13 +164,17 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<FieldCapabilitiesResponse, Void> PARSER =
-        new ConstructingObjectParser<>("field_capabilities_response", true,
-            a -> {
-                List<String> indices = a[0] == null ? Collections.emptyList() : (List<String>) a[0];
-                return new FieldCapabilitiesResponse(indices.stream().toArray(String[]::new),
-                    ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
-            });
+    private static final ConstructingObjectParser<FieldCapabilitiesResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "field_capabilities_response",
+        true,
+        a -> {
+            List<String> indices = a[0] == null ? Collections.emptyList() : (List<String>) a[0];
+            return new FieldCapabilitiesResponse(
+                indices.stream().toArray(String[]::new),
+                ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
+            );
+        }
+    );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
@@ -198,9 +203,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
-        return Arrays.equals(indices, that.indices) &&
-            Objects.equals(responseMap, that.responseMap) &&
-            Objects.equals(indexResponses, that.indexResponses);
+        return Arrays.equals(indices, that.indices)
+            && Objects.equals(responseMap, that.responseMap)
+            && Objects.equals(indexResponses, that.indexResponses);
     }
 
     @Override

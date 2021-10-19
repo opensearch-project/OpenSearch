@@ -48,5 +48,6 @@ public interface GeoBoundsAggregatorSupplier {
         Aggregator parent,
         ValuesSourceConfig valuesSourceConfig,
         boolean wrapLongitude,
-        Map<String, Object> metadata) throws IOException;
+        Map<String, Object> metadata
+    ) throws IOException;
 }

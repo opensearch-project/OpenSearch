@@ -58,7 +58,6 @@ import java.util.function.Supplier;
 import static java.lang.Math.min;
 import static org.hamcrest.Matchers.equalTo;
 
-
 public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
 
     private static long TOTAL_OPS_IN_GEN = 10L;
@@ -86,10 +85,14 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
             final int selectedReader = randomIntBetween(0, allGens.size() - 1);
             final long selectedGeneration = allGens.get(selectedReader).generation;
             long size = allGens.stream().skip(selectedReader).map(BaseTranslogReader::sizeInBytes).reduce(Long::sum).get();
-            assertThat(TranslogDeletionPolicy.getMinTranslogGenBySize(readersAndWriter.v1(), readersAndWriter.v2(), size),
-                equalTo(selectedGeneration));
-            assertThat(TranslogDeletionPolicy.getMinTranslogGenBySize(readersAndWriter.v1(), readersAndWriter.v2(), -1),
-                equalTo(Long.MIN_VALUE));
+            assertThat(
+                TranslogDeletionPolicy.getMinTranslogGenBySize(readersAndWriter.v1(), readersAndWriter.v2(), size),
+                equalTo(selectedGeneration)
+            );
+            assertThat(
+                TranslogDeletionPolicy.getMinTranslogGenBySize(readersAndWriter.v1(), readersAndWriter.v2(), -1),
+                equalTo(Long.MIN_VALUE)
+            );
         } finally {
             IOUtils.close(readersAndWriter.v1());
             IOUtils.close(readersAndWriter.v2());
@@ -101,8 +104,7 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
         Tuple<List<TranslogReader>, TranslogWriter> readersAndWriter = createReadersAndWriter(now);
         List<BaseTranslogReader> allGens = new ArrayList<>(readersAndWriter.v1());
         allGens.add(readersAndWriter.v2());
-        Supplier<RetentionLeases> retentionLeasesSupplier = createRetentionLeases(now, 0L,
-            allGens.size() * TOTAL_OPS_IN_GEN - 1);
+        Supplier<RetentionLeases> retentionLeasesSupplier = createRetentionLeases(now, 0L, allGens.size() * TOTAL_OPS_IN_GEN - 1);
         try {
             final long minimumRetainingSequenceNumber = retentionLeasesSupplier.get()
                 .leases()
@@ -111,11 +113,16 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
                 .min()
                 .orElse(Long.MAX_VALUE);
 
-            final long selectedReader = (minimumRetainingSequenceNumber/TOTAL_OPS_IN_GEN);
+            final long selectedReader = (minimumRetainingSequenceNumber / TOTAL_OPS_IN_GEN);
             final long selectedGen = allGens.get((int) selectedReader).generation;
-            assertThat(TranslogDeletionPolicy
-                    .getMinTranslogGenByRetentionLease(readersAndWriter.v1(), readersAndWriter.v2(), retentionLeasesSupplier),
-                equalTo(selectedGen));
+            assertThat(
+                TranslogDeletionPolicy.getMinTranslogGenByRetentionLease(
+                    readersAndWriter.v1(),
+                    readersAndWriter.v2(),
+                    retentionLeasesSupplier
+                ),
+                equalTo(selectedGen)
+            );
 
         } finally {
             IOUtils.close(readersAndWriter.v1());
@@ -132,10 +139,14 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
             final int selectedReader = randomIntBetween(0, allGens.size() - 1);
             final long selectedGeneration = allGens.get(selectedReader).generation;
             long maxAge = now - allGens.get(selectedReader).getLastModifiedTime();
-            assertThat(TranslogDeletionPolicy.getMinTranslogGenByAge(readersAndWriter.v1(), readersAndWriter.v2(), maxAge, now),
-                equalTo(selectedGeneration));
-            assertThat(TranslogDeletionPolicy.getMinTranslogGenByAge(readersAndWriter.v1(), readersAndWriter.v2(), -1, now),
-                equalTo(Long.MIN_VALUE));
+            assertThat(
+                TranslogDeletionPolicy.getMinTranslogGenByAge(readersAndWriter.v1(), readersAndWriter.v2(), maxAge, now),
+                equalTo(selectedGeneration)
+            );
+            assertThat(
+                TranslogDeletionPolicy.getMinTranslogGenByAge(readersAndWriter.v1(), readersAndWriter.v2(), -1, now),
+                equalTo(Long.MIN_VALUE)
+            );
         } finally {
             IOUtils.close(readersAndWriter.v1());
             IOUtils.close(readersAndWriter.v2());
@@ -147,14 +158,28 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
         List<BaseTranslogReader> allGens = new ArrayList<>(readersAndWriter.v1());
         allGens.add(readersAndWriter.v2());
         try {
-            assertThat(TranslogDeletionPolicy.getMinTranslogGenByTotalFiles(readersAndWriter.v1(), readersAndWriter.v2(),
-                randomIntBetween(Integer.MIN_VALUE, 1)), equalTo(readersAndWriter.v2().generation));
-            assertThat(TranslogDeletionPolicy.getMinTranslogGenByTotalFiles(readersAndWriter.v1(), readersAndWriter.v2(),
-                randomIntBetween(allGens.size(), Integer.MAX_VALUE)), equalTo(allGens.get(0).generation));
+            assertThat(
+                TranslogDeletionPolicy.getMinTranslogGenByTotalFiles(
+                    readersAndWriter.v1(),
+                    readersAndWriter.v2(),
+                    randomIntBetween(Integer.MIN_VALUE, 1)
+                ),
+                equalTo(readersAndWriter.v2().generation)
+            );
+            assertThat(
+                TranslogDeletionPolicy.getMinTranslogGenByTotalFiles(
+                    readersAndWriter.v1(),
+                    readersAndWriter.v2(),
+                    randomIntBetween(allGens.size(), Integer.MAX_VALUE)
+                ),
+                equalTo(allGens.get(0).generation)
+            );
             int numFiles = randomIntBetween(1, allGens.size());
             long selectedGeneration = allGens.get(allGens.size() - numFiles).generation;
-            assertThat(TranslogDeletionPolicy.getMinTranslogGenByTotalFiles(readersAndWriter.v1(), readersAndWriter.v2(), numFiles),
-                equalTo(selectedGeneration));
+            assertThat(
+                TranslogDeletionPolicy.getMinTranslogGenByTotalFiles(readersAndWriter.v1(), readersAndWriter.v2(), numFiles),
+                equalTo(selectedGeneration)
+            );
         } finally {
             IOUtils.close(readersAndWriter.v1());
             IOUtils.close(readersAndWriter.v2());
@@ -171,21 +196,32 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
             final long selectedGeneration = allGens.get(selectedReader).generation;
             // Retaining seqno is part of lower gen
             long size = allGens.stream().skip(selectedReader).map(BaseTranslogReader::sizeInBytes).reduce(Long::sum).get();
-            Supplier<RetentionLeases> retentionLeasesSupplier = createRetentionLeases(now, 0L,
-                selectedGeneration * TOTAL_OPS_IN_GEN - 1);
-            TranslogDeletionPolicy deletionPolicy = new MockDeletionPolicy(now, size, Integer.MAX_VALUE,
-                Integer.MAX_VALUE, retentionLeasesSupplier);
-            assertThat(deletionPolicy
-                .minTranslogGenRequired(readersAndWriter.v1(), readersAndWriter.v2()), equalTo(selectedGeneration));
-            assertThat(TranslogDeletionPolicy
-                    .getMinTranslogGenByAge(readersAndWriter.v1(), readersAndWriter.v2(), 100L, System.currentTimeMillis()),
-                equalTo(readersAndWriter.v2().generation));
+            Supplier<RetentionLeases> retentionLeasesSupplier = createRetentionLeases(now, 0L, selectedGeneration * TOTAL_OPS_IN_GEN - 1);
+            TranslogDeletionPolicy deletionPolicy = new MockDeletionPolicy(
+                now,
+                size,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                retentionLeasesSupplier
+            );
+            assertThat(deletionPolicy.minTranslogGenRequired(readersAndWriter.v1(), readersAndWriter.v2()), equalTo(selectedGeneration));
+            assertThat(
+                TranslogDeletionPolicy.getMinTranslogGenByAge(
+                    readersAndWriter.v1(),
+                    readersAndWriter.v2(),
+                    100L,
+                    System.currentTimeMillis()
+                ),
+                equalTo(readersAndWriter.v2().generation)
+            );
 
             // Retention lease is part of higher gen
-            retentionLeasesSupplier = createRetentionLeases(now, selectedGeneration * TOTAL_OPS_IN_GEN,
-                allGens.size() * TOTAL_OPS_IN_GEN + TOTAL_OPS_IN_GEN - 1);
-            deletionPolicy = new MockDeletionPolicy(now, size, Long.MIN_VALUE,
-                Integer.MAX_VALUE, retentionLeasesSupplier);
+            retentionLeasesSupplier = createRetentionLeases(
+                now,
+                selectedGeneration * TOTAL_OPS_IN_GEN,
+                allGens.size() * TOTAL_OPS_IN_GEN + TOTAL_OPS_IN_GEN - 1
+            );
+            deletionPolicy = new MockDeletionPolicy(now, size, Long.MIN_VALUE, Integer.MAX_VALUE, retentionLeasesSupplier);
             assertThat(deletionPolicy.minTranslogGenRequired(readersAndWriter.v1(), readersAndWriter.v2()), equalTo(selectedGeneration));
         } finally {
             IOUtils.close(readersAndWriter.v1());
@@ -215,25 +251,40 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
             deletionPolicy.setRetentionSizeInBytes(size);
             final int totalFiles = allGens.size() - selectedReader;
             deletionPolicy.setRetentionTotalFiles(totalFiles);
-            assertMinGenRequired(deletionPolicy, readersAndWriter,
-                max3(selectedGenerationByAge, selectedGenerationBySize, selectedGenerationByTotalFiles));
+            assertMinGenRequired(
+                deletionPolicy,
+                readersAndWriter,
+                max3(selectedGenerationByAge, selectedGenerationBySize, selectedGenerationByTotalFiles)
+            );
             // make a new policy as committed gen can't go backwards (for now)
             deletionPolicy = new MockDeletionPolicy(now, size, maxAge, totalFiles);
-            assertMinGenRequired(deletionPolicy, readersAndWriter,
-                max3(selectedGenerationByAge, selectedGenerationBySize, selectedGenerationByTotalFiles));
+            assertMinGenRequired(
+                deletionPolicy,
+                readersAndWriter,
+                max3(selectedGenerationByAge, selectedGenerationBySize, selectedGenerationByTotalFiles)
+            );
             long viewGen = randomFrom(allGens).generation;
             try (Releasable ignored = deletionPolicy.acquireTranslogGen(viewGen)) {
-                assertMinGenRequired(deletionPolicy, readersAndWriter,
-                    min(viewGen, max3(selectedGenerationByAge, selectedGenerationBySize, selectedGenerationByTotalFiles)));
+                assertMinGenRequired(
+                    deletionPolicy,
+                    readersAndWriter,
+                    min(viewGen, max3(selectedGenerationByAge, selectedGenerationBySize, selectedGenerationByTotalFiles))
+                );
                 // disable age
                 deletionPolicy.setRetentionAgeInMillis(-1);
-                assertMinGenRequired(deletionPolicy, readersAndWriter,
-                    min(viewGen, Math.max(selectedGenerationBySize, selectedGenerationByTotalFiles)));
+                assertMinGenRequired(
+                    deletionPolicy,
+                    readersAndWriter,
+                    min(viewGen, Math.max(selectedGenerationBySize, selectedGenerationByTotalFiles))
+                );
                 // disable size
                 deletionPolicy.setRetentionAgeInMillis(maxAge);
                 deletionPolicy.setRetentionSizeInBytes(-1);
-                assertMinGenRequired(deletionPolicy, readersAndWriter,
-                    min(viewGen, Math.max(selectedGenerationByAge, selectedGenerationByTotalFiles)));
+                assertMinGenRequired(
+                    deletionPolicy,
+                    readersAndWriter,
+                    min(viewGen, Math.max(selectedGenerationByAge, selectedGenerationByTotalFiles))
+                );
                 // disable age and zie
                 deletionPolicy.setRetentionAgeInMillis(-1);
                 deletionPolicy.setRetentionSizeInBytes(-1);
@@ -249,8 +300,11 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
 
     }
 
-    private void assertMinGenRequired(TranslogDeletionPolicy deletionPolicy, Tuple<List<TranslogReader>, TranslogWriter> readersAndWriter,
-                                      long expectedGen) throws IOException {
+    private void assertMinGenRequired(
+        TranslogDeletionPolicy deletionPolicy,
+        Tuple<List<TranslogReader>, TranslogWriter> readersAndWriter,
+        long expectedGen
+    ) throws IOException {
         assertThat(deletionPolicy.minTranslogGenRequired(readersAndWriter.v1(), readersAndWriter.v2()), equalTo(expectedGen));
     }
 
@@ -267,9 +321,22 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
                 Mockito.doReturn(writer.getLastModifiedTime()).when(reader).getLastModifiedTime();
                 readers.add(reader);
             }
-            writer = TranslogWriter.create(new ShardId("index", "uuid", 0), translogUUID, gen,
-                tempDir.resolve(Translog.getFilename(gen)), FileChannel::open, TranslogConfig.DEFAULT_BUFFER_SIZE, 1L, 1L, () -> 1L,
-                () -> 1L, randomNonNegativeLong(), new TragicExceptionHolder(), seqNo -> {}, BigArrays.NON_RECYCLING_INSTANCE);
+            writer = TranslogWriter.create(
+                new ShardId("index", "uuid", 0),
+                translogUUID,
+                gen,
+                tempDir.resolve(Translog.getFilename(gen)),
+                FileChannel::open,
+                TranslogConfig.DEFAULT_BUFFER_SIZE,
+                1L,
+                1L,
+                () -> 1L,
+                () -> 1L,
+                randomNonNegativeLong(),
+                new TragicExceptionHolder(),
+                seqNo -> {},
+                BigArrays.NON_RECYCLING_INSTANCE
+            );
             writer = Mockito.spy(writer);
             Mockito.doReturn(now - (numberOfReaders - gen + 1) * 1000).when(writer).getLastModifiedTime();
             byte[] bytes = new byte[4];
@@ -286,14 +353,13 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
         return new Tuple<>(readers, writer);
     }
 
-    private Supplier<RetentionLeases> createRetentionLeases(final Long now, final Long lowestSeqNo,
-                                                            final Long highestSeqNo) throws IOException {
+    private Supplier<RetentionLeases> createRetentionLeases(final Long now, final Long lowestSeqNo, final Long highestSeqNo)
+        throws IOException {
         LinkedList<RetentionLease> leases = new LinkedList<>();
         final int numberOfLeases = randomIntBetween(1, 5);
-        for(int i=0 ;i<numberOfLeases; i++) {
+        for (int i = 0; i < numberOfLeases; i++) {
             long seqNo = randomLongBetween(lowestSeqNo, highestSeqNo);
-            leases.add(new RetentionLease("test_"+i, seqNo,
-                now - (numberOfLeases - i) * 1000, "test"));
+            leases.add(new RetentionLease("test_" + i, seqNo, now - (numberOfLeases - i) * 1000, "test"));
         }
         return () -> new RetentionLeases(1L, 1L, leases);
     }
@@ -307,8 +373,13 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
             this.now = now;
         }
 
-        MockDeletionPolicy(long now, long retentionSizeInBytes, long maxRetentionAgeInMillis,
-                           int maxRetentionTotalFiles, Supplier<RetentionLeases> retentionLeasesSupplier) {
+        MockDeletionPolicy(
+            long now,
+            long retentionSizeInBytes,
+            long maxRetentionAgeInMillis,
+            int maxRetentionTotalFiles,
+            Supplier<RetentionLeases> retentionLeasesSupplier
+        ) {
             super(retentionSizeInBytes, maxRetentionAgeInMillis, maxRetentionTotalFiles, retentionLeasesSupplier);
             this.now = now;
         }

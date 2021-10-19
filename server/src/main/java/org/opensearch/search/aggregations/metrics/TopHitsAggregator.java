@@ -88,8 +88,14 @@ class TopHitsAggregator extends MetricsAggregator {
     private final SubSearchContext subSearchContext;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
 
-    TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, SearchContext context,
-            Aggregator parent, Map<String, Object> metadata) throws IOException {
+    TopHitsAggregator(
+        FetchPhase fetchPhase,
+        SubSearchContext subSearchContext,
+        String name,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
@@ -147,8 +153,9 @@ class TopHitsAggregator extends MetricsAggregator {
                         // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
                         // Note that this would require to catch CollectionTerminatedException
                         collectors = new Collectors(
-                                TopFieldCollector.create(sort.sort, topN, Integer.MAX_VALUE),
-                                subSearchContext.trackScores() ? new MaxScoreCollector() : null);
+                            TopFieldCollector.create(sort.sort, topN, Integer.MAX_VALUE),
+                            subSearchContext.trackScores() ? new MaxScoreCollector() : null
+                        );
                     }
                     topDocsCollectors.put(bucket, collectors);
                 }
@@ -194,8 +201,8 @@ class TopHitsAggregator extends MetricsAggregator {
             maxScore = collectors.maxScoreCollector.getMaxScore();
         }
         final TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore);
-        subSearchContext.queryResult().topDocs(topDocsAndMaxScore,
-                subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
+        subSearchContext.queryResult()
+            .topDocs(topDocsAndMaxScore, subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
         int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
@@ -214,21 +221,36 @@ class TopHitsAggregator extends MetricsAggregator {
                 searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
             }
         }
-        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocsAndMaxScore, fetchResult.hits(),
-                metadata());
+        return new InternalTopHits(
+            name,
+            subSearchContext.from(),
+            subSearchContext.size(),
+            topDocsAndMaxScore,
+            fetchResult.hits(),
+            metadata()
+        );
     }
 
     @Override
     public InternalTopHits buildEmptyAggregation() {
         TopDocs topDocs;
         if (subSearchContext.sort() != null) {
-            topDocs = new TopFieldDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new FieldDoc[0],
-                    subSearchContext.sort().sort.getSort());
+            topDocs = new TopFieldDocs(
+                new TotalHits(0, TotalHits.Relation.EQUAL_TO),
+                new FieldDoc[0],
+                subSearchContext.sort().sort.getSort()
+            );
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
-        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), new TopDocsAndMaxScore(topDocs, Float.NaN),
-                SearchHits.empty(), metadata());
+        return new InternalTopHits(
+            name,
+            subSearchContext.from(),
+            subSearchContext.size(),
+            new TopDocsAndMaxScore(topDocs, Float.NaN),
+            SearchHits.empty(),
+            metadata()
+        );
     }
 
     @Override

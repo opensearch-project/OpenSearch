@@ -52,12 +52,11 @@ public class FixedThreadPoolTests extends OpenSearchThreadPoolTestCase {
         final long rejections = randomIntBetween(1, 16);
 
         ThreadPool threadPool = null;
-        final Settings nodeSettings =
-            Settings.builder()
-                .put("node.name", "testRejectedExecutionCounter")
-                .put("thread_pool." + threadPoolName + ".size", size)
-                .put("thread_pool." + threadPoolName + ".queue_size", queueSize)
-                .build();
+        final Settings nodeSettings = Settings.builder()
+            .put("node.name", "testRejectedExecutionCounter")
+            .put("thread_pool." + threadPoolName + ".size", size)
+            .put("thread_pool." + threadPoolName + ".queue_size", queueSize)
+            .build();
         try {
             threadPool = new ThreadPool(nodeSettings);
 
@@ -104,7 +103,7 @@ public class FixedThreadPoolTests extends OpenSearchThreadPoolTestCase {
         }
 
         if (Names.LISTENER.equals(threadPoolName)) {
-            assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size", "thread_pool.listener.size"});
+            assertSettingDeprecationsAndWarnings(new String[] { "thread_pool.listener.queue_size", "thread_pool.listener.size" });
         }
     }
 

@@ -131,20 +131,18 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private DiscoveryNode targetNode;
     private boolean primary;
 
-    public RecoveryState(ShardRouting shardRouting,
-                         DiscoveryNode targetNode,
-                         @Nullable DiscoveryNode sourceNode) {
+    public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
         this(shardRouting, targetNode, sourceNode, new Index());
     }
 
-    public RecoveryState(ShardRouting shardRouting,
-                         DiscoveryNode targetNode,
-                         @Nullable DiscoveryNode sourceNode,
-                         Index index) {
+    public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, Index index) {
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
         RecoverySource recoverySource = shardRouting.recoverySource();
-        assert (recoverySource.getType() == RecoverySource.Type.PEER) == (sourceNode != null) :
-            "peer recovery requires source node, recovery type: " + recoverySource.getType() + " source node: " + sourceNode;
+        assert (recoverySource
+            .getType() == RecoverySource.Type.PEER) == (sourceNode != null) : "peer recovery requires source node, recovery type: "
+                + recoverySource.getType()
+                + " source node: "
+                + sourceNode;
         this.shardId = shardRouting.shardId();
         this.primary = shardRouting.primary();
         this.recoverySource = recoverySource;
@@ -193,12 +191,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return this.stage;
     }
 
-
     protected void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {
             assert false : "can't move recovery to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])";
-            throw new IllegalStateException("can't move recovery to stage [" + next + "]. current stage: ["
-                    + stage + "] (expected [" + expected + "])");
+            throw new IllegalStateException(
+                "can't move recovery to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])"
+            );
         }
         stage = next;
     }
@@ -386,8 +384,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         protected long time = -1;
         protected long stopTime = 0;
 
-        public Timer() {
-        }
+        public Timer() {}
 
         public Timer(StreamInput in) throws IOException {
             startTime = in.readVLong();
@@ -455,8 +452,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public static class VerifyIndex extends Timer implements ToXContentFragment, Writeable {
         private volatile long checkIndexTime;
 
-        public VerifyIndex() {
-        }
+        public VerifyIndex() {}
 
         public VerifyIndex(StreamInput in) throws IOException {
             super(in);
@@ -498,8 +494,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         private int totalOnStart = UNKNOWN;
         private int totalLocal = UNKNOWN;
 
-        public Translog() {
-        }
+        public Translog() {}
 
         public Translog(StreamInput in) throws IOException {
             super(in);
@@ -532,24 +527,35 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public synchronized void incrementRecoveredOperations() {
             recovered++;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
-                "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total ["
+                + total
+                + "], recovered ["
+                + recovered
+                + "]";
         }
 
         public synchronized void incrementRecoveredOperations(int ops) {
             recovered += ops;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
-                "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total ["
+                + total
+                + "], recovered ["
+                + recovered
+                + "]";
         }
 
         public synchronized void decrementRecoveredOperations(int ops) {
             recovered -= ops;
-            assert recovered >= 0 : "recovered operations must be non-negative. Because [" + recovered +
-                "] after decrementing [" + ops + "]";
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" +
-                total + "], recovered [" + recovered + "]";
+            assert recovered >= 0 : "recovered operations must be non-negative. Because ["
+                + recovered
+                + "] after decrementing ["
+                + ops
+                + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total ["
+                + total
+                + "], recovered ["
+                + recovered
+                + "]";
         }
-
 
         /**
          * returns the total number of translog operations recovered so far
@@ -570,8 +576,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public synchronized void totalOperations(int total) {
             this.total = totalLocal == UNKNOWN ? total : totalLocal + total;
-            assert total == UNKNOWN || this.total >= recovered : "total, if known, should be > recovered. total [" + total +
-                "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || this.total >= recovered : "total, if known, should be > recovered. total ["
+                + total
+                + "], recovered ["
+                + recovered
+                + "]";
         }
 
         /**
@@ -727,8 +736,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         protected final Map<String, FileDetail> fileDetails = new HashMap<>();
         protected boolean complete;
 
-        public RecoveryFilesDetails() {
-        }
+        public RecoveryFilesDetails() {}
 
         RecoveryFilesDetails(StreamInput in) throws IOException {
             int size = in.readVInt();

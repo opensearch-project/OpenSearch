@@ -10,18 +10,15 @@
   <suppress files="modules[/\\]lang-painless[/\\]src[/\\]main[/\\]java[/\\]org[/\\]opensearch[/\\]painless[/\\]antlr[/\\]PainlessLexer\.java" checks="." />
   <suppress files="modules[/\\]lang-painless[/\\]src[/\\]main[/\\]java[/\\]org[/\\]opensearch[/\\]painless[/\\]antlr[/\\]PainlessParser(|BaseVisitor|Visitor)\.java" checks="." />
 
-  <!-- JNA requires the no-argument constructor on JNAKernel32Library.SizeT to be public-->
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]opensearch[/\\]bootstrap[/\\]JNAKernel32Library.java" checks="RedundantModifier" />
-
-  <!-- the constructors on some local classes in these tests must be public-->
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]opensearch[/\\]plugins[/\\]PluginsServiceTests.java" checks="RedundantModifier" />
-
   <!-- Intentionally doesn't have a package declaration to test logging
     configuration of classes that aren't in packages. -->
   <suppress files="test[/\\]framework[/\\]src[/\\]test[/\\]java[/\\]Dummy.java" checks="PackageDeclaration" />
 
   <!-- Intentionally has long example curl commands to coincide with sibling Painless tests. -->
   <suppress files="modules[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]opensearch[/\\]painless[/\\]ContextExampleTests.java" checks="LineLength" />
+
+  <!-- Exclude server to run checkstyle -->
+  <suppress files="server" checks="." />
 
   <!--
     Truly temporary suppressions suppression of snippets included in

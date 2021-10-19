@@ -52,19 +52,21 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestMultiTermVectorsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestTermVectorsAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
-        "Specifying types in multi term vector requests is deprecated.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in multi term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_mtermvectors"),
-            new Route(POST, "/_mtermvectors"),
-            new Route(GET, "/{index}/_mtermvectors"),
-            new Route(POST, "/{index}/_mtermvectors"),
-            // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/_mtermvectors"),
-            new Route(POST, "/{index}/{type}/_mtermvectors")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_mtermvectors"),
+                new Route(POST, "/_mtermvectors"),
+                new Route(GET, "/{index}/_mtermvectors"),
+                new Route(POST, "/{index}/_mtermvectors"),
+                // Deprecated typed endpoints.
+                new Route(GET, "/{index}/{type}/_mtermvectors"),
+                new Route(POST, "/{index}/{type}/_mtermvectors")
+            )
+        );
     }
 
     @Override
@@ -75,8 +77,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
-        TermVectorsRequest template = new TermVectorsRequest()
-            .index(request.param("index"));
+        TermVectorsRequest template = new TermVectorsRequest().index(request.param("index"));
 
         if (request.hasParam("type")) {
             deprecationLogger.deprecate("mtermvectors_with_types", TYPES_DEPRECATION_MESSAGE);

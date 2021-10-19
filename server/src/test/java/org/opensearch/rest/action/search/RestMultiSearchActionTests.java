@@ -53,8 +53,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
         String content = "{ \"index\": \"some_index\" } \n {} \n";
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/some_index/some_type/_msearch")
             .withContent(bytesContent, XContentType.JSON)
             .build();
@@ -70,8 +69,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
         String content = "{ \"index\": \"some_index\", \"type\": \"some_type\" } \n {} \n";
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_msearch")
             .withContent(bytesContent, XContentType.JSON)
             .build();

@@ -23,7 +23,6 @@ import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.transport.MockTransportService;
 
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -34,7 +33,6 @@ import java.util.function.Function;
 
 import static org.apache.logging.log4j.core.util.Throwables.getRootCause;
 
-
 public class ScriptCacheIT extends OpenSearchIntegTestCase {
 
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -42,15 +40,15 @@ public class ScriptCacheIT extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), ScriptService.USE_CONTEXT_RATE_KEY);
         // Putting max_compilation_rate for each context to 0 per minute
-        for (String s:ScriptModule.CORE_CONTEXTS.keySet()) {
-            builder.put("script.context."+s+".max_compilations_rate", "0/1m");
+        for (String s : ScriptModule.CORE_CONTEXTS.keySet()) {
+            builder.put("script.context." + s + ".max_compilations_rate", "0/1m");
         }
         return builder.build();
     }
 
     // Overriding to remove MockScriptService.TestPlugin from the list of plugins
     @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins(){
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
         final ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>();
         if (randomBoolean()) {
             if (randomBoolean() && addMockTransportService()) {
@@ -92,14 +90,18 @@ public class ScriptCacheIT extends OpenSearchIntegTestCase {
     }
 
     public void testPainlessCompilationLimit429Error() throws Exception {
-        client().prepareIndex("test", "1").setId("1")
-            .setSource(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject()).get();
+        client().prepareIndex("test", "1")
+            .setId("1")
+            .setSource(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+            .get();
         ensureGreen();
         Map<String, Object> params = new HashMap<>();
         params.put("field", "field");
         Script script = new Script(ScriptType.INLINE, "mockscript", "increase_field", params);
-        ExecutionException exception = expectThrows(ExecutionException.class, () ->
-            client().prepareUpdate("test", "1", "1").setScript(script).execute().get());
+        ExecutionException exception = expectThrows(
+            ExecutionException.class,
+            () -> client().prepareUpdate("test", "1", "1").setScript(script).execute().get()
+        );
         Throwable rootCause = getRootCause(exception);
         assertTrue(rootCause instanceof OpenSearchException);
         assertEquals(RestStatus.TOO_MANY_REQUESTS, ((OpenSearchException) rootCause).status());

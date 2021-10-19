@@ -55,8 +55,13 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHAR
  * see {@link org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider}.
  */
 public class ShardLimitValidator {
-    public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE =
-        Setting.intSetting("cluster.max_shards_per_node", 1000, 1, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE = Setting.intSetting(
+        "cluster.max_shards_per_node",
+        1000,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     protected final AtomicInteger shardLimitPerNode = new AtomicInteger();
 
     public ShardLimitValidator(final Settings settings, ClusterService clusterService) {
@@ -150,8 +155,13 @@ public class ShardLimitValidator {
         int currentOpenShards = state.getMetadata().getTotalOpenIndexShards();
 
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
-            String errorMessage = "this action would add [" + newShards + "] total shards, but this cluster currently has [" +
-                currentOpenShards + "]/[" + maxShardsInCluster + "] maximum shards open";
+            String errorMessage = "this action would add ["
+                + newShards
+                + "] total shards, but this cluster currently has ["
+                + currentOpenShards
+                + "]/["
+                + maxShardsInCluster
+                + "] maximum shards open";
             return Optional.of(errorMessage);
         }
         return Optional.empty();

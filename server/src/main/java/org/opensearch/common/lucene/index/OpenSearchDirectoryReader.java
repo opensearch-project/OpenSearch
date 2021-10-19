@@ -49,8 +49,8 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
     private final ShardId shardId;
     private final FilterDirectoryReader.SubReaderWrapper wrapper;
 
-    private OpenSearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper,
-                                      ShardId shardId) throws IOException {
+    private OpenSearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper, ShardId shardId)
+        throws IOException {
         super(in, wrapper);
         this.wrapper = wrapper;
         this.shardId = shardId;
@@ -88,9 +88,11 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
 
     private static final class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {
         private final ShardId shardId;
+
         SubReaderWrapper(ShardId shardId) {
             this.shardId = shardId;
         }
+
         @Override
         public LeafReader wrap(LeafReader reader) {
             return new OpenSearchLeafReader(reader, shardId);
@@ -110,7 +112,8 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
         OpenSearchDirectoryReader openSearchDirectoryReader = getOpenSearchDirectoryReader(reader);
         if (openSearchDirectoryReader == null) {
             throw new IllegalArgumentException(
-                    "Can't install close listener reader is not an OpenSearchDirectoryReader/OpenSearchLeafReader");
+                "Can't install close listener reader is not an OpenSearchDirectoryReader/OpenSearchLeafReader"
+            );
         }
         IndexReader.CacheHelper cacheHelper = openSearchDirectoryReader.getReaderCacheHelper();
         if (cacheHelper == null) {

@@ -82,7 +82,6 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         return Collections.singleton(InternalSettingsPlugin.class);
     }
 
-
     public void testRolloverOnEmptyIndex() throws Exception {
         Alias testAlias = new Alias("test_alias");
         boolean explicitWriteIndex = randomBoolean();
@@ -127,8 +126,10 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         assertThat(oldIndex.getRolloverInfos().size(), equalTo(1));
         assertThat(oldIndex.getRolloverInfos().get("test_alias").getAlias(), equalTo("test_alias"));
         assertThat(oldIndex.getRolloverInfos().get("test_alias").getMetConditions(), is(empty()));
-        assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),
-            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
+        assertThat(
+            oldIndex.getRolloverInfos().get("test_alias").getTime(),
+            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L)))
+        );
     }
 
     public void testRolloverWithExplicitWriteIndex() throws Exception {
@@ -152,8 +153,10 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         assertThat(oldIndex.getRolloverInfos().size(), equalTo(1));
         assertThat(oldIndex.getRolloverInfos().get("test_alias").getAlias(), equalTo("test_alias"));
         assertThat(oldIndex.getRolloverInfos().get("test_alias").getMetConditions(), is(empty()));
-        assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),
-            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
+        assertThat(
+            oldIndex.getRolloverInfos().get("test_alias").getTime(),
+            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L)))
+        );
     }
 
     public void testRolloverWithNoWriteIndex() {
@@ -162,8 +165,10 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         if (firstIsWriteIndex == null) {
             assertAcked(prepareCreate("index2").addAlias(new Alias("alias").writeIndex(randomFrom(false, null))).get());
         }
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices().prepareRolloverIndex("alias").dryRun(randomBoolean()).get());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareRolloverIndex("alias").dryRun(randomBoolean()).get()
+        );
         assertThat(exception.getMessage(), equalTo("rollover target [alias] does not point to a write index"));
     }
 
@@ -180,8 +185,12 @@ public class RolloverIT extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
-            .settings(settings).alias(new Alias("extra_alias")).get();
+        final RolloverResponse response = client().admin()
+            .indices()
+            .prepareRolloverIndex("test_alias")
+            .settings(settings)
+            .alias(new Alias("extra_alias"))
+            .get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
         assertThat(response.getNewIndex(), equalTo("test_index-000003"));
         assertThat(response.isDryRun(), equalTo(false));
@@ -211,12 +220,13 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
         index("test_index-2", "_doc", "1", "field", "value");
         flush("test_index-2");
-        final Settings settings = Settings.builder()
-            .put("number_of_shards", 1)
-            .put("number_of_replicas", 0)
-            .build();
-        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
-            .settings(settings).alias(new Alias("extra_alias")).get();
+        final Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
+        final RolloverResponse response = client().admin()
+            .indices()
+            .prepareRolloverIndex("test_alias")
+            .settings(settings)
+            .alias(new Alias("extra_alias"))
+            .get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
         assertThat(response.getNewIndex(), equalTo("test_index-000003"));
         assertThat(response.isDryRun(), equalTo(false));
@@ -239,7 +249,8 @@ public class RolloverIT extends OpenSearchIntegTestCase {
 
     public void testRolloverDryRun() throws Exception {
         if (randomBoolean()) {
-            PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
+            PutIndexTemplateRequestBuilder putTemplate = client().admin()
+                .indices()
                 .preparePutTemplate("test_index")
                 .setPatterns(Collections.singletonList("test_index-*"))
                 .setOrder(-1)
@@ -255,8 +266,12 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         MockLogAppender appender = new MockLogAppender();
         appender.start();
         appender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("no related message logged on dry run",
-                AllocationService.class.getName(), Level.INFO, "*test_index*")
+            new MockLogAppender.UnseenEventExpectation(
+                "no related message logged on dry run",
+                AllocationService.class.getName(),
+                Level.INFO,
+                "*test_index*"
+            )
         );
         Loggers.addAppender(allocationServiceLogger, appender);
 
@@ -287,9 +302,12 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test_index-0").addAlias(testAlias).get());
         index("test_index-0", "type1", "1", "field", "value");
         flush("test_index-0");
-        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
+        final RolloverResponse response = client().admin()
+            .indices()
+            .prepareRolloverIndex("test_alias")
             .addMaxIndexSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB))
-            .addMaxIndexAgeCondition(TimeValue.timeValueHours(4)).get();
+            .addMaxIndexAgeCondition(TimeValue.timeValueHours(4))
+            .get();
         assertThat(response.getOldIndex(), equalTo("test_index-0"));
         assertThat(response.getNewIndex(), equalTo("test_index-000001"));
         assertThat(response.isDryRun(), equalTo(false));
@@ -297,9 +315,13 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         assertThat(response.getConditionStatus().size(), equalTo(2));
         assertThat(response.getConditionStatus().values(), everyItem(is(false)));
         Set<String> conditions = response.getConditionStatus().keySet();
-        assertThat(conditions, containsInAnyOrder(
-            new MaxSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB)).toString(),
-            new MaxAgeCondition(TimeValue.timeValueHours(4)).toString()));
+        assertThat(
+            conditions,
+            containsInAnyOrder(
+                new MaxSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB)).toString(),
+                new MaxAgeCondition(TimeValue.timeValueHours(4)).toString()
+            )
+        );
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetadata oldIndex = state.metadata().index("test_index-0");
@@ -322,8 +344,11 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test_index").addAlias(testAlias).get());
         index("test_index", "type1", "1", "field", "value");
         flush("test_index");
-        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
-            .setNewIndexName("test_new_index").get();
+        final RolloverResponse response = client().admin()
+            .indices()
+            .prepareRolloverIndex("test_alias")
+            .setNewIndexName("test_new_index")
+            .get();
         assertThat(response.getOldIndex(), equalTo("test_index"));
         assertThat(response.getNewIndex(), equalTo("test_new_index"));
         assertThat(response.isDryRun(), equalTo(false));
@@ -364,9 +389,11 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         ensureGreen(index);
         // now we modify the provided name such that we can test that the pattern is carried on
         client().admin().indices().prepareClose(index).get();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME,
-            "<test-{now/M{yyyy.MM}}-1>")).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(index)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, "<test-{now/M{yyyy.MM}}-1>"))
+            .get();
 
         client().admin().indices().prepareOpen(index).get();
         ensureGreen(index);
@@ -384,12 +411,18 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
 
-        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(response.getOldIndex(),
-            response.getNewIndex()).get();
-        assertEquals("<test-{now/M{yyyy.MM}}-000002>", getSettingsResponse.getSetting(response.getOldIndex(),
-            IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals("<test-{now/M{yyyy.MM}}-000003>", getSettingsResponse.getSetting(response.getNewIndex(),
-            IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+        GetSettingsResponse getSettingsResponse = client().admin()
+            .indices()
+            .prepareGetSettings(response.getOldIndex(), response.getNewIndex())
+            .get();
+        assertEquals(
+            "<test-{now/M{yyyy.MM}}-000002>",
+            getSettingsResponse.getSetting(response.getOldIndex(), IndexMetadata.SETTING_INDEX_PROVIDED_NAME)
+        );
+        assertEquals(
+            "<test-{now/M{yyyy.MM}}-000003>",
+            getSettingsResponse.getSetting(response.getNewIndex(), IndexMetadata.SETTING_INDEX_PROVIDED_NAME)
+        );
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").setNewIndexName("<test-{now/d}-000004>").get();
         assertThat(response.getOldIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM").format(now) + "-000003"));
@@ -410,7 +443,8 @@ public class RolloverIT extends OpenSearchIntegTestCase {
 
         // A large max_size
         {
-            final RolloverResponse response = client().admin().indices()
+            final RolloverResponse response = client().admin()
+                .indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxIndexSizeCondition(new ByteSizeValue(randomIntBetween(100, 50 * 1024), ByteSizeUnit.MB))
                 .get();
@@ -425,7 +459,8 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         {
             ByteSizeValue maxSizeValue = new ByteSizeValue(randomIntBetween(1, 20), ByteSizeUnit.BYTES);
             long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
-            final RolloverResponse response = client().admin().indices()
+            final RolloverResponse response = client().admin()
+                .indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxIndexSizeCondition(maxSizeValue)
                 .get();
@@ -436,13 +471,16 @@ public class RolloverIT extends OpenSearchIntegTestCase {
             List<Condition<?>> metConditions = oldIndex.getRolloverInfos().get("test_alias").getMetConditions();
             assertThat(metConditions.size(), equalTo(1));
             assertThat(metConditions.get(0).toString(), equalTo(new MaxSizeCondition(maxSizeValue).toString()));
-            assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),
-                is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
+            assertThat(
+                oldIndex.getRolloverInfos().get("test_alias").getTime(),
+                is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L)))
+            );
         }
 
         // An empty index
         {
-            final RolloverResponse response = client().admin().indices()
+            final RolloverResponse response = client().admin()
+                .indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES))
                 .get();
@@ -455,14 +493,24 @@ public class RolloverIT extends OpenSearchIntegTestCase {
     }
 
     public void testRejectIfAliasFoundInTemplate() throws Exception {
-        client().admin().indices().preparePutTemplate("logs")
-            .setPatterns(Collections.singletonList("logs-*")).addAlias(new Alias("logs-write")).get();
+        client().admin()
+            .indices()
+            .preparePutTemplate("logs")
+            .setPatterns(Collections.singletonList("logs-*"))
+            .addAlias(new Alias("logs-write"))
+            .get();
         assertAcked(client().admin().indices().prepareCreate("logs-000001").get());
         ensureYellow("logs-write");
-        final IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices().prepareRolloverIndex("logs-write").addMaxIndexSizeCondition(new ByteSizeValue(1)).get());
-        assertThat(error.getMessage(), equalTo(
-            "Rollover alias [logs-write] can point to multiple indices, found duplicated alias [[logs-write]] in index template [logs]"));
+        final IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareRolloverIndex("logs-write").addMaxIndexSizeCondition(new ByteSizeValue(1)).get()
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "Rollover alias [logs-write] can point to multiple indices, found duplicated alias [[logs-write]] in index template [logs]"
+            )
+        );
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64921")
@@ -482,9 +530,7 @@ public class RolloverIT extends OpenSearchIntegTestCase {
 
         assertAcked(client().admin().indices().prepareClose(closedIndex).get());
 
-        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
-            .addMaxIndexDocsCondition(1)
-            .get();
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName).addMaxIndexDocsCondition(1).get();
         assertTrue(rolloverResponse.isRolledOver());
         assertEquals(writeIndexPrefix + "000001", rolloverResponse.getOldIndex());
         assertEquals(writeIndexPrefix + "000002", rolloverResponse.getNewIndex());
@@ -508,9 +554,7 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareClose(writeIndexPrefix + "000001").get());
         ensureGreen(aliasName);
 
-        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
-            .addMaxIndexDocsCondition(1)
-            .get();
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName).addMaxIndexDocsCondition(1).get();
         assertTrue(rolloverResponse.isRolledOver());
         assertEquals(writeIndexPrefix + "000001", rolloverResponse.getOldIndex());
         assertEquals(writeIndexPrefix + "000002", rolloverResponse.getNewIndex());
@@ -544,8 +588,10 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         assertThat(oldIndex.getRolloverInfos().size(), equalTo(1));
         assertThat(oldIndex.getRolloverInfos().get(aliasName).getAlias(), equalTo(aliasName));
         assertThat(oldIndex.getRolloverInfos().get(aliasName).getMetConditions(), is(empty()));
-        assertThat(oldIndex.getRolloverInfos().get(aliasName).getTime(),
-            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
+        assertThat(
+            oldIndex.getRolloverInfos().get(aliasName).getTime(),
+            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L)))
+        );
     }
 
     public void testRolloverWithHiddenAliasesAndImplicitWriteIndex() {
@@ -574,7 +620,9 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         assertThat(oldIndex.getRolloverInfos().size(), equalTo(1));
         assertThat(oldIndex.getRolloverInfos().get(aliasName).getAlias(), equalTo(aliasName));
         assertThat(oldIndex.getRolloverInfos().get(aliasName).getMetConditions(), is(empty()));
-        assertThat(oldIndex.getRolloverInfos().get(aliasName).getTime(),
-            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
+        assertThat(
+            oldIndex.getRolloverInfos().get(aliasName).getTime(),
+            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L)))
+        );
     }
 }

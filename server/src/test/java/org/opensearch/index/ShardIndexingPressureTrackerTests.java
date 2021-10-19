@@ -20,8 +20,7 @@ public class ShardIndexingPressureTrackerTests extends OpenSearchTestCase {
 
     public void testShardIndexingPressureTracker() {
         ShardId shardId = new ShardId("index", "uuid", 0);
-        ShardIndexingPressureTracker shardIndexingPressureTracker = new ShardIndexingPressureTracker(
-            shardId, 100L, 150L);
+        ShardIndexingPressureTracker shardIndexingPressureTracker = new ShardIndexingPressureTracker(shardId, 100L, 150L);
 
         assertEquals(shardId, shardIndexingPressureTracker.getShardId());
         assertEquals(100L, shardIndexingPressureTracker.getPrimaryAndCoordinatingLimits());

@@ -56,16 +56,25 @@ class SimulateExecutionService {
         this.threadPool = threadPool;
     }
 
-    void executeDocument(Pipeline pipeline, IngestDocument ingestDocument, boolean verbose,
-                         BiConsumer<SimulateDocumentResult, Exception> handler) {
+    void executeDocument(
+        Pipeline pipeline,
+        IngestDocument ingestDocument,
+        boolean verbose,
+        BiConsumer<SimulateDocumentResult, Exception> handler
+    ) {
         if (verbose) {
             List<SimulateProcessorResult> processorResultList = new CopyOnWriteArrayList<>();
             CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);
-            Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
-                verbosePipelineProcessor);
-            ingestDocument.executePipeline(verbosePipeline, (result, e) -> {
-                handler.accept(new SimulateDocumentVerboseResult(processorResultList), e);
-            });
+            Pipeline verbosePipeline = new Pipeline(
+                pipeline.getId(),
+                pipeline.getDescription(),
+                pipeline.getVersion(),
+                verbosePipelineProcessor
+            );
+            ingestDocument.executePipeline(
+                verbosePipeline,
+                (result, e) -> { handler.accept(new SimulateDocumentVerboseResult(processorResultList), e); }
+            );
         } else {
             ingestDocument.executePipeline(pipeline, (result, e) -> {
                 if (e == null) {
@@ -80,12 +89,12 @@ class SimulateExecutionService {
     public void execute(SimulatePipelineRequest.Parsed request, ActionListener<SimulatePipelineResponse> listener) {
         threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, l -> {
             final AtomicInteger counter = new AtomicInteger();
-            final List<SimulateDocumentResult> responses =
-                new CopyOnWriteArrayList<>(new SimulateDocumentBaseResult[request.getDocuments().size()]);
+            final List<SimulateDocumentResult> responses = new CopyOnWriteArrayList<>(
+                new SimulateDocumentBaseResult[request.getDocuments().size()]
+            );
 
             if (request.getDocuments().isEmpty()) {
-                l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
-                    request.isVerbose(), responses));
+                l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
                 return;
             }
 
@@ -97,8 +106,7 @@ class SimulateExecutionService {
                         responses.set(index, response);
                     }
                     if (counter.incrementAndGet() == request.getDocuments().size()) {
-                        listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
-                            request.isVerbose(), responses));
+                        listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
                     }
                 });
                 iter++;

@@ -73,10 +73,7 @@ public class PreVoteRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "PreVoteRequest{" +
-            "sourceNode=" + sourceNode +
-            ", currentTerm=" + currentTerm +
-            '}';
+        return "PreVoteRequest{" + "sourceNode=" + sourceNode + ", currentTerm=" + currentTerm + '}';
     }
 
     @Override
@@ -84,8 +81,7 @@ public class PreVoteRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PreVoteRequest that = (PreVoteRequest) o;
-        return currentTerm == that.currentTerm &&
-            Objects.equals(sourceNode, that.sourceNode);
+        return currentTerm == that.currentTerm && Objects.equals(sourceNode, that.sourceNode);
     }
 
     @Override

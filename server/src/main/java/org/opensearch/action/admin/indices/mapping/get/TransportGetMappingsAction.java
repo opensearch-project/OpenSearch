@@ -57,11 +57,23 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     private final IndicesService indicesService;
 
     @Inject
-    public TransportGetMappingsAction(TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
-        super(GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new,
-                indexNameExpressionResolver);
+    public TransportGetMappingsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndicesService indicesService
+    ) {
+        super(
+            GetMappingsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetMappingsRequest::new,
+            indexNameExpressionResolver
+        );
         this.indicesService = indicesService;
     }
 
@@ -71,12 +83,16 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     }
 
     @Override
-    protected void doMasterOperation(final GetMappingsRequest request, String[] concreteIndices, final ClusterState state,
-                                     final ActionListener<GetMappingsResponse> listener) {
+    protected void doMasterOperation(
+        final GetMappingsRequest request,
+        String[] concreteIndices,
+        final ClusterState state,
+        final ActionListener<GetMappingsResponse> listener
+    ) {
         logger.trace("serving getMapping request based on version {}", state.version());
         try {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> result =
-                    state.metadata().findMappings(concreteIndices, request.types(), indicesService.getFieldFilter());
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> result = state.metadata()
+                .findMappings(concreteIndices, request.types(), indicesService.getFieldFilter());
             listener.onResponse(new GetMappingsResponse(result));
         } catch (IOException e) {
             listener.onFailure(e);

@@ -93,7 +93,8 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                     metadata
                 );
             },
-                true);
+            true
+        );
     }
 
     private final InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory = InternalGeoDistance.FACTORY;
@@ -103,11 +104,19 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
     private final GeoDistance distanceType;
     private final boolean keyed;
 
-    public GeoDistanceRangeAggregatorFactory(String name, ValuesSourceConfig config, GeoPoint origin,
-                                             Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed,
-                                             QueryShardContext queryShardContext, AggregatorFactory parent,
-                                             AggregatorFactories.Builder subFactoriesBuilder,
-                                             Map<String, Object> metadata) throws IOException {
+    public GeoDistanceRangeAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        GeoPoint origin,
+        Range[] ranges,
+        DistanceUnit unit,
+        GeoDistance distanceType,
+        boolean keyed,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.origin = origin;
         this.ranges = ranges;
@@ -117,11 +126,18 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new RangeAggregator.Unmapped<>(name, factories, ranges, keyed, config.format(), searchContext, parent,
-            rangeFactory, metadata);
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new RangeAggregator.Unmapped<>(
+            name,
+            factories,
+            ranges,
+            keyed,
+            config.format(),
+            searchContext,
+            parent,
+            rangeFactory,
+            metadata
+        );
     }
 
     @Override
@@ -158,8 +174,12 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
         private final DistanceUnit units;
         private final org.opensearch.common.geo.GeoPoint origin;
 
-        DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType,
-                       org.opensearch.common.geo.GeoPoint origin, DistanceUnit units) {
+        DistanceSource(
+            ValuesSource.GeoPoint source,
+            GeoDistance distanceType,
+            org.opensearch.common.geo.GeoPoint origin,
+            DistanceUnit units
+        ) {
             this.source = source;
             // even if the geo points are unique, there's no guarantee the
             // distances are

@@ -67,8 +67,7 @@ abstract class OutboundMessage extends NetworkMessage {
             variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
         }
 
-        try (CompressibleBytesOutputStream stream =
-                 new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
+        try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
             stream.setVersion(version);
             stream.setFeatures(bytesStream.getFeatures());
 
@@ -119,8 +118,16 @@ abstract class OutboundMessage extends NetworkMessage {
         private final String[] features;
         private final String action;
 
-        Request(ThreadContext threadContext, String[] features, Writeable message, Version version, String action, long requestId,
-                boolean isHandshake, boolean compress) {
+        Request(
+            ThreadContext threadContext,
+            String[] features,
+            Writeable message,
+            Version version,
+            String action,
+            long requestId,
+            boolean isHandshake,
+            boolean compress
+        ) {
             super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
             this.features = features;
             this.action = action;
@@ -153,8 +160,15 @@ abstract class OutboundMessage extends NetworkMessage {
 
         private final Set<String> features;
 
-        Response(ThreadContext threadContext, Set<String> features, Writeable message, Version version, long requestId,
-                 boolean isHandshake, boolean compress) {
+        Response(
+            ThreadContext threadContext,
+            Set<String> features,
+            Writeable message,
+            Version version,
+            long requestId,
+            boolean isHandshake,
+            boolean compress
+        ) {
             super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
             this.features = features;
         }

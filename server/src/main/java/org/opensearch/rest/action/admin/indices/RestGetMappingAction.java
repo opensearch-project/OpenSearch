@@ -77,8 +77,8 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 public class RestGetMappingAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get" +
-        " mapping requests is deprecated. The parameter will be removed in the next major version.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get"
+        + " mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     private final ThreadPool threadPool;
 
@@ -88,16 +88,19 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_mapping"),
-            new Route(GET, "/_mappings"),
-            new Route(GET, "/{index}/{type}/_mapping"),
-            new Route(GET, "/{index}/_mapping"),
-            new Route(GET, "/{index}/_mappings"),
-            new Route(GET, "/{index}/_mappings/{type}"),
-            new Route(GET, "/{index}/_mapping/{type}"),
-            new Route(HEAD, "/{index}/_mapping/{type}"),
-            new Route(GET, "/_mapping/{type}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_mapping"),
+                new Route(GET, "/_mappings"),
+                new Route(GET, "/{index}/{type}/_mapping"),
+                new Route(GET, "/{index}/_mapping"),
+                new Route(GET, "/{index}/_mappings"),
+                new Route(GET, "/{index}/_mappings/{type}"),
+                new Route(GET, "/{index}/_mapping/{type}"),
+                new Route(HEAD, "/{index}/_mapping/{type}"),
+                new Route(GET, "/_mapping/{type}")
+            )
+        );
     }
 
     @Override
@@ -112,11 +115,11 @@ public class RestGetMappingAction extends BaseRestHandler {
         boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         if (request.method().equals(HEAD)) {
-            deprecationLogger.deprecate("get_mapping_types_removal",
-                    "Type exists requests are deprecated, as types have been deprecated.");
+            deprecationLogger.deprecate("get_mapping_types_removal", "Type exists requests are deprecated, as types have been deprecated.");
         } else if (includeTypeName == false && types.length > 0) {
-            throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
-                    " include_type_name is set to true.");
+            throw new IllegalArgumentException(
+                "Types cannot be provided in get mapping requests, unless" + " include_type_name is set to true."
+            );
         }
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
             deprecationLogger.deprecate("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
@@ -135,65 +138,69 @@ public class RestGetMappingAction extends BaseRestHandler {
                 final long startTimeMs = threadPool.relativeTimeInMillis();
                 // Process serialization on GENERIC pool since the serialization of the raw mappings to XContent can be too slow to execute
                 // on an IO thread
-                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(
-                        ActionRunnable.wrap(this, l -> new RestBuilderListener<GetMappingsResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(final GetMappingsResponse response,
-                                                              final XContentBuilder builder) throws Exception {
-                                if (threadPool.relativeTimeInMillis() - startTimeMs > timeout.millis()) {
-                                    throw new OpenSearchTimeoutException("Timed out getting mappings");
-                                }
-                                final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex =
-                                        response.getMappings();
-                                if (mappingsByIndex.isEmpty() && types.length != 0) {
-                                    builder.close();
-                                    return new BytesRestResponse(channel, new TypeMissingException("_all", String.join(",", types)));
-                                }
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                    .execute(ActionRunnable.wrap(this, l -> new RestBuilderListener<GetMappingsResponse>(channel) {
+                        @Override
+                        public RestResponse buildResponse(final GetMappingsResponse response, final XContentBuilder builder)
+                            throws Exception {
+                            if (threadPool.relativeTimeInMillis() - startTimeMs > timeout.millis()) {
+                                throw new OpenSearchTimeoutException("Timed out getting mappings");
+                            }
+                            final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex = response
+                                .getMappings();
+                            if (mappingsByIndex.isEmpty() && types.length != 0) {
+                                builder.close();
+                                return new BytesRestResponse(channel, new TypeMissingException("_all", String.join(",", types)));
+                            }
 
-                                final Set<String> typeNames = new HashSet<>();
-                                for (final ObjectCursor<ImmutableOpenMap<String, MappingMetadata>> cursor : mappingsByIndex.values()) {
-                                    for (final ObjectCursor<String> inner : cursor.value.keys()) {
-                                        typeNames.add(inner.value);
-                                    }
+                            final Set<String> typeNames = new HashSet<>();
+                            for (final ObjectCursor<ImmutableOpenMap<String, MappingMetadata>> cursor : mappingsByIndex.values()) {
+                                for (final ObjectCursor<String> inner : cursor.value.keys()) {
+                                    typeNames.add(inner.value);
                                 }
+                            }
 
-                                final SortedSet<String> difference =
-                                        Sets.sortedDifference(Arrays.stream(types).collect(Collectors.toSet()), typeNames);
+                            final SortedSet<String> difference = Sets.sortedDifference(
+                                Arrays.stream(types).collect(Collectors.toSet()),
+                                typeNames
+                            );
 
-                                // now remove requested aliases that contain wildcards that are simple matches
-                                final List<String> matches = new ArrayList<>();
-                                outer:
-                                for (final String pattern : difference) {
-                                    if (pattern.contains("*")) {
-                                        for (final String typeName : typeNames) {
-                                            if (Regex.simpleMatch(pattern, typeName)) {
-                                                matches.add(pattern);
-                                                continue outer;
-                                            }
+                            // now remove requested aliases that contain wildcards that are simple matches
+                            final List<String> matches = new ArrayList<>();
+                            outer: for (final String pattern : difference) {
+                                if (pattern.contains("*")) {
+                                    for (final String typeName : typeNames) {
+                                        if (Regex.simpleMatch(pattern, typeName)) {
+                                            matches.add(pattern);
+                                            continue outer;
                                         }
                                     }
                                 }
-                                difference.removeAll(matches);
-
-                                final RestStatus status;
-                                builder.startObject();
-                                {
-                                    if (difference.isEmpty()) {
-                                        status = RestStatus.OK;
-                                    } else {
-                                        status = RestStatus.NOT_FOUND;
-                                        final String message = String.format(Locale.ROOT, "type" + (difference.size() == 1 ? "" : "s") +
-                                                " [%s] missing", Strings.collectionToCommaDelimitedString(difference));
-                                        builder.field("error", message);
-                                        builder.field("status", status.getStatus());
-                                    }
-                                    response.toXContent(builder, request);
-                                }
-                                builder.endObject();
-
-                                return new BytesRestResponse(status, builder);
                             }
-                        }.onResponse(getMappingsResponse)));
+                            difference.removeAll(matches);
+
+                            final RestStatus status;
+                            builder.startObject();
+                            {
+                                if (difference.isEmpty()) {
+                                    status = RestStatus.OK;
+                                } else {
+                                    status = RestStatus.NOT_FOUND;
+                                    final String message = String.format(
+                                        Locale.ROOT,
+                                        "type" + (difference.size() == 1 ? "" : "s") + " [%s] missing",
+                                        Strings.collectionToCommaDelimitedString(difference)
+                                    );
+                                    builder.field("error", message);
+                                    builder.field("status", status.getStatus());
+                                }
+                                response.toXContent(builder, request);
+                            }
+                            builder.endObject();
+
+                            return new BytesRestResponse(status, builder);
+                        }
+                    }.onResponse(getMappingsResponse)));
             }
         });
     }

@@ -43,8 +43,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1,
-    transportClientRatio = 0.0D)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, transportClientRatio = 0.0D)
 public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
     public static final String INDEX_NAME = "test_index";
@@ -58,11 +57,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(unboundedWriteQueue)
-            .put(settings)
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(unboundedWriteQueue).put(settings).build();
     }
 
     @Override
@@ -81,9 +76,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testNodeAttributeSetForShardIndexingPressure() throws Exception {
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
 
         ensureGreen(INDEX_NAME);
 
@@ -93,9 +91,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testShardIndexingPressureFeatureEnabledDisabledSetting() {
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
 
         ensureGreen(INDEX_NAME);
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
@@ -122,12 +123,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
         Index index = indexService.getIndexSettings().getIndex();
         ShardId shardId = new ShardId(index, 0);
-        IndexingPressure primaryNodeLimits = internalCluster()
-            .getInstance(IndexingPressureService.class, primaryName).getShardIndexingPressure();
-        IndexingPressure replicaNodeLimits = internalCluster()
-            .getInstance(IndexingPressureService.class, replicaName).getShardIndexingPressure();
-        IndexingPressure coordinatingNodeLimits = internalCluster()
-            .getInstance(IndexingPressureService.class, coordinatingOnlyNode).getShardIndexingPressure();
+        IndexingPressure primaryNodeLimits = internalCluster().getInstance(IndexingPressureService.class, primaryName)
+            .getShardIndexingPressure();
+        IndexingPressure replicaNodeLimits = internalCluster().getInstance(IndexingPressureService.class, replicaName)
+            .getShardIndexingPressure();
+        IndexingPressure coordinatingNodeLimits = internalCluster().getInstance(IndexingPressureService.class, coordinatingOnlyNode)
+            .getShardIndexingPressure();
 
         // Assert no tracking at shard level for indexing pressure since default setting is disabled
         ShardIndexingPressure shardIndexingPressure = internalCluster().getInstance(IndexingPressureService.class, primaryName)
@@ -140,8 +141,9 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // Enable the setting for shard indexing pressure as true
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder()
-            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true));
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
+        );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // Send a second request
@@ -149,15 +151,21 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         successFuture.actionGet();
 
         ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-            .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            .getShardIndexingPressure()
+            .getShardIndexingPressureTracker(shardId);
         ShardIndexingPressureTracker replicaShardTracker = internalCluster().getInstance(IndexingPressureService.class, replicaName)
-            .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-        ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-            coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            .getShardIndexingPressure()
+            .getShardIndexingPressureTracker(shardId);
+        ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+            IndexingPressureService.class,
+            coordinatingOnlyNode
+        ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
         assertTrue(shardIndexingPressure.isShardIndexingPressureEnabled());
-        assertEquals(bulkShardRequestSize, coordinatingShardTracker.getCommonOperationTracker()
-            .getTotalCombinedCoordinatingAndPrimaryBytes());
+        assertEquals(
+            bulkShardRequestSize,
+            coordinatingShardTracker.getCommonOperationTracker().getTotalCombinedCoordinatingAndPrimaryBytes()
+        );
         assertEquals(bulkShardRequestSize, coordinatingShardTracker.getCoordinatingOperationTracker().getStatsTracker().getTotalBytes());
         assertEquals(bulkShardRequestSize, primaryShardTracker.getCommonOperationTracker().getTotalCombinedCoordinatingAndPrimaryBytes());
         assertEquals(bulkShardRequestSize, primaryShardTracker.getPrimaryOperationTracker().getStatsTracker().getTotalBytes());
@@ -169,8 +177,9 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // Disable the setting again for shard indexing pressure as true
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder()
-            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false));
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false)
+        );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // Send a third request which should not be tracked since feature is disabled again
@@ -178,8 +187,10 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         successFuture.actionGet();
 
         assertFalse(shardIndexingPressure.isShardIndexingPressureEnabled());
-        assertEquals(bulkShardRequestSize, coordinatingShardTracker.getCommonOperationTracker().
-            getTotalCombinedCoordinatingAndPrimaryBytes());
+        assertEquals(
+            bulkShardRequestSize,
+            coordinatingShardTracker.getCommonOperationTracker().getTotalCombinedCoordinatingAndPrimaryBytes()
+        );
         assertEquals(bulkShardRequestSize, coordinatingShardTracker.getCoordinatingOperationTracker().getStatsTracker().getTotalBytes());
         assertEquals(bulkShardRequestSize, primaryShardTracker.getCommonOperationTracker().getTotalCombinedCoordinatingAndPrimaryBytes());
         assertEquals(bulkShardRequestSize, primaryShardTracker.getPrimaryOperationTracker().getStatsTracker().getTotalBytes());
@@ -200,16 +211,23 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             assertTrue(request.ramBytesUsed() > request.source().length());
             bulkRequest.add(request);
         }
-        final long  bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
+        final long bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
             + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
         // Set the Node limit threshold above the request-size; for no rejection
-        restartCluster(Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
-            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build());
+        restartCluster(
+            Settings.builder()
+                .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
+                .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B")
+                .build()
+        );
 
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
@@ -222,14 +240,18 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
         Index index = indexService.getIndexSettings().getIndex();
-        ShardId shardId= new ShardId(index, 0);
+        ShardId shardId = new ShardId(index, 0);
 
         ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-            .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            .getShardIndexingPressure()
+            .getShardIndexingPressureTracker(shardId);
         ShardIndexingPressureTracker replicaShardTracker = internalCluster().getInstance(IndexingPressureService.class, replicaName)
-            .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-        ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-            coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            .getShardIndexingPressure()
+            .getShardIndexingPressureTracker(shardId);
+        ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+            IndexingPressureService.class,
+            coordinatingOnlyNode
+        ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
         // Tracking done with no rejections
         assertEquals(0, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
@@ -238,9 +260,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         assertEquals(bulkShardRequestSize, replicaShardTracker.getReplicaOperationTracker().getStatsTracker().getTotalBytes());
 
         // Update the indexing byte setting to a lower value
-        restartCluster(Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
-            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(),
-                (long) (bulkShardRequestSize * 0.5) + "B").build());
+        restartCluster(
+            Settings.builder()
+                .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
+                .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 0.5) + "B")
+                .build()
+        );
 
         // Any node receiving the request will end up rejecting request due to node level limit breached
         expectThrows(OpenSearchRejectedExecutionException.class, () -> {
@@ -264,7 +289,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             assertTrue(request.ramBytesUsed() > request.source().length());
             bulkRequest.add(request);
         }
-        final long  bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
+        final long bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
             + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
         Settings settings = Settings.builder()
@@ -276,9 +301,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             .build();
         restartCluster(settings);
 
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
@@ -287,10 +315,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
         Index index = indexService.getIndexSettings().getIndex();
-        ShardId shardId= new ShardId(index, 0);
+        ShardId shardId = new ShardId(index, 0);
 
-        ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-            coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+        ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+            IndexingPressureService.class,
+            coordinatingOnlyNode
+        ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
         // Send first request which gets successful to set the last successful time-stamp
         ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
@@ -306,18 +336,23 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         // This request breaches the threshold and hence will be rejected
         expectThrows(OpenSearchRejectedExecutionException.class, () -> client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
         assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
-        assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker()
-            .getLastSuccessfulRequestLimitsBreachedRejections());
+        assertEquals(
+            1,
+            coordinatingShardTracker.getCoordinatingOperationTracker()
+                .getRejectionTracker()
+                .getLastSuccessfulRequestLimitsBreachedRejections()
+        );
 
-        //Complete the outstanding requests
+        // Complete the outstanding requests
         primaryReleasable.close();
         successFuture.actionGet();
         secondSuccessFuture.actionGet();
 
         // Disable the enforced mode by setting it to false
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder()
-            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), false));
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), false)
+        );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // Repeat the previous set of request patterns; but no actual rejection this time
@@ -339,8 +374,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         // No new actual rejection
         assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
         // Shadow mode rejection count breakup still updated
-        assertEquals(2, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker()
-            .getLastSuccessfulRequestLimitsBreachedRejections());
+        assertEquals(
+            2,
+            coordinatingShardTracker.getCoordinatingOperationTracker()
+                .getRejectionTracker()
+                .getLastSuccessfulRequestLimitsBreachedRejections()
+        );
 
         primaryReleasable.close();
         successFuture.actionGet();
@@ -349,8 +388,9 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // Enable the enforced mode again by setting it to true
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder()
-            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true));
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
+        );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // Repeat the previous set of requests; to get an actual rejection again this time
@@ -368,8 +408,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // new rejection added to the actual rejection count
         assertEquals(2, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
-        assertEquals(3, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker()
-            .getLastSuccessfulRequestLimitsBreachedRejections());
+        assertEquals(
+            3,
+            coordinatingShardTracker.getCoordinatingOperationTracker()
+                .getRejectionTracker()
+                .getLastSuccessfulRequestLimitsBreachedRejections()
+        );
 
         primaryReleasable.close();
         successFuture.actionGet();
@@ -393,9 +437,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             .build();
         restartCluster(settings);
 
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
@@ -404,7 +451,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
         Index index = indexService.getIndexSettings().getIndex();
-        ShardId shardId= new ShardId(index, 0);
+        ShardId shardId = new ShardId(index, 0);
 
         // Send first request
         ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
@@ -430,12 +477,19 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // Set the Node limit threshold above the request-size; for no rejection
         long initialNodeLimit = 1000000;
-        restartCluster(Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
-            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) initialNodeLimit + "B").build());
+        restartCluster(
+            Settings.builder()
+                .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
+                .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) initialNodeLimit + "B")
+                .build()
+        );
 
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
@@ -448,14 +502,18 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
         Index index = indexService.getIndexSettings().getIndex();
-        ShardId shardId= new ShardId(index, 0);
+        ShardId shardId = new ShardId(index, 0);
 
         ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-            .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            .getShardIndexingPressure()
+            .getShardIndexingPressureTracker(shardId);
         ShardIndexingPressureTracker replicaShardTracker = internalCluster().getInstance(IndexingPressureService.class, replicaName)
-            .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-        ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-            coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            .getShardIndexingPressure()
+            .getShardIndexingPressureTracker(shardId);
+        ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+            IndexingPressureService.class,
+            coordinatingOnlyNode
+        ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
         // Verify initial shard limits
         assertEquals(1000, coordinatingShardTracker.getPrimaryAndCoordinatingLimits());
@@ -466,14 +524,18 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         double incrementFactor = 0.01d;
         // Update the setting for initial shard limit
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder()
-            .put(ShardIndexingPressureSettings.SHARD_MIN_LIMIT.getKey(), incrementFactor));
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(ShardIndexingPressureSettings.SHARD_MIN_LIMIT.getKey(), incrementFactor)
+        );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // Create a new index to send new request
-        assertAcked(prepareCreate(INDEX_NAME + "new", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME + "new",
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME + "new");
 
         primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME + "new");
@@ -486,14 +548,17 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
         index = indexService.getIndexSettings().getIndex();
-        shardId= new ShardId(index, 0);
+        shardId = new ShardId(index, 0);
 
         primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-            .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            .getShardIndexingPressure()
+            .getShardIndexingPressureTracker(shardId);
         replicaShardTracker = internalCluster().getInstance(IndexingPressureService.class, replicaName)
-            .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            .getShardIndexingPressure()
+            .getShardIndexingPressureTracker(shardId);
         coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class, coordinatingOnlyNode)
-            .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            .getShardIndexingPressure()
+            .getShardIndexingPressureTracker(shardId);
 
         // Verify updated initial shard limits
         assertEquals(10000, coordinatingShardTracker.getPrimaryAndCoordinatingLimits());
@@ -511,7 +576,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             assertTrue(request.ramBytesUsed() > request.source().length());
             bulkRequest.add(request);
         }
-        final long  bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
+        final long bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
             + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
         boolean randomBoolean = randomBoolean();
@@ -525,9 +590,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             .build();
         restartCluster(settings);
 
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
@@ -536,7 +604,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
         Index index = indexService.getIndexSettings().getIndex();
-        ShardId shardId= new ShardId(index, 0);
+        ShardId shardId = new ShardId(index, 0);
 
         // Send first request which gets successful to set the last successful time-stamp
         if (randomBoolean) {
@@ -564,19 +632,30 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // This request breaches the threshold and hence will be rejected
         if (randomBoolean) {
-            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-                coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+                IndexingPressureService.class,
+                coordinatingOnlyNode
+            ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
             expectThrows(OpenSearchRejectedExecutionException.class, () -> client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
             assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
-            assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker()
-                .getLastSuccessfulRequestLimitsBreachedRejections());
+            assertEquals(
+                1,
+                coordinatingShardTracker.getCoordinatingOperationTracker()
+                    .getRejectionTracker()
+                    .getLastSuccessfulRequestLimitsBreachedRejections()
+            );
         } else {
             ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
             expectThrows(OpenSearchRejectedExecutionException.class, () -> client(primaryName).bulk(bulkRequest).actionGet());
             assertEquals(1, primaryShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
-            assertEquals(1, primaryShardTracker.getCoordinatingOperationTracker().getRejectionTracker()
-                .getLastSuccessfulRequestLimitsBreachedRejections());
+            assertEquals(
+                1,
+                primaryShardTracker.getCoordinatingOperationTracker()
+                    .getRejectionTracker()
+                    .getLastSuccessfulRequestLimitsBreachedRejections()
+            );
         }
 
         primaryReleasable.close();
@@ -585,8 +664,9 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // Update the outstanding threshold setting to see no rejections
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder()
-            .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 10));
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 10)
+        );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // Verify no rejection with similar request pattern
@@ -601,19 +681,30 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         Thread.sleep(25);
         ActionFuture<BulkResponse> thirdSuccessFuture;
         if (randomBoolean) {
-            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-                coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+                IndexingPressureService.class,
+                coordinatingOnlyNode
+            ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
             thirdSuccessFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
             assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
-            assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker()
-                .getLastSuccessfulRequestLimitsBreachedRejections());
+            assertEquals(
+                1,
+                coordinatingShardTracker.getCoordinatingOperationTracker()
+                    .getRejectionTracker()
+                    .getLastSuccessfulRequestLimitsBreachedRejections()
+            );
         } else {
             ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
             thirdSuccessFuture = client(primaryName).bulk(bulkRequest);
             assertEquals(1, primaryShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
-            assertEquals(1, primaryShardTracker.getCoordinatingOperationTracker().getRejectionTracker()
-                .getLastSuccessfulRequestLimitsBreachedRejections());
+            assertEquals(
+                1,
+                primaryShardTracker.getCoordinatingOperationTracker()
+                    .getRejectionTracker()
+                    .getLastSuccessfulRequestLimitsBreachedRejections()
+            );
         }
 
         primaryReleasable.close();
@@ -632,7 +723,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             assertTrue(request.ramBytesUsed() > request.source().length());
             bulkRequest.add(request);
         }
-        final long  bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
+        final long bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
             + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
         Settings settings = Settings.builder()
@@ -644,9 +735,12 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             .build();
         restartCluster(settings);
 
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
@@ -656,7 +750,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
         Index index = indexService.getIndexSettings().getIndex();
-        ShardId shardId= new ShardId(index, 0);
+        ShardId shardId = new ShardId(index, 0);
 
         boolean randomBoolean = randomBoolean();
 
@@ -712,8 +806,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
         // Update the outstanding threshold setting to see no rejections
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder()
-            .put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 10));
+        updateSettingsRequest.persistentSettings(Settings.builder().put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 10));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // Verify no rejection with similar request pattern
@@ -725,11 +818,17 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             successFuture.actionGet();
             client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
 
-            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-                coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+                IndexingPressureService.class,
+                coordinatingOnlyNode
+            ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
             assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
-            assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker()
-                .getThroughputDegradationLimitsBreachedRejections());
+            assertEquals(
+                1,
+                coordinatingShardTracker.getCoordinatingOperationTracker()
+                    .getRejectionTracker()
+                    .getThroughputDegradationLimitsBreachedRejections()
+            );
         } else {
             successFuture = client(primaryName).bulk(bulkRequest);
             successFuture.actionGet();
@@ -738,10 +837,15 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             successFuture.actionGet();
             client(primaryName).bulk(bulkRequest).actionGet();
             ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
             assertEquals(1, primaryShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
-            assertEquals(1, primaryShardTracker.getCoordinatingOperationTracker().getRejectionTracker()
-                .getThroughputDegradationLimitsBreachedRejections());
+            assertEquals(
+                1,
+                primaryShardTracker.getCoordinatingOperationTracker()
+                    .getRejectionTracker()
+                    .getThroughputDegradationLimitsBreachedRejections()
+            );
         }
     }
 
@@ -749,7 +853,7 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         final CountDownLatch blockReplication = new CountDownLatch(1);
         final int threads = threadPool.info(ThreadPool.Names.WRITE).getMax();
         final CountDownLatch pointReached = new CountDownLatch(threads);
-        for (int i = 0; i< threads; ++i) {
+        for (int i = 0; i < threads; ++i) {
             threadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
                 try {
                     pointReached.countDown();
@@ -812,8 +916,8 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
     }
 
     private String getCoordinatingOnlyNode() {
-        return client().admin().cluster().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().iterator().next()
-            .value.getName();
+        return client().admin().cluster().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().iterator().next().value
+            .getName();
     }
 
     private void restartCluster(Settings settings) throws Exception {

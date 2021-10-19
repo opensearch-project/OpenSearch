@@ -67,7 +67,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
     private Map<String, ProfileShardResult> shardResults;
 
     public SearchProfileShardResults(Map<String, ProfileShardResult> shardResults) {
-        this.shardResults =  Collections.unmodifiableMap(shardResults);
+        this.shardResults = Collections.unmodifiableMap(shardResults);
     }
 
     public SearchProfileShardResults(StreamInput in) throws IOException {
@@ -137,8 +137,8 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         return new SearchProfileShardResults(searchProfileResults);
     }
 
-    private static void parseSearchProfileResultsEntry(XContentParser parser,
-            Map<String, ProfileShardResult> searchProfileResults) throws IOException {
+    private static void parseSearchProfileResultsEntry(XContentParser parser, Map<String, ProfileShardResult> searchProfileResults)
+        throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
@@ -185,8 +185,11 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         AggregationProfiler aggProfiler = profilers.getAggregationProfiler();
         List<QueryProfileShardResult> queryResults = new ArrayList<>(queryProfilers.size());
         for (QueryProfiler queryProfiler : queryProfilers) {
-            QueryProfileShardResult result = new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(),
-                    queryProfiler.getCollector());
+            QueryProfileShardResult result = new QueryProfileShardResult(
+                queryProfiler.getTree(),
+                queryProfiler.getRewriteTime(),
+                queryProfiler.getCollector()
+            );
             queryResults.add(result);
         }
         AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());

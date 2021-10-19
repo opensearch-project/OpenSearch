@@ -35,15 +35,18 @@ package org.opensearch.action.admin.indices.cache.clear;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractBroadcastResponseTestCase;
-import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 
 import java.util.List;
 
 public class ClearIndicesCacheResponseTests extends AbstractBroadcastResponseTestCase<ClearIndicesCacheResponse> {
 
     @Override
-    protected ClearIndicesCacheResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                                           List<DefaultShardOperationFailedException> failures) {
+    protected ClearIndicesCacheResponse createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    ) {
         return new ClearIndicesCacheResponse(totalShards, successfulShards, failedShards, failures);
     }
 

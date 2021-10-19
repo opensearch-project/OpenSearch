@@ -60,32 +60,45 @@ public final class TextParams {
         public final IndexAnalyzers indexAnalyzers;
 
         public Analyzers(IndexAnalyzers indexAnalyzers) {
-            this.indexAnalyzer = Parameter.analyzerParam("analyzer", false,
-                m -> m.fieldType().indexAnalyzer(), indexAnalyzers::getDefaultIndexAnalyzer)
-                .setSerializerCheck((id, ic, a) -> id || ic ||
-                    Objects.equals(a, getSearchAnalyzer()) == false || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
+            this.indexAnalyzer = Parameter.analyzerParam(
+                "analyzer",
+                false,
+                m -> m.fieldType().indexAnalyzer(),
+                indexAnalyzers::getDefaultIndexAnalyzer
+            )
+                .setSerializerCheck(
+                    (id, ic, a) -> id
+                        || ic
+                        || Objects.equals(a, getSearchAnalyzer()) == false
+                        || Objects.equals(a, getSearchQuoteAnalyzer()) == false
+                )
                 .setValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
-            this.searchAnalyzer
-                = Parameter.analyzerParam("search_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), () -> {
+            this.searchAnalyzer = Parameter.analyzerParam(
+                "search_analyzer",
+                true,
+                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(),
+                () -> {
                     NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
                     if (defaultAnalyzer != null) {
                         return defaultAnalyzer;
                     }
                     return indexAnalyzer.get();
-                })
+                }
+            )
                 .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
                 .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
-            this.searchQuoteAnalyzer
-                = Parameter.analyzerParam("search_quote_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), () -> {
+            this.searchQuoteAnalyzer = Parameter.analyzerParam(
+                "search_quote_analyzer",
+                true,
+                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(),
+                () -> {
                     NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
                     if (defaultAnalyzer != null) {
                         return defaultAnalyzer;
                     }
                     return searchAnalyzer.get();
-                })
-                .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
+                }
+            ).setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
 
             this.indexAnalyzers = indexAnalyzers;
         }
@@ -104,27 +117,37 @@ public final class TextParams {
     }
 
     public static Parameter<Boolean> norms(boolean defaultValue, Function<FieldMapper, Boolean> initializer) {
-        return Parameter.boolParam("norms", true, initializer, defaultValue)
-            .setMergeValidator((o, n) -> o == n || (o && n == false));  // norms can be updated from 'true' to 'false' but not vv
+        return Parameter.boolParam("norms", true, initializer, defaultValue).setMergeValidator((o, n) -> o == n || (o && n == false));  // norms
+                                                                                                                                        // can
+                                                                                                                                        // be
+                                                                                                                                        // updated
+                                                                                                                                        // from
+                                                                                                                                        // 'true'
+                                                                                                                                        // to
+                                                                                                                                        // 'false'
+                                                                                                                                        // but
+                                                                                                                                        // not
+                                                                                                                                        // vv
     }
 
     public static Parameter<SimilarityProvider> similarity(Function<FieldMapper, SimilarityProvider> init) {
-        return new Parameter<>("similarity", false, () -> null,
-            (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o), init)
-            .setSerializer((b, f, v) -> b.field(f, v == null ? null : v.name()), v -> v == null ? null : v.name())
-            .acceptsNull();
+        return new Parameter<>("similarity", false, () -> null, (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o), init).setSerializer(
+            (b, f, v) -> b.field(f, v == null ? null : v.name()),
+            v -> v == null ? null : v.name()
+        ).acceptsNull();
     }
 
     public static Parameter<String> indexOptions(Function<FieldMapper, String> initializer) {
-        return Parameter.restrictedStringParam("index_options", false, initializer,
-            "positions", "docs", "freqs", "offsets");
+        return Parameter.restrictedStringParam("index_options", false, initializer, "positions", "docs", "freqs", "offsets");
     }
 
-    public static FieldType buildFieldType(Supplier<Boolean> indexed,
-                                           Supplier<Boolean> stored,
-                                           Supplier<String> indexOptions,
-                                           Supplier<Boolean> norms,
-                                           Supplier<String> termVectors) {
+    public static FieldType buildFieldType(
+        Supplier<Boolean> indexed,
+        Supplier<Boolean> stored,
+        Supplier<String> indexOptions,
+        Supplier<Boolean> norms,
+        Supplier<String> termVectors
+    ) {
         FieldType ft = new FieldType();
         ft.setStored(stored.get());
         ft.setTokenized(true);
@@ -152,14 +175,18 @@ public final class TextParams {
     }
 
     public static Parameter<String> termVectors(Function<FieldMapper, String> initializer) {
-        return Parameter.restrictedStringParam("term_vector", false, initializer,
+        return Parameter.restrictedStringParam(
+            "term_vector",
+            false,
+            initializer,
             "no",
             "yes",
             "with_positions",
             "with_offsets",
             "with_positions_offsets",
             "with_positions_payloads",
-            "with_positions_offsets_payloads");
+            "with_positions_offsets_payloads"
+        );
     }
 
     public static void setTermVectorParams(String configuration, FieldType fieldType) {

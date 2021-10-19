@@ -19,7 +19,8 @@ import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class ShardIndexingPressureTests extends OpenSearchTestCase {
-    private final Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
+    private final Settings settings = Settings.builder()
+        .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
         .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
         .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 1)
         .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
@@ -34,12 +35,14 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
-        try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 10, false);
-             Releasable coordinating2 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 50, false);
-             Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 15, true);
-             Releasable primary2 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 5, false);
-             Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 25, true);
-             Releasable replica2 = shardIndexingPressure.markReplicaOperationStarted(shardId, 10, false)) {
+        try (
+            Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 10, false);
+            Releasable coordinating2 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 50, false);
+            Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 15, true);
+            Releasable primary2 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 5, false);
+            Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 25, true);
+            Releasable replica2 = shardIndexingPressure.markReplicaOperationStarted(shardId, 10, false)
+        ) {
             IndexingPressureStats nodeStats = shardIndexingPressure.stats();
             assertEquals(60, nodeStats.getCurrentCoordinatingBytes());
             assertEquals(20, nodeStats.getCurrentPrimaryBytes());
@@ -81,8 +84,10 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
-        try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 10, false);
-             Releasable primary = shardIndexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(shardId, 15)) {
+        try (
+            Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 10, false);
+            Releasable primary = shardIndexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(shardId, 15)
+        ) {
             IndexingPressureStats nodeStats = shardIndexingPressure.stats();
             assertEquals(10, nodeStats.getCurrentCoordinatingBytes());
             assertEquals(15, nodeStats.getCurrentPrimaryBytes());
@@ -117,12 +122,16 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
-        try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1024 * 3, false);
-             Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1024 * 3, false);
-             Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 1024 * 3, false)) {
+        try (
+            Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1024 * 3, false);
+            Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1024 * 3, false);
+            Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 1024 * 3, false)
+        ) {
             if (randomBoolean()) {
-                expectThrows(OpenSearchRejectedExecutionException.class, () -> shardIndexingPressure
-                    .markCoordinatingOperationStarted(shardId, 1024 * 2, false));
+                expectThrows(
+                    OpenSearchRejectedExecutionException.class,
+                    () -> shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1024 * 2, false)
+                );
                 IndexingPressureStats nodeStats = shardIndexingPressure.stats();
                 assertEquals(1, nodeStats.getCoordinatingRejections());
                 assertEquals(1024 * 6, nodeStats.getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -132,32 +141,40 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
                 assertEquals(1024 * 6, shardStats.getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(1, shardStats.getCoordinatingNodeLimitsBreachedRejections());
             } else {
-                expectThrows(OpenSearchRejectedExecutionException.class, () -> shardIndexingPressure
-                    .markPrimaryOperationStarted(shardId, 1024 * 2, false));
+                expectThrows(
+                    OpenSearchRejectedExecutionException.class,
+                    () -> shardIndexingPressure.markPrimaryOperationStarted(shardId, 1024 * 2, false)
+                );
                 IndexingPressureStats nodeStats = shardIndexingPressure.stats();
                 assertEquals(1, nodeStats.getPrimaryRejections());
                 assertEquals(1024 * 6, nodeStats.getCurrentCombinedCoordinatingAndPrimaryBytes());
 
-                IndexingPressurePerShardStats shardStats = shardIndexingPressure.shardStats()
-                    .getIndexingPressureShardStats(shardId);
+                IndexingPressurePerShardStats shardStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId);
                 assertEquals(1, shardStats.getPrimaryRejections());
                 assertEquals(1024 * 6, nodeStats.getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(1, shardStats.getPrimaryNodeLimitsBreachedRejections());
             }
             long preForceRejections = shardIndexingPressure.stats().getPrimaryRejections();
-            long preForcedShardRejections = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
+            long preForcedShardRejections = shardIndexingPressure.shardStats()
+                .getIndexingPressureShardStats(shardId)
                 .getPrimaryRejections();
             // Primary can be forced
             Releasable forced = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1024 * 2, true);
             assertEquals(preForceRejections, shardIndexingPressure.stats().getPrimaryRejections());
             assertEquals(1024 * 8, shardIndexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
 
-            assertEquals(preForcedShardRejections, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getPrimaryRejections());
-            assertEquals(1024 * 8, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(preForcedShardRejections, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getPrimaryNodeLimitsBreachedRejections());
+            assertEquals(
+                preForcedShardRejections,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getPrimaryRejections()
+            );
+            assertEquals(
+                1024 * 8,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                preForcedShardRejections,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getPrimaryNodeLimitsBreachedRejections()
+            );
             forced.close();
 
             // Local to coordinating node primary actions not rejected
@@ -168,37 +185,51 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
             assertEquals(1024 * 6, shardIndexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(preLocalNodeStats.getCurrentPrimaryBytes() + 1024 * 2, shardIndexingPressure.stats().getCurrentPrimaryBytes());
 
-            assertEquals(preLocalShardStats.getPrimaryRejections(), shardIndexingPressure.shardStats()
-                .getIndexingPressureShardStats(shardId).getPrimaryRejections());
-            assertEquals(1024 * 6, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(preLocalShardStats.getCurrentPrimaryBytes() + 1024 * 2, shardIndexingPressure.shardStats()
-                .getIndexingPressureShardStats(shardId).getCurrentPrimaryBytes());
-            assertEquals(preLocalShardStats.getPrimaryNodeLimitsBreachedRejections(), shardIndexingPressure.shardStats()
-                .getIndexingPressureShardStats(shardId).getPrimaryNodeLimitsBreachedRejections());
+            assertEquals(
+                preLocalShardStats.getPrimaryRejections(),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getPrimaryRejections()
+            );
+            assertEquals(
+                1024 * 6,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                preLocalShardStats.getCurrentPrimaryBytes() + 1024 * 2,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryBytes()
+            );
+            assertEquals(
+                preLocalShardStats.getPrimaryNodeLimitsBreachedRejections(),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getPrimaryNodeLimitsBreachedRejections()
+            );
             local.close();
         }
 
         assertEquals(1024 * 8, shardIndexingPressure.stats().getTotalCombinedCoordinatingAndPrimaryBytes());
         assertNull(shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId));
-        assertEquals(1024 * 8, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId)
-            .getTotalCombinedCoordinatingAndPrimaryBytes());
+        assertEquals(
+            1024 * 8,
+            shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId).getTotalCombinedCoordinatingAndPrimaryBytes()
+        );
     }
 
     public void testReplicaRejections() {
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
-        try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1024 * 3, false);
-             Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1024 * 3, false);
-             Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 1024 * 3, false)) {
+        try (
+            Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1024 * 3, false);
+            Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1024 * 3, false);
+            Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 1024 * 3, false)
+        ) {
             // Replica will not be rejected until replica bytes > 15KB
             Releasable replica2 = shardIndexingPressure.markReplicaOperationStarted(shardId, 1024 * 9, false);
             assertEquals(1024 * 12, shardIndexingPressure.stats().getCurrentReplicaBytes());
             assertEquals(1024 * 12, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaBytes());
             // Replica will be rejected once we cross 15KB Shard Limit
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> shardIndexingPressure
-                .markReplicaOperationStarted(shardId, 1024 * 2, false));
+            expectThrows(
+                OpenSearchRejectedExecutionException.class,
+                () -> shardIndexingPressure.markReplicaOperationStarted(shardId, 1024 * 2, false)
+            );
             IndexingPressureStats nodeStats = shardIndexingPressure.stats();
             assertEquals(1, nodeStats.getReplicaRejections());
             assertEquals(1024 * 12, nodeStats.getCurrentReplicaBytes());
@@ -231,28 +262,46 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
-        try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 2, false);
-             Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 2, false)) {
+        try (
+            Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 2, false);
+            Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 2, false)
+        ) {
             assertEquals(2, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCoordinatingBytes());
-            assertEquals(4, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(10, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentPrimaryAndCoordinatingLimits()); // Base Limit
+            assertEquals(
+                4,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                10,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryAndCoordinatingLimits()
+            ); // Base Limit
             if (randomBoolean) {
                 Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 6, false);
                 assertEquals(8, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCoordinatingBytes());
-                assertEquals(10, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                    .getCurrentCombinedCoordinatingAndPrimaryBytes());
-                assertEquals(11, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                    .getCurrentPrimaryAndCoordinatingLimits()); // Increased Limit
+                assertEquals(
+                    10,
+                    shardIndexingPressure.shardStats()
+                        .getIndexingPressureShardStats(shardId)
+                        .getCurrentCombinedCoordinatingAndPrimaryBytes()
+                );
+                assertEquals(
+                    11,
+                    shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryAndCoordinatingLimits()
+                ); // Increased Limit
                 coordinating1.close();
             } else {
                 Releasable primary1 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 6, false);
                 assertEquals(8, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryBytes());
-                assertEquals(10, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                    .getCurrentCombinedCoordinatingAndPrimaryBytes());
-                assertEquals(11, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                    .getCurrentPrimaryAndCoordinatingLimits()); // Increased Limit
+                assertEquals(
+                    10,
+                    shardIndexingPressure.shardStats()
+                        .getIndexingPressureShardStats(shardId)
+                        .getCurrentCombinedCoordinatingAndPrimaryBytes()
+                );
+                assertEquals(
+                    11,
+                    shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryAndCoordinatingLimits()
+                ); // Increased Limit
                 primary1.close();
             }
         }
@@ -261,7 +310,7 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         assertNull(shardStoreStats);
 
         IndexingPressurePerShardStats shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
-        if(randomBoolean){
+        if (randomBoolean) {
             assertEquals(0, shardStats.getCurrentCoordinatingBytes());
             assertEquals(8, shardStats.getTotalCoordinatingBytes());
         } else {
@@ -279,13 +328,13 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId(index, 0);
         try (Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 2, false)) {
             assertEquals(2, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaBytes());
-            assertEquals(15, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentReplicaLimits()); // Base Limit
+            assertEquals(15, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaLimits()); // Base
+                                                                                                                                   // Limit
 
             Releasable replica1 = shardIndexingPressure.markReplicaOperationStarted(shardId, 14, false);
             assertEquals(16, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaBytes());
-            assertEquals(18, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentReplicaLimits()); // Increased Limit
+            assertEquals(18, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaLimits()); // Increased
+                                                                                                                                   // Limit
             replica1.close();
         }
 
@@ -302,16 +351,20 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
-        try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 4 * 1024, false);
-             Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 4 * 1024, false)) {
-            assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentCoordinatingBytes());
-            assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentPrimaryBytes());
-            assertEquals(8 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals((long)(8*1024/0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentPrimaryAndCoordinatingLimits());
+        try (
+            Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 4 * 1024, false);
+            Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 4 * 1024, false)
+        ) {
+            assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCoordinatingBytes());
+            assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryBytes());
+            assertEquals(
+                8 * 1024,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                (long) (8 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryAndCoordinatingLimits()
+            );
         }
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId);
@@ -333,8 +386,10 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId(index, 0);
         try (Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 11 * 1024, false)) {
             assertEquals(11 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaBytes());
-            assertEquals((long)(11 * 1024/0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentReplicaLimits());
+            assertEquals(
+                (long) (11 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaLimits()
+            );
         }
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId);
@@ -347,7 +402,8 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testCoordinatingPrimaryShardRejectionViaSuccessfulRequestsParam() throws InterruptedException {
-        Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
+        Settings settings = Settings.builder()
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 1)
             .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
@@ -357,14 +413,20 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
-        try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false);
-             Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false)) {
+        try (
+            Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false);
+            Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false)
+        ) {
             assertEquals(1 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCoordinatingBytes());
             assertEquals(1 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryBytes());
-            assertEquals(2 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals((long)(2*1024/0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentPrimaryAndCoordinatingLimits());
+            assertEquals(
+                2 * 1024,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                (long) (2 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryAndCoordinatingLimits()
+            );
         }
 
         IndexingPressurePerShardStats shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
@@ -377,23 +439,31 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         assertEquals(10, shardStats.getCurrentPrimaryAndCoordinatingLimits());
 
         Thread.sleep(25);
-        //Total Bytes are 9*1024 and node limit is 10*1024
-        if(randomBoolean) {
-            try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 7 * 1024, false);
-                 Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false)) {
-                expectThrows(OpenSearchRejectedExecutionException.class, () -> shardIndexingPressure
-                    .markCoordinatingOperationStarted(shardId, 1 * 1024, false));
+        // Total Bytes are 9*1024 and node limit is 10*1024
+        if (randomBoolean) {
+            try (
+                Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 7 * 1024, false);
+                Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false)
+            ) {
+                expectThrows(
+                    OpenSearchRejectedExecutionException.class,
+                    () -> shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false)
+                );
             }
         } else {
-            try (Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 7 * 1024, false);
-                 Releasable primary1 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false)) {
-                expectThrows(OpenSearchRejectedExecutionException.class, () -> shardIndexingPressure
-                    .markPrimaryOperationStarted(shardId, 1 * 1024, false));
+            try (
+                Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 7 * 1024, false);
+                Releasable primary1 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false)
+            ) {
+                expectThrows(
+                    OpenSearchRejectedExecutionException.class,
+                    () -> shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false)
+                );
             }
         }
 
         shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
-        if(randomBoolean) {
+        if (randomBoolean) {
             assertEquals(1, shardStats.getCoordinatingRejections());
             assertEquals(0, shardStats.getCurrentCoordinatingBytes());
             assertEquals(1, shardStats.getCoordinatingLastSuccessfulRequestLimitsBreachedRejections());
@@ -403,7 +473,7 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
             assertEquals(1, shardStats.getPrimaryLastSuccessfulRequestLimitsBreachedRejections());
         }
         IndexingPressureStats nodeStats = shardIndexingPressure.stats();
-        if(randomBoolean) {
+        if (randomBoolean) {
             assertEquals(1, nodeStats.getCoordinatingRejections());
             assertEquals(0, nodeStats.getCurrentCoordinatingBytes());
         } else {
@@ -413,7 +483,8 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testReplicaShardRejectionViaSuccessfulRequestsParam() throws InterruptedException {
-        Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
+        Settings settings = Settings.builder()
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 1)
             .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
@@ -424,8 +495,10 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId(index, 0);
         try (Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 1 * 1024, false)) {
             assertEquals(1 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaBytes());
-            assertEquals((long)(1*1024/0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentReplicaLimits());
+            assertEquals(
+                (long) (1 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaLimits()
+            );
         }
 
         IndexingPressurePerShardStats shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
@@ -434,11 +507,15 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         assertEquals(15, shardStats.getCurrentReplicaLimits());
 
         Thread.sleep(25);
-        //Total Bytes are 14*1024 and node limit is 15*1024
-        try (Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 10 * 1024, false);
-             Releasable replica1 = shardIndexingPressure.markReplicaOperationStarted(shardId, 2 * 1024, false)) {
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> shardIndexingPressure
-                .markReplicaOperationStarted(shardId, 2 * 1024, false));
+        // Total Bytes are 14*1024 and node limit is 15*1024
+        try (
+            Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 10 * 1024, false);
+            Releasable replica1 = shardIndexingPressure.markReplicaOperationStarted(shardId, 2 * 1024, false)
+        ) {
+            expectThrows(
+                OpenSearchRejectedExecutionException.class,
+                () -> shardIndexingPressure.markReplicaOperationStarted(shardId, 2 * 1024, false)
+            );
         }
 
         shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
@@ -452,7 +529,8 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testCoordinatingPrimaryShardRejectionSkippedInShadowModeViaSuccessfulRequestsParam() throws InterruptedException {
-        Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
+        Settings settings = Settings.builder()
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 1)
             .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
@@ -462,14 +540,20 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
-        try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false);
-             Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false)) {
+        try (
+            Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false);
+            Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false)
+        ) {
             assertEquals(1 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCoordinatingBytes());
             assertEquals(1 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryBytes());
-            assertEquals(2 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals((long)(2*1024/0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentPrimaryAndCoordinatingLimits());
+            assertEquals(
+                2 * 1024,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                (long) (2 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryAndCoordinatingLimits()
+            );
         }
 
         IndexingPressurePerShardStats shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
@@ -482,23 +566,27 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         assertEquals(10, shardStats.getCurrentPrimaryAndCoordinatingLimits());
 
         Thread.sleep(25);
-        //Total Bytes are 9*1024 and node limit is 10*1024
-        if(randomBoolean) {
-            try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 7 * 1024, false);
-                 Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false)) {
+        // Total Bytes are 9*1024 and node limit is 10*1024
+        if (randomBoolean) {
+            try (
+                Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 7 * 1024, false);
+                Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false)
+            ) {
                 Releasable coordinating2 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false);
                 coordinating2.close();
             }
         } else {
-            try (Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 7 * 1024, false);
-                 Releasable primary1 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false)) {
+            try (
+                Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 7 * 1024, false);
+                Releasable primary1 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false)
+            ) {
                 Releasable primary2 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false);
                 primary2.close();
             }
         }
 
         shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
-        if(randomBoolean) {
+        if (randomBoolean) {
             assertEquals(0, shardStats.getCoordinatingRejections());
             assertEquals(0, shardStats.getCurrentCoordinatingBytes());
             assertEquals(1, shardStats.getCoordinatingLastSuccessfulRequestLimitsBreachedRejections());
@@ -508,7 +596,7 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
             assertEquals(1, shardStats.getPrimaryLastSuccessfulRequestLimitsBreachedRejections());
         }
         IndexingPressureStats nodeStats = shardIndexingPressure.stats();
-        if(randomBoolean) {
+        if (randomBoolean) {
             assertEquals(0, nodeStats.getCoordinatingRejections());
             assertEquals(0, nodeStats.getCurrentCoordinatingBytes());
         } else {
@@ -518,7 +606,8 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testReplicaShardRejectionSkippedInShadowModeViaSuccessfulRequestsParam() throws InterruptedException {
-        Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
+        Settings settings = Settings.builder()
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS.getKey(), 1)
             .put(ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT.getKey(), "20ms")
@@ -529,8 +618,10 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId(index, 0);
         try (Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 1 * 1024, false)) {
             assertEquals(1 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaBytes());
-            assertEquals((long)(1*1024/0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentReplicaLimits());
+            assertEquals(
+                (long) (1 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaLimits()
+            );
         }
 
         IndexingPressurePerShardStats shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
@@ -539,9 +630,11 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         assertEquals(15, shardStats.getCurrentReplicaLimits());
 
         Thread.sleep(25);
-        //Total Bytes are 14*1024 and node limit is 15*1024
-        try (Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 10 * 1024, false);
-             Releasable replica1 = shardIndexingPressure.markReplicaOperationStarted(shardId, 2 * 1024, false)) {
+        // Total Bytes are 14*1024 and node limit is 15*1024
+        try (
+            Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 10 * 1024, false);
+            Releasable replica1 = shardIndexingPressure.markReplicaOperationStarted(shardId, 2 * 1024, false)
+        ) {
             Releasable replica2 = shardIndexingPressure.markReplicaOperationStarted(shardId, 2 * 1024, false);
             replica2.close();
         }
@@ -557,7 +650,8 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testCoordinatingPrimaryShardRejectionViaThroughputDegradationParam() throws InterruptedException {
-        Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
+        Settings settings = Settings.builder()
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
@@ -567,29 +661,39 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
-        try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false);
-             Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 3 * 1024, false);
-             Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false);
-             Releasable primary1 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 3 * 1024, false)) {
+        try (
+            Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false);
+            Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 3 * 1024, false);
+            Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false);
+            Releasable primary1 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 3 * 1024, false)
+        ) {
             assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCoordinatingBytes());
             assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryBytes());
-            assertEquals(8 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals((long)(8*1024/0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentPrimaryAndCoordinatingLimits());
-            //Adding delay in the current in flight request to mimic throughput degradation
+            assertEquals(
+                8 * 1024,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                (long) (8 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryAndCoordinatingLimits()
+            );
+            // Adding delay in the current in flight request to mimic throughput degradation
             Thread.sleep(100);
         }
-        if(randomBoolean) {
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> shardIndexingPressure
-                .markCoordinatingOperationStarted(shardId, 8 * 1024, false));
+        if (randomBoolean) {
+            expectThrows(
+                OpenSearchRejectedExecutionException.class,
+                () -> shardIndexingPressure.markCoordinatingOperationStarted(shardId, 8 * 1024, false)
+            );
         } else {
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> shardIndexingPressure
-                .markPrimaryOperationStarted(shardId, 8 * 1024, false));
+            expectThrows(
+                OpenSearchRejectedExecutionException.class,
+                () -> shardIndexingPressure.markPrimaryOperationStarted(shardId, 8 * 1024, false)
+            );
         }
 
         IndexingPressurePerShardStats shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
-        if(randomBoolean) {
+        if (randomBoolean) {
             assertEquals(1, shardStats.getCoordinatingRejections());
             assertEquals(1, shardStats.getCoordinatingThroughputDegradationLimitsBreachedRejections());
             assertEquals(0, shardStats.getCurrentCoordinatingBytes());
@@ -606,7 +710,7 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         assertEquals(8 * 1024, shardStats.getTotalCombinedCoordinatingAndPrimaryBytes());
 
         IndexingPressureStats nodeStats = shardIndexingPressure.stats();
-        if(randomBoolean) {
+        if (randomBoolean) {
             assertEquals(1, nodeStats.getCoordinatingRejections());
             assertEquals(0, nodeStats.getCurrentCoordinatingBytes());
         } else {
@@ -616,7 +720,8 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testReplicaShardRejectionViaThroughputDegradationParam() throws InterruptedException {
-        Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
+        Settings settings = Settings.builder()
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
             .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
@@ -625,17 +730,23 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
-        try (Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 1 * 1024, false);
-             Releasable replica1 = shardIndexingPressure.markReplicaOperationStarted(shardId, 3 * 1024, false)) {
+        try (
+            Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 1 * 1024, false);
+            Releasable replica1 = shardIndexingPressure.markReplicaOperationStarted(shardId, 3 * 1024, false)
+        ) {
             assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaBytes());
-            assertEquals((long)(4*1024/0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentReplicaLimits());
-            //Adding delay in the current in flight request to mimic throughput degradation
+            assertEquals(
+                (long) (4 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaLimits()
+            );
+            // Adding delay in the current in flight request to mimic throughput degradation
             Thread.sleep(100);
         }
 
-        expectThrows(OpenSearchRejectedExecutionException.class, () -> shardIndexingPressure
-            .markReplicaOperationStarted(shardId, 12 * 1024, false));
+        expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> shardIndexingPressure.markReplicaOperationStarted(shardId, 12 * 1024, false)
+        );
 
         IndexingPressurePerShardStats shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
         assertEquals(1, shardStats.getReplicaRejections());
@@ -650,7 +761,8 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testCoordinatingPrimaryShardRejectionSkippedInShadowModeViaThroughputDegradationParam() throws InterruptedException {
-        Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
+        Settings settings = Settings.builder()
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), false)
             .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
@@ -660,20 +772,26 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
         boolean randomBoolean = randomBoolean();
-        try (Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false);
-             Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 3 * 1024, false);
-             Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false);
-             Releasable primary1 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 3 * 1024, false)) {
+        try (
+            Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1 * 1024, false);
+            Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 3 * 1024, false);
+            Releasable primary = shardIndexingPressure.markPrimaryOperationStarted(shardId, 1 * 1024, false);
+            Releasable primary1 = shardIndexingPressure.markPrimaryOperationStarted(shardId, 3 * 1024, false)
+        ) {
             assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCoordinatingBytes());
             assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryBytes());
-            assertEquals(8 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals((long)(8*1024/0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentPrimaryAndCoordinatingLimits());
-            //Adding delay in the current in flight request to mimic throughput degradation
+            assertEquals(
+                8 * 1024,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                (long) (8 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentPrimaryAndCoordinatingLimits()
+            );
+            // Adding delay in the current in flight request to mimic throughput degradation
             Thread.sleep(100);
         }
-        if(randomBoolean) {
+        if (randomBoolean) {
             Releasable coordinating = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 8 * 1024, false);
             coordinating.close();
         } else {
@@ -682,7 +800,7 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         }
 
         IndexingPressurePerShardStats shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId);
-        if(randomBoolean) {
+        if (randomBoolean) {
             assertEquals(0, shardStats.getCoordinatingRejections());
             assertEquals(1, shardStats.getCoordinatingThroughputDegradationLimitsBreachedRejections());
             assertEquals(0, shardStats.getCurrentCoordinatingBytes());
@@ -699,7 +817,7 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         assertEquals(16 * 1024, shardStats.getTotalCombinedCoordinatingAndPrimaryBytes());
 
         IndexingPressureStats nodeStats = shardIndexingPressure.stats();
-        if(randomBoolean) {
+        if (randomBoolean) {
             assertEquals(0, nodeStats.getCoordinatingRejections());
             assertEquals(0, nodeStats.getCurrentCoordinatingBytes());
         } else {
@@ -709,7 +827,8 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
     }
 
     public void testReplicaShardRejectionSkippedInShadowModeViaThroughputDegradationParam() throws InterruptedException {
-        Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
+        Settings settings = Settings.builder()
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB")
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), false)
             .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
@@ -718,12 +837,16 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
-        try (Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 1 * 1024, false);
-             Releasable replica1 = shardIndexingPressure.markReplicaOperationStarted(shardId, 3 * 1024, false)) {
+        try (
+            Releasable replica = shardIndexingPressure.markReplicaOperationStarted(shardId, 1 * 1024, false);
+            Releasable replica1 = shardIndexingPressure.markReplicaOperationStarted(shardId, 3 * 1024, false)
+        ) {
             assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaBytes());
-            assertEquals((long)(4*1024/0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentReplicaLimits());
-            //Adding delay in the current in flight request to mimic throughput degradation
+            assertEquals(
+                (long) (4 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentReplicaLimits()
+            );
+            // Adding delay in the current in flight request to mimic throughput degradation
             Thread.sleep(100);
         }
 
@@ -747,20 +870,34 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId1 = new ShardId(index, 0);
         ShardId shardId2 = new ShardId(index, 1);
-        try (Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId1, 4 * 1024, false);
-             Releasable coordinating2 = shardIndexingPressure.markCoordinatingOperationStarted(shardId2, 4 * 1024, false);) {
-            assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
-                .getCurrentCoordinatingBytes());
-            assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals((long)(4 * 1024 / 0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1)
-                .getCurrentPrimaryAndCoordinatingLimits());
-            assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId2)
-                .getCurrentCoordinatingBytes());
-            assertEquals(4 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId2)
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals((long)(4 * 1024 / 0.85), shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId2)
-                .getCurrentPrimaryAndCoordinatingLimits());
+        try (
+            Releasable coordinating1 = shardIndexingPressure.markCoordinatingOperationStarted(shardId1, 4 * 1024, false);
+            Releasable coordinating2 = shardIndexingPressure.markCoordinatingOperationStarted(shardId2, 4 * 1024, false);
+        ) {
+            assertEquals(
+                4 * 1024,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1).getCurrentCoordinatingBytes()
+            );
+            assertEquals(
+                4 * 1024,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1).getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                (long) (4 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1).getCurrentPrimaryAndCoordinatingLimits()
+            );
+            assertEquals(
+                4 * 1024,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId2).getCurrentCoordinatingBytes()
+            );
+            assertEquals(
+                4 * 1024,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId2).getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                (long) (4 * 1024 / 0.85),
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId2).getCurrentPrimaryAndCoordinatingLimits()
+            );
         }
 
         IndexingPressurePerShardStats shardStats = shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId1);
@@ -786,11 +923,15 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
-        expectThrows(OpenSearchRejectedExecutionException.class, () -> shardIndexingPressure
-            .markCoordinatingOperationStarted(shardId,1024 * 11, false));
-        try (Releasable ignore = shardIndexingPressure.markCoordinatingOperationStarted(shardId,11 * 1024, true)) {
-            assertEquals(11 * 1024, shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId)
-                .getCurrentCoordinatingBytes());
+        expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> shardIndexingPressure.markCoordinatingOperationStarted(shardId, 1024 * 11, false)
+        );
+        try (Releasable ignore = shardIndexingPressure.markCoordinatingOperationStarted(shardId, 11 * 1024, true)) {
+            assertEquals(
+                11 * 1024,
+                shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId).getCurrentCoordinatingBytes()
+            );
         }
         assertEquals(0, shardIndexingPressure.coldStats().getIndexingPressureShardStats(shardId).getCurrentCoordinatingBytes());
     }

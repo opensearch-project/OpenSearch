@@ -23,29 +23,44 @@ public final class ShardIndexingPressureSettings {
 
     public static final String SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY = "shard_indexing_pressure_enabled";
 
-    public static final Setting<Boolean> SHARD_INDEXING_PRESSURE_ENABLED =
-        Setting.boolSetting("shard_indexing_pressure.enabled", false, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> SHARD_INDEXING_PRESSURE_ENABLED = Setting.boolSetting(
+        "shard_indexing_pressure.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Feature level setting to operate in shadow-mode or in enforced-mode. If enforced field is set to true, shard level
      * rejection will be performed, otherwise only rejection metrics will be populated.
      */
-    public static final Setting<Boolean> SHARD_INDEXING_PRESSURE_ENFORCED =
-        Setting.boolSetting("shard_indexing_pressure.enforced", false, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> SHARD_INDEXING_PRESSURE_ENFORCED = Setting.boolSetting(
+        "shard_indexing_pressure.enforced",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     /**
      * This represents the window size of last N request sampled and considered for throughput evaluation.
      */
-    public static final Setting<Integer> REQUEST_SIZE_WINDOW =
-        Setting.intSetting("shard_indexing_pressure.secondary_parameter.throughput.request_size_window", 2000,
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<Integer> REQUEST_SIZE_WINDOW = Setting.intSetting(
+        "shard_indexing_pressure.secondary_parameter.throughput.request_size_window",
+        2000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /**
      * This represents the base limit set for the utilization of every shard. Will be initilized as 1/1000th bytes of node limits.
      */
-    public static final Setting<Double> SHARD_MIN_LIMIT =
-        Setting.doubleSetting("shard_indexing_pressure.primary_parameter.shard.min_limit", 0.001d, 0.0d,
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<Double> SHARD_MIN_LIMIT = Setting.doubleSetting(
+        "shard_indexing_pressure.primary_parameter.shard.min_limit",
+        0.001d,
+        0.0d,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private volatile boolean shardIndexingPressureEnabled;
     private volatile boolean shardIndexingPressureEnforced;
@@ -106,7 +121,7 @@ public final class ShardIndexingPressureSettings {
     private void setShardMinLimit(double shardMinLimit) {
         this.shardMinLimit = shardMinLimit;
 
-        //Updating the dependent value once when the dynamic settings update
+        // Updating the dependent value once when the dynamic settings update
         this.setShardPrimaryAndCoordinatingBaseLimits();
         this.setShardReplicaBaseLimits();
     }

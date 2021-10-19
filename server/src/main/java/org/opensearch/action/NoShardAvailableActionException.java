@@ -59,7 +59,7 @@ public class NoShardAvailableActionException extends OpenSearchException {
         return RestStatus.SERVICE_UNAVAILABLE;
     }
 
-    public NoShardAvailableActionException(StreamInput in) throws IOException{
+    public NoShardAvailableActionException(StreamInput in) throws IOException {
         super(in);
     }
 }

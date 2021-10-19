@@ -53,21 +53,28 @@ public class TextSearchInfo {
     /**
      * Defines indexing information for fields that support only simple match text queries
      */
-    public static final TextSearchInfo SIMPLE_MATCH_ONLY
-        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+    public static final TextSearchInfo SIMPLE_MATCH_ONLY = new TextSearchInfo(
+        SIMPLE_MATCH_ONLY_FIELD_TYPE,
+        null,
+        Lucene.KEYWORD_ANALYZER,
+        Lucene.KEYWORD_ANALYZER
+    );
 
     /**
      * Defines indexing information for fields that index as keywords, but split query input
      * on whitespace to build disjunctions.
      */
-    public static final TextSearchInfo WHITESPACE_MATCH_ONLY
-        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.WHITESPACE_ANALYZER, Lucene.WHITESPACE_ANALYZER);
+    public static final TextSearchInfo WHITESPACE_MATCH_ONLY = new TextSearchInfo(
+        SIMPLE_MATCH_ONLY_FIELD_TYPE,
+        null,
+        Lucene.WHITESPACE_ANALYZER,
+        Lucene.WHITESPACE_ANALYZER
+    );
 
     /**
      * Specifies that this field does not support text searching of any kind
      */
-    public static final TextSearchInfo NONE
-        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, null, null);
+    public static final TextSearchInfo NONE = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, null, null);
 
     private final FieldType luceneFieldType;
     private final SimilarityProvider similarity;
@@ -81,8 +88,12 @@ public class TextSearchInfo {
      * @param similarity        defines which Similarity to use when searching.  If set to {@code null}
      *                          then the default Similarity will be used.
      */
-    public TextSearchInfo(FieldType luceneFieldType, SimilarityProvider similarity,
-                          NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer) {
+    public TextSearchInfo(
+        FieldType luceneFieldType,
+        SimilarityProvider similarity,
+        NamedAnalyzer searchAnalyzer,
+        NamedAnalyzer searchQuoteAnalyzer
+    ) {
         this.luceneFieldType = luceneFieldType;
         this.similarity = similarity;
         this.searchAnalyzer = searchAnalyzer;
@@ -132,7 +143,12 @@ public class TextSearchInfo {
     /**
      * What sort of term vectors are available
      */
-    public enum TermVector { NONE, DOCS, POSITIONS, OFFSETS }
+    public enum TermVector {
+        NONE,
+        DOCS,
+        POSITIONS,
+        OFFSETS
+    }
 
     /**
      * @return the type of term vectors available for this field

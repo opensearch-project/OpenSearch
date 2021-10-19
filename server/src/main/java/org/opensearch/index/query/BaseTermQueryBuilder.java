@@ -170,7 +170,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
         builder.endObject();
         builder.endObject();
     }
-    
+
     protected void addExtraXContent(XContentBuilder builder, Params params) throws IOException {
         // Do nothing but allows subclasses to override.
     }
@@ -182,7 +182,6 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
 
     @Override
     protected boolean doEquals(QB other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-               Objects.equals(value, other.value);
+        return Objects.equals(fieldName, other.fieldName) && Objects.equals(value, other.value);
     }
 }

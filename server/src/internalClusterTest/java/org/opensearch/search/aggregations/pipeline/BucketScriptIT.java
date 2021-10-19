@@ -175,21 +175,24 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
     }
 
     public void testInlineScript() {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo")
-                                .field(FIELD_1_NAME)
-                                .interval(interval)
-                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                                .subAggregation(
-                                        bucketScript("seriesArithmetic",
-                                                new Script(ScriptType.INLINE,
-                                                    CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
-                                            "field2Sum", "field3Sum", "field4Sum")))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                    .subAggregation(
+                        bucketScript(
+                            "seriesArithmetic",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                            "field2Sum",
+                            "field3Sum",
+                            "field4Sum"
+                        )
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -222,21 +225,24 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
     }
 
     public void testInlineScript2() {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo")
-                                .field(FIELD_1_NAME)
-                                .interval(interval)
-                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                                .subAggregation(
-                                        bucketScript("seriesArithmetic",
-                                                new Script(ScriptType.INLINE,
-                                                    CustomScriptPlugin.NAME, "_value0 + _value1 / _value2", Collections.emptyMap()),
-                                                "field2Sum", "field3Sum", "field4Sum")))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                    .subAggregation(
+                        bucketScript(
+                            "seriesArithmetic",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 / _value2", Collections.emptyMap()),
+                            "field2Sum",
+                            "field3Sum",
+                            "field4Sum"
+                        )
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -269,19 +275,23 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
     }
 
     public void testInlineScriptWithDateRange() {
-        SearchResponse response = client()
-            .prepareSearch("idx")
+        SearchResponse response = client().prepareSearch("idx")
             .addAggregation(
-                dateRange("range")
-                    .field(FIELD_5_NAME)
+                dateRange("range").field(FIELD_5_NAME)
                     .addUnboundedFrom(date)
                     .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                     .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                     .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                     .subAggregation(
-                        bucketScript("seriesArithmetic",
-                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap())
-                            , "field2Sum", "field3Sum", "field4Sum")))
+                        bucketScript(
+                            "seriesArithmetic",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                            "field2Sum",
+                            "field3Sum",
+                            "field4Sum"
+                        )
+                    )
+            )
             .get();
 
         assertSearchResponse(response);
@@ -315,18 +325,20 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
     }
 
     public void testInlineScriptSingleVariable() {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo")
-                                .field(FIELD_1_NAME)
-                                .interval(interval)
-                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                                .subAggregation(
-                                        bucketScript("seriesArithmetic",
-                                                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0", Collections.emptyMap()),
-                                                "field2Sum")))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(
+                        bucketScript(
+                            "seriesArithmetic",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0", Collections.emptyMap()),
+                            "field2Sum"
+                        )
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -357,20 +369,22 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
         bucketsPathsMap.put("foo", "field2Sum");
         bucketsPathsMap.put("bar", "field3Sum");
         bucketsPathsMap.put("baz", "field4Sum");
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo")
-                                .field(FIELD_1_NAME)
-                                .interval(interval)
-                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                                .subAggregation(
-                                        bucketScript("seriesArithmetic", bucketsPathsMap,
-                                                new Script(ScriptType.INLINE,
-                                                    CustomScriptPlugin.NAME, "foo + bar + baz", Collections.emptyMap()))))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                    .subAggregation(
+                        bucketScript(
+                            "seriesArithmetic",
+                            bucketsPathsMap,
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "foo + bar + baz", Collections.emptyMap())
+                        )
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -408,17 +422,16 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "(_value0 + _value1 + _value2) * factor", params);
 
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo")
-                                .field(FIELD_1_NAME)
-                                .interval(interval)
-                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                                .subAggregation(bucketScript("seriesArithmetic", script, "field2Sum", "field3Sum", "field4Sum")))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                    .subAggregation(bucketScript("seriesArithmetic", script, "field2Sum", "field3Sum", "field4Sum"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -451,21 +464,24 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
     }
 
     public void testInlineScriptInsertZeros() {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo")
-                                .field(FIELD_1_NAME)
-                                .interval(interval)
-                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                                .subAggregation(
-                                        bucketScript("seriesArithmetic",
-                                                new Script(ScriptType.INLINE,
-                                                    CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
-                                                "field2Sum", "field3Sum", "field4Sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                    .subAggregation(
+                        bucketScript(
+                            "seriesArithmetic",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                            "field2Sum",
+                            "field3Sum",
+                            "field4Sum"
+                        ).gapPolicy(GapPolicy.INSERT_ZEROS)
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -500,18 +516,18 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
     }
 
     public void testInlineScriptReturnNull() {
-        SearchResponse response = client()
-            .prepareSearch("idx")
+        SearchResponse response = client().prepareSearch("idx")
             .addAggregation(
-                histogram("histo")
-                    .field(FIELD_1_NAME).interval(interval)
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
                     .subAggregation(
                         bucketScript(
                             "nullField",
                             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return null", Collections.emptyMap())
                         )
                     )
-            ).get();
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -527,25 +543,36 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
     }
 
     public void testStoredScript() {
-        assertAcked(client().admin().cluster().preparePutStoredScript()
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutStoredScript()
                 .setId("my_script")
                 // Script source is not interpreted but it references a pre-defined script from CustomScriptPlugin
-                .setContent(new BytesArray("{ \"script\": {\"lang\": \"" + CustomScriptPlugin.NAME + "\"," +
-                    " \"source\": \"my_script\" } }"), XContentType.JSON));
+                .setContent(
+                    new BytesArray("{ \"script\": {\"lang\": \"" + CustomScriptPlugin.NAME + "\"," + " \"source\": \"my_script\" } }"),
+                    XContentType.JSON
+                )
+        );
 
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo")
-                                .field(FIELD_1_NAME)
-                                .interval(interval)
-                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                                .subAggregation(
-                                        bucketScript("seriesArithmetic",
-                                                new Script(ScriptType.STORED, null, "my_script", Collections.emptyMap()),
-                                                "field2Sum", "field3Sum", "field4Sum"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                    .subAggregation(
+                        bucketScript(
+                            "seriesArithmetic",
+                            new Script(ScriptType.STORED, null, "my_script", Collections.emptyMap()),
+                            "field2Sum",
+                            "field3Sum",
+                            "field4Sum"
+                        )
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -578,21 +605,24 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx_unmapped")
-                .addAggregation(
-                        histogram("histo")
-                                .field(FIELD_1_NAME)
-                                .interval(interval)
-                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                                .subAggregation(
-                                        bucketScript("seriesArithmetic",
-                                                new Script(ScriptType.INLINE,
-                                                    CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
-                                                "field2Sum", "field3Sum", "field4Sum")))
-                                .get();
+        SearchResponse response = client().prepareSearch("idx_unmapped")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                    .subAggregation(
+                        bucketScript(
+                            "seriesArithmetic",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                            "field2Sum",
+                            "field3Sum",
+                            "field4Sum"
+                        )
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -603,20 +633,24 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx", "idx_unmapped")
-                .addAggregation(
-                        histogram("histo")
-                                .field(FIELD_1_NAME)
-                                .interval(interval)
-                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                                .subAggregation(
-                                        bucketScript("seriesArithmetic",
-                                                new Script(ScriptType.INLINE,
-                                                    CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
-                                                "field2Sum", "field3Sum", "field4Sum"))).get();
+        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
+            .addAggregation(
+                histogram("histo").field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                    .subAggregation(
+                        bucketScript(
+                            "seriesArithmetic",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                            "field2Sum",
+                            "field3Sum",
+                            "field4Sum"
+                        )
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -657,17 +691,19 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
             .field("lang", CustomScriptPlugin.NAME)
             .endObject()
             .endObject();
-        BucketScriptPipelineAggregationBuilder bucketScriptAgg =
-            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(
+            createParser(content),
+            "seriesArithmetic"
+        );
 
-        SearchResponse response = client()
-            .prepareSearch("idx", "idx_unmapped")
+        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
             .addAggregation(
-                histogram("histo")
-                    .field(FIELD_1_NAME)
+                histogram("histo").field(FIELD_1_NAME)
                     .interval(interval)
                     .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                    .subAggregation(bucketScriptAgg)).get();
+                    .subAggregation(bucketScriptAgg)
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -702,19 +738,21 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
             .field("lang", CustomScriptPlugin.NAME)
             .endObject()
             .endObject();
-        BucketScriptPipelineAggregationBuilder bucketScriptAgg =
-            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(
+            createParser(content),
+            "seriesArithmetic"
+        );
 
-        SearchResponse response = client()
-            .prepareSearch("idx", "idx_unmapped")
+        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
             .addAggregation(
-                histogram("histo")
-                    .field(FIELD_1_NAME)
+                histogram("histo").field(FIELD_1_NAME)
                     .interval(interval)
                     .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                     .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                     .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                    .subAggregation(bucketScriptAgg)).get();
+                    .subAggregation(bucketScriptAgg)
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -750,28 +788,30 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
         XContentBuilder content = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("buckets_path")
-               .field("_value0", "field2Sum")
-               .field("_value1", "field3Sum")
-               .field("_value2", "field4Sum")
+            .field("_value0", "field2Sum")
+            .field("_value1", "field3Sum")
+            .field("_value2", "field4Sum")
             .endObject()
             .startObject("script")
             .field("source", "_value0 + _value1 + _value2")
             .field("lang", CustomScriptPlugin.NAME)
             .endObject()
             .endObject();
-        BucketScriptPipelineAggregationBuilder bucketScriptAgg =
-            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(
+            createParser(content),
+            "seriesArithmetic"
+        );
 
-        SearchResponse response = client()
-            .prepareSearch("idx", "idx_unmapped")
+        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
             .addAggregation(
-                histogram("histo")
-                    .field(FIELD_1_NAME)
+                histogram("histo").field(FIELD_1_NAME)
                     .interval(interval)
                     .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                     .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                     .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                    .subAggregation(bucketScriptAgg)).get();
+                    .subAggregation(bucketScriptAgg)
+            )
+            .get();
 
         assertSearchResponse(response);
 

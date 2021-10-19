@@ -50,17 +50,30 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportPutComposableIndexTemplateAction
-    extends TransportMasterNodeAction<PutComposableIndexTemplateAction.Request, AcknowledgedResponse> {
+public class TransportPutComposableIndexTemplateAction extends TransportMasterNodeAction<
+    PutComposableIndexTemplateAction.Request,
+    AcknowledgedResponse> {
 
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
-    public TransportPutComposableIndexTemplateAction(TransportService transportService, ClusterService clusterService,
-                                                     ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PutComposableIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutComposableIndexTemplateAction.Request::new, indexNameExpressionResolver);
+    public TransportPutComposableIndexTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            PutComposableIndexTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutComposableIndexTemplateAction.Request::new,
+            indexNameExpressionResolver
+        );
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -81,10 +94,19 @@ public class TransportPutComposableIndexTemplateAction
     }
 
     @Override
-    protected void masterOperation(final PutComposableIndexTemplateAction.Request request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        final PutComposableIndexTemplateAction.Request request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
-        indexTemplateService.putIndexTemplateV2(request.cause(), request.create(), request.name(), request.masterNodeTimeout(),
-            indexTemplate, listener);
+        indexTemplateService.putIndexTemplateV2(
+            request.cause(),
+            request.create(),
+            request.name(),
+            request.masterNodeTimeout(),
+            indexTemplate,
+            listener
+        );
     }
 }

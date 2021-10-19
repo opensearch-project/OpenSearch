@@ -43,8 +43,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1,
-    transportClientRatio = 0.0D)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, transportClientRatio = 0.0D)
 public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
 
     public static final String INDEX_NAME = "test_index";
@@ -52,15 +51,12 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
     private static final Settings unboundedWriteQueue = Settings.builder().put("thread_pool.write.queue_size", -1).build();
 
     public static final Settings settings = Settings.builder()
-        .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true).build();
+        .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
+        .build();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(unboundedWriteQueue)
-            .put(settings)
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(unboundedWriteQueue).put(settings).build();
     }
 
     @Override
@@ -79,9 +75,12 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
     }
 
     public void testShardIndexingPressureTrackingDuringBulkWrites() throws Exception {
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
 
         ensureGreen(INDEX_NAME);
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
@@ -131,17 +130,23 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
 
             IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
             Index index = indexService.getIndexSettings().getIndex();
-            ShardId shardId= new ShardId(index, 0);
+            ShardId shardId = new ShardId(index, 0);
 
             ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
             ShardIndexingPressureTracker replicaShardTracker = internalCluster().getInstance(IndexingPressureService.class, replicaName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-                coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
+            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+                IndexingPressureService.class,
+                coordinatingOnlyNode
+            ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
-            assertThat(primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
-                equalTo(bulkShardRequestSize));
+            assertThat(
+                primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                equalTo(bulkShardRequestSize)
+            );
             assertThat(primaryShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes(), equalTo(bulkShardRequestSize));
             assertEquals(0, primaryShardTracker.getCoordinatingOperationTracker().getStatsTracker().getCurrentBytes());
             assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
@@ -151,10 +156,14 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             assertEquals(0, replicaShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes());
             assertEquals(0, replicaShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
 
-            assertEquals(bulkShardRequestSize, coordinatingShardTracker.getCommonOperationTracker()
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(bulkShardRequestSize, coordinatingShardTracker.getCoordinatingOperationTracker().getStatsTracker()
-                .getCurrentBytes());
+            assertEquals(
+                bulkShardRequestSize,
+                coordinatingShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertEquals(
+                bulkShardRequestSize,
+                coordinatingShardTracker.getCoordinatingOperationTracker().getStatsTracker().getCurrentBytes()
+            );
             assertEquals(0, coordinatingShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes());
             assertEquals(0, coordinatingShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
 
@@ -179,31 +188,49 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
 
             if (usePrimaryAsCoordinatingNode) {
                 assertBusy(() -> {
-                    assertThat(primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
-                        equalTo(bulkShardRequestSize + secondBulkShardRequestSize));
-                    assertEquals(secondBulkShardRequestSize, primaryShardTracker.getCoordinatingOperationTracker().getStatsTracker()
-                        .getCurrentBytes());
-                    assertThat(primaryShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes(),
-                        equalTo(bulkShardRequestSize + secondBulkShardRequestSize));
+                    assertThat(
+                        primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                        equalTo(bulkShardRequestSize + secondBulkShardRequestSize)
+                    );
+                    assertEquals(
+                        secondBulkShardRequestSize,
+                        primaryShardTracker.getCoordinatingOperationTracker().getStatsTracker().getCurrentBytes()
+                    );
+                    assertThat(
+                        primaryShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes(),
+                        equalTo(bulkShardRequestSize + secondBulkShardRequestSize)
+                    );
 
                     assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
                     assertEquals(0, replicaShardTracker.getCoordinatingOperationTracker().getStatsTracker().getCurrentBytes());
                     assertEquals(0, replicaShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes());
                 });
             } else {
-                assertThat(primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
-                    equalTo(bulkShardRequestSize));
+                assertThat(
+                    primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                    equalTo(bulkShardRequestSize)
+                );
 
-                assertEquals(secondBulkShardRequestSize, replicaShardTracker.getCommonOperationTracker()
-                    .getCurrentCombinedCoordinatingAndPrimaryBytes());
-                assertEquals(secondBulkShardRequestSize, replicaShardTracker.getCoordinatingOperationTracker().getStatsTracker()
-                    .getCurrentBytes());
+                assertEquals(
+                    secondBulkShardRequestSize,
+                    replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                );
+                assertEquals(
+                    secondBulkShardRequestSize,
+                    replicaShardTracker.getCoordinatingOperationTracker().getStatsTracker().getCurrentBytes()
+                );
                 assertEquals(0, replicaShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes());
             }
-            assertEquals(bulkShardRequestSize, coordinatingShardTracker.getCommonOperationTracker()
-                .getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertBusy(() -> assertThat(replicaShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes(),
-                equalTo(bulkShardRequestSize + secondBulkShardRequestSize)));
+            assertEquals(
+                bulkShardRequestSize,
+                coordinatingShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+            assertBusy(
+                () -> assertThat(
+                    replicaShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes(),
+                    equalTo(bulkShardRequestSize + secondBulkShardRequestSize)
+                )
+            );
 
             replicaRelease.close();
 
@@ -249,15 +276,19 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             bulkRequest.add(request);
         }
 
-        final long  bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
+        final long bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
             + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
-        restartCluster(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(),
-            (long) (bulkShardRequestSize * 1.5) + "B").build());
+        restartCluster(
+            Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
+        );
 
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
@@ -271,23 +302,31 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
 
             IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
             Index index = indexService.getIndexSettings().getIndex();
-            ShardId shardId= new ShardId(index, 0);
+            ShardId shardId = new ShardId(index, 0);
 
             ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
             ShardIndexingPressureTracker replicaShardTracker = internalCluster().getInstance(IndexingPressureService.class, replicaName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-                coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
+            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+                IndexingPressureService.class,
+                coordinatingOnlyNode
+            ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
             assertBusy(() -> {
-                assertEquals(bulkShardRequestSize, primaryShardTracker.getCommonOperationTracker()
-                    .getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(
+                    bulkShardRequestSize,
+                    primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                );
                 assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                 assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(bulkShardRequestSize, replicaShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
-                assertEquals(bulkShardRequestSize, coordinatingShardTracker.getCommonOperationTracker().
-                    getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(
+                    bulkShardRequestSize,
+                    coordinatingShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                );
                 assertEquals(0, coordinatingShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
             });
 
@@ -325,7 +364,7 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             largeBulkRequest.add(request);
         }
 
-        final long  largeBulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
+        final long largeBulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
             + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
         final BulkRequest smallBulkRequest = new BulkRequest();
@@ -338,20 +377,27 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             smallBulkRequest.add(request);
         }
 
-        final long  smallBulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 10)
+        final long smallBulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 10)
             + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
-        restartCluster(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(),
-            (long) (largeBulkShardRequestSize * 1.5) + "B").build());
+        restartCluster(
+            Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (largeBulkShardRequestSize * 1.5) + "B").build()
+        );
 
-        assertAcked(prepareCreate(INDEX_NAME + "large", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME + "large",
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME + "large");
 
-        assertAcked(prepareCreate(INDEX_NAME + "small", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME + "small",
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME + "small");
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME + "large");
@@ -371,28 +417,39 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             }
 
             ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
             ShardIndexingPressureTracker replicaShardTracker = internalCluster().getInstance(IndexingPressureService.class, replicaName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-                coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
+            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+                IndexingPressureService.class,
+                coordinatingOnlyNode
+            ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
             assertBusy(() -> {
-                assertEquals(largeBulkShardRequestSize, primaryShardTracker.getCommonOperationTracker()
-                    .getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(
+                    largeBulkShardRequestSize,
+                    primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                );
                 assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                 assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
-                assertEquals(largeBulkShardRequestSize, replicaShardTracker.getReplicaOperationTracker().getStatsTracker()
-                    .getCurrentBytes());
-                assertEquals(largeBulkShardRequestSize, coordinatingShardTracker.getCommonOperationTracker()
-                    .getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(
+                    largeBulkShardRequestSize,
+                    replicaShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes()
+                );
+                assertEquals(
+                    largeBulkShardRequestSize,
+                    coordinatingShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                );
                 assertEquals(0, coordinatingShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
             });
 
             // Large request on a shard with already large occupancy is rejected
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> {
-                client(coordinatingOnlyNode).bulk(largeBulkRequest).actionGet();
-            });
+            expectThrows(
+                OpenSearchRejectedExecutionException.class,
+                () -> { client(coordinatingOnlyNode).bulk(largeBulkRequest).actionGet(); }
+            );
 
             replicaRelease.close();
             successFuture.actionGet();
@@ -416,22 +473,34 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
                     }
                 }
 
-                ShardIndexingPressureTracker primaryShardTrackerSmall = internalCluster().getInstance(IndexingPressureService.class,
-                    primaryName).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-                ShardIndexingPressureTracker replicaShardTrackerSmall = internalCluster().getInstance(IndexingPressureService.class,
-                    replicaName).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-                ShardIndexingPressureTracker coordinatingShardTrackerSmall = internalCluster().getInstance(IndexingPressureService.class,
-                    coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                ShardIndexingPressureTracker primaryShardTrackerSmall = internalCluster().getInstance(
+                    IndexingPressureService.class,
+                    primaryName
+                ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                ShardIndexingPressureTracker replicaShardTrackerSmall = internalCluster().getInstance(
+                    IndexingPressureService.class,
+                    replicaName
+                ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                ShardIndexingPressureTracker coordinatingShardTrackerSmall = internalCluster().getInstance(
+                    IndexingPressureService.class,
+                    coordinatingOnlyNode
+                ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
                 assertBusy(() -> {
-                    assertEquals(smallBulkShardRequestSize, primaryShardTrackerSmall.getCommonOperationTracker()
-                        .getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertEquals(
+                        smallBulkShardRequestSize,
+                        primaryShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                    );
                     assertEquals(0, primaryShardTrackerSmall.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                     assertEquals(0, replicaShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
-                    assertEquals(smallBulkShardRequestSize, replicaShardTrackerSmall.getReplicaOperationTracker().getStatsTracker()
-                        .getCurrentBytes());
-                    assertEquals(smallBulkShardRequestSize, coordinatingShardTrackerSmall.getCommonOperationTracker()
-                        .getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertEquals(
+                        smallBulkShardRequestSize,
+                        replicaShardTrackerSmall.getReplicaOperationTracker().getStatsTracker().getCurrentBytes()
+                    );
+                    assertEquals(
+                        smallBulkShardRequestSize,
+                        coordinatingShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                    );
                     assertEquals(0, coordinatingShardTrackerSmall.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                 });
 
@@ -459,15 +528,19 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             bulkRequest.add(request);
         }
 
-        final long  bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
+        final long bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
             + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
-        restartCluster(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(),
-            (long) (bulkShardRequestSize * 1.5) + "B").build());
+        restartCluster(
+            Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
+        );
 
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
@@ -481,18 +554,24 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
 
             IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
             Index index = indexService.getIndexSettings().getIndex();
-            ShardId shardId= new ShardId(index, 0);
+            ShardId shardId = new ShardId(index, 0);
 
             ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
             ShardIndexingPressureTracker replicaShardTracker = internalCluster().getInstance(IndexingPressureService.class, replicaName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-                coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
+            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+                IndexingPressureService.class,
+                coordinatingOnlyNode
+            ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
             assertBusy(() -> {
-                assertEquals(bulkShardRequestSize, primaryShardTracker.getCommonOperationTracker()
-                    .getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(
+                    bulkShardRequestSize,
+                    primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                );
                 assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                 assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(bulkShardRequestSize, replicaShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
@@ -545,17 +624,24 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
         final long smallBulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 10)
             + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
-        restartCluster(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(),
-            (long) (largeBulkShardRequestSize * 1.5) + "B").build());
+        restartCluster(
+            Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (largeBulkShardRequestSize * 1.5) + "B").build()
+        );
 
-        assertAcked(prepareCreate(INDEX_NAME + "large", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME + "large",
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME + "large");
 
-        assertAcked(prepareCreate(INDEX_NAME + "small", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME + "small",
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME + "small");
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME + "large");
@@ -575,19 +661,27 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             }
 
             ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
             ShardIndexingPressureTracker replicaShardTracker = internalCluster().getInstance(IndexingPressureService.class, replicaName)
-                .getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(IndexingPressureService.class,
-                coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                .getShardIndexingPressure()
+                .getShardIndexingPressureTracker(shardId);
+            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
+                IndexingPressureService.class,
+                coordinatingOnlyNode
+            ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
             assertBusy(() -> {
-                assertEquals(largeBulkShardRequestSize, primaryShardTracker.getCommonOperationTracker()
-                    .getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(
+                    largeBulkShardRequestSize,
+                    primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                );
                 assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                 assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
-                assertEquals(largeBulkShardRequestSize, replicaShardTracker.getReplicaOperationTracker().getStatsTracker()
-                    .getCurrentBytes());
+                assertEquals(
+                    largeBulkShardRequestSize,
+                    replicaShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes()
+                );
                 assertEquals(0, coordinatingShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, coordinatingShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
             });
@@ -619,22 +713,34 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
                     }
                 }
 
-                ShardIndexingPressureTracker primaryShardTrackerSmall = internalCluster().getInstance(IndexingPressureService.class,
-                    primaryName).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-                ShardIndexingPressureTracker replicaShardTrackerSmall = internalCluster().getInstance(IndexingPressureService.class,
-                    replicaName).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-                ShardIndexingPressureTracker coordinatingShardTrackerSmall = internalCluster().getInstance(IndexingPressureService.class,
-                    coordinatingOnlyNode).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                ShardIndexingPressureTracker primaryShardTrackerSmall = internalCluster().getInstance(
+                    IndexingPressureService.class,
+                    primaryName
+                ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                ShardIndexingPressureTracker replicaShardTrackerSmall = internalCluster().getInstance(
+                    IndexingPressureService.class,
+                    replicaName
+                ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+                ShardIndexingPressureTracker coordinatingShardTrackerSmall = internalCluster().getInstance(
+                    IndexingPressureService.class,
+                    coordinatingOnlyNode
+                ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
 
                 assertBusy(() -> {
-                    assertEquals(smallBulkShardRequestSize, primaryShardTrackerSmall.getCommonOperationTracker()
-                        .getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertEquals(
+                        smallBulkShardRequestSize,
+                        primaryShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                    );
                     assertEquals(0, primaryShardTrackerSmall.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                     assertEquals(0, replicaShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
-                    assertEquals(smallBulkShardRequestSize, replicaShardTrackerSmall.getReplicaOperationTracker().getStatsTracker()
-                        .getCurrentBytes());
-                    assertEquals(0, coordinatingShardTrackerSmall.getCommonOperationTracker()
-                        .getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertEquals(
+                        smallBulkShardRequestSize,
+                        replicaShardTrackerSmall.getReplicaOperationTracker().getStatsTracker().getCurrentBytes()
+                    );
+                    assertEquals(
+                        0,
+                        coordinatingShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()
+                    );
                     assertEquals(0, coordinatingShardTrackerSmall.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                 });
 
@@ -650,7 +756,6 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             }
         }
     }
-
 
     private Tuple<String, String> getPrimaryReplicaNodeNames(String indexName) {
         IndicesStatsResponse response = client().admin().indices().prepareStats(indexName).get();
@@ -673,15 +778,15 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
     }
 
     private String getCoordinatingOnlyNode() {
-        return client().admin().cluster().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().iterator().next()
-            .value.getName();
+        return client().admin().cluster().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().iterator().next().value
+            .getName();
     }
 
     private Releasable blockReplicas(ThreadPool threadPool) {
         final CountDownLatch blockReplication = new CountDownLatch(1);
         final int threads = threadPool.info(ThreadPool.Names.WRITE).getMax();
         final CountDownLatch pointReached = new CountDownLatch(threads);
-        for (int i = 0; i< threads; ++i) {
+        for (int i = 0; i < threads; ++i) {
             threadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
                 try {
                     pointReached.countDown();

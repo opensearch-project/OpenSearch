@@ -45,8 +45,10 @@ import java.util.Map;
 /**
  * Builder for a put mapping request
  */
-public class PutMappingRequestBuilder
-    extends AcknowledgedRequestBuilder<PutMappingRequest, AcknowledgedResponse, PutMappingRequestBuilder> {
+public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
+    PutMappingRequest,
+    AcknowledgedResponse,
+    PutMappingRequestBuilder> {
 
     public PutMappingRequestBuilder(OpenSearchClient client, PutMappingAction action) {
         super(client, action, new PutMappingRequest());

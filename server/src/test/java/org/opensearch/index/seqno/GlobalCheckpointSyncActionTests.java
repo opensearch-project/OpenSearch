@@ -71,8 +71,14 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,  boundAddress -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
@@ -107,8 +113,10 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
         final long globalCheckpoint = randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Integer.MAX_VALUE);
         final long lastSyncedGlobalCheckpoint;
         if (randomBoolean() && globalCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {
-            lastSyncedGlobalCheckpoint =
-                    randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Math.toIntExact(globalCheckpoint) - 1);
+            lastSyncedGlobalCheckpoint = randomIntBetween(
+                Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED),
+                Math.toIntExact(globalCheckpoint) - 1
+            );
             assert lastSyncedGlobalCheckpoint < globalCheckpoint;
         } else {
             lastSyncedGlobalCheckpoint = globalCheckpoint;
@@ -124,13 +132,17 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()));
+            new ActionFilters(Collections.emptySet())
+        );
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {
             action.shardOperationOnPrimary(primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
         } else {
-            action.shardOperationOnReplica(new GlobalCheckpointSyncAction.Request(indexShard.shardId()), indexShard,
-                ActionTestUtils.assertNoFailureListener(r -> {}));
+            action.shardOperationOnReplica(
+                new GlobalCheckpointSyncAction.Request(indexShard.shardId()),
+                indexShard,
+                ActionTestUtils.assertNoFailureListener(r -> {})
+            );
         }
 
         if (durability == Translog.Durability.ASYNC || lastSyncedGlobalCheckpoint == globalCheckpoint) {

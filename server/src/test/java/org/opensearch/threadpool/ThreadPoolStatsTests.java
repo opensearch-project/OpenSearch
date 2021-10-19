@@ -72,7 +72,7 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
         for (ThreadPoolStats.Stats stat : copy) {
             threads.add(stat.getThreads());
         }
-        assertThat(threads, contains(-1, -1, 1, 2, 3,-1,-1));
+        assertThat(threads, contains(-1, -1, 1, 2, 3, -1, -1));
     }
 
     public void testThreadPoolStatsToXContent() throws IOException {
@@ -119,11 +119,16 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
                     parser.skipChildren();
                     token = parser.nextToken();
                 }
-                assertThat(names, contains(ThreadPool.Names.FORCE_MERGE,
+                assertThat(
+                    names,
+                    contains(
+                        ThreadPool.Names.FORCE_MERGE,
                         ThreadPool.Names.GENERIC,
                         ThreadPool.Names.SAME,
                         ThreadPool.Names.SEARCH,
-                        ThreadPool.Names.WARMER));
+                        ThreadPool.Names.WARMER
+                    )
+                );
             }
         }
     }

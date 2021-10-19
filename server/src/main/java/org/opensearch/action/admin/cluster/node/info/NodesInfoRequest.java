@@ -61,7 +61,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     public NodesInfoRequest(StreamInput in) throws IOException {
         super(in);
         requestedMetrics.clear();
-        if (in.getVersion().before(LegacyESVersion.V_7_7_0)){
+        if (in.getVersion().before(LegacyESVersion.V_7_7_0)) {
             // prior to version 8.x, a NodesInfoRequest was serialized as a list
             // of booleans in a fixed order
             optionallyAddMetric(in.readBoolean(), Metric.SETTINGS.metricName());
@@ -163,7 +163,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(LegacyESVersion.V_7_7_0)){
+        if (out.getVersion().before(LegacyESVersion.V_7_7_0)) {
             // prior to version 8.x, a NodesInfoRequest was serialized as a list
             // of booleans in a fixed order
             out.writeBoolean(Metric.SETTINGS.containedIn(requestedMetrics));

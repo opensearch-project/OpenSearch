@@ -81,8 +81,13 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
-        IndexResponse indexResponse = client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test"))
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        IndexResponse indexResponse = client().prepareIndex()
+            .setIndex("test")
+            .setType("type1")
+            .setId("1")
+            .setSource(source("1", "test"))
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .get();
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
         assertThat(indexResponse.getType(), equalTo("type1"));
@@ -96,8 +101,10 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         assertThat(indexExists("test1234565"), equalTo(false));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().clearCache(clearIndicesCacheRequest("test")
-            .fieldDataCache(true).queryCache(true)).actionGet();
+        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin()
+            .indices()
+            .clearCache(clearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true))
+            .actionGet();
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
@@ -176,8 +183,11 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "type1"))
-                .execute().actionGet();
+            SearchResponse countResponse = client().prepareSearch("test")
+                .setSize(0)
+                .setQuery(termQuery("_type", "type1"))
+                .execute()
+                .actionGet();
             assertNoFailures(countResponse);
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
@@ -185,8 +195,11 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
 
             // count with no query is a match all one
             countResponse = client().prepareSearch("test").setSize(0).execute().actionGet();
-            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures() == null ? 0
-                : countResponse.getShardFailures().length, equalTo(0));
+            assertThat(
+                "Failures " + countResponse.getShardFailures(),
+                countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
+                equalTo(0)
+            );
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
@@ -200,13 +213,14 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-                .add(client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setId("2").setSource(source("2", "test")).setCreate(true))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setSource(source("3", "test")))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setCreate(true).setSource(source("4", "test")))
-                .add(client().prepareDelete().setIndex("test").setType("type1").setId("1"))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setSource("{ xxx }", XContentType.JSON)) // failure
-                .execute().actionGet();
+            .add(client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")))
+            .add(client().prepareIndex().setIndex("test").setType("type1").setId("2").setSource(source("2", "test")).setCreate(true))
+            .add(client().prepareIndex().setIndex("test").setType("type1").setSource(source("3", "test")))
+            .add(client().prepareIndex().setIndex("test").setType("type1").setCreate(true).setSource(source("4", "test")))
+            .add(client().prepareDelete().setIndex("test").setType("type1").setId("1"))
+            .add(client().prepareIndex().setIndex("test").setType("type1").setSource("{ xxx }", XContentType.JSON)) // failure
+            .execute()
+            .actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
         assertThat(bulkResponse.getItems().length, equalTo(6));
@@ -250,7 +264,6 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().actionGet();
         assertNoFailures(refreshResponse);
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
-
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();

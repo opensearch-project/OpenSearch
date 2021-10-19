@@ -33,7 +33,6 @@
 package org.opensearch.action;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.NotifyOnceListener;
 
 import java.util.concurrent.atomic.AtomicReference;
 
