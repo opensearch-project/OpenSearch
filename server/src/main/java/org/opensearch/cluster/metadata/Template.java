@@ -65,13 +65,19 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     private static final ParseField ALIASES = new ParseField("aliases");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>("template", false,
-        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2]));
+    public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
+        "template",
+        false,
+        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-            new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered()))), MAPPINGS);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered()))),
+            MAPPINGS
+        );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
             while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -161,9 +167,9 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             return false;
         }
         Template other = (Template) obj;
-        return Objects.equals(settings, other.settings) &&
-            Objects.equals(mappings, other.mappings) &&
-            Objects.equals(aliases, other.aliases);
+        return Objects.equals(settings, other.settings)
+            && Objects.equals(mappings, other.mappings)
+            && Objects.equals(aliases, other.aliases);
     }
 
     @Override
@@ -180,8 +186,8 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             builder.endObject();
         }
         if (this.mappings != null) {
-            Map<String, Object> uncompressedMapping =
-                XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2();
+            Map<String, Object> uncompressedMapping = XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON)
+                .v2();
             if (uncompressedMapping.size() > 0) {
                 builder.field(MAPPINGS.getPreferredName());
                 builder.map(reduceMapping(uncompressedMapping));

@@ -193,8 +193,18 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", query[" + query + "], explain:" + explain +
-                ", rewrite:" + rewrite + ", all_shards:" + allShards;
+        return "["
+            + Arrays.toString(indices)
+            + "]"
+            + Arrays.toString(types)
+            + ", query["
+            + query
+            + "], explain:"
+            + explain
+            + ", rewrite:"
+            + rewrite
+            + ", all_shards:"
+            + allShards;
     }
 
     @Override

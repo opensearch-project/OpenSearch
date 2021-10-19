@@ -54,8 +54,10 @@ public class LegacyMapperServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIndexMetadataUpdateDoesNotLoseDefaultMapper() throws IOException {
-        final IndexService indexService =
-                createIndex("test", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_3_0).build());
+        final IndexService indexService = createIndex(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_3_0).build()
+        );
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {

@@ -113,7 +113,6 @@ public interface Client extends OpenSearchClient, Releasable {
      */
     AdminClient admin();
 
-
     /**
      * Index a JSON source associated with a given index and type.
      * <p>

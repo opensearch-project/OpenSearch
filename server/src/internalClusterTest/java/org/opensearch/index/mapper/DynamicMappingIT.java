@@ -74,14 +74,12 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
             fail("Indexing request should have failed!");
         } catch (MapperParsingException e) {
             // general case, the parsing code complains that it can't parse "bar" as a "long"
-            assertThat(e.getMessage(),
-                    Matchers.containsString("failed to parse field [foo] of type [long]"));
+            assertThat(e.getMessage(), Matchers.containsString("failed to parse field [foo] of type [long]"));
         } catch (IllegalArgumentException e) {
             // rare case: the node that processes the index request doesn't have the mappings
             // yet and sends a mapping update to the master node to map "bar" as "text". This
             // fails as it had been already mapped as a long by the previous index request.
-            assertThat(e.getMessage(),
-                    Matchers.containsString("mapper [foo] cannot be changed from type [long] to [text]"));
+            assertThat(e.getMessage(), Matchers.containsString("mapper [foo] cannot be changed from type [long] to [text]"));
         }
     }
 
@@ -117,8 +115,10 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
                 public void run() {
                     try {
                         startLatch.await();
-                        assertEquals(DocWriteResponse.Result.CREATED, client().prepareIndex("index", "type", id)
-                            .setSource("field" + id, "bar").get().getResult());
+                        assertEquals(
+                            DocWriteResponse.Result.CREATED,
+                            client().prepareIndex("index", "type", id).setSource("field" + id, "bar").get().getResult()
+                        );
                     } catch (Exception e) {
                         error.compareAndSet(null, e);
                     }
@@ -151,28 +151,30 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
         final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
 
-        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).submitStateUpdateTask("block-state-updates",
-            new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                masterBlockedLatch.countDown();
-                indexingCompletedLatch.await();
-                return currentState;
-            }
+        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
+            .submitStateUpdateTask("block-state-updates", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    masterBlockedLatch.countDown();
+                    indexingCompletedLatch.await();
+                    return currentState;
+                }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                throw new AssertionError("unexpected", e);
-            }
-        });
+                @Override
+                public void onFailure(String source, Exception e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            });
 
         masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder
-            = client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("2").setSource("field2", "value2");
+        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME)
+            .setId("2")
+            .setSource("field2", "value2");
         try {
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
-                Matchers.containsString("Limit of total fields [2] has been exceeded"));
+                Matchers.containsString("Limit of total fields [2] has been exceeded")
+            );
         } finally {
             indexingCompletedLatch.countDown();
         }

@@ -243,8 +243,7 @@ public class ClusterServiceIT extends OpenSearchIntegTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            }
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

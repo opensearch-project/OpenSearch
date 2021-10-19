@@ -41,8 +41,6 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.opensearch.action.admin.indices.segments.ShardSegments;
 
 import java.util.Collections;
 
@@ -59,8 +57,13 @@ public class IndicesSegmentResponseTests extends OpenSearchTestCase {
         segment.segmentSort = new Sort(sortField);
 
         ShardSegments shardSegments = new ShardSegments(shardRouting, Collections.singletonList(segment));
-        IndicesSegmentResponse response =
-            new IndicesSegmentResponse(new ShardSegments[] { shardSegments }, 1, 1, 0, Collections.emptyList());
+        IndicesSegmentResponse response = new IndicesSegmentResponse(
+            new ShardSegments[] { shardSegments },
+            1,
+            1,
+            0,
+            Collections.emptyList()
+        );
         try (XContentBuilder builder = jsonBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         }

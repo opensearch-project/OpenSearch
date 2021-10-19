@@ -58,9 +58,20 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     protected long docCountError;
 
-    protected InternalMappedTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,
-            Map<String, Object> metadata, DocValueFormat format, int shardSize,
-            boolean showTermDocCountError, long otherDocCount, List<B> buckets, long docCountError) {
+    protected InternalMappedTerms(
+        String name,
+        BucketOrder reduceOrder,
+        BucketOrder order,
+        int requiredSize,
+        long minDocCount,
+        Map<String, Object> metadata,
+        DocValueFormat format,
+        int shardSize,
+        boolean showTermDocCountError,
+        long otherDocCount,
+        List<B> buckets,
+        long docCountError
+    ) {
         super(name, reduceOrder, order, requiredSize, minDocCount, metadata);
         this.format = format;
         this.shardSize = shardSize;
@@ -132,13 +143,13 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
 
-        InternalMappedTerms<?,?> that = (InternalMappedTerms<?,?>) obj;
+        InternalMappedTerms<?, ?> that = (InternalMappedTerms<?, ?>) obj;
         return Objects.equals(buckets, that.buckets)
-                && Objects.equals(format, that.format)
-                && Objects.equals(otherDocCount, that.otherDocCount)
-                && Objects.equals(showTermDocCountError, that.showTermDocCountError)
-                && Objects.equals(shardSize, that.shardSize)
-                && Objects.equals(docCountError, that.docCountError);
+            && Objects.equals(format, that.format)
+            && Objects.equals(otherDocCount, that.otherDocCount)
+            && Objects.equals(showTermDocCountError, that.showTermDocCountError)
+            && Objects.equals(shardSize, that.shardSize)
+            && Objects.equals(docCountError, that.docCountError);
     }
 
     @Override

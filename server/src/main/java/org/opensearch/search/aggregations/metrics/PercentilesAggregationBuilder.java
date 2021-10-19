@@ -71,7 +71,8 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
                 return new PercentilesAggregationBuilder(name, values, percentileConfig);
             },
             PercentilesConfig.TDigest::new,
-            PERCENTS_FIELD);
+            PERCENTS_FIELD
+        );
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -94,8 +95,11 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
         super(name, values, percentilesConfig, PERCENTS_FIELD);
     }
 
-    protected PercentilesAggregationBuilder(PercentilesAggregationBuilder clone,
-                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected PercentilesAggregationBuilder(
+        PercentilesAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -142,12 +146,23 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                                    ValuesSourceConfig config,
-                                                                    AggregatorFactory parent,
-                                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new PercentilesAggregatorFactory(name, config, values, configOrDefault(), keyed,
-            queryShardContext, parent, subFactoriesBuilder, metadata);
+    protected ValuesSourceAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        return new PercentilesAggregatorFactory(
+            name,
+            config,
+            values,
+            configOrDefault(),
+            keyed,
+            queryShardContext,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 
     @Override

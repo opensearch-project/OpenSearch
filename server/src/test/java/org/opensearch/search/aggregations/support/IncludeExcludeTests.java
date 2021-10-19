@@ -54,16 +54,12 @@ import java.util.TreeSet;
 
 public class IncludeExcludeTests extends OpenSearchTestCase {
     public void testEmptyTermsWithOrds() throws IOException {
-        IncludeExclude inexcl = new IncludeExclude(
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
-                null);
+        IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         LongBitSet acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
 
-        inexcl = new IncludeExclude(
-                null,
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
+        inexcl = new IncludeExclude(null, new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
         filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
@@ -102,33 +98,31 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             }
 
         };
-        IncludeExclude inexcl = new IncludeExclude(
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
-                null);
+        IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         LongBitSet acceptedOrds = filter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
         assertTrue(acceptedOrds.get(0));
 
-        inexcl = new IncludeExclude(
-                new TreeSet<>(Collections.singleton(new BytesRef("bar"))),
-                null);
+        inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("bar"))), null);
         filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         acceptedOrds = filter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
         assertFalse(acceptedOrds.get(0));
 
         inexcl = new IncludeExclude(
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
+            new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
+            new TreeSet<>(Collections.singleton(new BytesRef("foo")))
+        );
         filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         acceptedOrds = filter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
         assertFalse(acceptedOrds.get(0));
 
         inexcl = new IncludeExclude(
-                null, // means everything included
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
+            null, // means everything included
+            new TreeSet<>(Collections.singleton(new BytesRef("foo")))
+        );
         filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         acceptedOrds = filter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
@@ -240,8 +234,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
                 return IncludeExclude.parseExclude(parser);
             } else {
-                throw new IllegalArgumentException(
-                    "Unexpected field name serialized in test: " + field.getPreferredName());
+                throw new IllegalArgumentException("Unexpected field name serialized in test: " + field.getPreferredName());
             }
         }
     }

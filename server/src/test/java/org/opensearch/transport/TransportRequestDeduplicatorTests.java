@@ -50,8 +50,7 @@ public class TransportRequestDeduplicatorTests extends OpenSearchTestCase {
         Exception failure = randomBoolean() ? new TransportException("simulated") : null;
         final TransportRequest request = new TransportRequest() {
             @Override
-            public void setParentTask(final TaskId taskId) {
-            }
+            public void setParentTask(final TaskId taskId) {}
         };
         final TransportRequestDeduplicator<TransportRequest> deduplicator = new TransportRequestDeduplicator<>();
         final SetOnce<ActionListener<Void>> listenerHolder = new SetOnce<>();

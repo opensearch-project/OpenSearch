@@ -129,7 +129,6 @@ public class RemoteConnectionManagerTests extends OpenSearchTestCase {
 
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-            throws TransportException {
-        }
+            throws TransportException {}
     }
 }

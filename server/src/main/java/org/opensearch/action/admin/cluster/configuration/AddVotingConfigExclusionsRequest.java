@@ -90,8 +90,9 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         }
 
         if (noneOrMoreThanOneIsSet(nodeDescriptions, nodeIds, nodeNames)) {
-            throw new IllegalArgumentException("Please set node identifiers correctly. " +
-                "One and only one of [node_name], [node_names] and [node_ids] has to be set");
+            throw new IllegalArgumentException(
+                "Please set node identifiers correctly. " + "One and only one of [node_name], [node_names] and [node_ids] has to be set"
+            );
         }
 
         if (nodeDescriptions.length > 0) {
@@ -117,8 +118,10 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         timeout = in.readTimeValue();
 
         if (nodeDescriptions.length > 0) {
-            deprecationLogger.deprecate("voting_config_exclusion",
-                "nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead");
+            deprecationLogger.deprecate(
+                "voting_config_exclusion",
+                "nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead"
+            );
         }
 
     }
@@ -128,12 +131,16 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         Set<VotingConfigExclusion> newVotingConfigExclusions = new HashSet<>();
 
         if (nodeDescriptions.length >= 1) {
-            newVotingConfigExclusions = Arrays.stream(allNodes.resolveNodes(nodeDescriptions)).map(allNodes::get)
-                .filter(DiscoveryNode::isMasterNode).map(VotingConfigExclusion::new).collect(Collectors.toSet());
+            newVotingConfigExclusions = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
+                .map(allNodes::get)
+                .filter(DiscoveryNode::isMasterNode)
+                .map(VotingConfigExclusion::new)
+                .collect(Collectors.toSet());
 
             if (newVotingConfigExclusions.isEmpty()) {
-                throw new IllegalArgumentException("add voting config exclusions request for " + Arrays.asList(nodeDescriptions)
-                    + " matched no master-eligible nodes");
+                throw new IllegalArgumentException(
+                    "add voting config exclusions request for " + Arrays.asList(nodeDescriptions) + " matched no master-eligible nodes"
+                );
             }
         } else if (nodeIds.length >= 1) {
             for (String nodeId : nodeIds) {
@@ -149,10 +156,10 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         } else {
             assert nodeNames.length >= 1;
             Map<String, DiscoveryNode> existingNodes = StreamSupport.stream(allNodes.spliterator(), false)
-                                                                .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity()));
+                .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity()));
 
             for (String nodeName : nodeNames) {
-                if (existingNodes.containsKey(nodeName)){
+                if (existingNodes.containsKey(nodeName)) {
                     DiscoveryNode discoveryNode = existingNodes.get(nodeName);
                     if (discoveryNode.isMasterNode()) {
                         newVotingConfigExclusions.add(new VotingConfigExclusion(discoveryNode));
@@ -167,17 +174,29 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         return newVotingConfigExclusions;
     }
 
-    Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(ClusterState currentState, int maxExclusionsCount,
-                                                                            String maximumSettingKey) {
+    Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
+        ClusterState currentState,
+        int maxExclusionsCount,
+        String maximumSettingKey
+    ) {
         final Set<VotingConfigExclusion> resolvedExclusions = resolveVotingConfigExclusions(currentState);
 
         final int oldExclusionsCount = currentState.getVotingConfigExclusions().size();
         final int newExclusionsCount = resolvedExclusions.size();
         if (oldExclusionsCount + newExclusionsCount > maxExclusionsCount) {
-            throw new IllegalArgumentException("add voting config exclusions request for " + Arrays.asList(nodeDescriptions)
-                + " would add [" + newExclusionsCount + "] exclusions to the existing [" + oldExclusionsCount
-                + "] which would exceed the maximum of [" + maxExclusionsCount + "] set by ["
-                + maximumSettingKey + "]");
+            throw new IllegalArgumentException(
+                "add voting config exclusions request for "
+                    + Arrays.asList(nodeDescriptions)
+                    + " would add ["
+                    + newExclusionsCount
+                    + "] exclusions to the existing ["
+                    + oldExclusionsCount
+                    + "] which would exceed the maximum of ["
+                    + maxExclusionsCount
+                    + "] set by ["
+                    + maximumSettingKey
+                    + "]"
+            );
         }
         return resolvedExclusions;
     }
@@ -238,11 +257,18 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
     @Override
     public String toString() {
-        return "AddVotingConfigExclusionsRequest{" +
-            "nodeDescriptions=" + Arrays.asList(nodeDescriptions) + ", " +
-            "nodeIds=" + Arrays.asList(nodeIds) + ", " +
-            "nodeNames=" + Arrays.asList(nodeNames) + ", " +
-            "timeout=" + timeout +
-            '}';
+        return "AddVotingConfigExclusionsRequest{"
+            + "nodeDescriptions="
+            + Arrays.asList(nodeDescriptions)
+            + ", "
+            + "nodeIds="
+            + Arrays.asList(nodeIds)
+            + ", "
+            + "nodeNames="
+            + Arrays.asList(nodeNames)
+            + ", "
+            + "timeout="
+            + timeout
+            + '}';
     }
 }

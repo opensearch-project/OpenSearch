@@ -57,34 +57,39 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
             AutoDateHistogramAggregationBuilder.REGISTRY_KEY,
             Arrays.asList(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             AutoDateHistogramAggregator::build,
-                true);
+            true
+        );
     }
 
     private final int numBuckets;
     private RoundingInfo[] roundingInfos;
 
-    public AutoDateHistogramAggregatorFactory(String name,
-                                              ValuesSourceConfig config,
-                                              int numBuckets,
-                                              RoundingInfo[] roundingInfos,
-                                              QueryShardContext queryShardContext,
-                                              AggregatorFactory parent,
-                                              AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metadata) throws IOException {
+    public AutoDateHistogramAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        int numBuckets,
+        RoundingInfo[] roundingInfos,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.numBuckets = numBuckets;
         this.roundingInfos = roundingInfos;
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         AutoDateHistogramAggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(AutoDateHistogramAggregationBuilder.REGISTRY_KEY, config);
-        Function<Rounding, Rounding.Prepared> roundingPreparer =
-                config.getValuesSource().roundingPreparer(searchContext.getQueryShardContext().getIndexReader());
+        Function<Rounding, Rounding.Prepared> roundingPreparer = config.getValuesSource()
+            .roundingPreparer(searchContext.getQueryShardContext().getIndexReader());
         return aggregatorSupplier.build(
             name,
             factories,
@@ -100,9 +105,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return AutoDateHistogramAggregator.build(
             name,
             factories,

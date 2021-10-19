@@ -68,30 +68,26 @@ public class RestIndexActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/_doc/some_id")
             .build();
         dispatchRequest(validRequest);
     }
 
     public void testCreateWithTypeInPath() {
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/some_type/some_id/_create")
             .build();
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/_create/some_id")
             .build();
         dispatchRequest(validRequest);
@@ -113,8 +109,10 @@ public class RestIndexActionTests extends RestActionTestCase {
     }
 
     public void testAutoIdDefaultsToOptypeIndexForOlderVersions() {
-        checkAutoIdOpType(VersionUtils.randomVersionBetween(random(), null,
-            VersionUtils.getPreviousVersion(LegacyESVersion.V_7_5_0)), DocWriteRequest.OpType.INDEX);
+        checkAutoIdOpType(
+            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_5_0)),
+            DocWriteRequest.OpType.INDEX
+        );
     }
 
     private void checkAutoIdOpType(Version minClusterVersion, DocWriteRequest.OpType expectedOpType) {
@@ -125,15 +123,15 @@ public class RestIndexActionTests extends RestActionTestCase {
             executeCalled.set(true);
             return null;
         });
-        RestRequest autoIdRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        RestRequest autoIdRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc")
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
-        clusterStateSupplier.set(ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder()
-                .add(new DiscoveryNode("test", buildNewFakeTransportAddress(), minClusterVersion))
-                .build()).build());
+        clusterStateSupplier.set(
+            ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(new DiscoveryNode("test", buildNewFakeTransportAddress(), minClusterVersion)).build())
+                .build()
+        );
         dispatchRequest(autoIdRequest);
         assertThat(executeCalled.get(), equalTo(true));
     }

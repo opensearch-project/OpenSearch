@@ -38,7 +38,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 import org.opensearch.script.StoredScriptSource;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -79,33 +79,31 @@ public class FiltersIT extends OpenSearchIntegTestCase {
         numTag2Docs = randomIntBetween(1, numDocs - numTag1Docs);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numTag1Docs; i++) {
-            XContentBuilder source = jsonBuilder()
-                    .startObject()
-                    .field("value", i + 1)
-                    .field("tag", "tag1")
-                    .endObject();
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
+            XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).field("tag", "tag1").endObject();
+            builders.add(client().prepareIndex("idx", "type", "" + i).setSource(source));
             if (randomBoolean()) {
                 // randomly index the document twice so that we have deleted docs that match the filter
-                builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
+                builders.add(client().prepareIndex("idx", "type", "" + i).setSource(source));
             }
         }
         for (int i = numTag1Docs; i < (numTag1Docs + numTag2Docs); i++) {
-            XContentBuilder source = jsonBuilder()
-                    .startObject()
-                    .field("value", i)
-                    .field("tag", "tag2")
-                    .field("name", "name" + i)
-                    .endObject();
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
+            XContentBuilder source = jsonBuilder().startObject()
+                .field("value", i)
+                .field("tag", "tag2")
+                .field("name", "name" + i)
+                .endObject();
+            builders.add(client().prepareIndex("idx", "type", "" + i).setSource(source));
             if (randomBoolean()) {
-                builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
+                builders.add(client().prepareIndex("idx", "type", "" + i).setSource(source));
             }
         }
         for (int i = numTag1Docs + numTag2Docs; i < numDocs; i++) {
             numOtherDocs++;
-            XContentBuilder source = jsonBuilder().startObject().field("value", i).field("tag", "tag3").field("name", "name" + i)
-                    .endObject();
+            XContentBuilder source = jsonBuilder().startObject()
+                .field("value", i)
+                .field("tag", "tag3")
+                .field("name", "name" + i)
+                .endObject();
             builders.add(client().prepareIndex("idx", "type", "" + i).setSource(source));
             if (randomBoolean()) {
                 builders.add(client().prepareIndex("idx", "type", "" + i).setSource(source));
@@ -113,20 +111,24 @@ public class FiltersIT extends OpenSearchIntegTestCase {
         }
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i*2)
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                    .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
+            );
         }
         indexRandom(true, builders);
         ensureSearchable();
     }
 
     public void testSimple() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(
-                filters("tags", randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
-                        new KeyedFilter("tag2", termQuery("tag", "tag2")))))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                filters(
+                    "tags",
+                    randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2")))
+                )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -150,9 +152,10 @@ public class FiltersIT extends OpenSearchIntegTestCase {
     public void testEmptyFilterDeclarations() throws Exception {
         QueryBuilder emptyFilter = new BoolQueryBuilder();
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags", randomOrder(new KeyedFilter("all", emptyFilter),
-                        new KeyedFilter("tag1", termQuery("tag", "tag1")))))
-                .get();
+            .addAggregation(
+                filters("tags", randomOrder(new KeyedFilter("all", emptyFilter), new KeyedFilter("tag1", termQuery("tag", "tag1"))))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -168,9 +171,13 @@ public class FiltersIT extends OpenSearchIntegTestCase {
 
     public void testWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags", randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
-                        new KeyedFilter("tag2", termQuery("tag", "tag2")))).subAggregation(avg("avg_value").field("value")))
-                .get();
+            .addAggregation(
+                filters(
+                    "tags",
+                    randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2")))
+                ).subAggregation(avg("avg_value").field("value"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -179,10 +186,10 @@ public class FiltersIT extends OpenSearchIntegTestCase {
         assertThat(filters.getName(), equalTo("tags"));
 
         assertThat(filters.getBuckets().size(), equalTo(2));
-        assertThat(((InternalAggregation)filters).getProperty("_bucket_count"), equalTo(2));
-        Object[] propertiesKeys = (Object[]) ((InternalAggregation)filters).getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)filters).getProperty("_count");
-        Object[] propertiesCounts = (Object[]) ((InternalAggregation)filters).getProperty("avg_value.value");
+        assertThat(((InternalAggregation) filters).getProperty("_bucket_count"), equalTo(2));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation) filters).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) filters).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation) filters).getProperty("avg_value.value");
 
         Filters.Bucket bucket = filters.getBucketByKey("tag1");
         assertThat(bucket, Matchers.notNullValue());
@@ -219,9 +226,8 @@ public class FiltersIT extends OpenSearchIntegTestCase {
 
     public void testAsSubAggregation() {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo").field("value").interval(2L).subAggregation(
-                                filters("filters", matchAllQuery()))).get();
+            .addAggregation(histogram("histo").field("value").interval(2L).subAggregation(filters("filters", matchAllQuery())))
+            .get();
 
         assertSearchResponse(response);
 
@@ -242,14 +248,18 @@ public class FiltersIT extends OpenSearchIntegTestCase {
 
         try {
             client().prepareSearch("idx")
-                    .addAggregation(
-                            filters("tags",
-                            randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
-                                    new KeyedFilter("tag2", termQuery("tag", "tag2")))).subAggregation(avg("avg_value")))
-                    .get();
+                .addAggregation(
+                    filters(
+                        "tags",
+                        randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2")))
+                    ).subAggregation(avg("avg_value"))
+                )
+                .get();
 
-            fail("expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source" +
-                    "context which the sub-aggregation can inherit");
+            fail(
+                "expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source"
+                    + "context which the sub-aggregation can inherit"
+            );
 
         } catch (OpenSearchException e) {
             assertThat(e.getMessage(), is("all shards failed"));
@@ -258,10 +268,14 @@ public class FiltersIT extends OpenSearchIntegTestCase {
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(filters("filters", new KeyedFilter("all", matchAllQuery()))))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                histogram("histo").field("value")
+                    .interval(1L)
+                    .minDocCount(0)
+                    .subAggregation(filters("filters", new KeyedFilter("all", matchAllQuery())))
+            )
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -279,7 +293,8 @@ public class FiltersIT extends OpenSearchIntegTestCase {
 
     public void testSimpleNonKeyed() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags", termQuery("tag", "tag1"), termQuery("tag", "tag2"))).get();
+            .addAggregation(filters("tags", termQuery("tag", "tag1"), termQuery("tag", "tag2")))
+            .get();
 
         assertSearchResponse(response);
 
@@ -302,10 +317,14 @@ public class FiltersIT extends OpenSearchIntegTestCase {
     }
 
     public void testOtherBucket() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(
-                filters("tags", randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
-                        new KeyedFilter("tag2", termQuery("tag", "tag2")))).otherBucket(true))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                filters(
+                    "tags",
+                    randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2")))
+                ).otherBucket(true)
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -330,9 +349,13 @@ public class FiltersIT extends OpenSearchIntegTestCase {
 
     public void testOtherNamedBucket() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags", randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
-                        new KeyedFilter("tag2", termQuery("tag", "tag2")))).otherBucket(true).otherBucketKey("foobar"))
-                .get();
+            .addAggregation(
+                filters(
+                    "tags",
+                    randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2")))
+                ).otherBucket(true).otherBucketKey("foobar")
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -357,7 +380,8 @@ public class FiltersIT extends OpenSearchIntegTestCase {
 
     public void testOtherNonKeyed() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags", termQuery("tag", "tag1"), termQuery("tag", "tag2")).otherBucket(true)).get();
+            .addAggregation(filters("tags", termQuery("tag", "tag1"), termQuery("tag", "tag2")).otherBucket(true))
+            .get();
 
         assertSearchResponse(response);
 
@@ -385,10 +409,13 @@ public class FiltersIT extends OpenSearchIntegTestCase {
 
     public void testOtherWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filters("tags", randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")),
-                        new KeyedFilter("tag2", termQuery("tag", "tag2")))).otherBucket(true)
-                                .subAggregation(avg("avg_value").field("value")))
-                .get();
+            .addAggregation(
+                filters(
+                    "tags",
+                    randomOrder(new KeyedFilter("tag1", termQuery("tag", "tag1")), new KeyedFilter("tag2", termQuery("tag", "tag2")))
+                ).otherBucket(true).subAggregation(avg("avg_value").field("value"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -397,10 +424,10 @@ public class FiltersIT extends OpenSearchIntegTestCase {
         assertThat(filters.getName(), equalTo("tags"));
 
         assertThat(filters.getBuckets().size(), equalTo(3));
-        assertThat(((InternalAggregation)filters).getProperty("_bucket_count"), equalTo(3));
-        Object[] propertiesKeys = (Object[]) ((InternalAggregation)filters).getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)filters).getProperty("_count");
-        Object[] propertiesCounts = (Object[]) ((InternalAggregation)filters).getProperty("avg_value.value");
+        assertThat(((InternalAggregation) filters).getProperty("_bucket_count"), equalTo(3));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation) filters).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) filters).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation) filters).getProperty("avg_value.value");
 
         Filters.Bucket bucket = filters.getBucketByKey("tag1");
         assertThat(bucket, Matchers.notNullValue());
@@ -453,11 +480,14 @@ public class FiltersIT extends OpenSearchIntegTestCase {
 
     public void testEmptyAggregationWithOtherBucket() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(filters("filters", new KeyedFilter("foo", matchAllQuery()))
-                            .otherBucket(true).otherBucketKey("bar")))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                histogram("histo").field("value")
+                    .interval(1L)
+                    .minDocCount(0)
+                    .subAggregation(filters("filters", new KeyedFilter("foo", matchAllQuery())).otherBucket(true).otherBucketKey("bar"))
+            )
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");

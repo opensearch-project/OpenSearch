@@ -32,5 +32,4 @@
 
 package org.opensearch.common.metrics;
 
-public interface Metric {
-}
+public interface Metric {}

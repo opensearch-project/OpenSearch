@@ -72,10 +72,11 @@ public class SettingsModule implements Module {
     }
 
     public SettingsModule(
-            Settings settings,
-            List<Setting<?>> additionalSettings,
-            List<String> settingsFilter,
-            Set<SettingUpgrader<?>> settingUpgraders) {
+        Settings settings,
+        List<Setting<?>> additionalSettings,
+        List<String> settingsFilter,
+        Set<SettingUpgrader<?>> settingUpgraders
+    ) {
         this.settings = settings;
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
             registerSetting(setting);
@@ -104,11 +105,10 @@ public class SettingsModule implements Module {
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
         this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()), clusterSettingUpgraders);
         Settings indexSettings = settings.filter((s) -> (s.startsWith("index.") &&
-            // special case - we want to get Did you mean indices.query.bool.max_clause_count
-            // which means we need to by-pass this check for this setting
-            // TODO remove in 6.0!!
-            "index.query.bool.max_clause_count".equals(s) == false)
-            && clusterSettings.get(s) == null);
+        // special case - we want to get Did you mean indices.query.bool.max_clause_count
+        // which means we need to by-pass this check for this setting
+        // TODO remove in 6.0!!
+            "index.query.bool.max_clause_count".equals(s) == false) && clusterSettings.get(s) == null);
         if (indexSettings.isEmpty() == false) {
             try {
                 String separator = IntStream.range(0, 85).mapToObj(s -> "*").collect(Collectors.joining("")).trim();
@@ -120,12 +120,11 @@ public class SettingsModule implements Module {
                 builder.append(System.lineSeparator());
                 builder.append(System.lineSeparator());
                 int count = 0;
-                for (String word : ("Index level settings can NOT be set on the nodes configuration like " +
-                    "the opensearch.yaml, in system properties or command line arguments." +
-                    "In order to upgrade all indices the settings must be updated via the /${index}/_settings API. " +
-                    "Unless all settings are dynamic all indices must be closed in order to apply the upgrade" +
-                    "Indices created in the future should use index templates to set default values."
-                ).split(" ")) {
+                for (String word : ("Index level settings can NOT be set on the nodes configuration like "
+                    + "the opensearch.yaml, in system properties or command line arguments."
+                    + "In order to upgrade all indices the settings must be updated via the /${index}/_settings API. "
+                    + "Unless all settings are dynamic all indices must be closed in order to apply the upgrade"
+                    + "Indices created in the future should use index templates to set default values.").split(" ")) {
                     if (count + word.length() > 85) {
                         builder.append(System.lineSeparator());
                         count = 0;
@@ -161,7 +160,7 @@ public class SettingsModule implements Module {
         // by now we are fully configured, lets check node level settings for unregistered index settings
         clusterSettings.validate(settings, true);
         this.settingsFilter = new SettingsFilter(settingsFilterPattern);
-     }
+    }
 
     @Override
     public void configure(Binder binder) {
@@ -190,7 +189,7 @@ public class SettingsModule implements Module {
                 }
                 if (setting.isConsistent()) {
                     if (setting instanceof Setting.AffixSetting<?>) {
-                        if (((Setting.AffixSetting<?>)setting).getConcreteSettingForNamespace("_na_") instanceof SecureSetting<?>) {
+                        if (((Setting.AffixSetting<?>) setting).getConcreteSettingForNamespace("_na_") instanceof SecureSetting<?>) {
                             consistentSettings.add(setting);
                         } else {
                             throw new IllegalArgumentException("Invalid consistent secure setting [" + setting.getKey() + "]");
@@ -224,7 +223,7 @@ public class SettingsModule implements Module {
      */
     private void registerSettingsFilter(String filter) {
         if (SettingsFilter.isValidPattern(filter) == false) {
-            throw new IllegalArgumentException("filter [" + filter +"] is invalid must be either a key or a regex pattern");
+            throw new IllegalArgumentException("filter [" + filter + "] is invalid must be either a key or a regex pattern");
         }
         if (settingsFilterPattern.contains(filter)) {
             throw new IllegalArgumentException("filter [" + filter + "] has already been registered");

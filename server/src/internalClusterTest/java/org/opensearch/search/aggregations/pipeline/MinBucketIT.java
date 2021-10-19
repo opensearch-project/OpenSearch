@@ -71,8 +71,7 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", "tag", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);
@@ -88,17 +87,25 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
-            builders.add(client().prepareIndex("idx", "type").setSource(
-                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, fieldValue).field("tag", "tag" + (i % interval))
-                            .endObject()));
+            builders.add(
+                client().prepareIndex("idx", "type")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field(SINGLE_VALUED_FIELD_NAME, fieldValue)
+                            .field("tag", "tag" + (i % interval))
+                            .endObject()
+                    )
+            );
             final int bucket = (fieldValue / interval); // + (fieldValue < 0 ? -1 : 0) - (minRandomValue / interval - 1);
             valueCounts[bucket]++;
         }
 
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
-                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                    .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
+            );
         }
         indexRandom(true, builders);
         ensureSearchable();
@@ -106,9 +113,11 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
 
     public void testDocCountTopLevel() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .extendedBounds(minRandomValue, maxRandomValue))
-                .addAggregation(minBucket("min_bucket", "histo>_count")).get();
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+            )
+            .addAggregation(minBucket("min_bucket", "histo>_count"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -142,16 +151,16 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testDocCountAsSubAgg() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(minBucket("min_bucket", "histo>_count"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                    )
+                    .subAggregation(minBucket("min_bucket", "histo>_count"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -195,10 +204,10 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testMetricTopLevel() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(minBucket("min_bucket", "terms>sum")).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+            .addAggregation(minBucket("min_bucket", "terms>sum"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -234,17 +243,19 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testMetricAsSubAgg() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue)
-                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(minBucket("min_bucket", "histo>sum"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
+                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .subAggregation(minBucket("min_bucket", "histo>sum"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -292,18 +303,19 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testMetricAsSubAggWithInsertZeros() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue)
-                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(minBucket("min_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
+                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .subAggregation(minBucket("min_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -350,9 +362,13 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
 
     public void testNoBuckets() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
-                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(minBucket("min_bucket", "terms>sum")).get();
+            .addAggregation(
+                terms("terms").field("tag")
+                    .includeExclude(new IncludeExclude(null, "tag.*"))
+                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+            )
+            .addAggregation(minBucket("min_bucket", "terms>sum"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -370,17 +386,17 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testNested() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(minBucket("min_histo_bucket", "histo>_count")))
-                .addAggregation(minBucket("min_terms_bucket", "terms>min_histo_bucket")).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                    )
+                    .subAggregation(minBucket("min_histo_bucket", "histo>_count"))
+            )
+            .addAggregation(minBucket("min_terms_bucket", "terms>min_histo_bucket"))
+            .get();
 
         assertSearchResponse(response);
 

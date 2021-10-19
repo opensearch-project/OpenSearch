@@ -56,13 +56,23 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AsyncShardFetchTests extends OpenSearchTestCase {
-    private final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
+    private final DiscoveryNode node1 = new DiscoveryNode(
+        "node1",
+        buildNewFakeTransportAddress(),
+        Collections.emptyMap(),
+        Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+        Version.CURRENT
+    );
     private final Response response1 = new Response(node1);
     private final Response response1_2 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
-    private final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
+    private final DiscoveryNode node2 = new DiscoveryNode(
+        "node2",
+        buildNewFakeTransportAddress(),
+        Collections.emptyMap(),
+        Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+        Version.CURRENT
+    );
     private final Response response2 = new Response(node2);
     private final Throwable failure2 = new Throwable("simulate failure 2");
 
@@ -190,8 +200,11 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         assertThat(test.reroute.get(), equalTo(0));
 
         // handle a failure with incorrect round id, wait on reroute incrementing
-        test.processAsyncFetch(Collections.emptyList(), Collections.singletonList(
-            new FailedNodeException(node1.getId(), "dummy failure", failure1)), 0);
+        test.processAsyncFetch(
+            Collections.emptyList(),
+            Collections.singletonList(new FailedNodeException(node1.getId(), "dummy failure", failure1)),
+            0
+        );
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(1));
 
@@ -426,8 +439,11 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
                             assert entry != null;
                             entry.executeLatch.await();
                             if (entry.failure != null) {
-                                processAsyncFetch(null,
-                                    Collections.singletonList(new FailedNodeException(nodeId, "unexpected", entry.failure)), fetchingRound);
+                                processAsyncFetch(
+                                    null,
+                                    Collections.singletonList(new FailedNodeException(nodeId, "unexpected", entry.failure)),
+                                    fetchingRound
+                                );
                             } else {
                                 processAsyncFetch(Collections.singletonList(entry.response), null, fetchingRound);
                             }
@@ -443,7 +459,6 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
             }
         }
     }
-
 
     static class Response extends BaseNodeResponse {
 

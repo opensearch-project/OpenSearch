@@ -57,8 +57,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestResizeHandler.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
-    RestResizeHandler() {
-    }
+    RestResizeHandler() {}
 
     @Override
     public abstract String getName();
@@ -84,8 +83,10 @@ public abstract class RestResizeHandler extends BaseRestHandler {
                     throw new IllegalArgumentException("parameter [copy_settings] can not be explicitly set to [false]");
                 }
             }
-            deprecationLogger.deprecate("resize_deprecated_parameter",
-                "parameter [copy_settings] is deprecated and will be removed in 8.0.0");
+            deprecationLogger.deprecate(
+                "resize_deprecated_parameter",
+                "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
+            );
         }
         resizeRequest.setCopySettings(copySettings);
         request.applyContentParser(resizeRequest::fromXContent);
@@ -99,9 +100,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
-                new Route(POST, "/{index}/_shrink/{target}"),
-                new Route(PUT, "/{index}/_shrink/{target}")));
+            return unmodifiableList(asList(new Route(POST, "/{index}/_shrink/{target}"), new Route(PUT, "/{index}/_shrink/{target}")));
         }
 
         @Override
@@ -120,9 +119,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
-                new Route(POST, "/{index}/_split/{target}"),
-                new Route(PUT, "/{index}/_split/{target}")));
+            return unmodifiableList(asList(new Route(POST, "/{index}/_split/{target}"), new Route(PUT, "/{index}/_split/{target}")));
         }
 
         @Override
@@ -141,9 +138,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
-                new Route(POST, "/{index}/_clone/{target}"),
-                new Route(PUT, "/{index}/_clone/{target}")));
+            return unmodifiableList(asList(new Route(POST, "/{index}/_clone/{target}"), new Route(PUT, "/{index}/_clone/{target}")));
         }
 
         @Override

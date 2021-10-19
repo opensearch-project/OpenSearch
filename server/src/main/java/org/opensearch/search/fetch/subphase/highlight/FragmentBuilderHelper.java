@@ -53,7 +53,7 @@ import java.util.List;
 public final class FragmentBuilderHelper {
 
     private FragmentBuilderHelper() {
-      // no instance
+        // no instance
     }
 
     /**
@@ -78,8 +78,12 @@ public final class FragmentBuilderHelper {
                     return FragmentBuilderHelper.compare(startOffset, startOffset2);
                 }
             });
-            return new WeightedFragInfo(Math.min(fragInfo.getSubInfos().get(0).getTermsOffsets().get(0).getStartOffset(),
-                    fragInfo.getStartOffset()), fragInfo.getEndOffset(), subInfos, fragInfo.getTotalBoost());
+            return new WeightedFragInfo(
+                Math.min(fragInfo.getSubInfos().get(0).getTermsOffsets().get(0).getStartOffset(), fragInfo.getStartOffset()),
+                fragInfo.getEndOffset(),
+                subInfos,
+                fragInfo.getTotalBoost()
+            );
         } else {
             return fragInfo;
         }

@@ -46,7 +46,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
 
-    public void testNodesInfoTimeout(){
+    public void testNodesInfoTimeout() {
         String masterNode = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
@@ -55,20 +55,20 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         NodesInfoResponse response = dataNodeClient().admin().cluster().prepareNodesInfo().get();
         assertThat(response.getNodes().size(), equalTo(3));
 
-        //simulate timeout on bad node.
+        // simulate timeout on bad node.
         simulateTimeoutAtTransport(dataNode, anotherDataNode, NodesInfoAction.NAME);
 
         // One bad data node
         response = dataNodeClient().admin().cluster().prepareNodesInfo().get();
         ArrayList<String> nodes = new ArrayList<String>();
-        for(NodeInfo node : response.getNodes()) {
+        for (NodeInfo node : response.getNodes()) {
             nodes.add(node.getNode().getName());
         }
         assertThat(response.getNodes().size(), equalTo(2));
         assertThat(nodes.contains(masterNode), is(true));
     }
 
-    public void testNodesStatsTimeout(){
+    public void testNodesStatsTimeout() {
         String masterNode = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
@@ -83,14 +83,14 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
 
         NodesStatsResponse response = dataNodeClient().admin().cluster().prepareNodesStats().get();
         ArrayList<String> nodes = new ArrayList<String>();
-        for(NodeStats node : response.getNodes()) {
+        for (NodeStats node : response.getNodes()) {
             nodes.add(node.getNode().getName());
         }
         assertThat(response.getNodes().size(), equalTo(2));
         assertThat(nodes.contains(masterNode), is(true));
     }
 
-    public void testListTasksTimeout(){
+    public void testListTasksTimeout() {
         String masterNode = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
@@ -107,15 +107,22 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         assertNull(response.getPerNodeTasks().get(anotherDataNode));
     }
 
-    public void testRecoveriesWithTimeout(){
+    public void testRecoveriesWithTimeout() {
         internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
 
         int numShards = 4;
-        assertAcked(prepareCreate("test-index", 0, Settings.builder().
-                put("number_of_shards", numShards).put("routing.allocation.total_shards_per_node", 2).
-                put("number_of_replicas", 0)));
+        assertAcked(
+            prepareCreate(
+                "test-index",
+                0,
+                Settings.builder()
+                    .put("number_of_shards", numShards)
+                    .put("routing.allocation.total_shards_per_node", 2)
+                    .put("number_of_replicas", 0)
+            )
+        );
         ensureGreen();
         final long numDocs = scaledRandomIntBetween(50, 100);
         for (int i = 0; i < numDocs; i++) {
@@ -129,27 +136,34 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         assertThat(recoveryResponse.getTotalShards(), equalTo(numShards));
         assertThat(recoveryResponse.getSuccessfulShards(), equalTo(numShards));
 
-        //simulate timeout on bad node.
+        // simulate timeout on bad node.
         simulateTimeoutAtTransport(dataNode, anotherDataNode, RecoveryAction.NAME);
 
-        //verify response with bad node.
+        // verify response with bad node.
         recoveryResponse = dataNodeClient().admin().indices().prepareRecoveries().get();
         assertThat(recoveryResponse.getTotalShards(), equalTo(numShards));
-        assertThat(recoveryResponse.getSuccessfulShards(), equalTo(numShards/2));
-        assertThat(recoveryResponse.getFailedShards(), equalTo(numShards/2));
+        assertThat(recoveryResponse.getSuccessfulShards(), equalTo(numShards / 2));
+        assertThat(recoveryResponse.getFailedShards(), equalTo(numShards / 2));
         assertThat(recoveryResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
     }
 
-    public void testStatsWithTimeout(){
+    public void testStatsWithTimeout() {
         internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
 
         int numShards = 4;
         logger.info("-->  creating index");
-        assertAcked(prepareCreate("test-index", 0, Settings.builder().
-                put("number_of_shards", numShards).put("routing.allocation.total_shards_per_node", 2).
-                put("number_of_replicas", 0)));
+        assertAcked(
+            prepareCreate(
+                "test-index",
+                0,
+                Settings.builder()
+                    .put("number_of_shards", numShards)
+                    .put("routing.allocation.total_shards_per_node", 2)
+                    .put("number_of_replicas", 0)
+            )
+        );
         ensureGreen();
         final long numDocs = scaledRandomIntBetween(50, 100);
         for (int i = 0; i < numDocs; i++) {
@@ -158,7 +172,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         refresh("test-index");
         ensureSearchable("test-index");
 
-        //happy case
+        // happy case
         IndicesStatsResponse indicesStats = dataNodeClient().admin().indices().prepareStats().setDocs(true).get();
         assertThat(indicesStats.getTotalShards(), equalTo(numShards));
         assertThat(indicesStats.getSuccessfulShards(), equalTo(numShards));
@@ -169,15 +183,17 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         // verify indices state response with bad node.
         indicesStats = dataNodeClient().admin().indices().prepareStats().setDocs(true).get();
         assertThat(indicesStats.getTotalShards(), equalTo(numShards));
-        assertThat(indicesStats.getFailedShards(), equalTo(numShards/2));
-        assertThat(indicesStats.getSuccessfulShards(), equalTo(numShards/2));
+        assertThat(indicesStats.getFailedShards(), equalTo(numShards / 2));
+        assertThat(indicesStats.getSuccessfulShards(), equalTo(numShards / 2));
         assertThat(indicesStats.getTotal().getDocs().getCount(), lessThan(numDocs));
         assertThat(indicesStats.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
     }
 
     private void simulateTimeoutAtTransport(String dataNode, String anotherDataNode, String transportActionName) {
-        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class,
-                dataNode));
+        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            dataNode
+        ));
         StubbableTransport.SendRequestBehavior sendBehaviour = (connection, requestId, action, request, options) -> {
             if (action.startsWith(transportActionName)) {
                 throw new ReceiveTimeoutTransportException(connection.getNode(), action, "simulate timeout");
@@ -185,8 +201,10 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         };
         mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, anotherDataNode), sendBehaviour);
-        MockTransportService mockTransportServiceAnotherNode = ((MockTransportService) internalCluster().getInstance(TransportService.class,
-                anotherDataNode));
+        MockTransportService mockTransportServiceAnotherNode = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            anotherDataNode
+        ));
         mockTransportServiceAnotherNode.addSendBehavior(internalCluster().getInstance(TransportService.class, dataNode), sendBehaviour);
 
     }

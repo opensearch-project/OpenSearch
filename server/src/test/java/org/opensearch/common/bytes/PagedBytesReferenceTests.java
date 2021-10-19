@@ -80,7 +80,7 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
     }
 
     public void testSinglePage() throws IOException {
-        int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
+        int[] sizes = { 0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5)) };
 
         for (int i = 0; i < sizes.length; i++) {
             BytesReference pbr = newBytesReference(sizes[i]);
@@ -102,7 +102,7 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
     }
 
     public void testToBytes() throws IOException {
-        int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
+        int[] sizes = { 0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5)) };
 
         for (int i = 0; i < sizes.length; i++) {
             BytesReference pbr = newBytesReference(sizes[i]);
@@ -140,7 +140,7 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
         assertEquals(pbr, pbr2);
         int offsetToFlip = randomIntBetween(0, length - 1);
         int value = ~Byte.toUnsignedInt(ba1.get(offsetToFlip));
-        ba2.set(offsetToFlip, (byte)value);
+        ba2.set(offsetToFlip, (byte) value);
         assertNotEquals(pbr, pbr2);
     }
 

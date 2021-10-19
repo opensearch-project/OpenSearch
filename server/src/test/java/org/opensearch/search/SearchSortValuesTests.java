@@ -57,16 +57,16 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
             for (int i = 0; i < size; i++) {
                 Object sortValue = randomSortValue(xContentType, transportSerialization);
                 values[i] = sortValue;
-                //make sure that for BytesRef, we provide a specific doc value format that overrides format(BytesRef)
+                // make sure that for BytesRef, we provide a specific doc value format that overrides format(BytesRef)
                 sortValueFormats[i] = sortValue instanceof BytesRef ? DocValueFormat.RAW : randomDocValueFormat();
             }
             return new SearchSortValues(values, sortValueFormats);
         } else {
-            //xcontent serialization doesn't write/parse the raw sort values, only the formatted ones
+            // xcontent serialization doesn't write/parse the raw sort values, only the formatted ones
             for (int i = 0; i < size; i++) {
                 Object sortValue = randomSortValue(xContentType, transportSerialization);
-                //make sure that BytesRef are not provided as formatted values
-                sortValue = sortValue instanceof BytesRef ? DocValueFormat.RAW.format((BytesRef)sortValue) : sortValue;
+                // make sure that BytesRef are not provided as formatted values
+                sortValue = sortValue instanceof BytesRef ? DocValueFormat.RAW.format((BytesRef) sortValue) : sortValue;
                 values[i] = sortValue;
             }
             return new SearchSortValues(values);
@@ -75,17 +75,19 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
 
     private static Object randomSortValue(XContentType xContentType, boolean transportSerialization) {
         Object randomSortValue = LuceneTests.randomSortValue();
-        //to simplify things, we directly serialize what we expect we would parse back when testing xcontent serialization
+        // to simplify things, we directly serialize what we expect we would parse back when testing xcontent serialization
         return transportSerialization ? randomSortValue : RandomObjects.getExpectedParsedValue(xContentType, randomSortValue);
     }
 
     private static DocValueFormat randomDocValueFormat() {
-        return randomFrom(DocValueFormat.BOOLEAN,
+        return randomFrom(
+            DocValueFormat.BOOLEAN,
             DocValueFormat.RAW,
             DocValueFormat.IP,
             DocValueFormat.BINARY,
             DocValueFormat.GEOHASH,
-            DocValueFormat.GEOTILE);
+            DocValueFormat.GEOTILE
+        );
     }
 
     @Override
@@ -117,12 +119,12 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
 
     @Override
     protected String[] getShuffleFieldsExceptions() {
-        return new String[]{"sort"};
+        return new String[] { "sort" };
     }
 
     public void testToXContent() throws IOException {
         {
-            SearchSortValues sortValues = new SearchSortValues(new Object[]{ 1, "foo", 3.0});
+            SearchSortValues sortValues = new SearchSortValues(new Object[] { 1, "foo", 3.0 });
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
             sortValues.toXContent(builder, ToXContent.EMPTY_PARAMS);

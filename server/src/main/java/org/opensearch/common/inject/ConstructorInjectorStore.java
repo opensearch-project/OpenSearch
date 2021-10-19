@@ -42,11 +42,11 @@ import org.opensearch.common.inject.spi.InjectionPoint;
 class ConstructorInjectorStore {
     private final InjectorImpl injector;
 
-    private final FailableCache<TypeLiteral<?>, ConstructorInjector<?>> cache
-            = new FailableCache<TypeLiteral<?>, ConstructorInjector<?>>() {
+    private final FailableCache<TypeLiteral<?>, ConstructorInjector<?>> cache = new FailableCache<
+        TypeLiteral<?>,
+        ConstructorInjector<?>>() {
         @Override
-        protected ConstructorInjector<?> create(TypeLiteral<?> type, Errors errors)
-                throws ErrorsException {
+        protected ConstructorInjector<?> create(TypeLiteral<?> type, Errors errors) throws ErrorsException {
             return createConstructor(type, errors);
         }
     };
@@ -63,8 +63,7 @@ class ConstructorInjectorStore {
         return (ConstructorInjector<T>) cache.get(key, errors);
     }
 
-    private <T> ConstructorInjector<T> createConstructor(TypeLiteral<T> type, Errors errors)
-            throws ErrorsException {
+    private <T> ConstructorInjector<T> createConstructor(TypeLiteral<T> type, Errors errors) throws ErrorsException {
         int numErrorsBefore = errors.size();
 
         InjectionPoint injectionPoint;
@@ -75,15 +74,21 @@ class ConstructorInjectorStore {
             throw errors.toException();
         }
 
-        SingleParameterInjector<?>[] constructorParameterInjectors
-                = injector.getParametersInjectors(injectionPoint.getDependencies(), errors);
+        SingleParameterInjector<?>[] constructorParameterInjectors = injector.getParametersInjectors(
+            injectionPoint.getDependencies(),
+            errors
+        );
         MembersInjectorImpl<T> membersInjector = injector.membersInjectorStore.get(type, errors);
 
         ConstructionProxyFactory<T> factory = new DefaultConstructionProxyFactory<>(injectionPoint);
 
         errors.throwIfNewErrors(numErrorsBefore);
 
-        return new ConstructorInjector<>(membersInjector.getInjectionPoints(), factory.create(),
-                constructorParameterInjectors, membersInjector);
+        return new ConstructorInjector<>(
+            membersInjector.getInjectionPoints(),
+            factory.create(),
+            constructorParameterInjectors,
+            membersInjector
+        );
     }
 }

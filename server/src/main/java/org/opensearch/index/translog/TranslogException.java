@@ -49,7 +49,7 @@ public class TranslogException extends OpenSearchException {
         setShard(shardId);
     }
 
-    public TranslogException(StreamInput in) throws IOException{
+    public TranslogException(StreamInput in) throws IOException {
         super(in);
     }
 }

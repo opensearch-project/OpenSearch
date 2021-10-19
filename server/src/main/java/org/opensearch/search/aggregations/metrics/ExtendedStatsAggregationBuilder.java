@@ -51,14 +51,17 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ExtendedStatsAggregationBuilder
-        extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ExtendedStatsAggregationBuilder> {
+public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
+    ValuesSource.Numeric,
+    ExtendedStatsAggregationBuilder> {
     public static final String NAME = "extended_stats";
     public static final ValuesSourceRegistry.RegistryKey<ExtendedStatsAggregatorProvider> REGISTRY_KEY =
         new ValuesSourceRegistry.RegistryKey<>(NAME, ExtendedStatsAggregatorProvider.class);
 
-    public static final ObjectParser<ExtendedStatsAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, ExtendedStatsAggregationBuilder::new);
+    public static final ObjectParser<ExtendedStatsAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        ExtendedStatsAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(ExtendedStatsAggregationBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
@@ -74,8 +77,11 @@ public class ExtendedStatsAggregationBuilder
         super(name);
     }
 
-    protected ExtendedStatsAggregationBuilder(ExtendedStatsAggregationBuilder clone,
-                                              AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected ExtendedStatsAggregationBuilder(
+        ExtendedStatsAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.sigma = clone.sigma;
     }
@@ -116,9 +122,12 @@ public class ExtendedStatsAggregationBuilder
     }
 
     @Override
-    protected ExtendedStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                        AggregatorFactory parent,
-                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected ExtendedStatsAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new ExtendedStatsAggregatorFactory(name, config, sigma, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

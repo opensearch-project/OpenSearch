@@ -55,22 +55,35 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
     private final List<BinaryRangeAggregator.Range> ranges;
     private final boolean keyed;
 
-    public BinaryRangeAggregatorFactory(String name,
-            ValuesSourceConfig config,
-            List<BinaryRangeAggregator.Range> ranges, boolean keyed,
-            QueryShardContext queryShardContext,
-            AggregatorFactory parent, Builder subFactoriesBuilder,
-            Map<String, Object> metadata) throws IOException {
+    public BinaryRangeAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        List<BinaryRangeAggregator.Range> ranges,
+        boolean keyed,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
-        return new BinaryRangeAggregator(name, factories, null, config.format(),
-                ranges, keyed, searchContext, parent, CardinalityUpperBound.NONE, metadata);
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new BinaryRangeAggregator(
+            name,
+            factories,
+            null,
+            config.format(),
+            ranges,
+            keyed,
+            searchContext,
+            parent,
+            CardinalityUpperBound.NONE,
+            metadata
+        );
     }
 
     @Override

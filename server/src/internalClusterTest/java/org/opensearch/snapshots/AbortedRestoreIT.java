@@ -80,14 +80,20 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
         failReadsAllDataNodes(repositoryName);
 
         logger.info("--> starting restore");
-        final ActionFuture<RestoreSnapshotResponse> future = client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName)
+        final ActionFuture<RestoreSnapshotResponse> future = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repositoryName, snapshotName)
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .execute();
 
         assertBusy(() -> {
-            final RecoveryResponse recoveries = client().admin().indices().prepareRecoveries(indexName)
-                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).setActiveOnly(true).get();
+            final RecoveryResponse recoveries = client().admin()
+                .indices()
+                .prepareRecoveries(indexName)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+                .setActiveOnly(true)
+                .get();
             assertThat(recoveries.hasRecoveries(), is(true));
             final List<RecoveryState> shardRecoveries = recoveries.shardRecoveryStates().get(indexName);
             assertThat(shardRecoveries, hasSize(1));

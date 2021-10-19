@@ -56,8 +56,10 @@ public class BoundTransportAddressTests extends OpenSearchTestCase {
         for (InetAddress address : inetAddresses) {
             transportAddressList.add(new TransportAddress(address, randomIntBetween(9200, 9299)));
         }
-        final BoundTransportAddress transportAddress =
-            new BoundTransportAddress(transportAddressList.toArray(new TransportAddress[0]), transportAddressList.get(0));
+        final BoundTransportAddress transportAddress = new BoundTransportAddress(
+            transportAddressList.toArray(new TransportAddress[0]),
+            transportAddressList.get(0)
+        );
         assertThat(transportAddress.boundAddresses().length, equalTo(transportAddressList.size()));
 
         // serialize
@@ -84,7 +86,7 @@ public class BoundTransportAddressTests extends OpenSearchTestCase {
             new BoundTransportAddress(badArray, new TransportAddress(InetAddress.getLoopbackAddress(), 80));
             fail("expected an exception to be thrown due to no bound address");
         } catch (IllegalArgumentException e) {
-            //expected
+            // expected
         }
     }
 }

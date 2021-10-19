@@ -37,7 +37,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
-
 public class MapperTests extends OpenSearchTestCase {
 
     public void testSuccessfulBuilderContext() {

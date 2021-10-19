@@ -36,7 +36,6 @@ import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.ComposableIndexTemplateTests;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -106,8 +106,11 @@ public abstract class AbstractRestChannel implements RestChannel {
      * is {@code null}.
      */
     @Override
-    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
-            boolean useFiltering) throws IOException {
+    public XContentBuilder newBuilder(
+        @Nullable XContentType requestContentType,
+        @Nullable XContentType responseContentType,
+        boolean useFiltering
+    ) throws IOException {
         if (responseContentType == null) {
             responseContentType = XContentType.fromMediaTypeOrFormat(format);
         }
@@ -133,8 +136,12 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
-        XContentBuilder builder =
-            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
+        XContentBuilder builder = new XContentBuilder(
+            XContentFactory.xContent(responseContentType),
+            unclosableOutputStream,
+            includes,
+            excludes
+        );
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

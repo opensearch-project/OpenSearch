@@ -229,7 +229,7 @@ public class AggregationPath {
         // TODO both unwrap and subAggregator are only used here!
         Aggregator aggregator = ProfilingAggregator.unwrap(root.subAggregator(token.name));
         assert (aggregator instanceof SingleBucketAggregator)
-                || (aggregator instanceof NumericMetricsAggregator) : "this should be picked up before aggregation execution - on validate";
+            || (aggregator instanceof NumericMetricsAggregator) : "this should be picked up before aggregation execution - on validate";
         return aggregator;
     }
 

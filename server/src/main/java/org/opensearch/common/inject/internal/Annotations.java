@@ -58,8 +58,7 @@ public class Annotations {
     /**
      * Returns the scope annotation on {@code type}, or null if none is specified.
      */
-    public static Class<? extends Annotation> findScopeAnnotation(
-            Errors errors, Class<?> implementation) {
+    public static Class<? extends Annotation> findScopeAnnotation(Errors errors, Class<?> implementation) {
         return findScopeAnnotation(errors, implementation.getAnnotations());
     }
 
@@ -90,8 +89,7 @@ public class Annotations {
      * Adds an error if there is a misplaced annotations on {@code type}. Scoping
      * annotations are not allowed on abstract classes or interfaces.
      */
-    public static void checkForMisplacedScopeAnnotations(
-            Class<?> type, Object source, Errors errors) {
+    public static void checkForMisplacedScopeAnnotations(Class<?> type, Object source, Errors errors) {
         if (Classes.isConcrete(type)) {
             return;
         }
@@ -105,8 +103,7 @@ public class Annotations {
     /**
      * Gets a key for the given type, member and annotations.
      */
-    public static Key<?> getKey(TypeLiteral<?> type, Member member, Annotation[] annotations,
-                                Errors errors) throws ErrorsException {
+    public static Key<?> getKey(TypeLiteral<?> type, Member member, Annotation[] annotations, Errors errors) throws ErrorsException {
         int numErrorsBefore = errors.size();
         Annotation found = findBindingAnnotation(errors, member, annotations);
         errors.throwIfNewErrors(numErrorsBefore);
@@ -116,15 +113,13 @@ public class Annotations {
     /**
      * Returns the binding annotation on {@code member}, or null if there isn't one.
      */
-    public static Annotation findBindingAnnotation(
-            Errors errors, Member member, Annotation[] annotations) {
+    public static Annotation findBindingAnnotation(Errors errors, Member member, Annotation[] annotations) {
         Annotation found = null;
 
         for (Annotation annotation : annotations) {
             if (annotation.annotationType().getAnnotation(BindingAnnotation.class) != null) {
                 if (found != null) {
-                    errors.duplicateBindingAnnotations(member,
-                            found.annotationType(), annotation.annotationType());
+                    errors.duplicateBindingAnnotations(member, found.annotationType(), annotation.annotationType());
                 } else {
                     found = annotation;
                 }

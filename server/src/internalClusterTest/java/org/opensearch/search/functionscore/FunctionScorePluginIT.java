@@ -79,27 +79,44 @@ public class FunctionScorePluginIT extends OpenSearchIntegTestCase {
 
     public void testPlugin() throws Exception {
         client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping(
-                        "type1",
-                        jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test")
-                                .field("type", "text").endObject().startObject("num1").field("type", "date").endObject().endObject()
-                                .endObject().endObject()).get();
+            .indices()
+            .prepareCreate("test")
+            .addMapping(
+                "type1",
+                jsonBuilder().startObject()
+                    .startObject("type1")
+                    .startObject("properties")
+                    .startObject("test")
+                    .field("type", "text")
+                    .endObject()
+                    .startObject("num1")
+                    .field("type", "date")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().get();
 
         client().index(
-                indexRequest("test").type("type1").id("1")
-                        .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-26").endObject())).actionGet();
+            indexRequest("test").type("type1")
+                .id("1")
+                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-26").endObject())
+        ).actionGet();
         client().index(
-                indexRequest("test").type("type1").id("2")
-                        .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())).actionGet();
+            indexRequest("test").type("type1")
+                .id("2")
+                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())
+        ).actionGet();
 
         client().admin().indices().prepareRefresh().get();
         DecayFunctionBuilder<?> gfb = new CustomDistanceScoreBuilder("num1", "2013-05-28", "+1d");
 
-        ActionFuture<SearchResponse> response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value"), gfb))));
+        ActionFuture<SearchResponse> response = client().search(
+            searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
+                .source(searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value"), gfb)))
+        );
 
         SearchResponse sr = response.actionGet();
         OpenSearchAssertions.assertNoFailures(sr);
@@ -114,15 +131,17 @@ public class FunctionScorePluginIT extends OpenSearchIntegTestCase {
     public static class CustomDistanceScorePlugin extends Plugin implements SearchPlugin {
         @Override
         public List<ScoreFunctionSpec<?>> getScoreFunctions() {
-            return singletonList(new ScoreFunctionSpec<>(CustomDistanceScoreBuilder.NAME, CustomDistanceScoreBuilder::new,
-                    CustomDistanceScoreBuilder.PARSER));
+            return singletonList(
+                new ScoreFunctionSpec<>(CustomDistanceScoreBuilder.NAME, CustomDistanceScoreBuilder::new, CustomDistanceScoreBuilder.PARSER)
+            );
         }
     }
 
     public static class CustomDistanceScoreBuilder extends DecayFunctionBuilder<CustomDistanceScoreBuilder> {
         public static final String NAME = "linear_mult";
         public static final ScoreFunctionParser<CustomDistanceScoreBuilder> PARSER = new DecayFunctionParser<>(
-                CustomDistanceScoreBuilder::new);
+            CustomDistanceScoreBuilder::new
+        );
 
         public CustomDistanceScoreBuilder(String fieldName, Object origin, Object scale) {
             super(fieldName, origin, scale, null);
@@ -152,8 +171,7 @@ public class FunctionScorePluginIT extends OpenSearchIntegTestCase {
         private static final DecayFunction decayFunction = new LinearMultScoreFunction();
 
         private static class LinearMultScoreFunction implements DecayFunction {
-            LinearMultScoreFunction() {
-            }
+            LinearMultScoreFunction() {}
 
             @Override
             public double evaluate(double value, double scale) {

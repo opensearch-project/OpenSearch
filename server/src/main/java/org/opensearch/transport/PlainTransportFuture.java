@@ -43,7 +43,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class PlainTransportFuture<V extends TransportResponse> extends BaseFuture<V>
-    implements TransportFuture<V>, TransportResponseHandler<V> {
+    implements
+        TransportFuture<V>,
+        TransportResponseHandler<V> {
 
     private final TransportResponseHandler<V> handler;
 

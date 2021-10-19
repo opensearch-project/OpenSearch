@@ -59,21 +59,32 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
         int totalShards = randomIntBetween(0, 100);
         int failedShards = randomIntBetween(0, totalShards);
 
-        List<SnapshotShardFailure> shardFailures = Arrays.asList(randomArray(failedShards, failedShards,
-            SnapshotShardFailure[]::new, () -> {
+        List<SnapshotShardFailure> shardFailures = Arrays.asList(
+            randomArray(failedShards, failedShards, SnapshotShardFailure[]::new, () -> {
                 String indexName = randomAlphaOfLengthBetween(3, 50);
                 int id = randomInt();
                 ShardId shardId = ShardId.fromString("[" + indexName + "][" + id + "]");
 
                 return new SnapshotShardFailure(randomAlphaOfLengthBetween(5, 10), shardId, randomAlphaOfLengthBetween(5, 10));
-            }));
+            })
+        );
 
         Boolean includeGlobalState = randomBoolean() ? null : randomBoolean();
 
         Map<String, Object> userMetadata = randomUserMetadata();
 
-        return new SnapshotInfo(snapshotId, indices, dataStreams, startTime, reason, endTime, totalShards, shardFailures,
-            includeGlobalState, userMetadata);
+        return new SnapshotInfo(
+            snapshotId,
+            indices,
+            dataStreams,
+            startTime,
+            reason,
+            endTime,
+            totalShards,
+            shardFailures,
+            includeGlobalState,
+            userMetadata
+        );
     }
 
     @Override
@@ -87,60 +98,144 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
             case 0:
                 SnapshotId snapshotId = new SnapshotId(
                     randomValueOtherThan(instance.snapshotId().getName(), () -> randomAlphaOfLength(5)),
-                    randomValueOtherThan(instance.snapshotId().getUUID(), () -> randomAlphaOfLength(5)));
-                return new SnapshotInfo(snapshotId, instance.indices(), instance.dataStreams(), instance.startTime(), instance.reason(),
-                    instance.endTime(), instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(),
-                    instance.userMetadata());
+                    randomValueOtherThan(instance.snapshotId().getUUID(), () -> randomAlphaOfLength(5))
+                );
+                return new SnapshotInfo(
+                    snapshotId,
+                    instance.indices(),
+                    instance.dataStreams(),
+                    instance.startTime(),
+                    instance.reason(),
+                    instance.endTime(),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    instance.includeGlobalState(),
+                    instance.userMetadata()
+                );
             case 1:
                 int indicesSize = randomValueOtherThan(instance.indices().size(), () -> randomIntBetween(1, 10));
-                List<String> indices = Arrays.asList(randomArray(indicesSize, indicesSize, String[]::new,
-                    () -> randomAlphaOfLengthBetween(2, 20)));
-                return new SnapshotInfo(instance.snapshotId(), indices, instance.dataStreams(), instance.startTime(), instance.reason(),
-                    instance.endTime(), instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(),
-                    instance.userMetadata());
+                List<String> indices = Arrays.asList(
+                    randomArray(indicesSize, indicesSize, String[]::new, () -> randomAlphaOfLengthBetween(2, 20))
+                );
+                return new SnapshotInfo(
+                    instance.snapshotId(),
+                    indices,
+                    instance.dataStreams(),
+                    instance.startTime(),
+                    instance.reason(),
+                    instance.endTime(),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    instance.includeGlobalState(),
+                    instance.userMetadata()
+                );
             case 2:
-                return new SnapshotInfo(instance.snapshotId(), instance.indices(), instance.dataStreams(),
-                    randomValueOtherThan(instance.startTime(), OpenSearchTestCase::randomNonNegativeLong), instance.reason(),
-                    instance.endTime(), instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(),
-                    instance.userMetadata());
+                return new SnapshotInfo(
+                    instance.snapshotId(),
+                    instance.indices(),
+                    instance.dataStreams(),
+                    randomValueOtherThan(instance.startTime(), OpenSearchTestCase::randomNonNegativeLong),
+                    instance.reason(),
+                    instance.endTime(),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    instance.includeGlobalState(),
+                    instance.userMetadata()
+                );
             case 3:
-                return new SnapshotInfo(instance.snapshotId(), instance.indices(), instance.dataStreams(), instance.startTime(),
-                    randomValueOtherThan(instance.reason(), () -> randomAlphaOfLengthBetween(5, 15)), instance.endTime(),
-                    instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(), instance.userMetadata());
+                return new SnapshotInfo(
+                    instance.snapshotId(),
+                    instance.indices(),
+                    instance.dataStreams(),
+                    instance.startTime(),
+                    randomValueOtherThan(instance.reason(), () -> randomAlphaOfLengthBetween(5, 15)),
+                    instance.endTime(),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    instance.includeGlobalState(),
+                    instance.userMetadata()
+                );
             case 4:
-                return new SnapshotInfo(instance.snapshotId(), instance.indices(), instance.dataStreams(),
-                    instance.startTime(), instance.reason(), randomValueOtherThan(instance.endTime(),
-                    OpenSearchTestCase::randomNonNegativeLong),
-                    instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(), instance.userMetadata());
+                return new SnapshotInfo(
+                    instance.snapshotId(),
+                    instance.indices(),
+                    instance.dataStreams(),
+                    instance.startTime(),
+                    instance.reason(),
+                    randomValueOtherThan(instance.endTime(), OpenSearchTestCase::randomNonNegativeLong),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    instance.includeGlobalState(),
+                    instance.userMetadata()
+                );
             case 5:
                 int totalShards = randomValueOtherThan(instance.totalShards(), () -> randomIntBetween(0, 100));
                 int failedShards = randomIntBetween(0, totalShards);
 
-                List<SnapshotShardFailure> shardFailures = Arrays.asList(randomArray(failedShards, failedShards,
-                    SnapshotShardFailure[]::new, () -> {
+                List<SnapshotShardFailure> shardFailures = Arrays.asList(
+                    randomArray(failedShards, failedShards, SnapshotShardFailure[]::new, () -> {
                         String indexName = randomAlphaOfLengthBetween(3, 50);
                         int id = randomInt();
                         ShardId shardId = ShardId.fromString("[" + indexName + "][" + id + "]");
 
                         return new SnapshotShardFailure(randomAlphaOfLengthBetween(5, 10), shardId, randomAlphaOfLengthBetween(5, 10));
-                    }));
-                return new SnapshotInfo(instance.snapshotId(), instance.indices(), instance.dataStreams(), instance.startTime(),
-                    instance.reason(), instance.endTime(), totalShards, shardFailures, instance.includeGlobalState(),
-                    instance.userMetadata());
+                    })
+                );
+                return new SnapshotInfo(
+                    instance.snapshotId(),
+                    instance.indices(),
+                    instance.dataStreams(),
+                    instance.startTime(),
+                    instance.reason(),
+                    instance.endTime(),
+                    totalShards,
+                    shardFailures,
+                    instance.includeGlobalState(),
+                    instance.userMetadata()
+                );
             case 6:
-                return new SnapshotInfo(instance.snapshotId(), instance.indices(), instance.dataStreams(), instance.startTime(),
-                    instance.reason(), instance.endTime(), instance.totalShards(), instance.shardFailures(),
-                    Boolean.FALSE.equals(instance.includeGlobalState()), instance.userMetadata());
+                return new SnapshotInfo(
+                    instance.snapshotId(),
+                    instance.indices(),
+                    instance.dataStreams(),
+                    instance.startTime(),
+                    instance.reason(),
+                    instance.endTime(),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    Boolean.FALSE.equals(instance.includeGlobalState()),
+                    instance.userMetadata()
+                );
             case 7:
-                return new SnapshotInfo(instance.snapshotId(), instance.indices(), instance.dataStreams(), instance.startTime(),
-                    instance.reason(), instance.endTime(), instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(),
-                    randomValueOtherThan(instance.userMetadata(), SnapshotInfoTests::randomUserMetadata));
+                return new SnapshotInfo(
+                    instance.snapshotId(),
+                    instance.indices(),
+                    instance.dataStreams(),
+                    instance.startTime(),
+                    instance.reason(),
+                    instance.endTime(),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    instance.includeGlobalState(),
+                    randomValueOtherThan(instance.userMetadata(), SnapshotInfoTests::randomUserMetadata)
+                );
             case 8:
-                List<String> dataStreams = randomValueOtherThan(instance.dataStreams(),
-                    () -> Arrays.asList(randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(2, 20))));
-                return new SnapshotInfo(instance.snapshotId(), instance.indices(), dataStreams,
-                    instance.startTime(), instance.reason(), instance.endTime(), instance.totalShards(), instance.shardFailures(),
-                    instance.includeGlobalState(), instance.userMetadata());
+                List<String> dataStreams = randomValueOtherThan(
+                    instance.dataStreams(),
+                    () -> Arrays.asList(randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(2, 20)))
+                );
+                return new SnapshotInfo(
+                    instance.snapshotId(),
+                    instance.indices(),
+                    dataStreams,
+                    instance.startTime(),
+                    instance.reason(),
+                    instance.endTime(),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    instance.includeGlobalState(),
+                    instance.userMetadata()
+                );
             default:
                 throw new IllegalArgumentException("invalid randomization case");
         }
@@ -155,16 +250,20 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
         long fields = randomLongBetween(0, 25);
         for (int i = 0; i < fields; i++) {
             if (randomBoolean()) {
-                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
-                    randomAlphaOfLengthBetween(5, 15));
+                metadata.put(
+                    randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2, 10)),
+                    randomAlphaOfLengthBetween(5, 15)
+                );
             } else {
                 Map<String, Object> nested = new HashMap<>();
                 long nestedFields = randomLongBetween(0, 25);
                 for (int j = 0; j < nestedFields; j++) {
-                    nested.put(randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
-                        randomAlphaOfLengthBetween(5, 15));
+                    nested.put(
+                        randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2, 10)),
+                        randomAlphaOfLengthBetween(5, 15)
+                    );
                 }
-                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)), nested);
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2, 10)), nested);
             }
         }
         return metadata;

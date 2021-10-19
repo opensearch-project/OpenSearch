@@ -65,8 +65,7 @@ public class VectorGeoPointShapeQueryProcessor {
         validateIsGeoPointFieldType(fieldName, context);
         // geo points only support intersects
         if (relation != ShapeRelation.INTERSECTS) {
-            throw new QueryShardException(context,
-                relation+ " query relation not supported for Field [" + fieldName + "].");
+            throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
         }
         // wrap geoQuery as a ConstantScoreQuery
         return getVectorQueryFromShape(shape, fieldName, relation, context);
@@ -75,13 +74,19 @@ public class VectorGeoPointShapeQueryProcessor {
     private void validateIsGeoPointFieldType(String fieldName, QueryShardContext context) {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType == false) {
-            throw new QueryShardException(context, "Expected " + GeoPointFieldMapper.CONTENT_TYPE
-                + " field type for Field [" + fieldName + "] but found " + fieldType.typeName());
+            throw new QueryShardException(
+                context,
+                "Expected "
+                    + GeoPointFieldMapper.CONTENT_TYPE
+                    + " field type for Field ["
+                    + fieldName
+                    + "] but found "
+                    + fieldType.typeName()
+            );
         }
     }
 
-    protected Query getVectorQueryFromShape(
-        Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    protected Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         ShapeVisitor shapeVisitor = new ShapeVisitor(context, fieldName, relation);
         return queryShape.visit(shapeVisitor);
     }
@@ -101,11 +106,14 @@ public class VectorGeoPointShapeQueryProcessor {
 
         @Override
         public Query visit(Circle circle) {
-            Query query = LatLonPoint.newDistanceQuery(
-                fieldName, circle.getLat(), circle.getLon(), circle.getRadiusMeters());
+            Query query = LatLonPoint.newDistanceQuery(fieldName, circle.getLat(), circle.getLon(), circle.getRadiusMeters());
             if (fieldType.hasDocValues()) {
                 Query dvQuery = LatLonDocValuesField.newSlowDistanceQuery(
-                    fieldName, circle.getLat(), circle.getLon(), circle.getRadiusMeters());
+                    fieldName,
+                    circle.getLat(),
+                    circle.getLon(),
+                    circle.getRadiusMeters()
+                );
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
             return query;
@@ -127,33 +135,31 @@ public class VectorGeoPointShapeQueryProcessor {
 
         @Override
         public Query visit(org.opensearch.geometry.Line line) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
-                + GeoShapeType.LINESTRING + " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.LINESTRING + " queries");
         }
 
         @Override
         // don't think this is called directly
         public Query visit(LinearRing ring) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
-                + ShapeType.LINEARRING + " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + ShapeType.LINEARRING + " queries");
         }
 
         @Override
         public Query visit(MultiLine multiLine) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
-                + GeoShapeType.MULTILINESTRING + " queries");
+            throw new QueryShardException(
+                context,
+                "Field [" + fieldName + "] does not support " + GeoShapeType.MULTILINESTRING + " queries"
+            );
         }
 
         @Override
         public Query visit(MultiPoint multiPoint) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
-                + GeoShapeType.MULTIPOINT + " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.MULTIPOINT + " queries");
         }
 
         // helper for visit(MultiPolygon multiPolygon) and visit(Polygon polygon)
         private Query visit(ArrayList<Polygon> collector) {
-            org.apache.lucene.geo.Polygon[] lucenePolygons =
-                new org.apache.lucene.geo.Polygon[collector.size()];
+            org.apache.lucene.geo.Polygon[] lucenePolygons = new org.apache.lucene.geo.Polygon[collector.size()];
             for (int i = 0; i < collector.size(); i++) {
                 lucenePolygons[i] = GeoShapeUtils.toLucenePolygon(collector.get(i));
             }
@@ -175,8 +181,7 @@ public class VectorGeoPointShapeQueryProcessor {
         @Override
         public Query visit(Point point) {
             // not currently supported
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.POINT +
-                " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.POINT + " queries");
         }
 
         @Override
@@ -190,12 +195,10 @@ public class VectorGeoPointShapeQueryProcessor {
         public Query visit(Rectangle r) {
             Query query = LatLonPoint.newBoxQuery(fieldName, r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
             if (fieldType.hasDocValues()) {
-                Query dvQuery = LatLonDocValuesField.newSlowBoxQuery(
-                    fieldName, r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
+                Query dvQuery = LatLonDocValuesField.newSlowBoxQuery(fieldName, r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
             return query;
         }
     }
 }
-

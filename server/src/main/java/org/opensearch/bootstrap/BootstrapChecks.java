@@ -75,8 +75,7 @@ import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_
  */
 final class BootstrapChecks {
 
-    private BootstrapChecks() {
-    }
+    private BootstrapChecks() {}
 
     static final String OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS = "opensearch.enforce.bootstrap.checks";
 
@@ -88,14 +87,19 @@ final class BootstrapChecks {
      * @param context              the current node bootstrap context
      * @param boundTransportAddress the node network bindings
      */
-    static void check(final BootstrapContext context, final BoundTransportAddress boundTransportAddress,
-                      List<BootstrapCheck> additionalChecks) throws NodeValidationException {
+    static void check(
+        final BootstrapContext context,
+        final BoundTransportAddress boundTransportAddress,
+        List<BootstrapCheck> additionalChecks
+    ) throws NodeValidationException {
         final List<BootstrapCheck> builtInChecks = checks();
         final List<BootstrapCheck> combinedChecks = new ArrayList<>(builtInChecks);
         combinedChecks.addAll(additionalChecks);
-        check(  context,
-                enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())),
-                Collections.unmodifiableList(combinedChecks));
+        check(
+            context,
+            enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())),
+            Collections.unmodifiableList(combinedChecks)
+        );
     }
 
     /**
@@ -107,10 +111,8 @@ final class BootstrapChecks {
      * @param enforceLimits {@code true} if the checks should be enforced or otherwise warned
      * @param checks        the checks to execute
      */
-    static void check(
-        final BootstrapContext context,
-        final boolean enforceLimits,
-        final List<BootstrapCheck> checks) throws NodeValidationException {
+    static void check(final BootstrapContext context, final boolean enforceLimits, final List<BootstrapCheck> checks)
+        throws NodeValidationException {
         check(context, enforceLimits, checks, LogManager.getLogger(BootstrapChecks.class));
     }
 
@@ -124,11 +126,8 @@ final class BootstrapChecks {
      * @param checks        the checks to execute
      * @param logger        the logger to
      */
-    static void check(
-            final BootstrapContext context,
-            final boolean enforceLimits,
-            final List<BootstrapCheck> checks,
-            final Logger logger) throws NodeValidationException {
+    static void check(final BootstrapContext context, final boolean enforceLimits, final List<BootstrapCheck> checks, final Logger logger)
+        throws NodeValidationException {
         final List<String> errors = new ArrayList<>();
         final List<String> ignoredErrors = new ArrayList<>();
 
@@ -139,12 +138,12 @@ final class BootstrapChecks {
         } else if (Boolean.TRUE.toString().equals(esEnforceBootstrapChecks)) {
             enforceBootstrapChecks = true;
         } else {
-            final String message =
-                    String.format(
-                            Locale.ROOT,
-                            "[%s] must be [true] but was [%s]",
-                        OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS,
-                            esEnforceBootstrapChecks);
+            final String message = String.format(
+                Locale.ROOT,
+                "[%s] must be [true] but was [%s]",
+                OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS,
+                esEnforceBootstrapChecks
+            );
             throw new IllegalArgumentException(message);
         }
 
@@ -194,9 +193,8 @@ final class BootstrapChecks {
      */
     static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
         final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
-        final boolean bound =
-                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress) &&
-                isLoopbackAddress.test(boundTransportAddress.publishAddress()));
+        final boolean bound = !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress)
+            && isLoopbackAddress.test(boundTransportAddress.publishAddress()));
         return bound && !"single-node".equals(discoveryType);
     }
 
@@ -204,8 +202,7 @@ final class BootstrapChecks {
     static List<BootstrapCheck> checks() {
         final List<BootstrapCheck> checks = new ArrayList<>();
         checks.add(new HeapSizeCheck());
-        final FileDescriptorCheck fileDescriptorCheck
-            = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
+        final FileDescriptorCheck fileDescriptorCheck = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
         checks.add(fileDescriptorCheck);
         checks.add(new MlockallCheck());
         if (Constants.LINUX) {
@@ -243,17 +240,18 @@ final class BootstrapChecks {
                 if (isMemoryLocked()) {
                     message = String.format(
                         Locale.ROOT,
-                        "initial heap size [%d] not equal to maximum heap size [%d]; " +
-                            "this can cause resize pauses and prevents memory locking from locking the entire heap",
+                        "initial heap size [%d] not equal to maximum heap size [%d]; "
+                            + "this can cause resize pauses and prevents memory locking from locking the entire heap",
                         getInitialHeapSize(),
-                        getMaxHeapSize());
+                        getMaxHeapSize()
+                    );
                 } else {
                     message = String.format(
                         Locale.ROOT,
-                        "initial heap size [%d] not equal to maximum heap size [%d]; " +
-                            "this can cause resize pauses",
+                        "initial heap size [%d] not equal to maximum heap size [%d]; " + "this can cause resize pauses",
                         getInitialHeapSize(),
-                        getMaxHeapSize());
+                        getMaxHeapSize()
+                    );
                 }
                 return BootstrapCheckResult.failure(message);
             } else {
@@ -308,10 +306,11 @@ final class BootstrapChecks {
             final long maxFileDescriptorCount = getMaxFileDescriptorCount();
             if (maxFileDescriptorCount != -1 && maxFileDescriptorCount < limit) {
                 final String message = String.format(
-                        Locale.ROOT,
-                        "max file descriptors [%d] for opensearch process is too low, increase to at least [%d]",
-                        getMaxFileDescriptorCount(),
-                        limit);
+                    Locale.ROOT,
+                    "max file descriptors [%d] for opensearch process is too low, increase to at least [%d]",
+                    getMaxFileDescriptorCount(),
+                    limit
+                );
                 return BootstrapCheckResult.failure(message);
             } else {
                 return BootstrapCheckResult.success();
@@ -352,11 +351,12 @@ final class BootstrapChecks {
         public BootstrapCheckResult check(BootstrapContext context) {
             if (getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD) {
                 final String message = String.format(
-                        Locale.ROOT,
-                        "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
-                        getMaxNumberOfThreads(),
-                        BootstrapInfo.getSystemProperties().get("user.name"),
-                        MAX_NUMBER_OF_THREADS_THRESHOLD);
+                    Locale.ROOT,
+                    "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
+                    getMaxNumberOfThreads(),
+                    BootstrapInfo.getSystemProperties().get("user.name"),
+                    MAX_NUMBER_OF_THREADS_THRESHOLD
+                );
                 return BootstrapCheckResult.failure(message);
             } else {
                 return BootstrapCheckResult.success();
@@ -376,10 +376,11 @@ final class BootstrapChecks {
         public BootstrapCheckResult check(BootstrapContext context) {
             if (getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != getRlimInfinity()) {
                 final String message = String.format(
-                        Locale.ROOT,
-                        "max size virtual memory [%d] for user [%s] is too low, increase to [unlimited]",
-                        getMaxSizeVirtualMemory(),
-                        BootstrapInfo.getSystemProperties().get("user.name"));
+                    Locale.ROOT,
+                    "max size virtual memory [%d] for user [%s] is too low, increase to [unlimited]",
+                    getMaxSizeVirtualMemory(),
+                    BootstrapInfo.getSystemProperties().get("user.name")
+                );
                 return BootstrapCheckResult.failure(message);
             } else {
                 return BootstrapCheckResult.success();
@@ -408,10 +409,11 @@ final class BootstrapChecks {
             final long maxFileSize = getMaxFileSize();
             if (maxFileSize != Long.MIN_VALUE && maxFileSize != getRlimInfinity()) {
                 final String message = String.format(
-                        Locale.ROOT,
-                        "max file size [%d] for user [%s] is too low, increase to [unlimited]",
-                        getMaxFileSize(),
-                        BootstrapInfo.getSystemProperties().get("user.name"));
+                    Locale.ROOT,
+                    "max file size [%d] for user [%s] is too low, increase to [unlimited]",
+                    getMaxFileSize(),
+                    BootstrapInfo.getSystemProperties().get("user.name")
+                );
                 return BootstrapCheckResult.failure(message);
             } else {
                 return BootstrapCheckResult.success();
@@ -438,10 +440,11 @@ final class BootstrapChecks {
             if (IndexModule.NODE_STORE_ALLOW_MMAP.get(context.settings())) {
                 if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
                     final String message = String.format(
-                            Locale.ROOT,
-                            "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
-                            getMaxMapCount(),
-                            LIMIT);
+                        Locale.ROOT,
+                        "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
+                        getMaxMapCount(),
+                        LIMIT
+                    );
                     return BootstrapCheckResult.failure(message);
                 } else {
                     return BootstrapCheckResult.success();
@@ -502,9 +505,10 @@ final class BootstrapChecks {
         public BootstrapCheckResult check(BootstrapContext context) {
             if (getVmName().toLowerCase(Locale.ROOT).contains("client")) {
                 final String message = String.format(
-                        Locale.ROOT,
-                        "JVM is using the client VM [%s] but should be using a server VM for the best performance",
-                        getVmName());
+                    Locale.ROOT,
+                    "JVM is using the client VM [%s] but should be using a server VM for the best performance",
+                    getVmName()
+                );
                 return BootstrapCheckResult.failure(message);
             } else {
                 return BootstrapCheckResult.success();
@@ -528,10 +532,11 @@ final class BootstrapChecks {
         public BootstrapCheckResult check(BootstrapContext context) {
             if (getUseSerialGC().equals("true")) {
                 final String message = String.format(
-                        Locale.ROOT,
-                        "JVM is using the serial collector but should not be for the best performance; " +
-                                "either it's the default for the VM [%s] or -XX:+UseSerialGC was explicitly specified",
-                        JvmInfo.jvmInfo().getVmName());
+                    Locale.ROOT,
+                    "JVM is using the serial collector but should not be for the best performance; "
+                        + "either it's the default for the VM [%s] or -XX:+UseSerialGC was explicitly specified",
+                    JvmInfo.jvmInfo().getVmName()
+                );
                 return BootstrapCheckResult.failure(message);
             } else {
                 return BootstrapCheckResult.success();
@@ -553,8 +558,8 @@ final class BootstrapChecks {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
             if (BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(context.settings()) && !isSystemCallFilterInstalled()) {
-                final String message =  "system call filters failed to install; " +
-                        "check the logs and fix your configuration or disable system call filters at your own risk";
+                final String message = "system call filters failed to install; "
+                    + "check the logs and fix your configuration or disable system call filters at your own risk";
                 return BootstrapCheckResult.failure(message);
             } else {
                 return BootstrapCheckResult.success();
@@ -613,10 +618,11 @@ final class BootstrapChecks {
         String message(BootstrapContext context) {
             return String.format(
                 Locale.ROOT,
-                "OnError [%s] requires forking but is prevented by system call filters ([%s=true]);" +
-                    " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
+                "OnError [%s] requires forking but is prevented by system call filters ([%s=true]);"
+                    + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
                 onError(),
-                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey());
+                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey()
+            );
         }
 
     }
@@ -637,10 +643,11 @@ final class BootstrapChecks {
         String message(BootstrapContext context) {
             return String.format(
                 Locale.ROOT,
-                "OnOutOfMemoryError [%s] requires forking but is prevented by system call filters ([%s=true]);" +
-                    " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
+                "OnOutOfMemoryError [%s] requires forking but is prevented by system call filters ([%s=true]);"
+                    + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
                 onOutOfMemoryError(),
-                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey());
+                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey()
+            );
         }
 
     }
@@ -655,9 +662,10 @@ final class BootstrapChecks {
             final String javaVersion = javaVersion();
             if ("Oracle Corporation".equals(jvmVendor()) && javaVersion.endsWith("-ea")) {
                 final String message = String.format(
-                        Locale.ROOT,
-                        "Java version [%s] is an early-access build, only use release builds",
-                        javaVersion);
+                    Locale.ROOT,
+                    "Java version [%s] is an early-access build, only use release builds",
+                    javaVersion
+                );
                 return BootstrapCheckResult.failure(message);
             } else {
                 return BootstrapCheckResult.success();
@@ -693,8 +701,10 @@ final class BootstrapChecks {
                 // HotSpot versions for Java 8 have major version 25, the bad versions are all versions prior to update 40
                 if (major == 25 && update < 40) {
                     final String message = String.format(
-                            Locale.ROOT,
-                            "JVM version [%s] can cause data corruption when used with G1GC; upgrade to at least Java 8u40", jvmVersion);
+                        Locale.ROOT,
+                        "JVM version [%s] can cause data corruption when used with G1GC; upgrade to at least Java 8u40",
+                        jvmVersion
+                    );
                     return BootstrapCheckResult.failure(message);
                 }
             }
@@ -753,8 +763,9 @@ final class BootstrapChecks {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
             if (DiscoveryModule.ZEN_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings()))) {
-                return BootstrapCheckResult.failure(String.format(Locale.ROOT,
-                    "discovery type [%s] is unsuitable for production use", DiscoveryModule.ZEN_DISCOVERY_TYPE));
+                return BootstrapCheckResult.failure(
+                    String.format(Locale.ROOT, "discovery type [%s] is unsuitable for production use", DiscoveryModule.ZEN_DISCOVERY_TYPE)
+                );
             }
 
             if (DiscoveryModule.ZEN2_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())) == false) {
@@ -764,11 +775,15 @@ final class BootstrapChecks {
                 return BootstrapCheckResult.success();
             }
 
-            return BootstrapCheckResult.failure(String.format(
-                Locale.ROOT,
-                "the default discovery settings are unsuitable for production use; at least one of [%s] must be configured",
-                Stream.of(DISCOVERY_SEED_HOSTS_SETTING, DISCOVERY_SEED_PROVIDERS_SETTING, INITIAL_MASTER_NODES_SETTING)
-                    .map(Setting::getKey).collect(Collectors.joining(", "))));
+            return BootstrapCheckResult.failure(
+                String.format(
+                    Locale.ROOT,
+                    "the default discovery settings are unsuitable for production use; at least one of [%s] must be configured",
+                    Stream.of(DISCOVERY_SEED_HOSTS_SETTING, DISCOVERY_SEED_PROVIDERS_SETTING, INITIAL_MASTER_NODES_SETTING)
+                        .map(Setting::getKey)
+                        .collect(Collectors.joining(", "))
+                )
+            );
         }
     }
 }

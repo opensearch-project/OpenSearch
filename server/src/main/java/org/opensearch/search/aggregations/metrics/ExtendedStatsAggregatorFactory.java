@@ -51,13 +51,15 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double sigma;
 
-    ExtendedStatsAggregatorFactory(String name,
-                                    ValuesSourceConfig config,
-                                    double sigma,
-                                    QueryShardContext queryShardContext,
-                                    AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
+    ExtendedStatsAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        double sigma,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.sigma = sigma;
     }
@@ -67,13 +69,12 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
             ExtendedStatsAggregationBuilder.REGISTRY_KEY,
             Arrays.asList(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             ExtendedStatsAggregator::new,
-                true);
+            true
+        );
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new ExtendedStatsAggregator(name, config, searchContext, parent, sigma, metadata);
     }
 

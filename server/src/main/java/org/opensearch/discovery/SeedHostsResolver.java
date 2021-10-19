@@ -66,16 +66,30 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class SeedHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {
-    public static final Setting<Integer> LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
-        Setting.intSetting("discovery.zen.ping.unicast.concurrent_connects", 10, 0, Setting.Property.NodeScope,
-            Setting.Property.Deprecated);
-    public static final Setting<TimeValue> LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT =
-        Setting.positiveTimeSetting("discovery.zen.ping.unicast.hosts.resolve_timeout", TimeValue.timeValueSeconds(5),
-            Setting.Property.NodeScope, Setting.Property.Deprecated);
-    public static final Setting<Integer> DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING =
-        Setting.intSetting("discovery.seed_resolver.max_concurrent_resolvers", 10, 0, Setting.Property.NodeScope);
-    public static final Setting<TimeValue> DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("discovery.seed_resolver.timeout", TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);
+    public static final Setting<Integer> LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING = Setting.intSetting(
+        "discovery.zen.ping.unicast.concurrent_connects",
+        10,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+    public static final Setting<TimeValue> LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT = Setting.positiveTimeSetting(
+        "discovery.zen.ping.unicast.hosts.resolve_timeout",
+        TimeValue.timeValueSeconds(5),
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+    public static final Setting<Integer> DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING = Setting.intSetting(
+        "discovery.seed_resolver.max_concurrent_resolvers",
+        10,
+        0,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<TimeValue> DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "discovery.seed_resolver.timeout",
+        TimeValue.timeValueSeconds(5),
+        Setting.Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(SeedHostsResolver.class);
 
@@ -89,8 +103,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
     private final int concurrentConnects;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
 
-    public SeedHostsResolver(String nodeName, Settings settings, TransportService transportService,
-                             SeedHostsProvider seedProvider) {
+    public SeedHostsResolver(String nodeName, Settings settings, TransportService transportService, SeedHostsProvider seedProvider) {
         this.settings = settings;
         this.nodeName = nodeName;
         this.transportService = transportService;
@@ -102,9 +115,13 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
     public static int getMaxConcurrentResolvers(Settings settings) {
         if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.exists(settings)) {
             if (DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("it is forbidden to set both ["
-                    + DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.getKey() + "] and ["
-                    + LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.getKey() + "]");
+                throw new IllegalArgumentException(
+                    "it is forbidden to set both ["
+                        + DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.getKey()
+                        + "] and ["
+                        + LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.getKey()
+                        + "]"
+                );
             }
             return LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         }
@@ -114,9 +131,13 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
     public static TimeValue getResolveTimeout(Settings settings) {
         if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.exists(settings)) {
             if (DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("it is forbidden to set both ["
-                    + DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.getKey() + "] and ["
-                    + LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.getKey() + "]");
+                throw new IllegalArgumentException(
+                    "it is forbidden to set both ["
+                        + DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.getKey()
+                        + "] and ["
+                        + LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.getKey()
+                        + "]"
+                );
             }
             return LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
         }
@@ -141,7 +162,8 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         final Logger logger,
         final List<String> hosts,
         final TransportService transportService,
-        final TimeValue resolveTimeout) {
+        final TimeValue resolveTimeout
+    ) {
         Objects.requireNonNull(executorService);
         Objects.requireNonNull(logger);
         Objects.requireNonNull(hosts);
@@ -151,15 +173,14 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
             throw new IllegalArgumentException("resolve timeout must be non-negative but was [" + resolveTimeout + "]");
         }
         // create tasks to submit to the executor service; we will wait up to resolveTimeout for these tasks to complete
-        final List<Callable<TransportAddress[]>> callables =
-            hosts
-                .stream()
-                .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn))
-                .collect(Collectors.toList());
+        final List<Callable<TransportAddress[]>> callables = hosts.stream()
+            .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn))
+            .collect(Collectors.toList());
         final SetOnce<List<Future<TransportAddress[]>>> futures = new SetOnce<>();
         try {
-            cancellableThreads.execute(() ->
-                futures.set(executorService.invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS)));
+            cancellableThreads.execute(
+                () -> futures.set(executorService.invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS))
+            );
         } catch (CancellableThreads.ExecutionCancelledException e) {
             return Collections.emptyList();
         }
@@ -203,8 +224,17 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
     protected void doStart() {
         logger.debug("using max_concurrent_resolvers [{}], resolver timeout [{}]", concurrentConnects, resolveTimeout);
         final ThreadFactory threadFactory = OpenSearchExecutors.daemonThreadFactory(settings, "[unicast_configured_hosts_resolver]");
-        executorService.set(OpenSearchExecutors.newScaling(nodeName + "/" + "unicast_configured_hosts_resolver",
-            0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory, transportService.getThreadPool().getThreadContext()));
+        executorService.set(
+            OpenSearchExecutors.newScaling(
+                nodeName + "/" + "unicast_configured_hosts_resolver",
+                0,
+                concurrentConnects,
+                60,
+                TimeUnit.SECONDS,
+                threadFactory,
+                transportService.getThreadPool().getThreadContext()
+            )
+        );
     }
 
     @Override
@@ -214,8 +244,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     @Override
     public void resolveConfiguredHosts(Consumer<List<TransportAddress>> consumer) {
@@ -238,9 +267,16 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
                         return;
                     }
 
-                    List<TransportAddress> providedAddresses
-                        = hostsProvider.getSeedAddresses(hosts ->
-                            resolveHostsLists(cancellableThreads, executorService.get(), logger, hosts, transportService, resolveTimeout));
+                    List<TransportAddress> providedAddresses = hostsProvider.getSeedAddresses(
+                        hosts -> resolveHostsLists(
+                            cancellableThreads,
+                            executorService.get(),
+                            logger,
+                            hosts,
+                            transportService,
+                            resolveTimeout
+                        )
+                    );
 
                     consumer.accept(providedAddresses);
                 }

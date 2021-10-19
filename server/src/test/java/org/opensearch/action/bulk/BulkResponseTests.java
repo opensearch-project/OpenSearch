@@ -45,8 +45,6 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.bulk.BulkItemResponse;
-import org.opensearch.action.bulk.BulkResponse;
 
 import java.io.IOException;
 
@@ -94,10 +92,12 @@ public class BulkResponseTests extends OpenSearchTestCase {
                 Tuple<Throwable, OpenSearchException> failures = randomExceptions();
 
                 Exception bulkItemCause = (Exception) failures.v1();
-                bulkItems[i] = new BulkItemResponse(i, opType,
-                        new BulkItemResponse.Failure(index, type, id, bulkItemCause));
-                expectedBulkItems[i] = new BulkItemResponse(i, opType,
-                        new BulkItemResponse.Failure(index, type, id, failures.v2(), ExceptionsHelper.status(bulkItemCause)));
+                bulkItems[i] = new BulkItemResponse(i, opType, new BulkItemResponse.Failure(index, type, id, bulkItemCause));
+                expectedBulkItems[i] = new BulkItemResponse(
+                    i,
+                    opType,
+                    new BulkItemResponse.Failure(index, type, id, failures.v2(), ExceptionsHelper.status(bulkItemCause))
+                );
             }
         }
 

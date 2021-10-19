@@ -112,7 +112,8 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Indicates whether the response should contain the stored _source
      */
     public ExplainRequestBuilder setFetchSource(boolean fetch) {
-        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null ? request.fetchSourceContext()
+        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null
+            ? request.fetchSourceContext()
             : FetchSourceContext.FETCH_SOURCE;
         request.fetchSourceContext(new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes()));
         return this;
@@ -127,8 +128,9 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      */
     public ExplainRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
         return setFetchSource(
-                include == null ? Strings.EMPTY_ARRAY : new String[]{include},
-                exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
+            include == null ? Strings.EMPTY_ARRAY : new String[] { include },
+            exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude }
+        );
     }
 
     /**
@@ -139,7 +141,8 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * @param excludes An optional list of exclude (optionally wildcarded) pattern to filter the returned _source
      */
     public ExplainRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
-        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null ? request.fetchSourceContext()
+        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null
+            ? request.fetchSourceContext()
             : FetchSourceContext.FETCH_SOURCE;
         request.fetchSourceContext(new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes));
         return this;

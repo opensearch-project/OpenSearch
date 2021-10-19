@@ -71,9 +71,9 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
                 analyzer = analyzer == null ? randomAlphaOfLength(5) : null;
                 break;
             case 4:
-                filter = filter == null ?
-                    IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean()) :
-                    FilterIntervalsSourceProviderTests.mutateFilter(filter);
+                filter = filter == null
+                    ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
+                    : FilterIntervalsSourceProviderTests.mutateFilter(filter);
                 break;
             case 5:
                 useField = useField == null ? randomAlphaOfLength(5) : (useField + "foo");

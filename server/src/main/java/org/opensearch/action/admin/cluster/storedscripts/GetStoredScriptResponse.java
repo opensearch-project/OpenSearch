@@ -57,23 +57,26 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
     public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
     public static final ParseField SCRIPT = new ParseField("script");
 
-    private static final ConstructingObjectParser<GetStoredScriptResponse, String> PARSER =
-        new ConstructingObjectParser<>("GetStoredScriptResponse",
-            true,
-            (a, c) -> {
-                String id = (String) a[0];
-                boolean found = (Boolean)a[1];
-                StoredScriptSource scriptSource = (StoredScriptSource)a[2];
-                return found ? new GetStoredScriptResponse(id, scriptSource) : new GetStoredScriptResponse(id, null);
-            });
+    private static final ConstructingObjectParser<GetStoredScriptResponse, String> PARSER = new ConstructingObjectParser<>(
+        "GetStoredScriptResponse",
+        true,
+        (a, c) -> {
+            String id = (String) a[0];
+            boolean found = (Boolean) a[1];
+            StoredScriptSource scriptSource = (StoredScriptSource) a[2];
+            return found ? new GetStoredScriptResponse(id, scriptSource) : new GetStoredScriptResponse(id, null);
+        }
+    );
 
     static {
-        PARSER.declareField(constructorArg(), (p, c) -> p.text(),
-            _ID_PARSE_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), (p, c) -> p.booleanValue(),
-            FOUND_PARSE_FIELD, ObjectParser.ValueType.BOOLEAN);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> StoredScriptSource.fromXContent(p, true),
-            SCRIPT, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(constructorArg(), (p, c) -> p.text(), _ID_PARSE_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), (p, c) -> p.booleanValue(), FOUND_PARSE_FIELD, ObjectParser.ValueType.BOOLEAN);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> StoredScriptSource.fromXContent(p, true),
+            SCRIPT,
+            ObjectParser.ValueType.OBJECT
+        );
     }
 
     private String id;
@@ -151,8 +154,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetStoredScriptResponse that = (GetStoredScriptResponse) o;
-        return Objects.equals(id, that.id) &&
-            Objects.equals(source, that.source);
+        return Objects.equals(id, that.id) && Objects.equals(source, that.source);
     }
 
     @Override

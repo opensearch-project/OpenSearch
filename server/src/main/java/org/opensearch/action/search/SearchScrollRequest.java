@@ -55,8 +55,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
     private String scrollId;
     private Scroll scroll;
 
-    public SearchScrollRequest() {
-    }
+    public SearchScrollRequest() {}
 
     public SearchScrollRequest(String scrollId) {
         this.scrollId = scrollId;
@@ -143,8 +142,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
             return false;
         }
         SearchScrollRequest that = (SearchScrollRequest) o;
-        return Objects.equals(scrollId, that.scrollId) &&
-                Objects.equals(scroll, that.scroll);
+        return Objects.equals(scrollId, that.scrollId) && Objects.equals(scroll, that.scroll);
     }
 
     @Override
@@ -154,10 +152,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
 
     @Override
     public String toString() {
-        return "SearchScrollRequest{" +
-                "scrollId='" + scrollId + '\'' +
-                ", scroll=" + scroll +
-                '}';
+        return "SearchScrollRequest{" + "scrollId='" + scrollId + '\'' + ", scroll=" + scroll + '}';
     }
 
     @Override
@@ -194,8 +189,9 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
                 } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                     scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null, "scroll")));
                 } else {
-                    throw new IllegalArgumentException("Unknown parameter [" + currentFieldName
-                            + "] in request body or parameter is of the wrong type[" + token + "] ");
+                    throw new IllegalArgumentException(
+                        "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "
+                    );
                 }
             }
         }

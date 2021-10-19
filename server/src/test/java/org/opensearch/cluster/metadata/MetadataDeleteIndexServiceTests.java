@@ -45,10 +45,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.repositories.IndexId;
-import org.opensearch.cluster.metadata.DataStream;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInProgressException;
@@ -75,7 +71,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-
 public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
     private AllocationService allocationService;
     private MetadataDeleteIndexService service;
@@ -85,8 +80,9 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class)))
-            .thenAnswer(mockInvocation -> mockInvocation.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), any(String.class))).thenAnswer(
+            mockInvocation -> mockInvocation.getArguments()[0]
+        );
         service = new MetadataDeleteIndexService(Settings.EMPTY, null, allocationService);
     }
 
@@ -101,17 +97,35 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
         String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = SnapshotsInProgress.of(
-            org.opensearch.common.collect.List.of(new SnapshotsInProgress.Entry(snapshot, true, false,
-                SnapshotsInProgress.State.INIT, singletonList(new IndexId(index, "doesn't matter")),
-                Collections.emptyList(), System.currentTimeMillis(), (long) randomIntBetween(0, 1000), ImmutableOpenMap.of(), null,
-                SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()))));
-        ClusterState state = ClusterState.builder(clusterState(index))
-                .putCustom(SnapshotsInProgress.TYPE, snaps)
-                .build();
-        Exception e = expectThrows(SnapshotInProgressException.class,
-                () -> service.deleteIndices(state, singleton(state.metadata().getIndices().get(index).getIndex())));
-        assertEquals("Cannot delete indices that are being snapshotted: [[" + index + "]]. Try again after snapshot finishes "
-                + "or cancel the currently running snapshot.", e.getMessage());
+            org.opensearch.common.collect.List.of(
+                new SnapshotsInProgress.Entry(
+                    snapshot,
+                    true,
+                    false,
+                    SnapshotsInProgress.State.INIT,
+                    singletonList(new IndexId(index, "doesn't matter")),
+                    Collections.emptyList(),
+                    System.currentTimeMillis(),
+                    (long) randomIntBetween(0, 1000),
+                    ImmutableOpenMap.of(),
+                    null,
+                    SnapshotInfoTests.randomUserMetadata(),
+                    VersionUtils.randomVersion(random())
+                )
+            )
+        );
+        ClusterState state = ClusterState.builder(clusterState(index)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
+        Exception e = expectThrows(
+            SnapshotInProgressException.class,
+            () -> service.deleteIndices(state, singleton(state.metadata().getIndices().get(index).getIndex()))
+        );
+        assertEquals(
+            "Cannot delete indices that are being snapshotted: [["
+                + index
+                + "]]. Try again after snapshot finishes "
+                + "or cancel the currently running snapshot.",
+            e.getMessage()
+        );
     }
 
     public void testDeleteUnassigned() {
@@ -139,7 +153,8 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
-            org.opensearch.common.collect.List.of());
+            org.opensearch.common.collect.List.of()
+        );
 
         int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
 
@@ -148,8 +163,10 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
 
         assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
-        assertThat(after.metadata().getIndices().get(
-            DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), IsNull.nullValue());
+        assertThat(
+            after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)),
+            IsNull.nullValue()
+        );
     }
 
     public void testDeleteMultipleBackingIndexForDataStream() {
@@ -158,10 +175,13 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
-            org.opensearch.common.collect.List.of());
+            org.opensearch.common.collect.List.of()
+        );
 
-        List<Integer> indexNumbersToDelete =
-            randomSubsetOf(numBackingIndicesToDelete, IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList()));
+        List<Integer> indexNumbersToDelete = randomSubsetOf(
+            numBackingIndicesToDelete,
+            IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList())
+        );
 
         Set<Index> indicesToDelete = new HashSet<>();
         for (int k : indexNumbersToDelete) {
@@ -184,26 +204,33 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
-            org.opensearch.common.collect.List.of());
+            org.opensearch.common.collect.List.of()
+        );
 
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> service.deleteIndices(before, org.opensearch.common.collect.Set.of(indexToDelete)));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.deleteIndices(before, org.opensearch.common.collect.Set.of(indexToDelete))
+        );
 
-        assertThat(e.getMessage(), containsString("index [" + indexToDelete.getName() + "] is the write index for data stream [" +
-            dataStreamName + "] and cannot be deleted"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "index [" + indexToDelete.getName() + "] is the write index for data stream [" + dataStreamName + "] and cannot be deleted"
+            )
+        );
     }
 
     private ClusterState clusterState(String index) {
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-                .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
+            .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
         return ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().put(indexMetadata, false))
-                .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
-                .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
-                .build();
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
+            .build();
     }
 }

@@ -270,7 +270,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             } else {
                 query = clauses.get(i).toQuery(context);
                 assert query instanceof SpanQuery;
-                builder.addClause((SpanQuery)query);
+                builder.addClause((SpanQuery) query);
             }
         }
         return builder.build();
@@ -288,9 +288,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     @Override
     protected boolean doEquals(SpanNearQueryBuilder other) {
-        return Objects.equals(clauses, other.clauses) &&
-               Objects.equals(slop, other.slop) &&
-               Objects.equals(inOrder, other.inOrder);
+        return Objects.equals(clauses, other.clauses) && Objects.equals(slop, other.slop) && Objects.equals(inOrder, other.inOrder);
     }
 
     @Override
@@ -326,8 +324,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             if (Strings.isEmpty(fieldName)) {
                 throw new IllegalArgumentException("[span_gap] field name is null or empty");
             }
-            //lucene has not coded any restriction on value of width.
-            //to-do : find if theoretically it makes sense to apply restrictions.
+            // lucene has not coded any restriction on value of width.
+            // to-do : find if theoretically it makes sense to apply restrictions.
             this.fieldName = fieldName;
             this.width = width;
         }
@@ -432,8 +430,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                 return false;
             }
             SpanGapQueryBuilder other = (SpanGapQueryBuilder) obj;
-            return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(width, other.width);
+            return Objects.equals(fieldName, other.fieldName) && Objects.equals(width, other.width);
         }
 
         @Override
@@ -441,18 +438,29 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             return Objects.hash(getClass(), fieldName, width);
         }
 
-
         @Override
         public final String toString() {
             return Strings.toString(this, true, true);
         }
 
-        //copied from AbstractQueryBuilder
-        protected static void throwParsingExceptionOnMultipleFields(String queryName, XContentLocation contentLocation,
-                String processedFieldName, String currentFieldName) {
+        // copied from AbstractQueryBuilder
+        protected static void throwParsingExceptionOnMultipleFields(
+            String queryName,
+            XContentLocation contentLocation,
+            String processedFieldName,
+            String currentFieldName
+        ) {
             if (processedFieldName != null) {
-                throw new ParsingException(contentLocation, "[" + queryName + "] query doesn't support multiple fields, found ["
-                        + processedFieldName + "] and [" + currentFieldName + "]");
+                throw new ParsingException(
+                    contentLocation,
+                    "["
+                        + queryName
+                        + "] query doesn't support multiple fields, found ["
+                        + processedFieldName
+                        + "] and ["
+                        + currentFieldName
+                        + "]"
+                );
             }
         }
     }

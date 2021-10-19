@@ -73,17 +73,27 @@ public class PreVoteCollector {
     // Tuple for simple atomic updates. null until the first call to `update()`.
     private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader.
 
-    PreVoteCollector(final TransportService transportService, final Runnable startElection, final LongConsumer updateMaxTermSeen,
-                     final ElectionStrategy electionStrategy, NodeHealthService nodeHealthService) {
+    PreVoteCollector(
+        final TransportService transportService,
+        final Runnable startElection,
+        final LongConsumer updateMaxTermSeen,
+        final ElectionStrategy electionStrategy,
+        NodeHealthService nodeHealthService
+    ) {
         this.transportService = transportService;
         this.startElection = startElection;
         this.updateMaxTermSeen = updateMaxTermSeen;
         this.electionStrategy = electionStrategy;
         this.nodeHealthService = nodeHealthService;
 
-        transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, false, false,
+        transportService.registerRequestHandler(
+            REQUEST_PRE_VOTE_ACTION_NAME,
+            Names.GENERIC,
+            false,
+            false,
             PreVoteRequest::new,
-            (request, channel, task) -> channel.sendResponse(handlePreVoteRequest(request)));
+            (request, channel, task) -> channel.sendResponse(handlePreVoteRequest(request))
+        );
     }
 
     /**
@@ -149,9 +159,7 @@ public class PreVoteCollector {
 
     @Override
     public String toString() {
-        return "PreVoteCollector{" +
-            "state=" + state +
-            '}';
+        return "PreVoteCollector{" + "state=" + state + '}';
     }
 
     private class PreVotingRound implements Releasable {
@@ -169,33 +177,39 @@ public class PreVoteCollector {
         void start(final Iterable<DiscoveryNode> broadcastNodes) {
             assert StreamSupport.stream(broadcastNodes.spliterator(), false).noneMatch(Coordinator::isZen1Node) : broadcastNodes;
             logger.debug("{} requesting pre-votes from {}", this, broadcastNodes);
-            broadcastNodes.forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
-                new TransportResponseHandler<PreVoteResponse>() {
-                    @Override
-                    public PreVoteResponse read(StreamInput in) throws IOException {
-                        return new PreVoteResponse(in);
-                    }
+            broadcastNodes.forEach(
+                n -> transportService.sendRequest(
+                    n,
+                    REQUEST_PRE_VOTE_ACTION_NAME,
+                    preVoteRequest,
+                    new TransportResponseHandler<PreVoteResponse>() {
+                        @Override
+                        public PreVoteResponse read(StreamInput in) throws IOException {
+                            return new PreVoteResponse(in);
+                        }
 
-                    @Override
-                    public void handleResponse(PreVoteResponse response) {
-                        handlePreVoteResponse(response, n);
-                    }
+                        @Override
+                        public void handleResponse(PreVoteResponse response) {
+                            handlePreVoteResponse(response, n);
+                        }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        logger.debug(new ParameterizedMessage("{} failed", this), exp);
-                    }
+                        @Override
+                        public void handleException(TransportException exp) {
+                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
+                        }
 
-                    @Override
-                    public String executor() {
-                        return Names.GENERIC;
-                    }
+                        @Override
+                        public String executor() {
+                            return Names.GENERIC;
+                        }
 
-                    @Override
-                    public String toString() {
-                        return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
+                        @Override
+                        public String toString() {
+                            return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
+                        }
                     }
-                }));
+                )
+            );
         }
 
         private void handlePreVoteResponse(final PreVoteResponse response, final DiscoveryNode sender) {
@@ -208,7 +222,7 @@ public class PreVoteCollector {
 
             if (response.getLastAcceptedTerm() > clusterState.term()
                 || (response.getLastAcceptedTerm() == clusterState.term()
-                && response.getLastAcceptedVersion() > clusterState.getVersionOrMetadataVersion())) {
+                    && response.getLastAcceptedVersion() > clusterState.getVersionOrMetadataVersion())) {
                 logger.debug("{} ignoring {} from {} as it is fresher", this, response, sender);
                 return;
             }
@@ -220,13 +234,27 @@ public class PreVoteCollector {
             final DiscoveryNode localNode = clusterState.nodes().getLocalNode();
             final PreVoteResponse localPreVoteResponse = getPreVoteResponse();
 
-            preVotesReceived.forEach((node, preVoteResponse) -> voteCollection.addJoinVote(
-                new Join(node, localNode, preVoteResponse.getCurrentTerm(),
-                preVoteResponse.getLastAcceptedTerm(), preVoteResponse.getLastAcceptedVersion())));
+            preVotesReceived.forEach(
+                (node, preVoteResponse) -> voteCollection.addJoinVote(
+                    new Join(
+                        node,
+                        localNode,
+                        preVoteResponse.getCurrentTerm(),
+                        preVoteResponse.getLastAcceptedTerm(),
+                        preVoteResponse.getLastAcceptedVersion()
+                    )
+                )
+            );
 
-            if (electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), localPreVoteResponse.getCurrentTerm(),
-                localPreVoteResponse.getLastAcceptedTerm(), localPreVoteResponse.getLastAcceptedVersion(),
-                clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(), voteCollection) == false) {
+            if (electionStrategy.isElectionQuorum(
+                clusterState.nodes().getLocalNode(),
+                localPreVoteResponse.getCurrentTerm(),
+                localPreVoteResponse.getLastAcceptedTerm(),
+                localPreVoteResponse.getLastAcceptedVersion(),
+                clusterState.getLastCommittedConfiguration(),
+                clusterState.getLastAcceptedConfiguration(),
+                voteCollection
+            ) == false) {
                 logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
                 return;
             }
@@ -242,12 +270,16 @@ public class PreVoteCollector {
 
         @Override
         public String toString() {
-            return "PreVotingRound{" +
-                "preVotesReceived=" + preVotesReceived +
-                ", electionStarted=" + electionStarted +
-                ", preVoteRequest=" + preVoteRequest +
-                ", isClosed=" + isClosed +
-                '}';
+            return "PreVotingRound{"
+                + "preVotesReceived="
+                + preVotesReceived
+                + ", electionStarted="
+                + electionStarted
+                + ", preVoteRequest="
+                + preVoteRequest
+                + ", isClosed="
+                + isClosed
+                + '}';
         }
 
         @Override

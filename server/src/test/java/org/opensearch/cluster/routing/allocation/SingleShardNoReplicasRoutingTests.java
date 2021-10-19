@@ -66,19 +66,22 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
     private final Logger logger = LogManager.getLogger(SingleShardNoReplicasRoutingTests.class);
 
     public void testSingleIndexStartedShard() {
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
 
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
-                .build();
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(initialRoutingTable)
+            .build();
 
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(1));
@@ -115,8 +118,7 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
         assertThat(clusterState.routingTable().index("test").shard(0).shards().get(0).currentNodeId(), equalTo("node1"));
 
         logger.info("Starting another node and making sure nothing changed");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, equalTo(clusterState));
         clusterState = newState;
@@ -142,8 +144,7 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
 
         logger.info("Bring node1 back, and see it's assinged");
 
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node1"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node1"))).build();
         newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -154,10 +155,8 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
         assertThat(clusterState.routingTable().index("test").shard(0).shards().get(0).state(), equalTo(INITIALIZING));
         assertThat(clusterState.routingTable().index("test").shard(0).shards().get(0).currentNodeId(), equalTo("node1"));
 
-
         logger.info("Start another node, make sure that things remain the same (shard is in node2 and initializing)");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, equalTo(clusterState));
 
@@ -175,20 +174,22 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
     }
 
     public void testSingleIndexShardFailed() {
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
 
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
-                .build();
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
 
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder()
-                .addAsNew(metadata.index("test"));
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsNew(metadata.index("test"));
 
-        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTableBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTableBuilder.build())
+            .build();
 
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(1));
@@ -211,8 +212,11 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
 
         logger.info("Marking the shard as failed");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        newState = strategy.applyFailedShard(clusterState,
-            routingNodes.node("node1").shardsWithState(INITIALIZING).get(0), randomBoolean());
+        newState = strategy.applyFailedShard(
+            clusterState,
+            routingNodes.node("node1").shardsWithState(INITIALIZING).get(0),
+            randomBoolean()
+        );
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -224,19 +228,22 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
     }
 
     public void testMultiIndexEvenDistribution() {
-        AllocationService strategy = createAllocationService(Settings.builder()
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build());
+                .build()
+        );
 
         final int numberOfIndices = 50;
         logger.info("Building initial routing table with " + numberOfIndices + " indices");
 
         Metadata.Builder metadataBuilder = Metadata.builder();
         for (int i = 0; i < numberOfIndices; i++) {
-            metadataBuilder.put(IndexMetadata.builder("test" + i)
-                .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
+            metadataBuilder.put(
+                IndexMetadata.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
+            );
         }
         Metadata metadata = metadataBuilder.build();
 
@@ -244,8 +251,10 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
         for (int i = 0; i < numberOfIndices; i++) {
             routingTableBuilder.addAsNew(metadata.index("test" + i));
         }
-        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTableBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTableBuilder.build())
+            .build();
 
         assertThat(clusterState.routingTable().indicesRouting().size(), equalTo(numberOfIndices));
         for (int i = 0; i < numberOfIndices; i++) {
@@ -314,8 +323,10 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
             assertThat(clusterState.routingTable().index("test" + i).shard(0).size(), equalTo(1));
             assertThat(clusterState.routingTable().index("test" + i).shard(0).shards().size(), equalTo(1));
             assertThat(clusterState.routingTable().index("test" + i).shard(0).shards().get(0).unassigned(), equalTo(false));
-            assertThat(clusterState.routingTable().index("test" + i).shard(0).shards().get(0).state(),
-                anyOf(equalTo(STARTED), equalTo(RELOCATING)));
+            assertThat(
+                clusterState.routingTable().index("test" + i).shard(0).shards().get(0).state(),
+                anyOf(equalTo(STARTED), equalTo(RELOCATING))
+            );
             if (clusterState.routingTable().index("test" + i).shard(0).shards().get(0).state() == STARTED) {
                 numberOfStartedShards++;
             } else if (clusterState.routingTable().index("test" + i).shard(0).shards().get(0).state() == RELOCATING) {
@@ -332,19 +343,22 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
     }
 
     public void testMultiIndexUnevenNodes() {
-        AllocationService strategy = createAllocationService(Settings.builder()
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build());
+                .build()
+        );
 
         final int numberOfIndices = 10;
         logger.info("Building initial routing table with " + numberOfIndices + " indices");
 
         Metadata.Builder metadataBuilder = Metadata.builder();
         for (int i = 0; i < numberOfIndices; i++) {
-            metadataBuilder.put(IndexMetadata.builder("test" + i)
-                .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
+            metadataBuilder.put(
+                IndexMetadata.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
+            );
         }
         Metadata metadata = metadataBuilder.build();
 
@@ -353,15 +367,17 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
             routingTableBuilder.addAsNew(metadata.index("test" + i));
         }
 
-        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTableBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTableBuilder.build())
+            .build();
 
         assertThat(clusterState.routingTable().indicesRouting().size(), equalTo(numberOfIndices));
 
         logger.info("Starting 3 nodes and rerouting");
         clusterState = ClusterState.builder(clusterState)
-                .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
-                .build();
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
+            .build();
         ClusterState newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -380,8 +396,8 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
 
         logger.info("Start two more nodes, things should remain the same");
         clusterState = ClusterState.builder(clusterState)
-                .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4")).add(newNode("node5")))
-                .build();
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4")).add(newNode("node5")))
+            .build();
         newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, equalTo(clusterState));
         clusterState = newState;
@@ -394,8 +410,10 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
             assertThat(clusterState.routingTable().index("test" + i).shards().size(), equalTo(1));
             assertThat(clusterState.routingTable().index("test" + i).shard(0).size(), equalTo(1));
             assertThat(clusterState.routingTable().index("test" + i).shard(0).shards().size(), equalTo(1));
-            assertThat(clusterState.routingTable().index("test" + i).shard(0).shards().get(0).state(),
-                anyOf(equalTo(RELOCATING), equalTo(STARTED)));
+            assertThat(
+                clusterState.routingTable().index("test" + i).shard(0).shards().get(0).state(),
+                anyOf(equalTo(RELOCATING), equalTo(STARTED))
+            );
         }
         routingNodes = clusterState.getRoutingNodes();
         assertThat("4 source shard routing are relocating", numberOfShardsOfType(routingNodes, RELOCATING), equalTo(4));
@@ -403,7 +421,7 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
 
         logger.info("Now, mark the relocated as started");
         newState = startInitializingShardsAndReroute(strategy, clusterState);
-//        routingTable = strategy.reroute(new RoutingStrategyInfo(metadata, routingTable), nodes);
+        // routingTable = strategy.reroute(new RoutingStrategyInfo(metadata, routingTable), nodes);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -411,8 +429,10 @@ public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestC
             assertThat(clusterState.routingTable().index("test" + i).shards().size(), equalTo(1));
             assertThat(clusterState.routingTable().index("test" + i).shard(0).size(), equalTo(1));
             assertThat(clusterState.routingTable().index("test" + i).shard(0).shards().size(), equalTo(1));
-            assertThat(clusterState.routingTable().index("test" + i).shard(0).shards().get(0).state(),
-                anyOf(equalTo(RELOCATING), equalTo(STARTED)));
+            assertThat(
+                clusterState.routingTable().index("test" + i).shard(0).shards().get(0).state(),
+                anyOf(equalTo(RELOCATING), equalTo(STARTED))
+            );
         }
         routingNodes = clusterState.getRoutingNodes();
         assertThat(numberOfShardsOfType(routingNodes, STARTED), equalTo(numberOfIndices));

@@ -44,12 +44,14 @@ public class ShardIndexingPressureStats implements Writeable, ToXContentFragment
         shardIndexingPressureEnforced = in.readBoolean();
     }
 
-    public ShardIndexingPressureStats(Map<ShardId, IndexingPressurePerShardStats> shardIndexingPressureStore,
-                                      long totalNodeLimitsBreachedRejections,
-                                      long totalLastSuccessfulRequestLimitsBreachedRejections,
-                                      long totalThroughputDegradationLimitsBreachedRejections,
-                                      boolean shardIndexingPressureEnabled,
-                                      boolean shardIndexingPressureEnforced) {
+    public ShardIndexingPressureStats(
+        Map<ShardId, IndexingPressurePerShardStats> shardIndexingPressureStore,
+        long totalNodeLimitsBreachedRejections,
+        long totalLastSuccessfulRequestLimitsBreachedRejections,
+        long totalThroughputDegradationLimitsBreachedRejections,
+        boolean shardIndexingPressureEnabled,
+        boolean shardIndexingPressureEnforced
+    ) {
         this.shardIndexingPressureStore = shardIndexingPressureStore;
         this.totalNodeLimitsBreachedRejections = totalNodeLimitsBreachedRejections;
         this.totalLastSuccessfulRequestLimitsBreachedRejections = totalLastSuccessfulRequestLimitsBreachedRejections;

@@ -41,7 +41,6 @@ import org.opensearch.client.OpenSearchClient;
  */
 public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse> {
 
-
     public MultiSearchRequestBuilder(OpenSearchClient client, MultiSearchAction action) {
         super(client, action, new MultiSearchRequest());
     }

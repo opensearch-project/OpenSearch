@@ -89,16 +89,24 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
             nodePaths = nodeEnvironment.nodeDataPaths();
             final String nodeId = randomAlphaOfLength(10);
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
-                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
+            try (
+                PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
+                    nodePaths,
+                    nodeId,
+                    xContentRegistry(),
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                ).createWriter()
+            ) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
             }
         }
         dataNoMasterSettings = nonMasterNode(dataMasterSettings);
         noDataNoMasterSettings = removeRoles(
             dataMasterSettings,
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))));
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
+        );
 
         noDataMasterSettings = masterNode(nonDataNode(dataMasterSettings));
     }
@@ -117,8 +125,12 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         Environment environment = TestEnvironment.newEnvironment(noDataMasterSettings);
         if (randomBoolean()) {
             try (NodeEnvironment env = new NodeEnvironment(noDataMasterSettings, environment)) {
-                try (PersistedClusterStateService.Writer writer =
-                         OpenSearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPaths()).createWriter()) {
+                try (
+                    PersistedClusterStateService.Writer writer = OpenSearchNodeCommand.createPersistedClusterStateService(
+                        Settings.EMPTY,
+                        env.nodeDataPaths()
+                    ).createWriter()
+                ) {
                     writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
                 }
             }
@@ -135,9 +147,10 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
 
     public void testLocked() throws IOException {
         try (NodeEnvironment env = new NodeEnvironment(dataMasterSettings, TestEnvironment.newEnvironment(dataMasterSettings))) {
-            assertThat(expectThrows(OpenSearchException.class,
-                () -> verifyNoQuestions(noDataNoMasterSettings, null)).getMessage(),
-                containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
+            assertThat(
+                expectThrows(OpenSearchException.class, () -> verifyNoQuestions(noDataNoMasterSettings, null)).getMessage(),
+                containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG)
+            );
         }
     }
 
@@ -147,10 +160,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         boolean hasClusterState = randomBoolean();
         createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
-        String messageText = NodeRepurposeCommand.noMasterMessage(
-            1,
-            environment.dataFiles().length*shardCount,
-            0);
+        String messageText = NodeRepurposeCommand.noMasterMessage(1, environment.dataFiles().length * shardCount, 0);
 
         Matcher<String> outputMatcher = allOf(
             containsString(messageText),
@@ -165,7 +175,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
 
         verifySuccess(noDataNoMasterSettings, outputMatcher, verbose);
 
-        //verify cleaned.
+        // verify cleaned.
         new NodeEnvironment(noDataNoMasterSettings, environment).close();
     }
 
@@ -189,7 +199,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
 
         verifySuccess(noDataMasterSettings, matcher, verbose);
 
-        //verify clean.
+        // verify clean.
         new NodeEnvironment(noDataMasterSettings, environment).close();
     }
 
@@ -205,21 +215,21 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         withTerminal(verbose, outputMatcher, terminal -> {
             terminal.addTextInput(randomFrom("yy", "Yy", "n", "yes", "true", "N", "no"));
             verifyUnchangedDataFiles(() -> {
-                OpenSearchException exception = expectThrows(OpenSearchException.class,
-                    () -> executeRepurposeCommand(terminal, settings, 0));
+                OpenSearchException exception = expectThrows(
+                    OpenSearchException.class,
+                    () -> executeRepurposeCommand(terminal, settings, 0)
+                );
                 assertThat(exception.getMessage(), containsString(NodeRepurposeCommand.ABORTED_BY_USER_MSG));
             });
         });
     }
 
     private void verifyNoQuestions(Settings settings, Matcher<String> outputMatcher) throws Exception {
-        withTerminal(false, outputMatcher, terminal -> {
-            executeRepurposeCommand(terminal, settings, 0);
-        });
+        withTerminal(false, outputMatcher, terminal -> { executeRepurposeCommand(terminal, settings, 0); });
     }
 
-    private static void withTerminal(boolean verbose, Matcher<String> outputMatcher,
-                                     CheckedConsumer<MockTerminal, Exception> consumer) throws Exception {
+    private static void withTerminal(boolean verbose, Matcher<String> outputMatcher, CheckedConsumer<MockTerminal, Exception> consumer)
+        throws Exception {
         MockTerminal terminal = new MockTerminal();
         if (verbose) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
@@ -235,7 +245,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
     private static void executeRepurposeCommand(MockTerminal terminal, Settings settings, int ordinal) throws Exception {
         NodeRepurposeCommand nodeRepurposeCommand = new NodeRepurposeCommand();
         OptionSet options = nodeRepurposeCommand.getParser()
-            .parse(ordinal != 0 ? new String[]{"--ordinal", Integer.toString(ordinal)} : new String[0]);
+            .parse(ordinal != 0 ? new String[] { "--ordinal", Integer.toString(ordinal) } : new String[0]);
         Environment env = TestEnvironment.newEnvironment(settings);
         nodeRepurposeCommand.testExecute(terminal, options, env);
     }
@@ -245,21 +255,37 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         Environment environment = TestEnvironment.newEnvironment(settings);
         try (NodeEnvironment env = new NodeEnvironment(settings, environment)) {
             if (writeClusterState) {
-                try (PersistedClusterStateService.Writer writer =
-                         OpenSearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPaths()).createWriter()) {
-                    writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT)
-                        .metadata(Metadata.builder().put(IndexMetadata.builder(INDEX.getName())
-                            .settings(Settings.builder().put("index.version.created", Version.CURRENT)
-                                .put(IndexMetadata.SETTING_INDEX_UUID, INDEX.getUUID()))
-                            .numberOfShards(1)
-                            .numberOfReplicas(1)).build())
-                        .build());
+                try (
+                    PersistedClusterStateService.Writer writer = OpenSearchNodeCommand.createPersistedClusterStateService(
+                        Settings.EMPTY,
+                        env.nodeDataPaths()
+                    ).createWriter()
+                ) {
+                    writer.writeFullStateAndCommit(
+                        1L,
+                        ClusterState.builder(ClusterName.DEFAULT)
+                            .metadata(
+                                Metadata.builder()
+                                    .put(
+                                        IndexMetadata.builder(INDEX.getName())
+                                            .settings(
+                                                Settings.builder()
+                                                    .put("index.version.created", Version.CURRENT)
+                                                    .put(IndexMetadata.SETTING_INDEX_UUID, INDEX.getUUID())
+                                            )
+                                            .numberOfShards(1)
+                                            .numberOfReplicas(1)
+                                    )
+                                    .build()
+                            )
+                            .build()
+                    );
                 }
             }
             for (Path path : env.indexPaths(INDEX)) {
                 for (int i = 0; i < shardCount; ++i) {
                     Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
-                    shardDataDirNumber += randomIntBetween(1,10);
+                    shardDataDirNumber += randomIntBetween(1, 10);
                 }
             }
         }
@@ -286,10 +312,8 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
     }
 
     private long digestSinglePath(Path path) {
-        if (Files.isDirectory(path))
-            return path.toString().hashCode();
-        else
-            return path.toString().hashCode() + digest(readAllBytes(path));
+        if (Files.isDirectory(path)) return path.toString().hashCode();
+        else return path.toString().hashCode() + digest(readAllBytes(path));
 
     }
 

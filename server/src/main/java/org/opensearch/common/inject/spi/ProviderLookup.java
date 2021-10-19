@@ -58,7 +58,7 @@ public final class ProviderLookup<T> implements Element {
         @Override
         public T get() {
             if (lookup.delegate == null) {
-                throw new IllegalStateException( "This Provider cannot be used until the Injector has been created.");
+                throw new IllegalStateException("This Provider cannot be used until the Injector has been created.");
             }
             return lookup.delegate.get();
         }
@@ -72,6 +72,7 @@ public final class ProviderLookup<T> implements Element {
             return lookup.getKey();
         }
     }
+
     private final Object source;
     private final Key<T> key;
     private Provider<T> delegate;

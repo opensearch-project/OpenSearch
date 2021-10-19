@@ -151,11 +151,11 @@ public abstract class AbstractRecyclerTestCase extends OpenSearchTestCase {
 
         // now exhaust the recycler
         List<V<byte[]>> vals = new ArrayList<>(limit);
-        for (int i = 0; i < limit ; ++i) {
+        for (int i = 0; i < limit; ++i) {
             vals.add(r.obtain());
         }
         // Recycler size increases on release, not on obtain!
-        for (V<byte[]> v: vals) {
+        for (V<byte[]> v : vals) {
             v.close();
         }
 

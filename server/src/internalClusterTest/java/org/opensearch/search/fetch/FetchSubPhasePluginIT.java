@@ -82,34 +82,45 @@ public class FetchSubPhasePluginIT extends OpenSearchIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
         client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping(
-                        "type1",
-                        jsonBuilder()
-                                .startObject().startObject("type1")
-                                .startObject("properties")
-                                .startObject("test")
-                                .field("type", "text").field("term_vector", "yes")
-                                .endObject()
-                                .endObject()
-                                .endObject().endObject()).get();
+            .indices()
+            .prepareCreate("test")
+            .addMapping(
+                "type1",
+                jsonBuilder().startObject()
+                    .startObject("type1")
+                    .startObject("properties")
+                    .startObject("test")
+                    .field("type", "text")
+                    .field("term_vector", "yes")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
 
         client().index(
-                indexRequest("test").type("type1").id("1")
-                        .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())).actionGet();
+            indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
+        ).actionGet();
 
         client().admin().indices().prepareRefresh().get();
 
-         SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder()
-                 .ext(Collections.singletonList(new TermVectorsFetchBuilder("test")))).get();
+        SearchResponse response = client().prepareSearch()
+            .setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test"))))
+            .get();
         assertSearchResponse(response);
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
-                equalTo(2));
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
-                equalTo(2));
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
-                equalTo(1));
+        assertThat(
+            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
+            equalTo(2)
+        );
+        assertThat(
+            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
+            equalTo(2)
+        );
+        assertThat(
+            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
+            equalTo(1)
+        );
     }
 
     public static class FetchTermVectorsPlugin extends Plugin implements SearchPlugin {
@@ -120,8 +131,9 @@ public class FetchSubPhasePluginIT extends OpenSearchIntegTestCase {
 
         @Override
         public List<SearchExtSpec<?>> getSearchExts() {
-            return Collections.singletonList(new SearchExtSpec<>(TermVectorsFetchSubPhase.NAME,
-                    TermVectorsFetchBuilder::new, TermVectorsFetchBuilder::fromXContent));
+            return Collections.singletonList(
+                new SearchExtSpec<>(TermVectorsFetchSubPhase.NAME, TermVectorsFetchBuilder::new, TermVectorsFetchBuilder::fromXContent)
+            );
         }
     }
 
@@ -144,7 +156,7 @@ public class FetchSubPhasePluginIT extends OpenSearchIntegTestCase {
         }
 
         private void hitExecute(FetchContext context, HitContext hitContext) throws IOException {
-            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExt(NAME);
+            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder) context.getSearchExt(NAME);
             if (fetchSubPhaseBuilder == null) {
                 return;
             }

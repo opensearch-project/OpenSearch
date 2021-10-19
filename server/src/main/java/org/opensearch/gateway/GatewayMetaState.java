@@ -115,30 +115,42 @@ public class GatewayMetaState implements Closeable {
         return getPersistedState().getLastAcceptedState().metadata();
     }
 
-    public void start(Settings settings, TransportService transportService, ClusterService clusterService,
-                      MetaStateService metaStateService, MetadataIndexUpgradeService metadataIndexUpgradeService,
-                      MetadataUpgrader metadataUpgrader, PersistedClusterStateService persistedClusterStateService) {
+    public void start(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        MetaStateService metaStateService,
+        MetadataIndexUpgradeService metadataIndexUpgradeService,
+        MetadataUpgrader metadataUpgrader,
+        PersistedClusterStateService persistedClusterStateService
+    ) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
 
         if (DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings).equals(DiscoveryModule.ZEN_DISCOVERY_TYPE)) {
             // only for tests that simulate mixed Zen1/Zen2 clusters, see Zen1IT
             final Tuple<Manifest, Metadata> manifestClusterStateTuple;
             try {
-                NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
-                    persistedClusterStateService.getDataPaths());
+                NodeMetadata.FORMAT.writeAndCleanup(
+                    new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                    persistedClusterStateService.getDataPaths()
+                );
                 manifestClusterStateTuple = metaStateService.loadFullState();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
             final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                 .version(manifestClusterStateTuple.v1().getClusterStateVersion())
-                .metadata(manifestClusterStateTuple.v2()).build();
+                .metadata(manifestClusterStateTuple.v2())
+                .build();
 
-            final IncrementalClusterStateWriter incrementalClusterStateWriter
-                = new IncrementalClusterStateWriter(settings, clusterService.getClusterSettings(), metaStateService,
+            final IncrementalClusterStateWriter incrementalClusterStateWriter = new IncrementalClusterStateWriter(
+                settings,
+                clusterService.getClusterSettings(),
+                metaStateService,
                 manifestClusterStateTuple.v1(),
                 prepareInitialClusterState(transportService, clusterService, clusterState),
-                transportService.getThreadPool()::relativeTimeInMillis);
+                transportService.getThreadPool()::relativeTimeInMillis
+            );
 
             if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
                 clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));
@@ -156,8 +168,8 @@ public class GatewayMetaState implements Closeable {
                 long currentTerm = onDiskState.currentTerm;
 
                 if (onDiskState.empty()) {
-                    assert Version.CURRENT.major <= LegacyESVersion.V_7_0_0.major + 1 :
-                        "legacy metadata loader is not needed anymore from v9 onwards";
+                    assert Version.CURRENT.major <= LegacyESVersion.V_7_0_0.major
+                        + 1 : "legacy metadata loader is not needed anymore from v9 onwards";
                     final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
                     if (legacyState.v1().isEmpty() == false) {
                         metadata = legacyState.v2();
@@ -169,17 +181,23 @@ public class GatewayMetaState implements Closeable {
                 PersistedState persistedState = null;
                 boolean success = false;
                 try {
-                    final ClusterState clusterState = prepareInitialClusterState(transportService, clusterService,
+                    final ClusterState clusterState = prepareInitialClusterState(
+                        transportService,
+                        clusterService,
                         ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                             .version(lastAcceptedVersion)
                             .metadata(upgradeMetadataForNode(metadata, metadataIndexUpgradeService, metadataUpgrader))
-                            .build());
+                            .build()
+                    );
 
                     if (DiscoveryNode.isMasterNode(settings)) {
                         persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
                     } else {
-                        persistedState = new AsyncLucenePersistedState(settings, transportService.getThreadPool(),
-                            new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState));
+                        persistedState = new AsyncLucenePersistedState(
+                            settings,
+                            transportService.getThreadPool(),
+                            new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState)
+                        );
                     }
                     if (DiscoveryNode.isDataNode(settings)) {
                         metaStateService.unreferenceAll(); // unreference legacy files (only keep them for dangling indices functionality)
@@ -187,8 +205,10 @@ public class GatewayMetaState implements Closeable {
                         metaStateService.deleteAll(); // delete legacy files
                     }
                     // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
-                    NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
-                        persistedClusterStateService.getDataPaths());
+                    NodeMetadata.FORMAT.writeAndCleanup(
+                        new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                        persistedClusterStateService.getDataPaths()
+                    );
                     success = true;
                 } finally {
                     if (success == false) {
@@ -215,8 +235,10 @@ public class GatewayMetaState implements Closeable {
                     // delete legacy cluster state files
                     metaStateService.deleteAll();
                     // write legacy node metadata to prevent downgrades from spawning empty cluster state
-                    NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
-                        persistedClusterStateService.getDataPaths());
+                    NodeMetadata.FORMAT.writeAndCleanup(
+                        new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                        persistedClusterStateService.getDataPaths()
+                    );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -238,9 +260,11 @@ public class GatewayMetaState implements Closeable {
     }
 
     // exposed so it can be overridden by tests
-    Metadata upgradeMetadataForNode(Metadata metadata,
-                                    MetadataIndexUpgradeService metadataIndexUpgradeService,
-                                    MetadataUpgrader metadataUpgrader) {
+    Metadata upgradeMetadataForNode(
+        Metadata metadata,
+        MetadataIndexUpgradeService metadataIndexUpgradeService,
+        MetadataUpgrader metadataUpgrader
+    ) {
         return upgradeMetadata(metadata, metadataIndexUpgradeService, metadataUpgrader);
     }
 
@@ -250,30 +274,40 @@ public class GatewayMetaState implements Closeable {
      *
      * @return input <code>metadata</code> if no upgrade is needed or an upgraded metadata
      */
-    static Metadata upgradeMetadata(Metadata metadata,
-                                    MetadataIndexUpgradeService metadataIndexUpgradeService,
-                                    MetadataUpgrader metadataUpgrader) {
+    static Metadata upgradeMetadata(
+        Metadata metadata,
+        MetadataIndexUpgradeService metadataIndexUpgradeService,
+        MetadataUpgrader metadataUpgrader
+    ) {
         // upgrade index meta data
         boolean changed = false;
         final Metadata.Builder upgradedMetadata = Metadata.builder(metadata);
         for (IndexMetadata indexMetadata : metadata) {
-            IndexMetadata newMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(indexMetadata,
-                    Version.CURRENT.minimumIndexCompatibilityVersion());
+            IndexMetadata newMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(
+                indexMetadata,
+                Version.CURRENT.minimumIndexCompatibilityVersion()
+            );
             changed |= indexMetadata != newMetadata;
             upgradedMetadata.put(newMetadata, false);
         }
         // upgrade current templates
-        if (applyPluginUpgraders(metadata.getTemplates(), metadataUpgrader.indexTemplateMetadataUpgraders,
-                upgradedMetadata::removeTemplate, (s, indexTemplateMetadata) -> upgradedMetadata.put(indexTemplateMetadata))) {
+        if (applyPluginUpgraders(
+            metadata.getTemplates(),
+            metadataUpgrader.indexTemplateMetadataUpgraders,
+            upgradedMetadata::removeTemplate,
+            (s, indexTemplateMetadata) -> upgradedMetadata.put(indexTemplateMetadata)
+        )) {
             changed = true;
         }
         return changed ? upgradedMetadata.build() : metadata;
     }
 
-    private static boolean applyPluginUpgraders(ImmutableOpenMap<String, IndexTemplateMetadata> existingData,
-                                                UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
-                                                Consumer<String> removeData,
-                                                BiConsumer<String, IndexTemplateMetadata> putData) {
+    private static boolean applyPluginUpgraders(
+        ImmutableOpenMap<String, IndexTemplateMetadata> existingData,
+        UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
+        Consumer<String> removeData,
+        BiConsumer<String, IndexTemplateMetadata> putData
+    ) {
         // collect current data
         Map<String, IndexTemplateMetadata> existingMap = new HashMap<>();
         for (ObjectObjectCursor<String, IndexTemplateMetadata> customCursor : existingData) {
@@ -360,9 +394,11 @@ public class GatewayMetaState implements Closeable {
             final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
             threadPoolExecutor = OpenSearchExecutors.newFixed(
                 nodeName + "/" + THREAD_NAME,
-                1, 1,
+                1,
+                1,
                 daemonThreadFactory(nodeName, THREAD_NAME),
-                threadPool.getThreadContext());
+                threadPool.getThreadContext()
+            );
             this.persistedState = persistedState;
         }
 
@@ -444,16 +480,18 @@ public class GatewayMetaState implements Closeable {
             });
         }
 
-        static final CoordinationMetadata.VotingConfiguration staleStateConfiguration =
-            new CoordinationMetadata.VotingConfiguration(Collections.singleton(STALE_STATE_CONFIG_NODE_ID));
+        static final CoordinationMetadata.VotingConfiguration staleStateConfiguration = new CoordinationMetadata.VotingConfiguration(
+            Collections.singleton(STALE_STATE_CONFIG_NODE_ID)
+        );
 
         static ClusterState resetVotingConfiguration(ClusterState clusterState) {
             CoordinationMetadata newCoordinationMetadata = CoordinationMetadata.builder(clusterState.coordinationMetadata())
                 .lastAcceptedConfiguration(staleStateConfiguration)
                 .lastCommittedConfiguration(staleStateConfiguration)
                 .build();
-            return ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
-                .coordinationMetadata(newCoordinationMetadata).build()).build();
+            return ClusterState.builder(clusterState)
+                .metadata(Metadata.builder(clusterState.metadata()).coordinationMetadata(newCoordinationMetadata).build())
+                .build();
         }
 
         @Override

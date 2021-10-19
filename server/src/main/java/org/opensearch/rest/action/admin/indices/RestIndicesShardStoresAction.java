@@ -60,9 +60,7 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_shard_stores"),
-            new Route(GET, "/{index}/_shard_stores")));
+        return unmodifiableList(asList(new Route(GET, "/_shard_stores"), new Route(GET, "/{index}/_shard_stores")));
     }
 
     @Override
@@ -78,24 +76,22 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesShardStoresRequest indicesShardStoresRequest = new IndicesShardStoresRequest(
-                Strings.splitStringByCommaToArray(request.param("index")));
+            Strings.splitStringByCommaToArray(request.param("index"))
+        );
         if (request.hasParam("status")) {
             indicesShardStoresRequest.shardStatuses(Strings.splitStringByCommaToArray(request.param("status")));
         }
         indicesShardStoresRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesShardStoresRequest.indicesOptions()));
-        return channel ->
-            client.admin()
-                .indices()
-                .shardStores(indicesShardStoresRequest, new RestBuilderListener<IndicesShardStoresResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(
-                        IndicesShardStoresResponse response,
-                        XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        response.toXContent(builder, request);
-                        builder.endObject();
-                        return new BytesRestResponse(OK, builder);
-                    }
-                });
+        return channel -> client.admin()
+            .indices()
+            .shardStores(indicesShardStoresRequest, new RestBuilderListener<IndicesShardStoresResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(IndicesShardStoresResponse response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    response.toXContent(builder, request);
+                    builder.endObject();
+                    return new BytesRestResponse(OK, builder);
+                }
+            });
     }
 }

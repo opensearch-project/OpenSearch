@@ -46,19 +46,23 @@ import java.util.Map;
 public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
     private final RepositoryInfo repositoryInfo;
 
-    public MeteredBlobStoreRepository(RepositoryMetadata metadata,
-                                      boolean compress,
-                                      NamedXContentRegistry namedXContentRegistry,
-                                      ClusterService clusterService,
-                                      RecoverySettings recoverySettings,
-                                      Map<String, String> location) {
+    public MeteredBlobStoreRepository(
+        RepositoryMetadata metadata,
+        boolean compress,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings,
+        Map<String, String> location
+    ) {
         super(metadata, compress, namedXContentRegistry, clusterService, recoverySettings);
         ThreadPool threadPool = clusterService.getClusterApplierService().threadPool();
-        this.repositoryInfo = new RepositoryInfo(UUIDs.randomBase64UUID(),
+        this.repositoryInfo = new RepositoryInfo(
+            UUIDs.randomBase64UUID(),
             metadata.name(),
             metadata.type(),
             location,
-            threadPool.absoluteTimeInMillis());
+            threadPool.absoluteTimeInMillis()
+        );
     }
 
     public RepositoryStatsSnapshot statsSnapshot() {

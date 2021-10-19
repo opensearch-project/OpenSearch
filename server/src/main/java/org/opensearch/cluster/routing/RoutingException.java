@@ -46,7 +46,7 @@ public class RoutingException extends OpenSearchException {
         super(message, cause);
     }
 
-    public RoutingException(StreamInput in) throws IOException{
+    public RoutingException(StreamInput in) throws IOException {
         super(in);
     }
 }

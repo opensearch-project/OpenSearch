@@ -42,7 +42,8 @@ import java.io.IOException;
 /** Specifies how a geo query should be run. */
 public enum GeoExecType implements Writeable {
 
-    MEMORY(0), INDEXED(1);
+    MEMORY(0),
+    INDEXED(1);
 
     private final int ordinal;
 
@@ -52,9 +53,11 @@ public enum GeoExecType implements Writeable {
 
     public static GeoExecType readFromStream(StreamInput in) throws IOException {
         int ord = in.readVInt();
-        switch(ord) {
-            case(0): return MEMORY;
-            case(1): return INDEXED;
+        switch (ord) {
+            case (0):
+                return MEMORY;
+            case (1):
+                return INDEXED;
         }
         throw new OpenSearchException("unknown serialized type [" + ord + "]");
     }

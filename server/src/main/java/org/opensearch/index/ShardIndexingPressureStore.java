@@ -48,19 +48,27 @@ import static java.util.Objects.isNull;
 public class ShardIndexingPressureStore {
 
     // This represents the maximum value for the cold store size.
-    public static final Setting<Integer> MAX_COLD_STORE_SIZE =
-        Setting.intSetting("shard_indexing_pressure.cache_store.max_size", 200, 100, 1000,
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<Integer> MAX_COLD_STORE_SIZE = Setting.intSetting(
+        "shard_indexing_pressure.cache_store.max_size",
+        200,
+        100,
+        1000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
-    private final Map<ShardId, ShardIndexingPressureTracker> shardIndexingPressureHotStore =
-        ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<ShardId, ShardIndexingPressureTracker> shardIndexingPressureHotStore = ConcurrentCollections
+        .newConcurrentMapWithAggressiveConcurrency();
     private final Map<ShardId, ShardIndexingPressureTracker> shardIndexingPressureColdStore = new HashMap<>();
     private final ShardIndexingPressureSettings shardIndexingPressureSettings;
 
     private volatile int maxColdStoreSize;
 
-    public ShardIndexingPressureStore(ShardIndexingPressureSettings shardIndexingPressureSettings,
-                                      ClusterSettings clusterSettings, Settings settings) {
+    public ShardIndexingPressureStore(
+        ShardIndexingPressureSettings shardIndexingPressureSettings,
+        ClusterSettings clusterSettings,
+        Settings settings
+    ) {
         this.shardIndexingPressureSettings = shardIndexingPressureSettings;
         this.maxColdStoreSize = MAX_COLD_STORE_SIZE.get(settings).intValue();
         clusterSettings.addSettingsUpdateConsumer(MAX_COLD_STORE_SIZE, this::setMaxColdStoreSize);
@@ -73,11 +81,14 @@ public class ShardIndexingPressureStore {
             tracker = shardIndexingPressureColdStore.get(shardId);
             // If not already present in cold store instantiate a new one
             if (isNull(tracker)) {
-                tracker = shardIndexingPressureHotStore.computeIfAbsent(shardId, (k) ->
-                        new ShardIndexingPressureTracker(shardId,
-                            this.shardIndexingPressureSettings.getShardPrimaryAndCoordinatingBaseLimits(),
-                            this.shardIndexingPressureSettings.getShardReplicaBaseLimits())
-                        );
+                tracker = shardIndexingPressureHotStore.computeIfAbsent(
+                    shardId,
+                    (k) -> new ShardIndexingPressureTracker(
+                        shardId,
+                        this.shardIndexingPressureSettings.getShardPrimaryAndCoordinatingBaseLimits(),
+                        this.shardIndexingPressureSettings.getShardReplicaBaseLimits()
+                    )
+                );
                 // Write through into the cold store for future reference
                 updateShardIndexingPressureColdStore(tracker);
             } else {

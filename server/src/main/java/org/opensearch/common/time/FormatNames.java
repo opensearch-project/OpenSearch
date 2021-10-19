@@ -122,8 +122,8 @@ public enum FormatNames {
     STRICT_YEAR_MONTH_DAY("strictYearMonthDay", "strict_year_month_day");
 
     private static final Set<String> ALL_NAMES = Arrays.stream(values())
-                                                       .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
-                                                       .collect(Collectors.toSet());
+        .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
+        .collect(Collectors.toSet());
     private final String camelCaseName;
     private final String snakeCaseName;
 
@@ -149,7 +149,7 @@ public enum FormatNames {
         return format.equals(camelCaseName) || format.equals(snakeCaseName);
     }
 
-    public  boolean isCamelCase(String format) {
+    public boolean isCamelCase(String format) {
         return format.equals(camelCaseName);
     }
 

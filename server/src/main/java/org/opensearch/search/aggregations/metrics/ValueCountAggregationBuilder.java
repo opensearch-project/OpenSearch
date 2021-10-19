@@ -58,8 +58,10 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
         MetricAggregatorSupplier.class
     );
 
-    public static final ObjectParser<ValueCountAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, ValueCountAggregationBuilder::new);
+    public static final ObjectParser<ValueCountAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        ValueCountAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
@@ -72,8 +74,11 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
         super(name);
     }
 
-    protected ValueCountAggregationBuilder(ValueCountAggregationBuilder clone,
-                                           AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected ValueCountAggregationBuilder(
+        ValueCountAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -105,10 +110,12 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     @Override
-    protected ValueCountAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                        ValuesSourceConfig config,
-                                                        AggregatorFactory parent,
-                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected ValueCountAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new ValueCountAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

@@ -84,7 +84,7 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
     private Releasable releasable;
     private IndexingPressureService indexingPressureService;
 
-    public static final ClusterSettings clusterSettings =  new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    public static final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
     @BeforeClass
     public static void beforeClass() {
@@ -97,8 +97,14 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
@@ -125,21 +131,27 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
         setState(clusterService, state);
         final ShardRouting replicaRouting = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
         final ReplicationTask task = maybeTask();
-        final Settings settings = Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false)
+        final Settings settings = Settings.builder()
+            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false)
             .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService,
-            shardStateAction, threadPool);
+        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
 
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
-                new TestRequest(), replicaRouting.allocationId().getId(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong()),
-            createTransportChannel(new PlainActionFuture<>()), task);
+                new TestRequest(),
+                replicaRouting.allocationId().getId(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            ),
+            createTransportChannel(new PlainActionFuture<>()),
+            task
+        );
 
-        IndexingPressurePerShardStats shardStats =
-            this.indexingPressureService.shardStats(CommonStatsFlags.ALL).getIndexingPressureShardStats(shardId);
+        IndexingPressurePerShardStats shardStats = this.indexingPressureService.shardStats(CommonStatsFlags.ALL)
+            .getIndexingPressureShardStats(shardId);
 
         assertPhase(task, "finished");
         assertTrue(Objects.isNull(shardStats));
@@ -151,23 +163,29 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
         setState(clusterService, state);
         final ShardRouting replicaRouting = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
         final ReplicationTask task = maybeTask();
-        final Settings settings = Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
+        final Settings settings = Settings.builder()
+            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService,
-            shardStateAction, threadPool);
+        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
 
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
-                new TestRequest(), replicaRouting.allocationId().getId(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong()),
-            createTransportChannel(new PlainActionFuture<>()), task);
+                new TestRequest(),
+                replicaRouting.allocationId().getId(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            ),
+            createTransportChannel(new PlainActionFuture<>()),
+            task
+        );
 
         CommonStatsFlags statsFlag = new CommonStatsFlags();
         statsFlag.includeAllShardIndexingPressureTrackers(true);
-        IndexingPressurePerShardStats shardStats =
-            this.indexingPressureService.shardStats(statsFlag).getIndexingPressureShardStats(shardId);
+        IndexingPressurePerShardStats shardStats = this.indexingPressureService.shardStats(statsFlag)
+            .getIndexingPressureShardStats(shardId);
 
         assertPhase(task, "finished");
         assertTrue(!Objects.isNull(shardStats));
@@ -180,21 +198,34 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
         setState(clusterService, state);
         final ShardRouting replicaRouting = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
         final ReplicationTask task = maybeTask();
-        final Settings settings =
-            Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false).build();
+        final Settings settings = Settings.builder()
+            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false)
+            .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testActionWithExceptions", transportService, clusterService,
-            shardStateAction, threadPool);
+        TestAction action = new TestAction(
+            settings,
+            "internal:testActionWithExceptions",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool
+        );
 
         action.handlePrimaryRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
-                new TestRequest(), replicaRouting.allocationId().getId(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong()),
-            createTransportChannel(new PlainActionFuture<>()), task);
+                new TestRequest(),
+                replicaRouting.allocationId().getId(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            ),
+            createTransportChannel(new PlainActionFuture<>()),
+            task
+        );
 
-        IndexingPressurePerShardStats shardStats =
-            this.indexingPressureService.shardStats(CommonStatsFlags.ALL).getIndexingPressureShardStats(shardId);
+        IndexingPressurePerShardStats shardStats = this.indexingPressureService.shardStats(CommonStatsFlags.ALL)
+            .getIndexingPressureShardStats(shardId);
 
         assertPhase(task, "finished");
         assertTrue(Objects.isNull(shardStats));
@@ -206,23 +237,36 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
         setState(clusterService, state);
         final ShardRouting replicaRouting = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
         final ReplicationTask task = maybeTask();
-        final Settings settings =
-            Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true).build();
+        final Settings settings = Settings.builder()
+            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
+            .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testActionWithExceptions", transportService, clusterService,
-            shardStateAction, threadPool);
+        TestAction action = new TestAction(
+            settings,
+            "internal:testActionWithExceptions",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool
+        );
 
         action.handlePrimaryRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
-                new TestRequest(), replicaRouting.allocationId().getId(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong()),
-            createTransportChannel(new PlainActionFuture<>()), task);
+                new TestRequest(),
+                replicaRouting.allocationId().getId(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            ),
+            createTransportChannel(new PlainActionFuture<>()),
+            task
+        );
 
         CommonStatsFlags statsFlag = new CommonStatsFlags();
         statsFlag.includeAllShardIndexingPressureTrackers(true);
-        IndexingPressurePerShardStats shardStats =
-            this.indexingPressureService.shardStats(statsFlag).getIndexingPressureShardStats(shardId);
+        IndexingPressurePerShardStats shardStats = this.indexingPressureService.shardStats(statsFlag)
+            .getIndexingPressureShardStats(shardId);
 
         assertPhase(task, "finished");
         assertTrue(!Objects.isNull(shardStats));
@@ -235,21 +279,27 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
         setState(clusterService, state);
         final ShardRouting replicaRouting = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
         final ReplicationTask task = maybeTask();
-        final Settings settings = Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false)
+        final Settings settings = Settings.builder()
+            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), false)
             .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService,
-            shardStateAction, threadPool);
+        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
 
         action.handlePrimaryRequest(
             new TransportReplicationAction.ConcreteShardRequest<>(
-                new TestRequest(), replicaRouting.allocationId().getId(), randomNonNegativeLong(),
-                true, true),
-            createTransportChannel(new PlainActionFuture<>()), task);
+                new TestRequest(),
+                replicaRouting.allocationId().getId(),
+                randomNonNegativeLong(),
+                true,
+                true
+            ),
+            createTransportChannel(new PlainActionFuture<>()),
+            task
+        );
 
-        IndexingPressurePerShardStats shardStats =
-            this.indexingPressureService.shardStats(CommonStatsFlags.ALL).getIndexingPressureShardStats(shardId);
+        IndexingPressurePerShardStats shardStats = this.indexingPressureService.shardStats(CommonStatsFlags.ALL)
+            .getIndexingPressureShardStats(shardId);
 
         assertPhase(task, "finished");
         assertTrue(Objects.isNull(shardStats));
@@ -261,23 +311,29 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
         setState(clusterService, state);
         final ShardRouting replicaRouting = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
         final ReplicationTask task = maybeTask();
-        final Settings settings = Settings.builder().put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
+        final Settings settings = Settings.builder()
+            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService,
-            shardStateAction, threadPool);
+        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
 
         action.handlePrimaryRequest(
             new TransportReplicationAction.ConcreteShardRequest<>(
-                new TestRequest(), replicaRouting.allocationId().getId(), randomNonNegativeLong(),
-                true, true),
-            createTransportChannel(new PlainActionFuture<>()), task);
+                new TestRequest(),
+                replicaRouting.allocationId().getId(),
+                randomNonNegativeLong(),
+                true,
+                true
+            ),
+            createTransportChannel(new PlainActionFuture<>()),
+            task
+        );
 
         CommonStatsFlags statsFlag = new CommonStatsFlags();
         statsFlag.includeAllShardIndexingPressureTrackers(true);
-        IndexingPressurePerShardStats shardStats =
-            this.indexingPressureService.shardStats(statsFlag).getIndexingPressureShardStats(shardId);
+        IndexingPressurePerShardStats shardStats = this.indexingPressureService.shardStats(statsFlag)
+            .getIndexingPressureShardStats(shardId);
 
         assertPhase(task, "finished");
         assertTrue(!Objects.isNull(shardStats));
@@ -313,12 +369,30 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
-        protected TestAction(Settings settings, String actionName, TransportService transportService,
-                             ClusterService clusterService, ShardStateAction shardStateAction, ThreadPool threadPool) {
-            super(settings, actionName, transportService, clusterService,
-                mockIndicesService(clusterService), threadPool, shardStateAction,
-                new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ignore -> ThreadPool.Names.SAME, false,
-                TransportWriteActionForIndexingPressureTests.this.indexingPressureService, new SystemIndices(emptyMap()));
+        protected TestAction(
+            Settings settings,
+            String actionName,
+            TransportService transportService,
+            ClusterService clusterService,
+            ShardStateAction shardStateAction,
+            ThreadPool threadPool
+        ) {
+            super(
+                settings,
+                actionName,
+                transportService,
+                clusterService,
+                mockIndicesService(clusterService),
+                threadPool,
+                shardStateAction,
+                new ActionFilters(new HashSet<>()),
+                TestRequest::new,
+                TestRequest::new,
+                ignore -> ThreadPool.Names.SAME,
+                false,
+                TransportWriteActionForIndexingPressureTests.this.indexingPressureService,
+                new SystemIndices(emptyMap())
+            );
         }
 
         @Override
@@ -338,9 +412,14 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
 
         @Override
         protected void dispatchedShardOperationOnPrimary(
-            TestRequest request, IndexShard primary, ActionListener<PrimaryResult<TestRequest, TestResponse>> listener) {
-            ActionListener.completeWith(listener, () -> new WritePrimaryResult<>(request, new TestResponse(), location, null, primary,
-                logger));
+            TestRequest request,
+            IndexShard primary,
+            ActionListener<PrimaryResult<TestRequest, TestResponse>> listener
+        ) {
+            ActionListener.completeWith(
+                listener,
+                () -> new WritePrimaryResult<>(request, new TestResponse(), location, null, primary, logger)
+            );
         }
 
         @Override
@@ -377,7 +456,7 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
     private IndicesService mockIndicesService(ClusterService clusterService) {
         final IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.indexServiceSafe(any(Index.class))).then(invocation -> {
-            Index index = (Index)invocation.getArguments()[0];
+            Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
             final IndexMetadata indexSafe = state.metadata().getIndexSafe(index);
             return mockIndexService(indexSafe, clusterService);
@@ -424,12 +503,13 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             return null;
         }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());
         doAnswer(invocation -> {
-            long term = (Long)invocation.getArguments()[0];
+            long term = (Long) invocation.getArguments()[0];
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[3];
             final long primaryTerm = indexShard.getPendingPrimaryTerm();
             if (term < primaryTerm) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT, "%s operation term [%d] is too old (current [%d])",
-                    shardId, term, primaryTerm));
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "%s operation term [%d] is too old (current [%d])", shardId, term, primaryTerm)
+                );
             }
             count.incrementAndGet();
             callback.onResponse(count::decrementAndGet);
@@ -449,8 +529,9 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
         });
         when(indexShard.isRelocatedPrimary()).thenAnswer(invocationOnMock -> isRelocated.get());
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
-        when(indexShard.getPendingPrimaryTerm()).thenAnswer(i ->
-            clusterService.state().metadata().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));
+        when(indexShard.getPendingPrimaryTerm()).thenAnswer(
+            i -> clusterService.state().metadata().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id())
+        );
 
         ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
         when(indexShard.getReplicationGroup()).thenReturn(replicationGroup);

@@ -59,9 +59,9 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
     public void testExceptionsAreNotCached() {
         final AtomicInteger openCount = new AtomicInteger();
-        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
-            throw new OpenSearchException("simulated " + openCount.incrementAndGet());
-        });
+        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(
+            () -> { throw new OpenSearchException("simulated " + openCount.incrementAndGet()); }
+        );
 
         assertThat(expectThrows(OpenSearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 1"));
         assertThat(expectThrows(OpenSearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 2"));
@@ -79,8 +79,7 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
         final QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
             @Override
-            public void onUse(Query query) {
-            }
+            public void onUse(Query query) {}
 
             @Override
             public boolean shouldCache(Query query) {
@@ -88,8 +87,7 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
             }
         };
 
-        try (Directory directory = newDirectory();
-             IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
+        try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
 
             final Document document = new Document();
             document.add(new SuggestField("suggest1", "val", 1));

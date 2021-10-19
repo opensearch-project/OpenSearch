@@ -32,9 +32,7 @@
 
 package org.opensearch.index.fielddata;
 
-
 /**
  * Specialization of {@link IndexFieldData} for geo points.
  */
-public interface IndexGeoPointFieldData extends IndexFieldData<LeafGeoPointFieldData> {
-}
+public interface IndexGeoPointFieldData extends IndexFieldData<LeafGeoPointFieldData> {}

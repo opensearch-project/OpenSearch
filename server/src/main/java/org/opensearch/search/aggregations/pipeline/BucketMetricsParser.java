@@ -55,8 +55,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public final BucketMetricsPipelineAggregationBuilder<?> parse(String pipelineAggregatorName, XContentParser parser)
-            throws IOException {
+    public final BucketMetricsPipelineAggregationBuilder<?> parse(String pipelineAggregatorName, XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -94,11 +93,13 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
         }
 
         if (bucketsPaths == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for aggregation [" + pipelineAggregatorName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for aggregation [" + pipelineAggregatorName + "]"
+            );
         }
 
-        BucketMetricsPipelineAggregationBuilder<?> factory  = buildFactory(pipelineAggregatorName, bucketsPaths[0], params);
+        BucketMetricsPipelineAggregationBuilder<?> factory = buildFactory(pipelineAggregatorName, bucketsPaths[0], params);
         if (format != null) {
             factory.format(format);
         }
@@ -106,24 +107,34 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
             factory.gapPolicy(gapPolicy);
         }
 
-        assert(factory != null);
+        assert (factory != null);
 
         return factory;
     }
 
-    protected abstract BucketMetricsPipelineAggregationBuilder<?> buildFactory(String pipelineAggregatorName, String bucketsPaths,
-                                                                              Map<String, Object> params);
+    protected abstract BucketMetricsPipelineAggregationBuilder<?> buildFactory(
+        String pipelineAggregatorName,
+        String bucketsPaths,
+        Map<String, Object> params
+    );
 
-    protected boolean token(XContentParser parser, String field,
-                            XContentParser.Token token, Map<String, Object> params) throws IOException {
+    protected boolean token(XContentParser parser, String field, XContentParser.Token token, Map<String, Object> params)
+        throws IOException {
         return false;
     }
 
-    private void parseToken(String aggregationName, XContentParser parser, String currentFieldName,
-                       XContentParser.Token currentToken, Map<String, Object> params) throws IOException {
+    private void parseToken(
+        String aggregationName,
+        XContentParser parser,
+        String currentFieldName,
+        XContentParser.Token currentToken,
+        Map<String, Object> params
+    ) throws IOException {
         if (token(parser, currentFieldName, currentToken, params) == false) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Unexpected token " + currentToken + " [" + currentFieldName + "] in [" + aggregationName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Unexpected token " + currentToken + " [" + currentFieldName + "] in [" + aggregationName + "]"
+            );
         }
     }
 }

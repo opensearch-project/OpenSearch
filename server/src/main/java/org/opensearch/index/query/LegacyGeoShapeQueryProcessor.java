@@ -75,7 +75,7 @@ import java.util.List;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-public class LegacyGeoShapeQueryProcessor  {
+public class LegacyGeoShapeQueryProcessor {
 
     private AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft;
 
@@ -83,11 +83,19 @@ public class LegacyGeoShapeQueryProcessor  {
         this.ft = ft;
     }
 
-    public Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy,
-                               ShapeRelation relation, QueryShardContext context) {
+    public Query geoShapeQuery(
+        Geometry shape,
+        String fieldName,
+        SpatialStrategy strategy,
+        ShapeRelation relation,
+        QueryShardContext context
+    ) {
         if (context.allowExpensiveQueries() == false) {
-            throw new OpenSearchException("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when '"
-                    + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            throw new OpenSearchException(
+                "[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey()
+                    + "' is set to false."
+            );
         }
 
         LegacyGeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (LegacyGeoShapeFieldMapper.GeoShapeFieldType) ft;
@@ -101,7 +109,7 @@ public class LegacyGeoShapeQueryProcessor  {
             // before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
-            Query exists = ExistsQueryBuilder.newFilter(context, fieldName,false);
+            Query exists = ExistsQueryBuilder.newFilter(context, fieldName, false);
             Query intersects = prefixTreeStrategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
@@ -200,9 +208,11 @@ public class LegacyGeoShapeQueryProcessor  {
 
             @Override
             public ShapeBuilder<?, ?, ?> visit(Polygon polygon) {
-                PolygonBuilder polygonBuilder =
-                    new PolygonBuilder((LineStringBuilder) visit((Line) polygon.getPolygon()),
-                        ShapeBuilder.Orientation.RIGHT, false);
+                PolygonBuilder polygonBuilder = new PolygonBuilder(
+                    (LineStringBuilder) visit((Line) polygon.getPolygon()),
+                    ShapeBuilder.Orientation.RIGHT,
+                    false
+                );
                 for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
                     polygonBuilder.hole((LineStringBuilder) visit((Line) polygon.getHole(i)));
                 }
@@ -211,8 +221,10 @@ public class LegacyGeoShapeQueryProcessor  {
 
             @Override
             public ShapeBuilder<?, ?, ?> visit(Rectangle rectangle) {
-                return new EnvelopeBuilder(new Coordinate(rectangle.getMinX(), rectangle.getMaxY()),
-                    new Coordinate(rectangle.getMaxX(), rectangle.getMinY()));
+                return new EnvelopeBuilder(
+                    new Coordinate(rectangle.getMinX(), rectangle.getMaxY()),
+                    new Coordinate(rectangle.getMaxX(), rectangle.getMinY())
+                );
             }
         });
         return shapeBuilder;

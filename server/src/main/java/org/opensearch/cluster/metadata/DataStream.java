@@ -132,12 +132,19 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         List<Index> backingIndices = new ArrayList<>(indices);
         int backingIndexPosition = backingIndices.indexOf(existingBackingIndex);
         if (backingIndexPosition == -1) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s] ",
-                existingBackingIndex.getName(), name));
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "index [%s] is not part of data stream [%s] ", existingBackingIndex.getName(), name)
+            );
         }
         if (generation == (backingIndexPosition + 1)) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot replace backing index [%s] of data stream [%s] because " +
-                "it is the write index", existingBackingIndex.getName(), name));
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot replace backing index [%s] of data stream [%s] because " + "it is the write index",
+                    existingBackingIndex.getName(),
+                    name
+                )
+            );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
         return new DataStream(name, timeStampField, backingIndices, generation);
@@ -177,8 +184,10 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public static final ParseField GENERATION_FIELD = new ParseField("generation");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
-        args -> new DataStream((String) args[0], (TimestampField) args[1], (List<Index>) args[2], (Long) args[3]));
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
+        "data_stream",
+        args -> new DataStream((String) args[0], (TimestampField) args[1], (List<Index>) args[2], (Long) args[3])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -207,10 +216,10 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DataStream that = (DataStream) o;
-        return name.equals(that.name) &&
-            timeStampField.equals(that.timeStampField) &&
-            indices.equals(that.indices) &&
-            generation == that.generation;
+        return name.equals(that.name)
+            && timeStampField.equals(that.timeStampField)
+            && indices.equals(that.indices)
+            && generation == that.generation;
     }
 
     @Override

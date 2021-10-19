@@ -226,7 +226,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             final int bufferSize = blobStore.bufferSizeInBytes();
             org.opensearch.core.internal.io.Streams.copy(
-                    inputStream, outputStream, new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]);
+                inputStream,
+                outputStream,
+                new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]
+            );
         }
         IOUtils.fsync(tempBlobPath, false);
     }

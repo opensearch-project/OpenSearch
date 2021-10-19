@@ -60,9 +60,12 @@ public class VersionLookupTests extends OpenSearchTestCase {
      */
     public void testSimple() throws Exception {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+        IndexWriter writer = new IndexWriter(
+            dir,
+            new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
                 // to have deleted docs
-                .setMergePolicy(NoMergePolicy.INSTANCE));
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+        );
         Document doc = new Document();
         doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
@@ -97,8 +100,7 @@ public class VersionLookupTests extends OpenSearchTestCase {
      */
     public void testTwoDocuments() throws Exception {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
-                .setMergePolicy(NoMergePolicy.INSTANCE));
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
         Document doc = new Document();
         doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));

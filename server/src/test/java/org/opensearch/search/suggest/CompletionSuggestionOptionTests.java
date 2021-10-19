@@ -101,8 +101,11 @@ public class CompletionSuggestionOptionTests extends OpenSearchTestCase {
             // where we cannot add random stuff. We also exclude the root level, this is done for SearchHits as all unknown fields
             // for SearchHit on a root level are interpreted as meta-fields and will be kept
             Predicate<String> excludeFilter = (path) -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
-                    || path.endsWith("highlight") || path.contains("fields") || path.contains("_source") || path.contains("inner_hits")
-                    || path.isEmpty();
+                || path.endsWith("highlight")
+                || path.contains("fields")
+                || path.contains("_source")
+                || path.contains("inner_hits")
+                || path.isEmpty();
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;
@@ -124,7 +127,6 @@ public class CompletionSuggestionOptionTests extends OpenSearchTestCase {
         Map<String, Set<String>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
         CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(1, new Text("someText"), 1.3f, contexts);
         BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
-        assertEquals("{\"text\":\"someText\",\"score\":1.3,\"contexts\":{\"key\":[\"value\"]}}"
-                   , xContent.utf8ToString());
+        assertEquals("{\"text\":\"someText\",\"score\":1.3,\"contexts\":{\"key\":[\"value\"]}}", xContent.utf8ToString());
     }
 }

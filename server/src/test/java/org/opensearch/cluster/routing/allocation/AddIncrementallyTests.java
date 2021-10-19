@@ -65,8 +65,10 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
 
     public void testAddNodesAndIndices() {
         Settings.Builder settings = Settings.builder();
-        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-            ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
+        settings.put(
+            ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+            ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
+        );
         AllocationService service = createAllocationService(settings.build());
 
         ClusterState clusterState = initCluster(service, 1, 3, 3, 1);
@@ -109,9 +111,10 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
 
     public void testMinimalRelocations() {
         Settings.Builder settings = Settings.builder();
-        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-            ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString())
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 2);
+        settings.put(
+            ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+            ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
+        ).put("cluster.routing.allocation.node_concurrent_recoveries", 2);
         AllocationService service = createAllocationService(settings.build());
 
         ClusterState clusterState = initCluster(service, 1, 3, 3, 1);
@@ -154,7 +157,7 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
         assertThat(routingNodes.node("node0").shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(routingNodes.node("node1").shardsWithState(INITIALIZING).size(), equalTo(0));
 
-        newState  = startInitializingShardsAndReroute(service, clusterState);
+        newState = startInitializingShardsAndReroute(service, clusterState);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
@@ -171,10 +174,12 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
 
     public void testMinimalRelocationsNoLimit() {
         Settings.Builder settings = Settings.builder();
-        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-            ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString())
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
-                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100);
+        settings.put(
+            ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+            ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
+        )
+            .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
+            .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100);
         AllocationService service = createAllocationService(settings.build());
 
         ClusterState clusterState = initCluster(service, 1, 3, 3, 1);
@@ -232,7 +237,6 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
         logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
     }
 
-
     private void assertNumIndexShardsPerNode(ClusterState state, Matcher<Integer> matcher) {
         for (ObjectCursor<String> index : state.routingTable().indicesRouting().keys()) {
             assertNumIndexShardsPerNode(state, index.value, matcher);
@@ -244,7 +248,6 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
             assertThat(node.shardsWithState(index, STARTED).size(), matcher);
         }
     }
-
 
     private void assertAtLeastOneIndexShardPerNode(ClusterState state) {
         for (ObjectCursor<String> index : state.routingTable().indicesRouting().keys()) {
@@ -271,14 +274,21 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
         return applyStartedShardsUntilNoChange(clusterState, service);
     }
 
-    private ClusterState initCluster(AllocationService service, int numberOfNodes, int numberOfIndices, int numberOfShards,
-                                     int numberOfReplicas) {
+    private ClusterState initCluster(
+        AllocationService service,
+        int numberOfNodes,
+        int numberOfIndices,
+        int numberOfShards,
+        int numberOfReplicas
+    ) {
         Metadata.Builder metadataBuilder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         for (int i = 0; i < numberOfIndices; i++) {
             IndexMetadata.Builder index = IndexMetadata.builder("test" + i)
-                .settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(numberOfShards)
+                .numberOfReplicas(numberOfReplicas);
             metadataBuilder = metadataBuilder.put(index);
         }
 
@@ -295,8 +305,11 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
         for (int i = 0; i < numberOfNodes; i++) {
             nodes.add(newNode("node" + i));
         }
-        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).nodes(nodes).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .nodes(nodes)
+            .metadata(metadata)
+            .routingTable(initialRoutingTable)
+            .build();
         clusterState = service.reroute(clusterState, "reroute");
 
         logger.info("restart all the primary shards, replicas will start initializing");
@@ -309,14 +322,20 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
         return applyStartedShardsUntilNoChange(clusterState, service);
     }
 
-    private ClusterState addIndex(ClusterState clusterState, AllocationService service, int indexOrdinal, int numberOfShards,
-                                  int numberOfReplicas) {
+    private ClusterState addIndex(
+        ClusterState clusterState,
+        AllocationService service,
+        int indexOrdinal,
+        int numberOfShards,
+        int numberOfReplicas
+    ) {
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.getMetadata());
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
 
-        IndexMetadata.Builder index = IndexMetadata.builder("test" + indexOrdinal).settings(settings(Version.CURRENT))
-            .numberOfShards(numberOfShards).numberOfReplicas(
-                numberOfReplicas);
+        IndexMetadata.Builder index = IndexMetadata.builder("test" + indexOrdinal)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(numberOfReplicas);
         IndexMetadata imd = index.build();
         metadataBuilder = metadataBuilder.put(imd, true);
         routingTableBuilder.addAsNew(imd);

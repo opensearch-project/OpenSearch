@@ -102,10 +102,19 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         boolean indexCreated = false; // set when the "real" index is created
 
         TestTransportBulkAction() {
-            super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
-                    null, new ActionFilters(Collections.emptySet()), new Resolver(),
-                    new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver(), new SystemIndices(emptyMap())),
-                    new IndexingPressureService(Settings.EMPTY, clusterService), new SystemIndices(emptyMap()));
+            super(
+                TransportBulkActionTests.this.threadPool,
+                transportService,
+                clusterService,
+                null,
+                null,
+                null,
+                new ActionFilters(Collections.emptySet()),
+                new Resolver(),
+                new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver(), new SystemIndices(emptyMap())),
+                new IndexingPressureService(Settings.EMPTY, clusterService),
+                new SystemIndices(emptyMap())
+            );
         }
 
         @Override
@@ -128,13 +137,23 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
-        DiscoveryNode discoveryNode = new DiscoveryNode("node", OpenSearchTestCase.buildNewFakeTransportAddress(), emptyMap(),
-            DiscoveryNodeRole.BUILT_IN_ROLES, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "node",
+            OpenSearchTestCase.buildNewFakeTransportAddress(),
+            emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
+        );
         clusterService = createClusterService(threadPool, discoveryNode);
         CapturingTransport capturingTransport = new CapturingTransport();
-        transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
+        transportService = capturingTransport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> clusterService.localNode(), null, Collections.emptySet());
+            boundAddress -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         bulkAction = new TestTransportBulkAction();
@@ -164,8 +183,9 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
     }
 
     public void testDeleteNonExistingDocExternalVersionCreatesIndex() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest()
-                .add(new DeleteRequest("index", "type", "id").versionType(VersionType.EXTERNAL).version(0));
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new DeleteRequest("index", "type", "id").versionType(VersionType.EXTERNAL).version(0)
+        );
 
         PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
         ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
@@ -174,8 +194,9 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
     }
 
     public void testDeleteNonExistingDocExternalGteVersionCreatesIndex() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest()
-                .add(new DeleteRequest("index2", "type", "id").versionType(VersionType.EXTERNAL_GTE).version(0));
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new DeleteRequest("index2", "type", "id").versionType(VersionType.EXTERNAL_GTE).version(0)
+        );
 
         PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
         ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
@@ -187,7 +208,8 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         IndexRequest indexRequest = new IndexRequest("index", "type", "id1").source(emptyMap());
         UpdateRequest upsertRequest = new UpdateRequest("index", "type", "id1").upsert(indexRequest).script(mockScript("1"));
         UpdateRequest docAsUpsertRequest = new UpdateRequest("index", "type", "id2").doc(indexRequest).docAsUpsert(true);
-        UpdateRequest scriptedUpsert = new UpdateRequest("index", "type", "id2").upsert(indexRequest).script(mockScript("1"))
+        UpdateRequest scriptedUpsert = new UpdateRequest("index", "type", "id2").upsert(indexRequest)
+            .script(mockScript("1"))
             .scriptedUpsert(true);
 
         assertEquals(TransportBulkAction.getIndexWriteRequest(indexRequest), indexRequest);
@@ -210,21 +232,36 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         // Testing create op against backing index fails:
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, metadata));
-        assertThat(e.getMessage(), equalTo("index request with op_type=create targeting backing indices is disallowed, " +
-            "target corresponding data stream [logs-foobar] instead"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, metadata)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "index request with op_type=create targeting backing indices is disallowed, "
+                    + "target corresponding data stream [logs-foobar] instead"
+            )
+        );
 
         // Testing index op against backing index fails:
         IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
-        e = expectThrows(IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, metadata));
-        assertThat(e.getMessage(), equalTo("index request with op_type=index and no if_primary_term and if_seq_no set " +
-            "targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead"));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, metadata)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "index request with op_type=index and no if_primary_term and if_seq_no set "
+                    + "targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead"
+            )
+        );
 
         // Testing valid writes ops against a backing index:
         DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
-            .setIfSeqNo(1).setIfPrimaryTerm(1);
+            .setIfSeqNo(1)
+            .setIfPrimaryTerm(1);
         TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
         validRequest = new DeleteRequest(backingIndexName);
         TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
@@ -239,8 +276,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
 
         // Append only for a backing index that doesn't exist is allowed:
-        validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1))
-            .opType(DocWriteRequest.OpType.CREATE);
+        validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1)).opType(DocWriteRequest.OpType.CREATE);
         TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
 
         // Some other index names:
@@ -258,25 +294,36 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         // custom routing requests against the data stream are prohibited
         DocWriteRequest<?> writeRequestAgainstDataStream = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX)
             .routing("custom");
-        IllegalArgumentException exception =
-            expectThrows(IllegalArgumentException.class, () -> prohibitCustomRoutingOnDataStream(writeRequestAgainstDataStream, metadata));
-        assertThat(exception.getMessage(), is("index request targeting data stream [logs-foobar] specifies a custom routing. target the " +
-            "backing indices directly or remove the custom routing."));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> prohibitCustomRoutingOnDataStream(writeRequestAgainstDataStream, metadata)
+        );
+        assertThat(
+            exception.getMessage(),
+            is(
+                "index request targeting data stream [logs-foobar] specifies a custom routing. target the "
+                    + "backing indices directly or remove the custom routing."
+            )
+        );
 
         // test custom routing is allowed when the index request targets the backing index
-        DocWriteRequest<?> writeRequestAgainstIndex =
-            new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName, 1L)).opType(DocWriteRequest.OpType.INDEX)
-            .routing("custom");
+        DocWriteRequest<?> writeRequestAgainstIndex = new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName, 1L)).opType(
+            DocWriteRequest.OpType.INDEX
+        ).routing("custom");
         prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata);
     }
 
     public void testOnlySystem() {
         SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
-        indicesLookup.put(".foo",
-            new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
-        indicesLookup.put(".bar",
-            new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
+        indicesLookup.put(
+            ".foo",
+            new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())
+        );
+        indicesLookup.put(
+            ".bar",
+            new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())
+        );
         SystemIndices systemIndices = new SystemIndices(singletonMap("plugin", singletonList(new SystemIndexDescriptor(".test", ""))));
         List<String> onlySystem = Arrays.asList(".foo", ".bar");
         assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
@@ -294,12 +341,17 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
     public void testIncludesSystem() {
         SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
-        indicesLookup.put(".foo",
-            new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
-        indicesLookup.put(".bar",
-            new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
-        SystemIndices systemIndices = new SystemIndices(org.opensearch.common.collect.Map.of("plugin",
-            org.opensearch.common.collect.List.of(new SystemIndexDescriptor(".test", ""))));
+        indicesLookup.put(
+            ".foo",
+            new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())
+        );
+        indicesLookup.put(
+            ".bar",
+            new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())
+        );
+        SystemIndices systemIndices = new SystemIndices(
+            org.opensearch.common.collect.Map.of("plugin", org.opensearch.common.collect.List.of(new SystemIndexDescriptor(".test", "")))
+        );
         List<String> onlySystem = org.opensearch.common.collect.List.of(".foo", ".bar");
         assertTrue(bulkAction.includesSystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 

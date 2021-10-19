@@ -38,7 +38,7 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class GetRequestTests  extends OpenSearchTestCase {
+public class GetRequestTests extends OpenSearchTestCase {
 
     public void testValidation() {
         {

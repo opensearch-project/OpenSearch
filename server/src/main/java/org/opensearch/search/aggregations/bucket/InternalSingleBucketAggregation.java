@@ -64,8 +64,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param docCount      The document count in the single bucket.
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
-    protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
+    protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
         super(name, metadata);
         this.docCount = docCount;
         this.aggregations = aggregations;
@@ -132,14 +131,17 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      */
     @Override
     public final InternalAggregation reducePipelines(
-            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
+        InternalAggregation reducedAggs,
+        ReduceContext reduceContext,
+        PipelineTree pipelineTree
+    ) {
         assert reduceContext.isFinalReduce();
         InternalAggregation reduced = this;
         if (pipelineTree.hasSubTrees()) {
             List<InternalAggregation> aggs = new ArrayList<>();
             for (Aggregation agg : getAggregations().asList()) {
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
-                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
+                aggs.add(((InternalAggregation) agg).reducePipelines((InternalAggregation) agg, reduceContext, subTree));
             }
             InternalAggregations reducedSubAggs = InternalAggregations.from(aggs);
             reduced = create(reducedSubAggs);
@@ -178,8 +180,12 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     public final double sortValue(String key) {
         if (key != null && false == key.equals("doc_count")) {
             throw new IllegalArgumentException(
-                    "Unknown value key [" + key + "] for single-bucket aggregation [" + getName() +
-                    "]. Either use [doc_count] as key or drop the key all together.");
+                "Unknown value key ["
+                    + key
+                    + "] for single-bucket aggregation ["
+                    + getName()
+                    + "]. Either use [doc_count] as key or drop the key all together."
+            );
         }
         return docCount;
     }
@@ -215,8 +221,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         if (super.equals(obj) == false) return false;
 
         InternalSingleBucketAggregation other = (InternalSingleBucketAggregation) obj;
-        return Objects.equals(docCount, other.docCount) &&
-                Objects.equals(aggregations, other.aggregations);
+        return Objects.equals(docCount, other.docCount) && Objects.equals(aggregations, other.aggregations);
     }
 
     @Override

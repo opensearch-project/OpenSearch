@@ -79,7 +79,7 @@ public final class ShardStateMetadata {
             return false;
         }
         if (indexUUID.equals(that.indexUUID) == false) {
-          return false;
+            return false;
         }
         if (Objects.equals(allocationId, that.allocationId) == false) {
             return false;
@@ -101,8 +101,9 @@ public final class ShardStateMetadata {
         return "primary [" + primary + "], allocation [" + allocationId + "]";
     }
 
-    public static final MetadataStateFormat<ShardStateMetadata> FORMAT =
-        new MetadataStateFormat<ShardStateMetadata>(SHARD_STATE_FILE_PREFIX) {
+    public static final MetadataStateFormat<ShardStateMetadata> FORMAT = new MetadataStateFormat<ShardStateMetadata>(
+        SHARD_STATE_FILE_PREFIX
+    ) {
 
         @Override
         protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {

@@ -56,14 +56,14 @@ public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuild
 
         if (randomBoolean()) {
             if (original.center().x > 0.0 || original.center().y > 0.0) {
-                mutation.center(new Coordinate(original.center().x/2, original.center().y/2));
+                mutation.center(new Coordinate(original.center().x / 2, original.center().y / 2));
             } else {
                 // original center was 0.0, 0.0
                 mutation.center(randomDouble() + 0.1, randomDouble() + 0.1);
             }
         } else if (randomBoolean()) {
             if (radius > 0) {
-                radius = radius/2;
+                radius = radius / 2;
             } else {
                 radius = randomDouble() + 0.1;
             }

@@ -83,10 +83,19 @@ public class PublicationTests extends OpenSearchTestCase {
 
         MockNode(Settings settings, DiscoveryNode localNode) {
             this.localNode = localNode;
-            ClusterState initialState = CoordinationStateTests.clusterState(0L, 0L, localNode,
-                CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG, CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG, 0L);
-            coordinationState = new CoordinationState(localNode, new InMemoryPersistedState(0L, initialState),
-                ElectionStrategy.DEFAULT_INSTANCE);
+            ClusterState initialState = CoordinationStateTests.clusterState(
+                0L,
+                0L,
+                localNode,
+                CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
+                CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
+                0L
+            );
+            coordinationState = new CoordinationState(
+                localNode,
+                new InMemoryPersistedState(0L, initialState),
+                ElectionStrategy.DEFAULT_INSTANCE
+            );
         }
 
         final DiscoveryNode localNode;
@@ -149,15 +158,21 @@ public class PublicationTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
-                                          ActionListener<PublishWithJoinResponse> responseActionListener) {
+        protected void sendPublishRequest(
+            DiscoveryNode destination,
+            PublishRequest publishRequest,
+            ActionListener<PublishWithJoinResponse> responseActionListener
+        ) {
             assertSame(publishRequest, this.publishRequest);
             assertNull(pendingPublications.put(destination, responseActionListener));
         }
 
         @Override
-        protected void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommit,
-                                       ActionListener<TransportResponse.Empty> responseActionListener) {
+        protected void sendApplyCommit(
+            DiscoveryNode destination,
+            ApplyCommitRequest applyCommit,
+            ActionListener<TransportResponse.Empty> responseActionListener
+        ) {
             if (this.applyCommit == null) {
                 this.applyCommit = applyCommit;
             } else {
@@ -194,8 +209,11 @@ public class PublicationTests extends OpenSearchTestCase {
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(n1).add(n2).add(n3).localNodeId(n1.getId()).build();
-        MockPublication publication = node1.publish(CoordinationStateTests.clusterState(1L, 2L,
-            discoveryNodes, singleNodeConfig, singleNodeConfig, 42L), ackListener, Collections.emptySet());
+        MockPublication publication = node1.publish(
+            CoordinationStateTests.clusterState(1L, 2L, discoveryNodes, singleNodeConfig, singleNodeConfig, 42L),
+            ackListener,
+            Collections.emptySet()
+        );
 
         assertThat(publication.pendingPublications.keySet(), equalTo(discoNodes));
         assertThat(publication.completedNodes(), empty());
@@ -207,12 +225,24 @@ public class PublicationTests extends OpenSearchTestCase {
                 return;
             }
             PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
-                publication.publishRequest);
+                publication.publishRequest
+            );
             assertNotEquals(processedNode1PublishResponse.get(), publication.pendingCommits.isEmpty());
             assertFalse(publication.joins.containsKey(e.getKey()));
-            PublishWithJoinResponse publishWithJoinResponse = new PublishWithJoinResponse(publishResponse,
-                randomBoolean() ? Optional.empty() : Optional.of(new Join(e.getKey(), randomFrom(n1, n2, n3), publishResponse.getTerm(),
-                    randomNonNegativeLong(), randomNonNegativeLong())));
+            PublishWithJoinResponse publishWithJoinResponse = new PublishWithJoinResponse(
+                publishResponse,
+                randomBoolean()
+                    ? Optional.empty()
+                    : Optional.of(
+                        new Join(
+                            e.getKey(),
+                            randomFrom(n1, n2, n3),
+                            publishResponse.getTerm(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong()
+                        )
+                    )
+            );
             e.getValue().onResponse(publishWithJoinResponse);
             if (publishWithJoinResponse.getJoin().isPresent()) {
                 assertTrue(publication.joins.containsKey(e.getKey()));
@@ -246,8 +276,7 @@ public class PublicationTests extends OpenSearchTestCase {
         if (delayProcessingNode2PublishResponse) {
             assertFalse(publication.completed);
             assertFalse(publication.committed);
-            PublishResponse publishResponse = nodeResolver.apply(n2).coordinationState.handlePublishRequest(
-                publication.publishRequest);
+            PublishResponse publishResponse = nodeResolver.apply(n2).coordinationState.handlePublishRequest(publication.publishRequest);
             publication.pendingPublications.get(n2).onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
             assertThat(publication.pendingCommits.keySet(), equalTo(discoNodes));
 
@@ -275,10 +304,14 @@ public class PublicationTests extends OpenSearchTestCase {
         int injectFaultAt = randomInt(remainingActions.get() - 1);
         logger.info("Injecting fault at: {}", injectFaultAt);
 
-        Set<DiscoveryNode> initialFaultyNodes = remainingActions.decrementAndGet() == injectFaultAt ?
-            Collections.singleton(n2) : Collections.emptySet();
-        MockPublication publication = node1.publish(CoordinationStateTests.clusterState(1L, 2L,
-            discoveryNodes, singleNodeConfig, singleNodeConfig, 42L), ackListener, initialFaultyNodes);
+        Set<DiscoveryNode> initialFaultyNodes = remainingActions.decrementAndGet() == injectFaultAt
+            ? Collections.singleton(n2)
+            : Collections.emptySet();
+        MockPublication publication = node1.publish(
+            CoordinationStateTests.clusterState(1L, 2L, discoveryNodes, singleNodeConfig, singleNodeConfig, 42L),
+            ackListener,
+            initialFaultyNodes
+        );
 
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
             if (remainingActions.decrementAndGet() == injectFaultAt) {
@@ -286,7 +319,8 @@ public class PublicationTests extends OpenSearchTestCase {
             }
             if (e.getKey().equals(n2) == false || randomBoolean()) {
                 PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
-                    publication.publishRequest);
+                    publication.publishRequest
+                );
                 e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
             }
         });
@@ -319,13 +353,17 @@ public class PublicationTests extends OpenSearchTestCase {
         int injectFaultAt = randomInt(remainingActions.get() - 1);
         logger.info("Injecting fault at: {}, publicationDidNotMakeItToNode2: {}", injectFaultAt, publicationDidNotMakeItToNode2);
 
-        MockPublication publication = node1.publish(CoordinationStateTests.clusterState(1L, 2L,
-            discoveryNodes, singleNodeConfig, singleNodeConfig, 42L), ackListener, Collections.emptySet());
+        MockPublication publication = node1.publish(
+            CoordinationStateTests.clusterState(1L, 2L, discoveryNodes, singleNodeConfig, singleNodeConfig, 42L),
+            ackListener,
+            Collections.emptySet()
+        );
 
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
             if (e.getKey().equals(n2) == false || publicationDidNotMakeItToNode2 == false) {
                 PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
-                    publication.publishRequest);
+                    publication.publishRequest
+                );
                 e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
             }
         });
@@ -366,8 +404,11 @@ public class PublicationTests extends OpenSearchTestCase {
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(n1).add(n2).add(n3).localNodeId(n1.getId()).build();
-        MockPublication publication = node1.publish(CoordinationStateTests.clusterState(1L, 2L,
-            discoveryNodes, config, config, 42L), ackListener, Collections.emptySet());
+        MockPublication publication = node1.publish(
+            CoordinationStateTests.clusterState(1L, 2L, discoveryNodes, config, config, 42L),
+            ackListener,
+            Collections.emptySet()
+        );
 
         boolean timeOut = randomBoolean();
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
@@ -381,7 +422,8 @@ public class PublicationTests extends OpenSearchTestCase {
                 assertFalse(publication.committed);
             } else if (randomBoolean()) {
                 PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
-                    publication.publishRequest);
+                    publication.publishRequest
+                );
                 e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
             }
         });
@@ -394,9 +436,15 @@ public class PublicationTests extends OpenSearchTestCase {
         List<Tuple<DiscoveryNode, Throwable>> errors = ackListener.awaitErrors(0L, TimeUnit.SECONDS);
         assertThat(errors.size(), equalTo(3));
         assertThat(errors.stream().map(Tuple::v1).collect(Collectors.toList()), containsInAnyOrder(n1, n2, n3));
-        errors.stream().forEach(tuple ->
-            assertThat(tuple.v2().getMessage(), containsString(timeOut ? "timed out" :
-                tuple.v1().equals(n2) ? "dummy failure" : "non-failed nodes do not form a quorum")));
+        errors.stream()
+            .forEach(
+                tuple -> assertThat(
+                    tuple.v2().getMessage(),
+                    containsString(
+                        timeOut ? "timed out" : tuple.v1().equals(n2) ? "dummy failure" : "non-failed nodes do not form a quorum"
+                    )
+                )
+            );
     }
 
     public void testPublishingToMastersFirst() {
@@ -406,8 +454,11 @@ public class PublicationTests extends OpenSearchTestCase {
         DiscoveryNodes.Builder discoNodesBuilder = DiscoveryNodes.builder();
         randomNodes(10).forEach(dn -> discoNodesBuilder.add(dn));
         DiscoveryNodes discoveryNodes = discoNodesBuilder.add(n1).localNodeId(n1.getId()).build();
-        MockPublication publication = node1.publish(CoordinationStateTests.clusterState(1L, 2L,
-            discoveryNodes, singleNodeConfig, singleNodeConfig, 42L), null, Collections.emptySet());
+        MockPublication publication = node1.publish(
+            CoordinationStateTests.clusterState(1L, 2L, discoveryNodes, singleNodeConfig, singleNodeConfig, 42L),
+            null,
+            Collections.emptySet()
+        );
 
         List<DiscoveryNode> publicationTargets = new ArrayList<>(publication.pendingPublications.keySet());
         List<DiscoveryNode> sortedPublicationTargets = new ArrayList<>(publicationTargets);
@@ -416,19 +467,23 @@ public class PublicationTests extends OpenSearchTestCase {
     }
 
     public void testClusterStatePublishingTimesOutAfterCommit() throws InterruptedException {
-        VotingConfiguration config = randomBoolean() ? VotingConfiguration.of(n1, n2): VotingConfiguration.of(n1, n2, n3);
+        VotingConfiguration config = randomBoolean() ? VotingConfiguration.of(n1, n2) : VotingConfiguration.of(n1, n2, n3);
         initializeCluster(config);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(n1).add(n2).add(n3).localNodeId(n1.getId()).build();
-        MockPublication publication = node1.publish(CoordinationStateTests.clusterState(1L, 2L,
-            discoveryNodes, config, config, 42L), ackListener, Collections.emptySet());
+        MockPublication publication = node1.publish(
+            CoordinationStateTests.clusterState(1L, 2L, discoveryNodes, config, config, 42L),
+            ackListener,
+            Collections.emptySet()
+        );
 
         boolean publishedToN3 = randomBoolean();
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
             if (e.getKey().equals(n3) == false || publishedToN3) {
                 PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
-                    publication.publishRequest);
+                    publication.publishRequest
+                );
                 e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
             }
         });
@@ -456,16 +511,19 @@ public class PublicationTests extends OpenSearchTestCase {
 
         // check that acking still works after publication completed
         if (publishedToN3 == false) {
-            publication.pendingPublications.get(n3).onResponse(
-                new PublishWithJoinResponse(node3.coordinationState.handlePublishRequest(publication.publishRequest), Optional.empty()));
+            publication.pendingPublications.get(n3)
+                .onResponse(
+                    new PublishWithJoinResponse(node3.coordinationState.handlePublishRequest(publication.publishRequest), Optional.empty())
+                );
         }
 
         assertEquals(discoNodes, publication.pendingCommits.keySet());
 
         Set<DiscoveryNode> nonCommittedNodes = Sets.difference(discoNodes, committingNodes);
         logger.info("Non-committed nodes: {}", nonCommittedNodes);
-        nonCommittedNodes.stream().collect(shuffle()).forEach(n ->
-            publication.pendingCommits.get(n).onResponse(TransportResponse.Empty.INSTANCE));
+        nonCommittedNodes.stream()
+            .collect(shuffle())
+            .forEach(n -> publication.pendingCommits.get(n).onResponse(TransportResponse.Empty.INSTANCE));
 
         assertEquals(discoNodes, ackListener.await(0L, TimeUnit.SECONDS));
     }
@@ -477,24 +535,21 @@ public class PublicationTests extends OpenSearchTestCase {
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
-            final DiscoveryNode node = newNode(i, attributes,
-                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)));
+            final DiscoveryNode node = newNode(i, attributes, new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)));
             nodesList.add(node);
         }
         return nodesList;
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
-            Version.CURRENT);
+        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
     }
 
     public static <T> Collector<T, ?, Stream<T>> shuffle() {
-        return Collectors.collectingAndThen(Collectors.toList(),
-            ts -> {
-                Collections.shuffle(ts, random());
-                return ts.stream();
-            });
+        return Collectors.collectingAndThen(Collectors.toList(), ts -> {
+            Collections.shuffle(ts, random());
+            return ts.stream();
+        });
     }
 
     public static class AssertingAckListener implements Discovery.AckListener {

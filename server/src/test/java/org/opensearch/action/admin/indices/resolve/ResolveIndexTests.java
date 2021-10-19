@@ -75,26 +75,25 @@ public class ResolveIndexTests extends OpenSearchTestCase {
 
     private final Object[][] indices = new Object[][] {
         // name, isClosed, isHidden, isFrozen, dataStream, aliases
-        {"logs-pgsql-prod-20200101", false, false, true, null, new String[]{"logs-pgsql-prod"}},
-        {"logs-pgsql-prod-20200102", false, false, true, null, new String[]{"logs-pgsql-prod", "one-off-alias"}},
-        {"logs-pgsql-prod-20200103", false, false, false, null, new String[]{"logs-pgsql-prod"}},
-        {"logs-pgsql-test-20200101", true, false, false, null, new String[]{"logs-pgsql-test"}},
-        {"logs-pgsql-test-20200102", false, false, false, null, new String[]{"logs-pgsql-test"}},
-        {"logs-pgsql-test-20200103", false, false, false, null, new String[]{"logs-pgsql-test"}}
-    };
+        { "logs-pgsql-prod-20200101", false, false, true, null, new String[] { "logs-pgsql-prod" } },
+        { "logs-pgsql-prod-20200102", false, false, true, null, new String[] { "logs-pgsql-prod", "one-off-alias" } },
+        { "logs-pgsql-prod-20200103", false, false, false, null, new String[] { "logs-pgsql-prod" } },
+        { "logs-pgsql-test-20200101", true, false, false, null, new String[] { "logs-pgsql-test" } },
+        { "logs-pgsql-test-20200102", false, false, false, null, new String[] { "logs-pgsql-test" } },
+        { "logs-pgsql-test-20200103", false, false, false, null, new String[] { "logs-pgsql-test" } } };
 
-    private final Object[][] dataStreams = new Object[][]{
+    private final Object[][] dataStreams = new Object[][] {
         // name, timestampField, numBackingIndices
-        {"logs-mysql-prod", "@timestamp", 4},
-        {"logs-mysql-test", "@timestamp", 2}
-    };
+        { "logs-mysql-prod", "@timestamp", 4 },
+        { "logs-mysql-test", "@timestamp", 2 } };
 
     private Metadata metadata = buildMetadata(dataStreams, indices);
     private IndexAbstractionResolver resolver = new IndexAbstractionResolver(
-        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+    );
 
     public void testResolveStarWithDefaultOptions() {
-        String[] names = new String[] {"*"};
+        String[] names = new String[] { "*" };
         IndicesOptions indicesOptions = Request.DEFAULT_INDICES_OPTIONS;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
@@ -102,33 +101,30 @@ public class ResolveIndexTests extends OpenSearchTestCase {
 
         TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
 
-        validateIndices(indices,
+        validateIndices(
+            indices,
             "logs-pgsql-prod-20200101",
             "logs-pgsql-prod-20200102",
             "logs-pgsql-prod-20200103",
             "logs-pgsql-test-20200102",
-            "logs-pgsql-test-20200103");
+            "logs-pgsql-test-20200103"
+        );
 
-        validateAliases(aliases,
-            "logs-pgsql-prod",
-            "logs-pgsql-test",
-            "one-off-alias"
-            );
+        validateAliases(aliases, "logs-pgsql-prod", "logs-pgsql-test", "one-off-alias");
 
-        validateDataStreams(dataStreams,
-            "logs-mysql-prod",
-            "logs-mysql-test");
+        validateDataStreams(dataStreams, "logs-mysql-prod", "logs-mysql-test");
     }
 
     public void testResolveStarWithAllOptions() {
-        String[] names = new String[]{"*"};
+        String[] names = new String[] { "*" };
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
         TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
-        validateIndices(indices,
+        validateIndices(
+            indices,
             ".ds-logs-mysql-prod-000001",
             ".ds-logs-mysql-prod-000002",
             ".ds-logs-mysql-prod-000003",
@@ -140,20 +136,16 @@ public class ResolveIndexTests extends OpenSearchTestCase {
             "logs-pgsql-prod-20200103",
             "logs-pgsql-test-20200101",
             "logs-pgsql-test-20200102",
-            "logs-pgsql-test-20200103");
+            "logs-pgsql-test-20200103"
+        );
 
-        validateAliases(aliases,
-            "logs-pgsql-prod",
-            "logs-pgsql-test",
-            "one-off-alias");
+        validateAliases(aliases, "logs-pgsql-prod", "logs-pgsql-test", "one-off-alias");
 
-        validateDataStreams(dataStreams,
-            "logs-mysql-prod",
-            "logs-mysql-test");
+        validateDataStreams(dataStreams, "logs-mysql-prod", "logs-mysql-test");
     }
 
     public void testResolveWithPattern() {
-        String[] names = new String[] {"logs-pgsql*"};
+        String[] names = new String[] { "logs-pgsql*" };
         IndicesOptions indicesOptions = Request.DEFAULT_INDICES_OPTIONS;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
@@ -161,23 +153,22 @@ public class ResolveIndexTests extends OpenSearchTestCase {
 
         TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
 
-        validateIndices(indices,
+        validateIndices(
+            indices,
             "logs-pgsql-prod-20200101",
             "logs-pgsql-prod-20200102",
             "logs-pgsql-prod-20200103",
             "logs-pgsql-test-20200102",
-            "logs-pgsql-test-20200103");
-
-        validateAliases(aliases,
-            "logs-pgsql-prod",
-            "logs-pgsql-test"
+            "logs-pgsql-test-20200103"
         );
+
+        validateAliases(aliases, "logs-pgsql-prod", "logs-pgsql-test");
 
         validateDataStreams(dataStreams, Strings.EMPTY_ARRAY);
     }
 
     public void testResolveWithMultipleNames() {
-        String[] names = new String[]{".ds-logs-mysql-prod-000003", "logs-pgsql-test-20200102", "one-off-alias", "logs-mysql-test"};
+        String[] names = new String[] { ".ds-logs-mysql-prod-000003", "logs-pgsql-test-20200102", "one-off-alias", "logs-mysql-test" };
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
@@ -197,14 +188,19 @@ public class ResolveIndexTests extends OpenSearchTestCase {
         String tomorrowSuffix = dateFormatter.format(now.plus(Duration.ofDays(1L)));
         Object[][] indices = new Object[][] {
             // name, isClosed, isHidden, isFrozen, dataStream, aliases
-            {"logs-pgsql-prod-" + todaySuffix, false, true, false, null, Strings.EMPTY_ARRAY},
-            {"logs-pgsql-prod-" + tomorrowSuffix, false, true, false, null, Strings.EMPTY_ARRAY}
-        };
+            { "logs-pgsql-prod-" + todaySuffix, false, true, false, null, Strings.EMPTY_ARRAY },
+            { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, null, Strings.EMPTY_ARRAY } };
         Metadata metadata = buildMetadata(new Object[][] {}, indices);
 
         String requestedIndex = "<logs-pgsql-prod-{now/d}>";
-        List<String> resolvedIndices = resolver.resolveIndexAbstractions(singletonList(requestedIndex), IndicesOptions.LENIENT_EXPAND_OPEN,
-            metadata, asList("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix), randomBoolean(), randomBoolean());
+        List<String> resolvedIndices = resolver.resolveIndexAbstractions(
+            singletonList(requestedIndex),
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            metadata,
+            asList("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix),
+            randomBoolean(),
+            randomBoolean()
+        );
         assertThat(resolvedIndices.size(), is(1));
         assertThat(resolvedIndices.get(0), oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix));
     }
@@ -282,8 +278,11 @@ public class ResolveIndexTests extends OpenSearchTestCase {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(dataStreamName, createTimestampField(timestampField),
-                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+            DataStream ds = new DataStream(
+                dataStreamName,
+                createTimestampField(timestampField),
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            );
             builder.put(ds);
         }
 
@@ -343,8 +342,11 @@ public class ResolveIndexTests extends OpenSearchTestCase {
                 if (DataStream.getDefaultBackingIndexName(dataStreamName, k).equals(indexName)) {
                     return new Object[] {
                         DataStream.getDefaultBackingIndexName(dataStreamName, k),
-                        false, true, false, dataStreamName, Strings.EMPTY_ARRAY
-                    };
+                        false,
+                        true,
+                        false,
+                        dataStreamName,
+                        Strings.EMPTY_ARRAY };
                 }
             }
         }

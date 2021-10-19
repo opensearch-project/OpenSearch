@@ -91,7 +91,7 @@ public abstract class AbstractSearchTestCase extends OpenSearchTestCase {
         Supplier<List<SearchExtBuilder>> randomExtBuilders = () -> {
             Set<String> elementNames = new HashSet<>(searchExtPlugin.getSupportedElements().keySet());
             int numSearchExts = randomIntBetween(1, elementNames.size());
-            while(elementNames.size() > numSearchExts) {
+            while (elementNames.size() > numSearchExts) {
                 elementNames.remove(randomFrom(elementNames));
             }
             List<SearchExtBuilder> searchExtBuilders = new ArrayList<>();
@@ -101,11 +101,12 @@ public abstract class AbstractSearchTestCase extends OpenSearchTestCase {
             return searchExtBuilders;
         };
         return RandomSearchRequestGenerator.randomSearchSourceBuilder(
-                HighlightBuilderTests::randomHighlighterBuilder,
-                SuggestBuilderTests::randomSuggestBuilder,
-                QueryRescorerBuilderTests::randomRescoreBuilder,
-                randomExtBuilders,
-                CollapseBuilderTests::randomCollapseBuilder);
+            HighlightBuilderTests::randomHighlighterBuilder,
+            SuggestBuilderTests::randomSuggestBuilder,
+            QueryRescorerBuilderTests::randomRescoreBuilder,
+            randomExtBuilders,
+            CollapseBuilderTests::randomCollapseBuilder
+        );
     }
 
     protected SearchRequest createSearchRequest() throws IOException {
@@ -124,20 +125,35 @@ public abstract class AbstractSearchTestCase extends OpenSearchTestCase {
                 switch (randomIntBetween(0, 2)) {
                     case 0:
                         if (this.supportedElements.put(TestSearchExtBuilder1.NAME, TestSearchExtBuilder1::new) == null) {
-                            this.searchExtSpecs.add(new SearchExtSpec<>(TestSearchExtBuilder1.NAME, TestSearchExtBuilder1::new,
-                                    new TestSearchExtParser<>(TestSearchExtBuilder1::new)));
+                            this.searchExtSpecs.add(
+                                new SearchExtSpec<>(
+                                    TestSearchExtBuilder1.NAME,
+                                    TestSearchExtBuilder1::new,
+                                    new TestSearchExtParser<>(TestSearchExtBuilder1::new)
+                                )
+                            );
                         }
                         break;
                     case 1:
                         if (this.supportedElements.put(TestSearchExtBuilder2.NAME, TestSearchExtBuilder2::new) == null) {
-                            this.searchExtSpecs.add(new SearchExtSpec<>(TestSearchExtBuilder2.NAME, TestSearchExtBuilder2::new,
-                                    new TestSearchExtParser<>(TestSearchExtBuilder2::new)));
+                            this.searchExtSpecs.add(
+                                new SearchExtSpec<>(
+                                    TestSearchExtBuilder2.NAME,
+                                    TestSearchExtBuilder2::new,
+                                    new TestSearchExtParser<>(TestSearchExtBuilder2::new)
+                                )
+                            );
                         }
                         break;
                     case 2:
                         if (this.supportedElements.put(TestSearchExtBuilder3.NAME, TestSearchExtBuilder3::new) == null) {
-                            this.searchExtSpecs.add(new SearchExtSpec<>(TestSearchExtBuilder3.NAME, TestSearchExtBuilder3::new,
-                                    new TestSearchExtParser<>(TestSearchExtBuilder3::new)));
+                            this.searchExtSpecs.add(
+                                new SearchExtSpec<>(
+                                    TestSearchExtBuilder3.NAME,
+                                    TestSearchExtBuilder3::new,
+                                    new TestSearchExtParser<>(TestSearchExtBuilder3::new)
+                                )
+                            );
                         }
                         break;
                     default:
@@ -189,9 +205,9 @@ public abstract class AbstractSearchTestCase extends OpenSearchTestCase {
         }
     }
 
-    //Would be nice to have a single builder that gets its name as a parameter, but the name wouldn't get a value when the object
-    //is created reading from the stream (constructor that takes a StreamInput) which is a problem as we check that after reading
-    //a named writeable its name is the expected one. That's why we go for the following less dynamic approach.
+    // Would be nice to have a single builder that gets its name as a parameter, but the name wouldn't get a value when the object
+    // is created reading from the stream (constructor that takes a StreamInput) which is a problem as we check that after reading
+    // a named writeable its name is the expected one. That's why we go for the following less dynamic approach.
     private static class TestSearchExtBuilder1 extends TestSearchExtBuilder {
         private static final String NAME = "name1";
 
@@ -256,8 +272,7 @@ public abstract class AbstractSearchTestCase extends OpenSearchTestCase {
                 return false;
             }
             TestSearchExtBuilder that = (TestSearchExtBuilder) o;
-            return Objects.equals(objectName, that.objectName) &&
-                    Objects.equals(name, that.name);
+            return Objects.equals(objectName, that.objectName) && Objects.equals(name, that.name);
         }
 
         @Override

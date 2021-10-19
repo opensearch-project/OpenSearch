@@ -34,7 +34,6 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.mapper.MapperServiceTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
