@@ -59,14 +59,16 @@ public class ExampleRescoreBuilderTests extends AbstractWireSerializingTestCase<
     protected ExampleRescoreBuilder mutateInstance(ExampleRescoreBuilder instance) throws IOException {
         @SuppressWarnings("unchecked")
         Supplier<ExampleRescoreBuilder> supplier = randomFrom(
-                () -> new ExampleRescoreBuilder(instance.factor(), instance.factorField())
-                        .windowSize(randomValueOtherThan(instance.windowSize(), () -> between(0, Integer.MAX_VALUE))),
-                () -> new ExampleRescoreBuilder(
-                    randomValueOtherThan(instance.factor(), OpenSearchTestCase::randomFloat), instance.factorField())
-                        .windowSize(instance.windowSize()),
-                () -> new ExampleRescoreBuilder(
-                            instance.factor(), randomValueOtherThan(instance.factorField(), () -> randomAlphaOfLength(5)))
-                        .windowSize(instance.windowSize()));
+            () -> new ExampleRescoreBuilder(instance.factor(), instance.factorField()).windowSize(
+                randomValueOtherThan(instance.windowSize(), () -> between(0, Integer.MAX_VALUE))
+            ),
+            () -> new ExampleRescoreBuilder(
+                randomValueOtherThan(instance.factor(), OpenSearchTestCase::randomFloat),
+                instance.factorField()
+            ).windowSize(instance.windowSize()),
+            () -> new ExampleRescoreBuilder(instance.factor(), randomValueOtherThan(instance.factorField(), () -> randomAlphaOfLength(5)))
+                .windowSize(instance.windowSize())
+        );
 
         return supplier.get();
     }

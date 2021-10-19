@@ -57,13 +57,6 @@ import org.opensearch.gradle.BuildPlugin
 
 // Do not add new sub-projects here!
 def projectPathsToExclude = [
-  ':example-plugins:custom-settings',
-  ':example-plugins:custom-significance-heuristic',
-  ':example-plugins:custom-suggester',
-  ':example-plugins:painless-whitelist',
-  ':example-plugins:rescore',
-  ':example-plugins:rest-handler',
-  ':example-plugins:script-expert-scoring',
   ':libs:opensearch-cli',
   ':libs:opensearch-core',
   ':libs:opensearch-dissect',
