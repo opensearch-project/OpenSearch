@@ -62,30 +62,66 @@ public class EngineConfigFactory {
                 codecService = enginePlugin.getCustomCodecService(idxSettings);
                 codecServiceOverridingPlugin = enginePlugin.getClass().getName();
             } else {
-                throw new IllegalStateException("existing codec service already overridden in: " + codecServiceOverridingPlugin
-                    + " attempting to override again by: " + enginePlugin.getClass().getName());
+                throw new IllegalStateException(
+                    "existing codec service already overridden in: "
+                        + codecServiceOverridingPlugin
+                        + " attempting to override again by: "
+                        + enginePlugin.getClass().getName()
+                );
             }
         }
         this.codecService = codecService;
     }
 
     /** Insantiates a new EngineConfig from the provided custom overrides */
-    public EngineConfig newEngineConfig(ShardId shardId, ThreadPool threadPool,
-                                        IndexSettings indexSettings, Engine.Warmer warmer, Store store,
-                                        MergePolicy mergePolicy, Analyzer analyzer,
-                                        Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                                        QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig,
-                                        TimeValue flushMergesAfter,
-                                        List<ReferenceManager.RefreshListener> externalRefreshListener,
-                                        List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                                        CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
-                                        Supplier<RetentionLeases> retentionLeasesSupplier,
-                                        LongSupplier primaryTermSupplier,
-                                        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier) {
+    public EngineConfig newEngineConfig(
+        ShardId shardId,
+        ThreadPool threadPool,
+        IndexSettings indexSettings,
+        Engine.Warmer warmer,
+        Store store,
+        MergePolicy mergePolicy,
+        Analyzer analyzer,
+        Similarity similarity,
+        CodecService codecService,
+        Engine.EventListener eventListener,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        TranslogConfig translogConfig,
+        TimeValue flushMergesAfter,
+        List<ReferenceManager.RefreshListener> externalRefreshListener,
+        List<ReferenceManager.RefreshListener> internalRefreshListener,
+        Sort indexSort,
+        CircuitBreakerService circuitBreakerService,
+        LongSupplier globalCheckpointSupplier,
+        Supplier<RetentionLeases> retentionLeasesSupplier,
+        LongSupplier primaryTermSupplier,
+        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier
+    ) {
 
-        return new EngineConfig(shardId, threadPool, indexSettings, warmer, store, mergePolicy, analyzer, similarity,
-            this.codecService.isPresent() == true ? this.codecService.get() : codecService, eventListener, queryCache,
-            queryCachingPolicy, translogConfig, flushMergesAfter, externalRefreshListener, internalRefreshListener, indexSort,
-            circuitBreakerService, globalCheckpointSupplier, retentionLeasesSupplier, primaryTermSupplier, tombstoneDocSupplier);
+        return new EngineConfig(
+            shardId,
+            threadPool,
+            indexSettings,
+            warmer,
+            store,
+            mergePolicy,
+            analyzer,
+            similarity,
+            this.codecService.isPresent() == true ? this.codecService.get() : codecService,
+            eventListener,
+            queryCache,
+            queryCachingPolicy,
+            translogConfig,
+            flushMergesAfter,
+            externalRefreshListener,
+            internalRefreshListener,
+            indexSort,
+            circuitBreakerService,
+            globalCheckpointSupplier,
+            retentionLeasesSupplier,
+            primaryTermSupplier,
+            tombstoneDocSupplier
+        );
     }
 }
