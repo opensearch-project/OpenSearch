@@ -49,7 +49,7 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 OpenSearch builds using Java 11 at a minimum. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`.
 
-By default, the test tasks use bundled JDK runtime, configured in `buildSrc/version.properties` and set to JDK 17 (LTS). Other kind of test tasks (integration, cluster, ... ) use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8 as the runtime, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`. Alernatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for exampe `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
+By default, the test tasks use bundled JDK runtime, configured in `buildSrc/version.properties` and set to JDK 17 (LTS). Other kind of test tasks (integration, cluster, ... ) use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8 as the runtime, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
 
 To run the full suite of tests you will also need `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
 
@@ -147,7 +147,7 @@ Follow links in the [Java Tutorial](https://code.visualstudio.com/docs/java/java
 
 ### Eclipse
 
-When importing to Eclipse, you need to have [Eclipse Buildship](https://projects.eclipse.org/projects/tools.buildship) plugin installed and, preferrably, have JDK 11 set as default JRE in **Preferences -> Java -> Installed JREs**. Once this is done, generate Eclipse projects using Gradle wrapper:
+When importing to Eclipse, you need to have [Eclipse Buildship](https://projects.eclipse.org/projects/tools.buildship) plugin installed and, preferably, have JDK 11 set as default JRE in **Preferences -> Java -> Installed JREs**. Once this is done, generate Eclipse projects using Gradle wrapper:
 
     ./gradlew eclipse
 
@@ -155,10 +155,10 @@ You can now import the OpenSearch project into Eclipse as follows.
 
 1. Select **File > Import -> Existing Gradle Project**
 2. In the subsequent dialog navigate to the root of `build.gradle` file
-3. In the subsequent dialog, if JDK 11 is not set as default JRE, please make sure to check **[Override workpace settings]**, keep **[Gradle Wrapper]** and provide the correct path to JDK11 using **[Java Home]** property under **[Advanced Options]**. Otherwise, you may run into cryptic import failures and only top level project is going to be imported.
-4. In the subsequent dialog, you sould see **[Gradle project structure]** populated, please click **[Finish]** to complete the import
+3. In the subsequent dialog, if JDK 11 is not set as default JRE, please make sure to check **[Override workspace settings]**, keep **[Gradle Wrapper]** and provide the correct path to JDK11 using **[Java Home]** property under **[Advanced Options]**. Otherwise, you may run into cryptic import failures and only top level project is going to be imported.
+4. In the subsequent dialog, you should see **[Gradle project structure]** populated, please click **[Finish]** to complete the import
 
-**Note:** it may look non-intuitive why one needs to use Gradle wrapper and then import existing Gradle project (in general, **File > Import -> Existing Gradle Project** should be enough). Practially, as it stands now, Eclipse Buildship plugin does not import OpenSearch project dependencies correctly but does work in conjuction with Gradle wrapper.
+**Note:** it may look non-intuitive why one needs to use Gradle wrapper and then import existing Gradle project (in general, **File > Import -> Existing Gradle Project** should be enough). Practically, as it stands now, Eclipse Buildship plugin does not import OpenSearch project dependencies correctly but does work in conjunction with Gradle wrapper.
 
 ## Project Layout
 
