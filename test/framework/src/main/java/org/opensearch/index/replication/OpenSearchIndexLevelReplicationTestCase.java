@@ -82,6 +82,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
@@ -228,6 +229,10 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             return new InternalEngineFactory();
         }
 
+        protected EngineConfigFactory getEngineConfigFactory(IndexSettings indexSettings) {
+            return new EngineConfigFactory(indexSettings);
+        }
+
         public int indexDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
@@ -345,6 +350,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
             final IndexShard newReplica =
                     newShard(shardRouting, shardPath, indexMetadata, null, null, getEngineFactory(shardRouting),
+                        getEngineConfigFactory(new IndexSettings(indexMetadata, indexMetadata.getSettings())),
                             () -> {}, retentionLeaseSyncer, EMPTY_EVENT_LISTENER);
             replicas.add(newReplica);
             if (replicationTargets != null) {

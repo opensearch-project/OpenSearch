@@ -58,6 +58,7 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -170,6 +171,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 null,
                 null,
                 new InternalEngineFactory(),
+                new EngineConfigFactory(new IndexSettings(indexMetadata, settings)),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER
@@ -545,6 +547,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             storeProvider,
             null,
             indexShard.engineFactory,
+            indexShard.getEngineConfigFactory(),
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER

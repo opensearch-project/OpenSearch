@@ -48,6 +48,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexShard;
@@ -136,6 +137,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 null,
                 null,
                 new InternalEngineFactory(),
+                new EngineConfigFactory(shard.indexSettings()),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER

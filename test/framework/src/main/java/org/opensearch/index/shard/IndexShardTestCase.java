@@ -67,6 +67,7 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
@@ -353,7 +354,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         final ShardId shardId = routing.shardId();
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        return newShard(routing, shardPath, indexMetadata, null, indexReaderWrapper, engineFactory, globalCheckpointSyncer,
+        return newShard(routing, shardPath, indexMetadata, null, indexReaderWrapper, engineFactory,
+            new EngineConfigFactory(new IndexSettings(indexMetadata, indexMetadata.getSettings())), globalCheckpointSyncer,
             retentionLeaseSyncer, EMPTY_EVENT_LISTENER, listeners);
     }
 
@@ -371,7 +373,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetadata indexMetadata,
                                   @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
                                   @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
-                                  @Nullable EngineFactory engineFactory,
+                                  @Nullable EngineFactory engineFactory, @Nullable EngineConfigFactory engineConfigFactory,
                                   Runnable globalCheckpointSyncer, RetentionLeaseSyncer retentionLeaseSyncer,
                                   IndexEventListener indexEventListener, IndexingOperationListener... listeners) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
@@ -403,6 +405,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     mapperService,
                     similarityService,
                     engineFactory,
+                    engineConfigFactory,
                     indexEventListener,
                     indexReaderWrapper,
                     threadPool,
@@ -442,7 +445,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param listeners new listerns to use for the newly created shard
      */
     protected IndexShard reinitShard(IndexShard current, ShardRouting routing, IndexingOperationListener... listeners) throws IOException {
-        return reinitShard(current, routing, current.indexSettings.getIndexMetadata(), current.engineFactory, listeners);
+        return reinitShard(current, routing, current.indexSettings.getIndexMetadata(), current.engineFactory,
+            current.engineConfigFactory, listeners);
     }
 
     /**
@@ -454,7 +458,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param engineFactory the engine factory for the new shard
      */
     protected IndexShard reinitShard(IndexShard current, ShardRouting routing, IndexMetadata indexMetadata, EngineFactory engineFactory,
-                                     IndexingOperationListener... listeners) throws IOException {
+                                     EngineConfigFactory engineConfigFactory, IndexingOperationListener... listeners) throws IOException {
         closeShards(current);
         return newShard(
                 routing,
@@ -463,6 +467,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 null,
                 null,
                 engineFactory,
+                engineConfigFactory,
                 current.getGlobalCheckpointSyncer(),
                 current.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER, listeners);
