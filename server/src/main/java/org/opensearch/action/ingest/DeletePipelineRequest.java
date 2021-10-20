@@ -40,7 +40,6 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-
 public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineRequest> {
 
     private String id;
@@ -57,8 +56,7 @@ public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineReq
         id = in.readString();
     }
 
-    DeletePipelineRequest() {
-    }
+    DeletePipelineRequest() {}
 
     public void setId(String id) {
         this.id = Objects.requireNonNull(id);

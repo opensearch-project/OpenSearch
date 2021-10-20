@@ -61,7 +61,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-
 public class QueryProfilerIT extends OpenSearchIntegTestCase {
 
     /**
@@ -75,10 +74,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         List<String> stringFields = Arrays.asList("field1");
@@ -93,11 +89,11 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
             logger.info("Query: {}", q);
 
             SearchResponse resp = client().prepareSearch()
-                    .setQuery(q)
-                    .setTrackTotalHits(true)
-                    .setProfile(true)
-                    .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .get();
+                .setQuery(q)
+                .setTrackTotalHits(true)
+                .setProfile(true)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .get();
 
             assertNotNull("Profile response element should not be null", resp.getProfileResults());
             assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -124,19 +120,14 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
      * to make sure the profiling doesn't interfere with the hits being returned
      */
     public void testProfileMatchesRegular() throws Exception {
-        createIndex("test", Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0).build());
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         ensureGreen();
 
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "id", String.valueOf(i),
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i))
+                .setSource("id", String.valueOf(i), "field1", English.intToEnglish(i), "field2", i);
         }
 
         List<String> stringFields = Arrays.asList("field1");
@@ -162,10 +153,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
-        MultiSearchResponse.Item[] responses = client().prepareMultiSearch()
-            .add(vanilla)
-            .add(profile)
-            .get().getResponses();
+        MultiSearchResponse.Item[] responses = client().prepareMultiSearch().add(vanilla).add(profile).get().getResponses();
 
         SearchResponse vanillaResponse = responses[0].getResponse();
         SearchResponse profileResponse = responses[1].getResponse();
@@ -177,11 +165,14 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         float vanillaMaxScore = vanillaResponse.getHits().getMaxScore();
         float profileMaxScore = profileResponse.getHits().getMaxScore();
         if (Float.isNaN(vanillaMaxScore)) {
-            assertTrue("Vanilla maxScore is NaN but Profile is not [" + profileMaxScore + "]",
-                    Float.isNaN(profileMaxScore));
+            assertTrue("Vanilla maxScore is NaN but Profile is not [" + profileMaxScore + "]", Float.isNaN(profileMaxScore));
         } else {
-            assertEquals("Profile maxScore of [" + profileMaxScore + "] is not close to Vanilla maxScore [" + vanillaMaxScore + "]",
-                    vanillaMaxScore, profileMaxScore, 0.001);
+            assertEquals(
+                "Profile maxScore of [" + profileMaxScore + "] is not close to Vanilla maxScore [" + vanillaMaxScore + "]",
+                vanillaMaxScore,
+                profileMaxScore,
+                0.001
+            );
         }
 
         if (vanillaResponse.getHits().getTotalHits().value != profileResponse.getHits().getTotalHits().value) {
@@ -189,12 +180,10 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
             Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
             if (vanillaResponse.getHits().getTotalHits().value > profileResponse.getHits().getTotalHits().value) {
                 vanillaSet.removeAll(profileSet);
-                fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: "
-                    + vanillaSet.toString());
+                fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: " + vanillaSet.toString());
             } else {
                 profileSet.removeAll(vanillaSet);
-                fail("Profile hits were larger than vanilla hits.  Non-overlapping elements were: "
-                    + profileSet.toString());
+                fail("Profile hits were larger than vanilla hits.  Non-overlapping elements were: " + profileSet.toString());
             }
         }
 
@@ -202,10 +191,8 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         SearchHit[] profileHits = profileResponse.getHits().getHits();
 
         for (int j = 0; j < vanillaHits.length; j++) {
-            assertThat("Profile hit #" + j + " has a different ID from Vanilla",
-                vanillaHits[j].getId(), equalTo(profileHits[j].getId()));
+            assertThat("Profile hit #" + j + " has a different ID from Vanilla", vanillaHits[j].getId(), equalTo(profileHits[j].getId()));
         }
-
 
     }
 
@@ -217,10 +204,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -228,11 +212,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
 
         QueryBuilder q = QueryBuilders.matchQuery("field1", "one");
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).get();
 
         Map<String, ProfileShardResult> p = resp.getProfileResults();
         assertNotNull(p);
@@ -264,22 +244,16 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
 
-        QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one"))
-                .must(QueryBuilders.matchQuery("field1", "two"));
+        QueryBuilder q = QueryBuilders.boolQuery()
+            .must(QueryBuilders.matchQuery("field1", "one"))
+            .must(QueryBuilders.matchQuery("field1", "two"));
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).get();
 
         Map<String, ProfileShardResult> p = resp.getProfileResults();
         assertNotNull(p);
@@ -318,7 +292,6 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
             }
         }
 
-
     }
 
     /**
@@ -331,10 +304,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -344,11 +314,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         QueryBuilder q = QueryBuilders.boolQuery();
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -381,10 +347,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -392,15 +355,11 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         refresh();
 
         QueryBuilder q = QueryBuilders.boolQuery()
-                .must(QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one"))));
+            .must(QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one"))));
 
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -428,10 +387,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -439,15 +395,11 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         refresh();
 
         QueryBuilder q = QueryBuilders.boostingQuery(QueryBuilders.matchQuery("field1", "one"), QueryBuilders.matchQuery("field1", "two"))
-                .boost(randomFloat())
-                .negativeBoost(randomFloat());
+            .boost(randomFloat())
+            .negativeBoost(randomFloat());
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -475,10 +427,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -486,15 +435,11 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         refresh();
 
         QueryBuilder q = QueryBuilders.disMaxQuery()
-                .boost(0.33703882f)
-                .add(QueryBuilders.rangeQuery("field2").from(null).to(73).includeLower(true).includeUpper(true));
+            .boost(0.33703882f)
+            .add(QueryBuilders.rangeQuery("field2").from(null).to(73).includeLower(true).includeUpper(true));
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -522,10 +467,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -536,11 +478,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
 
         logger.info("Query: {}", q.toString());
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -568,10 +506,8 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i) + " " + English.intToEnglish(i+1),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i))
+                .setSource("field1", English.intToEnglish(i) + " " + English.intToEnglish(i + 1), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -583,12 +519,12 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         logger.info("Query: {}", q);
 
         SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setIndices("test")
-                .setTypes("type1")
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+            .setQuery(q)
+            .setIndices("test")
+            .setTypes("type1")
+            .setProfile(true)
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .get();
 
         if (resp.getShardFailures().length > 0) {
             for (ShardSearchFailure f : resp.getShardFailures()) {
@@ -626,10 +562,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -643,4 +576,3 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
     }
 
 }
-

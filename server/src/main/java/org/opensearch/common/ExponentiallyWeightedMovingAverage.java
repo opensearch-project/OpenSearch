@@ -32,7 +32,6 @@
 
 package org.opensearch.common;
 
-
 import java.util.concurrent.atomic.AtomicLong;
 
 /**

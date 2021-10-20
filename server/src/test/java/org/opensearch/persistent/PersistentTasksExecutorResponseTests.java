@@ -40,16 +40,20 @@ import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
 
-
 public class PersistentTasksExecutorResponseTests extends AbstractWireSerializingTestCase<PersistentTaskResponse> {
 
     @Override
     protected PersistentTaskResponse createTestInstance() {
         if (randomBoolean()) {
             return new PersistentTaskResponse(
-                    new PersistentTask<PersistentTaskParams>(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME,
-                            new TestPersistentTasksPlugin.TestParams("test"),
-                            randomLong(), PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT));
+                new PersistentTask<PersistentTaskParams>(
+                    UUIDs.base64UUID(),
+                    TestPersistentTasksExecutor.NAME,
+                    new TestPersistentTasksPlugin.TestParams("test"),
+                    randomLong(),
+                    PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+                )
+            );
         } else {
             return new PersistentTaskResponse((PersistentTask<?>) null);
         }
@@ -62,9 +66,14 @@ public class PersistentTasksExecutorResponseTests extends AbstractWireSerializin
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Collections.singletonList(
-                new NamedWriteableRegistry.Entry(PersistentTaskParams.class,
-                        TestPersistentTasksExecutor.NAME, TestPersistentTasksPlugin.TestParams::new)
-        ));
+        return new NamedWriteableRegistry(
+            Collections.singletonList(
+                new NamedWriteableRegistry.Entry(
+                    PersistentTaskParams.class,
+                    TestPersistentTasksExecutor.NAME,
+                    TestPersistentTasksPlugin.TestParams::new
+                )
+            )
+        );
     }
 }

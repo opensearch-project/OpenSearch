@@ -25,14 +25,12 @@
  * under the License.
  */
 
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
 package org.opensearch.search.aggregations.bucket.terms.heuristic;
-
 
 import java.io.IOException;
 
@@ -45,8 +43,7 @@ public class JLHScore extends SignificanceHeuristic {
     public static final String NAME = "jlh";
     public static final ObjectParser<JLHScore, Void> PARSER = new ObjectParser<>(NAME, JLHScore::new);
 
-    public JLHScore() {
-    }
+    public JLHScore() {}
 
     /**
      * Read from a stream.
@@ -56,8 +53,7 @@ public class JLHScore extends SignificanceHeuristic {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -137,4 +133,3 @@ public class JLHScore extends SignificanceHeuristic {
         }
     }
 }
-

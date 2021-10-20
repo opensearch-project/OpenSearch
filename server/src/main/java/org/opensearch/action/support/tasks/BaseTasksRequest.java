@@ -68,8 +68,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     // NOTE: This constructor is only needed, because the setters in this class,
     // otherwise it can be removed and above fields can be made final.
-    public BaseTasksRequest() {
-    }
+    public BaseTasksRequest() {}
 
     protected BaseTasksRequest(StreamInput in) throws IOException {
         super(in);
@@ -94,8 +93,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (taskId.isSet() && nodes.length > 0) {
-            validationException = addValidationError("task id cannot be used together with node ids",
-                validationException);
+            validationException = addValidationError("task id cannot be used together with node ids", validationException);
         }
         return validationException;
     }
@@ -141,7 +139,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         return (Request) this;
     }
 
-
     /**
      * Returns the parent task id that tasks should be filtered by
      */
@@ -154,7 +151,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         this.parentTaskId = parentTaskId;
         return (Request) this;
     }
-
 
     public TimeValue getTimeout() {
         return this.timeout;
@@ -177,7 +173,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
             return false;
         }
         if (getTaskId().isSet()) {
-            if(getTaskId().getId() != task.getId()) {
+            if (getTaskId().getId() != task.getId()) {
                 return false;
             }
         }

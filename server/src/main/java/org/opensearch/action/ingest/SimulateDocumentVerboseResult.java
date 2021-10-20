@@ -53,12 +53,11 @@ public final class SimulateDocumentVerboseResult implements SimulateDocumentResu
     private final List<SimulateProcessorResult> processorResults;
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SimulateDocumentVerboseResult, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "simulate_document_verbose_result",
-            true,
-            a -> new SimulateDocumentVerboseResult((List<SimulateProcessorResult>)a[0])
-        );
+    public static final ConstructingObjectParser<SimulateDocumentVerboseResult, Void> PARSER = new ConstructingObjectParser<>(
+        "simulate_document_verbose_result",
+        true,
+        a -> new SimulateDocumentVerboseResult((List<SimulateProcessorResult>) a[0])
+    );
     static {
         PARSER.declareObjectArray(constructorArg(), SimulateProcessorResult.PARSER, new ParseField(PROCESSOR_RESULT_FIELD));
     }

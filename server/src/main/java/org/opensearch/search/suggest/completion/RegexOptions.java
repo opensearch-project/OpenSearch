@@ -61,8 +61,7 @@ public class RegexOptions implements ToXContentFragment, Writeable {
      *     "max_determinized_states" : INT
      * }
      */
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(REGEX_OPTIONS.getPreferredName(),
-            Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(REGEX_OPTIONS.getPreferredName(), Builder::new);
     static {
         PARSER.declareInt(Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES);
         PARSER.declareField((parser, builder, aVoid) -> {
@@ -71,8 +70,9 @@ public class RegexOptions implements ToXContentFragment, Writeable {
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 builder.setFlagsValue(parser.intValue());
             } else {
-                throw new OpenSearchParseException(REGEX_OPTIONS.getPreferredName()
-                    + " " + FLAGS_VALUE.getPreferredName() + " supports string or number");
+                throw new OpenSearchParseException(
+                    REGEX_OPTIONS.getPreferredName() + " " + FLAGS_VALUE.getPreferredName() + " supports string or number"
+                );
             }
         }, FLAGS_VALUE, ObjectParser.ValueType.VALUE);
         PARSER.declareStringOrNull(Builder::setFlags, FLAGS_VALUE);
@@ -158,8 +158,7 @@ public class RegexOptions implements ToXContentFragment, Writeable {
         private int flagsValue = RegExp.ALL;
         private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 
-        public Builder() {
-        }
+        public Builder() {}
 
         /**
          * Sets the regular expression syntax flags

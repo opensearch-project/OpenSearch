@@ -46,8 +46,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
     private boolean detailed = false;
     private boolean waitForCompletion = false;
 
-    public ListTasksRequest() {
-    }
+    public ListTasksRequest() {}
 
     public ListTasksRequest(StreamInput in) throws IOException {
         super(in);

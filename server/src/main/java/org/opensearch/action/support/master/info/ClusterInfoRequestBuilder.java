@@ -38,10 +38,13 @@ import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilde
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
-public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse,
-        Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>>
-        extends MasterNodeReadOperationRequestBuilder<Request, Response, Builder> {
-
+public abstract class ClusterInfoRequestBuilder<
+    Request extends ClusterInfoRequest<Request>,
+    Response extends ActionResponse,
+    Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends MasterNodeReadOperationRequestBuilder<
+        Request,
+        Response,
+        Builder> {
 
     protected ClusterInfoRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

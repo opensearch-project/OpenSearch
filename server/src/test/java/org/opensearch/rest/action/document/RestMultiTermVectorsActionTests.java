@@ -54,8 +54,7 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.POST)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
             .withPath("/some_index/some_type/_mtermvectors")
             .build();
 
@@ -70,8 +69,7 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.GET)
             .withPath("/some_index/_mtermvectors")
             .withParams(params)
             .build();
@@ -84,17 +82,17 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
     }
 
     public void testTypeInBody() throws IOException {
-        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder content = XContentFactory.jsonBuilder()
+            .startObject()
             .startArray("docs")
-                .startObject()
-                    .field("_type", "some_type")
-                    .field("_id", 1)
-                .endObject()
+            .startObject()
+            .field("_type", "some_type")
+            .field("_id", 1)
+            .endObject()
             .endArray()
-        .endObject();
+            .endObject();
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.GET)
             .withPath("/some_index/_mtermvectors")
             .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();

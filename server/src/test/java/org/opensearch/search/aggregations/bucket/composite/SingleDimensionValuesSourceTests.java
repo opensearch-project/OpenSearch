@@ -70,8 +70,7 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
         assertNotNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
         assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
-        assertNull(source.createSortedDocsProducerOrNull(reader,
-            new TermQuery(new Term("keyword", "toto)"))));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
 
         source = new BinaryValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
@@ -99,15 +98,7 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
 
         MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
-        source = new BinaryValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
-            ip,
-            context -> null,
-            DocValueFormat.RAW,
-            false,
-            1,
-            1);
+        source = new BinaryValuesSource(BigArrays.NON_RECYCLING_INSTANCE, (b) -> {}, ip, context -> null, DocValueFormat.RAW, false, 1, 1);
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
@@ -115,7 +106,8 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
         final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
         GlobalOrdinalValuesSource source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            keyword, context -> null,
+            keyword,
+            context -> null,
             DocValueFormat.RAW,
             false,
             1,
@@ -126,18 +118,9 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
         assertNotNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
         assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
-        assertNull(source.createSortedDocsProducerOrNull(reader,
-            new TermQuery(new Term("keyword", "toto)"))));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
 
-        source = new GlobalOrdinalValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            keyword,
-            context -> null,
-            DocValueFormat.RAW,
-            true,
-            1,
-            1
-        );
+        source = new GlobalOrdinalValuesSource(BigArrays.NON_RECYCLING_INSTANCE, keyword, context -> null, DocValueFormat.RAW, true, 1, 1);
         assertNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
@@ -155,15 +138,7 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
 
         final MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
-        source = new GlobalOrdinalValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            ip,
-            context -> null,
-            DocValueFormat.RAW,
-            false,
-            1,
-            1
-        );
+        source = new GlobalOrdinalValuesSource(BigArrays.NON_RECYCLING_INSTANCE, ip, context -> null, DocValueFormat.RAW, false, 1, 1);
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
     }
@@ -172,10 +147,10 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
         for (NumberFieldMapper.NumberType numberType : NumberFieldMapper.NumberType.values()) {
             MappedFieldType number = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
             final SingleDimensionValuesSource<?> source;
-            if (numberType == NumberFieldMapper.NumberType.BYTE ||
-                    numberType == NumberFieldMapper.NumberType.SHORT ||
-                    numberType == NumberFieldMapper.NumberType.INTEGER ||
-                    numberType == NumberFieldMapper.NumberType.LONG) {
+            if (numberType == NumberFieldMapper.NumberType.BYTE
+                || numberType == NumberFieldMapper.NumberType.SHORT
+                || numberType == NumberFieldMapper.NumberType.INTEGER
+                || numberType == NumberFieldMapper.NumberType.LONG) {
 
                 source = new LongValuesSource(
                     BigArrays.NON_RECYCLING_INSTANCE,
@@ -192,13 +167,22 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, LongPoint.newRangeQuery("number", 0, 1)));
-                assertNotNull(source.createSortedDocsProducerOrNull(reader, new IndexOrDocValuesQuery(
-                    LongPoint.newRangeQuery("number", 0, 1), new MatchAllDocsQuery())));
+                assertNotNull(
+                    source.createSortedDocsProducerOrNull(
+                        reader,
+                        new IndexOrDocValuesQuery(LongPoint.newRangeQuery("number", 0, 1), new MatchAllDocsQuery())
+                    )
+                );
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, new DocValuesFieldExistsQuery("number")));
-                assertNotNull(source.createSortedDocsProducerOrNull(reader,
-                    new ConstantScoreQuery(new DocValuesFieldExistsQuery("number"))));
-                assertNotNull(source.createSortedDocsProducerOrNull(reader, new BoostQuery(new IndexOrDocValuesQuery(
-                    LongPoint.newRangeQuery("number", 0, 1), new MatchAllDocsQuery()), 2.0f)));
+                assertNotNull(
+                    source.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new DocValuesFieldExistsQuery("number")))
+                );
+                assertNotNull(
+                    source.createSortedDocsProducerOrNull(
+                        reader,
+                        new BoostQuery(new IndexOrDocValuesQuery(LongPoint.newRangeQuery("number", 0, 1), new MatchAllDocsQuery()), 2.0f)
+                    )
+                );
                 assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
 
                 LongValuesSource sourceWithMissing = new LongValuesSource(
@@ -209,13 +193,18 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                     DocValueFormat.RAW,
                     true,
                     1,
-                    1);
+                    1
+                );
                 assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
                 assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, null));
                 assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
                 assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new DocValuesFieldExistsQuery("number")));
-                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader,
-                    new ConstantScoreQuery(new DocValuesFieldExistsQuery("number"))));
+                assertNull(
+                    sourceWithMissing.createSortedDocsProducerOrNull(
+                        reader,
+                        new ConstantScoreQuery(new DocValuesFieldExistsQuery("number"))
+                    )
+                );
 
                 LongValuesSource sourceRev = new LongValuesSource(
                     BigArrays.NON_RECYCLING_INSTANCE,
@@ -229,30 +218,32 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                 );
                 assertNull(sourceRev.createSortedDocsProducerOrNull(reader, null));
                 assertNull(sourceRev.createSortedDocsProducerOrNull(reader, new DocValuesFieldExistsQuery("number")));
-                assertNull(sourceRev.createSortedDocsProducerOrNull(reader,
-                    new ConstantScoreQuery(new DocValuesFieldExistsQuery("number"))));
-                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
-            } else if (numberType == NumberFieldMapper.NumberType.HALF_FLOAT ||
-                            numberType == NumberFieldMapper.NumberType.FLOAT ||
-                            numberType == NumberFieldMapper.NumberType.DOUBLE) {
-                source = new DoubleValuesSource(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    number,
-                    context -> null,
-                    DocValueFormat.RAW,
-                    false,
-                    1,
-                    1
+                assertNull(
+                    sourceRev.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new DocValuesFieldExistsQuery("number")))
                 );
-                IndexReader reader = mockIndexReader(1, 1);
-                assertNull(source.createSortedDocsProducerOrNull(reader, null));
-                assertNull(source.createSortedDocsProducerOrNull(reader, new DocValuesFieldExistsQuery("number")));
-                assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
-                assertNull(source.createSortedDocsProducerOrNull(reader,
-                    new ConstantScoreQuery(new DocValuesFieldExistsQuery("number"))));
-            } else{
-                throw new AssertionError ("missing type:" + numberType.typeName());
-            }
+                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
+            } else if (numberType == NumberFieldMapper.NumberType.HALF_FLOAT
+                || numberType == NumberFieldMapper.NumberType.FLOAT
+                || numberType == NumberFieldMapper.NumberType.DOUBLE) {
+                    source = new DoubleValuesSource(
+                        BigArrays.NON_RECYCLING_INSTANCE,
+                        number,
+                        context -> null,
+                        DocValueFormat.RAW,
+                        false,
+                        1,
+                        1
+                    );
+                    IndexReader reader = mockIndexReader(1, 1);
+                    assertNull(source.createSortedDocsProducerOrNull(reader, null));
+                    assertNull(source.createSortedDocsProducerOrNull(reader, new DocValuesFieldExistsQuery("number")));
+                    assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
+                    assertNull(
+                        source.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new DocValuesFieldExistsQuery("number")))
+                    );
+                } else {
+                    throw new AssertionError("missing type:" + numberType.typeName());
+                }
             assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
         }
     }

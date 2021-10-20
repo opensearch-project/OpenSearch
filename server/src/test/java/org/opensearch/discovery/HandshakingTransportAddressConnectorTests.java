@@ -117,8 +117,14 @@ public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCas
             }
         };
 
-        transportService = mockTransport.createTransportService(settings, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, address -> localNode, null, emptySet());
+        transportService = mockTransport.createTransportService(
+            settings,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            address -> localNode,
+            null,
+            emptySet()
+        );
 
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -157,7 +163,7 @@ public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCas
         assertEquals(remoteNode, receivedNode.get());
     }
 
-    @TestLogging(reason="ensure logging happens", value="org.opensearch.discovery.HandshakingTransportAddressConnector:INFO")
+    @TestLogging(reason = "ensure logging happens", value = "org.opensearch.discovery.HandshakingTransportAddressConnector:INFO")
     public void testLogsFullConnectionFailureAfterSuccessfulHandshake() throws Exception {
 
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -175,7 +181,9 @@ public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCas
                 "message",
                 HandshakingTransportAddressConnector.class.getCanonicalName(),
                 Level.WARN,
-                "*completed handshake with [*] but followup connection failed*"));
+                "*completed handshake with [*] but followup connection failed*"
+            )
+        );
         Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
         Loggers.addAppender(targetLogger, mockAppender);
 

@@ -46,22 +46,14 @@ import java.lang.reflect.Field;
  */
 public class LegacyESVersion extends Version {
 
-    public static final LegacyESVersion V_6_0_0_alpha1 =
-        new LegacyESVersion(6000001, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_alpha2 =
-        new LegacyESVersion(6000002, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_beta1 =
-        new LegacyESVersion(6000026, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_beta2 =
-        new LegacyESVersion(6000027, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_rc1 =
-        new LegacyESVersion(6000051, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_rc2 =
-        new LegacyESVersion(6000052, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final LegacyESVersion V_6_0_0 =
-        new LegacyESVersion(6000099, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final LegacyESVersion V_6_0_1 =
-        new LegacyESVersion(6000199, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final LegacyESVersion V_6_0_0_alpha1 = new LegacyESVersion(6000001, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final LegacyESVersion V_6_0_0_alpha2 = new LegacyESVersion(6000002, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final LegacyESVersion V_6_0_0_beta1 = new LegacyESVersion(6000026, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final LegacyESVersion V_6_0_0_beta2 = new LegacyESVersion(6000027, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final LegacyESVersion V_6_0_0_rc1 = new LegacyESVersion(6000051, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final LegacyESVersion V_6_0_0_rc2 = new LegacyESVersion(6000052, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final LegacyESVersion V_6_0_0 = new LegacyESVersion(6000099, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final LegacyESVersion V_6_0_1 = new LegacyESVersion(6000199, org.apache.lucene.util.Version.LUCENE_7_0_1);
     public static final LegacyESVersion V_6_1_0 = new LegacyESVersion(6010099, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final LegacyESVersion V_6_1_1 = new LegacyESVersion(6010199, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final LegacyESVersion V_6_1_2 = new LegacyESVersion(6010299, org.apache.lucene.util.Version.LUCENE_7_1_0);
@@ -153,15 +145,17 @@ public class LegacyESVersion extends Version {
                 if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY")) {
                     continue;
                 }
-                assert fieldName.matches("V_\\d+_\\d+_\\d+(_alpha[1,2]|_beta[1,2]|_rc[1,2])?")
-                    : "expected Version field [" + fieldName + "] to match V_\\d+_\\d+_\\d+";
+                assert fieldName.matches("V_\\d+_\\d+_\\d+(_alpha[1,2]|_beta[1,2]|_rc[1,2])?") : "expected Version field ["
+                    + fieldName
+                    + "] to match V_\\d+_\\d+_\\d+";
                 try {
                     final Version version = (Version) declaredField.get(null);
                     if (Assertions.ENABLED) {
                         final String[] fields = fieldName.split("_");
                         if (fields.length == 5) {
-                            assert (fields[1].equals("1") || fields[1].equals("6")) && fields[2].equals("0") :
-                                "field " + fieldName + " should not have a build qualifier";
+                            assert (fields[1].equals("1") || fields[1].equals("6")) && fields[2].equals("0") : "field "
+                                + fieldName
+                                + " should not have a build qualifier";
                         } else {
                             final int major = Integer.valueOf(fields[1]) * 1000000;
                             final int minor = Integer.valueOf(fields[2]) * 10000;
@@ -172,14 +166,24 @@ public class LegacyESVersion extends Version {
                             } else {
                                 expectedId = (major + minor + revision + 99);
                             }
-                            assert version.id == expectedId :
-                                "expected version [" + fieldName + "] to have id [" + expectedId + "] but was [" + version.id + "]";
+                            assert version.id == expectedId : "expected version ["
+                                + fieldName
+                                + "] to have id ["
+                                + expectedId
+                                + "] but was ["
+                                + version.id
+                                + "]";
                         }
                     }
                     final Version maybePrevious = builder.put(version.id, version);
                     builderByString.put(version.toString(), version);
-                    assert maybePrevious == null :
-                        "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
+                    assert maybePrevious == null : "expected ["
+                        + version.id
+                        + "] to be uniquely mapped but saw ["
+                        + maybePrevious
+                        + "] and ["
+                        + version
+                        + "]";
                 } catch (final IllegalAccessException e) {
                     assert false : "Version field [" + fieldName + "] should be public";
                 } catch (final RuntimeException e) {
@@ -188,7 +192,10 @@ public class LegacyESVersion extends Version {
             }
         }
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
-            + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
+            + org.apache.lucene.util.Version.LATEST
+            + "] is still set to ["
+            + CURRENT.luceneVersion
+            + "]";
 
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
@@ -215,7 +222,7 @@ public class LegacyESVersion extends Version {
      */
     @Override
     public boolean isAlpha() {
-        return major < 5 ? false :  build < 25;
+        return major < 5 ? false : build < 25;
     }
 
     /**
@@ -240,7 +247,8 @@ public class LegacyESVersion extends Version {
         String[] parts = version.split("[.-]");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException(
-                "the version needs to contain major, minor, and revision, and optionally the build: " + version);
+                "the version needs to contain major, minor, and revision, and optionally the build: " + version
+            );
         }
 
         try {
@@ -248,15 +256,14 @@ public class LegacyESVersion extends Version {
             if (rawMajor >= 5 && snapshot) { // we don't support snapshot as part of the version here anymore
                 throw new IllegalArgumentException("illegal version format - snapshots are only supported until version 2.x");
             }
-            if (rawMajor >=7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
+            if (rawMajor >= 7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
                 throw new IllegalArgumentException("illegal version format - qualifiers are only supported until version 6.x");
             }
             final int betaOffset = rawMajor < 5 ? 0 : 25;
-            //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
+            // we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
-
 
             int build = 99;
             if (parts.length == 4) {
@@ -288,7 +295,7 @@ public class LegacyESVersion extends Version {
     protected int maskId(final int id) {
         return id;
     }
-    
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -302,7 +309,7 @@ public class LegacyESVersion extends Version {
             } else {
                 sb.append(".Beta");
             }
-            sb.append(major < 5 ? build : build-25);
+            sb.append(major < 5 ? build : build - 25);
         } else if (build < 99) {
             if (major >= 2) {
                 sb.append("-rc");

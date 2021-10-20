@@ -112,10 +112,9 @@ public class Build {
         final String opensearchPrefix = distribution + "-" + Version.CURRENT;
         final URL url = getOpenSearchCodeSourceLocation();
         final String urlStr = url == null ? "" : url.toString();
-        if (urlStr.startsWith("file:/") && (
-            urlStr.endsWith(opensearchPrefix + ".jar") ||
-            urlStr.matches("(.*)" + opensearchPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar")
-        )) {
+        if (urlStr.startsWith("file:/")
+            && (urlStr.endsWith(opensearchPrefix + ".jar")
+                || urlStr.matches("(.*)" + opensearchPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar"))) {
             try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
                 hash = manifest.getMainAttributes().getValue("Change");
@@ -144,16 +143,22 @@ public class Build {
             }
         }
         if (hash == null) {
-            throw new IllegalStateException("Error finding the build hash. " +
-                    "Stopping OpenSearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+            throw new IllegalStateException(
+                "Error finding the build hash. "
+                    + "Stopping OpenSearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
         }
         if (date == null) {
-            throw new IllegalStateException("Error finding the build date. " +
-                    "Stopping OpenSearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+            throw new IllegalStateException(
+                "Error finding the build date. "
+                    + "Stopping OpenSearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
         }
         if (version == null) {
-            throw new IllegalStateException("Error finding the build version. " +
-                "Stopping OpenSearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+            throw new IllegalStateException(
+                "Error finding the build version. "
+                    + "Stopping OpenSearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
         }
 
         CURRENT = new Build(type, hash, date, isSnapshot, version, distribution);
@@ -177,10 +182,7 @@ public class Build {
     private final String version;
     private final String distribution;
 
-    public Build(
-        final Type type, final String hash, final String date, boolean isSnapshot,
-        String version,
-        String distribution) {
+    public Build(final Type type, final String hash, final String date, boolean isSnapshot, String version, String distribution) {
         this.type = type;
         this.hash = hash;
         this.date = date;
@@ -211,7 +213,7 @@ public class Build {
         // The following block is kept for existing BWS tests to pass.
         // TODO - clean up this code when we remove all v6 bwc tests.
         // TODO - clean this up when OSS flavor is removed in all of the code base
-        //        (Integ test zip still write OSS as distribution)
+        // (Integ test zip still write OSS as distribution)
         // See issue: https://github.com/opendistro-for-elasticsearch/search/issues/159
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
             flavor = in.readString();
@@ -305,7 +307,7 @@ public class Build {
 
     @Override
     public String toString() {
-        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version +"]";
+        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 
     @Override

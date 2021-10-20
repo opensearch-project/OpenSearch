@@ -45,8 +45,8 @@ import java.util.Objects;
 /**
  * Base implementation of a {@link PipelineAggregationBuilder}.
  */
-public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPipelineAggregationBuilder<PAB>>
-        extends PipelineAggregationBuilder {
+public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPipelineAggregationBuilder<PAB>> extends
+    PipelineAggregationBuilder {
 
     /**
      * Field shared by many parsers.

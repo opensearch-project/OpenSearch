@@ -35,7 +35,6 @@ package org.opensearch.action.admin.cluster.storedscripts;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
-
 public class PutStoredScriptAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutStoredScriptAction INSTANCE = new PutStoredScriptAction();

@@ -67,73 +67,119 @@ public class BuildTests extends OpenSearchTestCase {
 
     public void testIsProduction() {
         Build build = new Build(
-            Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(),
-            Build.CURRENT.isSnapshot(), Math.abs(randomInt()) + "." + Math.abs(randomInt()) + "." + Math.abs(randomInt()),
+            Build.CURRENT.type(),
+            Build.CURRENT.hash(),
+            Build.CURRENT.date(),
+            Build.CURRENT.isSnapshot(),
+            Math.abs(randomInt()) + "." + Math.abs(randomInt()) + "." + Math.abs(randomInt()),
             Build.CURRENT.getDistribution()
         );
         assertTrue(build.getQualifiedVersion(), build.isProductionRelease());
 
-        assertFalse(new Build(
-            Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(),
-            Build.CURRENT.isSnapshot(), "7.0.0-alpha1",
-            Build.CURRENT.getDistribution()
-        ).isProductionRelease());
+        assertFalse(
+            new Build(
+                Build.CURRENT.type(),
+                Build.CURRENT.hash(),
+                Build.CURRENT.date(),
+                Build.CURRENT.isSnapshot(),
+                "7.0.0-alpha1",
+                Build.CURRENT.getDistribution()
+            ).isProductionRelease()
+        );
 
-        assertFalse(new Build(
-            Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(),
-            Build.CURRENT.isSnapshot(), "7.0.0-alpha1-SNAPSHOT",
-            Build.CURRENT.getDistribution()
-        ).isProductionRelease());
+        assertFalse(
+            new Build(
+                Build.CURRENT.type(),
+                Build.CURRENT.hash(),
+                Build.CURRENT.date(),
+                Build.CURRENT.isSnapshot(),
+                "7.0.0-alpha1-SNAPSHOT",
+                Build.CURRENT.getDistribution()
+            ).isProductionRelease()
+        );
 
-        assertFalse(new Build(
-            Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(),
-            Build.CURRENT.isSnapshot(), "7.0.0-SNAPSHOT",
-            Build.CURRENT.getDistribution()
-        ).isProductionRelease());
+        assertFalse(
+            new Build(
+                Build.CURRENT.type(),
+                Build.CURRENT.hash(),
+                Build.CURRENT.date(),
+                Build.CURRENT.isSnapshot(),
+                "7.0.0-SNAPSHOT",
+                Build.CURRENT.getDistribution()
+            ).isProductionRelease()
+        );
 
-        assertFalse(new Build(
-            Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(),
-            Build.CURRENT.isSnapshot(), "Unknown",
-            Build.CURRENT.getDistribution()
-        ).isProductionRelease());
+        assertFalse(
+            new Build(
+                Build.CURRENT.type(),
+                Build.CURRENT.hash(),
+                Build.CURRENT.date(),
+                Build.CURRENT.isSnapshot(),
+                "Unknown",
+                Build.CURRENT.getDistribution()
+            ).isProductionRelease()
+        );
     }
 
     public void testEqualsAndHashCode() {
         Build build = Build.CURRENT;
 
         Build another = new Build(
-            build.type(), build.hash(), build.date(), build.isSnapshot(), build.getQualifiedVersion(), build.getDistribution()
+            build.type(),
+            build.hash(),
+            build.date(),
+            build.isSnapshot(),
+            build.getQualifiedVersion(),
+            build.getDistribution()
         );
         assertEquals(build, another);
         assertEquals(build.hashCode(), another.hashCode());
 
-        final Set<Build.Type> otherTypes =
-                Arrays.stream(Build.Type.values()).filter(f -> !f.equals(build.type())).collect(Collectors.toSet());
+        final Set<Build.Type> otherTypes = Arrays.stream(Build.Type.values())
+            .filter(f -> !f.equals(build.type()))
+            .collect(Collectors.toSet());
         final Build.Type otherType = randomFrom(otherTypes);
         Build differentType = new Build(
-            otherType, build.hash(), build.date(), build.isSnapshot(), build.getQualifiedVersion(), build.getDistribution()
+            otherType,
+            build.hash(),
+            build.date(),
+            build.isSnapshot(),
+            build.getQualifiedVersion(),
+            build.getDistribution()
         );
         assertNotEquals(build, differentType);
 
         Build differentHash = new Build(
-            build.type(), randomAlphaOfLengthBetween(3, 10), build.date(), build.isSnapshot(),
-            build.getQualifiedVersion(), build.getDistribution()
+            build.type(),
+            randomAlphaOfLengthBetween(3, 10),
+            build.date(),
+            build.isSnapshot(),
+            build.getQualifiedVersion(),
+            build.getDistribution()
         );
         assertNotEquals(build, differentHash);
 
         Build differentDate = new Build(
-            build.type(), build.hash(), "1970-01-01", build.isSnapshot(), build.getQualifiedVersion(), build.getDistribution()
+            build.type(),
+            build.hash(),
+            "1970-01-01",
+            build.isSnapshot(),
+            build.getQualifiedVersion(),
+            build.getDistribution()
         );
         assertNotEquals(build, differentDate);
 
         Build differentSnapshot = new Build(
-            build.type(), build.hash(), build.date(), !build.isSnapshot(), build.getQualifiedVersion(), build.getDistribution()
+            build.type(),
+            build.hash(),
+            build.date(),
+            !build.isSnapshot(),
+            build.getQualifiedVersion(),
+            build.getDistribution()
         );
         assertNotEquals(build, differentSnapshot);
 
-        Build differentVersion = new Build(
-            build.type(), build.hash(), build.date(), build.isSnapshot(), "1.2.3", build.getDistribution()
-        );
+        Build differentVersion = new Build(build.type(), build.hash(), build.date(), build.isSnapshot(), "1.2.3", build.getDistribution());
         assertNotEquals(build, differentVersion);
     }
 
@@ -172,63 +218,118 @@ public class BuildTests extends OpenSearchTestCase {
     }
 
     public void testSerialization() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new WriteableBuild(new Build(
-                randomFrom(Build.Type.values()),
-                randomAlphaOfLength(6), randomAlphaOfLength(6), randomBoolean(), randomAlphaOfLength(6),
-                randomAlphaOfLength(10))),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            new WriteableBuild(
+                new Build(
+                    randomFrom(Build.Type.values()),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomBoolean(),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(10)
+                )
+            ),
             // Note: the cast of the Copy- and MutateFunction is needed for some IDE (specifically Eclipse 4.10.0) to infer the right type
             (WriteableBuild b) -> copyWriteable(b, writableRegistry(), WriteableBuild::new, Version.CURRENT),
             (WriteableBuild b) -> {
                 switch (randomIntBetween(1, 5)) {
                     case 1:
-                        return new WriteableBuild(new Build(
-                            randomValueOtherThan(b.build.type(), () -> randomFrom(Build.Type.values())),
-                            b.build.hash(), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion(),
-                            b.build.getDistribution()));
+                        return new WriteableBuild(
+                            new Build(
+                                randomValueOtherThan(b.build.type(), () -> randomFrom(Build.Type.values())),
+                                b.build.hash(),
+                                b.build.date(),
+                                b.build.isSnapshot(),
+                                b.build.getQualifiedVersion(),
+                                b.build.getDistribution()
+                            )
+                        );
                     case 2:
-                        return new WriteableBuild(new Build(b.build.type(),
-                            randomStringExcept(b.build.hash()), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion(),
-                            b.build.getDistribution()));
+                        return new WriteableBuild(
+                            new Build(
+                                b.build.type(),
+                                randomStringExcept(b.build.hash()),
+                                b.build.date(),
+                                b.build.isSnapshot(),
+                                b.build.getQualifiedVersion(),
+                                b.build.getDistribution()
+                            )
+                        );
                     case 3:
-                        return new WriteableBuild(new Build(b.build.type(),
-                            b.build.hash(), randomStringExcept(b.build.date()), b.build.isSnapshot(), b.build.getQualifiedVersion(),
-                            b.build.getDistribution()));
+                        return new WriteableBuild(
+                            new Build(
+                                b.build.type(),
+                                b.build.hash(),
+                                randomStringExcept(b.build.date()),
+                                b.build.isSnapshot(),
+                                b.build.getQualifiedVersion(),
+                                b.build.getDistribution()
+                            )
+                        );
                     case 4:
-                        return new WriteableBuild(new Build(b.build.type(),
-                            b.build.hash(), b.build.date(), b.build.isSnapshot() == false, b.build.getQualifiedVersion(),
-                            b.build.getDistribution()));
+                        return new WriteableBuild(
+                            new Build(
+                                b.build.type(),
+                                b.build.hash(),
+                                b.build.date(),
+                                b.build.isSnapshot() == false,
+                                b.build.getQualifiedVersion(),
+                                b.build.getDistribution()
+                            )
+                        );
                     case 5:
-                        return new WriteableBuild(new Build(b.build.type(),
-                            b.build.hash(), b.build.date(), b.build.isSnapshot(), randomStringExcept(b.build.getQualifiedVersion()),
-                            b.build.getDistribution()));
+                        return new WriteableBuild(
+                            new Build(
+                                b.build.type(),
+                                b.build.hash(),
+                                b.build.date(),
+                                b.build.isSnapshot(),
+                                randomStringExcept(b.build.getQualifiedVersion()),
+                                b.build.getDistribution()
+                            )
+                        );
                 }
                 throw new AssertionError();
-            });
+            }
+        );
     }
 
     public void testSerializationBWC() throws IOException {
-        final WriteableBuild dockerBuild = new WriteableBuild(new Build(Build.Type.DOCKER,
-            randomAlphaOfLength(6), randomAlphaOfLength(6), randomBoolean(), randomAlphaOfLength(6),
-            "other"));
+        final WriteableBuild dockerBuild = new WriteableBuild(
+            new Build(Build.Type.DOCKER, randomAlphaOfLength(6), randomAlphaOfLength(6), randomBoolean(), randomAlphaOfLength(6), "other")
+        );
 
         final List<Version> versions = Version.getDeclaredVersions(LegacyESVersion.class);
-        final Version pre63Version =
-            randomFrom(versions.stream().filter(v -> v.before(LegacyESVersion.V_6_3_0)).collect(Collectors.toList()));
-        final Version post63Pre67Version = randomFrom(versions.stream()
-            .filter(v -> v.onOrAfter(LegacyESVersion.V_6_3_0) && v.before(LegacyESVersion.V_6_7_0)).collect(Collectors.toList()));
-        final Version post67Pre70Version = randomFrom(versions.stream()
-            .filter(v -> v.onOrAfter(LegacyESVersion.V_6_7_0) && v.before(LegacyESVersion.V_7_0_0)).collect(Collectors.toList()));
-        final Version post70Version =
-            randomFrom(versions.stream().filter(v -> v.onOrAfter(LegacyESVersion.V_7_0_0)).collect(Collectors.toList()));
-        final Version post10OpenSearchVersion =
-            randomFrom(versions.stream().filter(v -> v.onOrAfter(Version.V_1_0_0)).collect(Collectors.toList()));
+        final Version pre63Version = randomFrom(
+            versions.stream().filter(v -> v.before(LegacyESVersion.V_6_3_0)).collect(Collectors.toList())
+        );
+        final Version post63Pre67Version = randomFrom(
+            versions.stream()
+                .filter(v -> v.onOrAfter(LegacyESVersion.V_6_3_0) && v.before(LegacyESVersion.V_6_7_0))
+                .collect(Collectors.toList())
+        );
+        final Version post67Pre70Version = randomFrom(
+            versions.stream()
+                .filter(v -> v.onOrAfter(LegacyESVersion.V_6_7_0) && v.before(LegacyESVersion.V_7_0_0))
+                .collect(Collectors.toList())
+        );
+        final Version post70Version = randomFrom(
+            versions.stream().filter(v -> v.onOrAfter(LegacyESVersion.V_7_0_0)).collect(Collectors.toList())
+        );
+        final Version post10OpenSearchVersion = randomFrom(
+            versions.stream().filter(v -> v.onOrAfter(Version.V_1_0_0)).collect(Collectors.toList())
+        );
 
         final WriteableBuild pre63 = copyWriteable(dockerBuild, writableRegistry(), WriteableBuild::new, pre63Version);
         final WriteableBuild post63pre67 = copyWriteable(dockerBuild, writableRegistry(), WriteableBuild::new, post63Pre67Version);
         final WriteableBuild post67pre70 = copyWriteable(dockerBuild, writableRegistry(), WriteableBuild::new, post67Pre70Version);
         final WriteableBuild post70 = copyWriteable(dockerBuild, writableRegistry(), WriteableBuild::new, post70Version);
-        final WriteableBuild post10OpenSearch = copyWriteable(dockerBuild, writableRegistry(), WriteableBuild::new,
-            post10OpenSearchVersion);
+        final WriteableBuild post10OpenSearch = copyWriteable(
+            dockerBuild,
+            writableRegistry(),
+            WriteableBuild::new,
+            post10OpenSearchVersion
+        );
 
         assertThat(pre63.build.type(), equalTo(Build.Type.UNKNOWN));
         assertThat(post63pre67.build.type(), equalTo(Build.Type.TAR));
@@ -258,8 +359,8 @@ public class BuildTests extends OpenSearchTestCase {
 
     public void testStrictTypeParsing() {
         final String displayName = randomAlphaOfLength(8);
-        @SuppressWarnings("ResultOfMethodCallIgnored") final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> Build.Type.fromDisplayName(displayName, true));
+        @SuppressWarnings("ResultOfMethodCallIgnored")
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Build.Type.fromDisplayName(displayName, true));
         assertThat(e, hasToString(containsString("unexpected distribution type [" + displayName + "]; your distribution is broken")));
     }
 

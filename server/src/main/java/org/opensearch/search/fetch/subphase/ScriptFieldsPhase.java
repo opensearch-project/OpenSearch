@@ -95,8 +95,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
         };
     }
 
-    private FieldScript[] createLeafScripts(LeafReaderContext context,
-                                            List<ScriptFieldsContext.ScriptField> scriptFields) {
+    private FieldScript[] createLeafScripts(LeafReaderContext context, List<ScriptFieldsContext.ScriptField> scriptFields) {
         FieldScript[] scripts = new FieldScript[scriptFields.size()];
         for (int i = 0; i < scripts.length; i++) {
             try {

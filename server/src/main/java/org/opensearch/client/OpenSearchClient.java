@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
@@ -52,7 +51,9 @@ public interface OpenSearchClient {
      * @return A future allowing to get back the response.
      */
     <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
-        ActionType<Response> action, Request request);
+        ActionType<Response> action,
+        Request request
+    );
 
     /**
      * Executes a generic action, denoted by an {@link ActionType}.
@@ -64,7 +65,10 @@ public interface OpenSearchClient {
      * @param <Response>       The response type.
      */
     <Request extends ActionRequest, Response extends ActionResponse> void execute(
-        ActionType<Response> action, Request request, ActionListener<Response> listener);
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    );
 
     /**
      * Returns the threadpool used to execute requests on this client

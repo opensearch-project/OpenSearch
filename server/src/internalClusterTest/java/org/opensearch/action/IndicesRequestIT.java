@@ -113,8 +113,6 @@ import org.opensearch.transport.TransportRequestHandler;
 
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.action.DocWriteResponse;
-import org.opensearch.action.IndicesRequest;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -141,24 +139,26 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
     @Override
     protected int minimumNumberOfShards() {
-        //makes sure that a reduce is always needed when searching
+        // makes sure that a reduce is always needed when searching
         return 2;
     }
 
     @Override
     protected int minimumNumberOfReplicas() {
-        //makes sure that write operations get sent to the replica as well
-        //so we are able to intercept those messages and check them
+        // makes sure that write operations get sent to the replica as well
+        // so we are able to intercept those messages and check them
         return 1;
     }
 
     @Override
     protected Settings nodeSettings(int ordinal) {
         // must set this independently of the plugin so it overrides MockTransportService
-        return Settings.builder().put(super.nodeSettings(ordinal))
+        return Settings.builder()
+            .put(super.nodeSettings(ordinal))
             // InternalClusterInfoService sends IndicesStatsRequest periodically which messes with this test
             // this setting disables it...
-            .put("cluster.routing.allocation.disk.threshold_enabled", false).build();
+            .put("cluster.routing.allocation.disk.threshold_enabled", false)
+            .build();
     }
 
     @Override
@@ -231,11 +231,14 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testIndex() {
-        String[] indexShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
+        String[] indexShardActions = new String[] { BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
         interceptTransportActions(indexShardActions);
 
-        IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id")
-            .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id").source(
+            Requests.INDEX_CONTENT_TYPE,
+            "field",
+            "value"
+        );
         internalCluster().coordOnlyNodeClient().index(indexRequest).actionGet();
 
         clearInterceptedActions();
@@ -243,7 +246,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testDelete() {
-        String[] deleteShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
+        String[] deleteShardActions = new String[] { BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
         interceptTransportActions(deleteShardActions);
 
         DeleteRequest deleteRequest = new DeleteRequest(randomIndexOrAlias(), "type", "id");
@@ -254,8 +257,8 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdate() {
-        //update action goes to the primary, index op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
+        // update action goes to the primary, index op gets executed locally, then replicated
+        String[] updateShardActions = new String[] { UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -269,8 +272,8 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateUpsert() {
-        //update action goes to the primary, index op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
+        // update action goes to the primary, index op gets executed locally, then replicated
+        String[] updateShardActions = new String[] { UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -284,14 +287,15 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateDelete() {
-        //update action goes to the primary, delete op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
+        // update action goes to the primary, delete op gets executed locally, then replicated
+        String[] updateShardActions = new String[] { UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id")
-                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op='delete'", Collections.emptyMap()));
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").script(
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op='delete'", Collections.emptyMap())
+        );
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.DELETED, updateResponse.getResult());
 
@@ -300,7 +304,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testBulk() {
-        String[] bulkShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
+        String[] bulkShardActions = new String[] { BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
         interceptTransportActions(bulkShardActions);
 
         List<String> indices = new ArrayList<>();
@@ -400,16 +404,20 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testFlush() {
-        String[] indexShardActions = new String[]{TransportShardFlushAction.NAME, TransportShardFlushAction.NAME + "[r]",
-                TransportShardFlushAction.NAME + "[p]"};
+        String[] indexShardActions = new String[] {
+            TransportShardFlushAction.NAME,
+            TransportShardFlushAction.NAME + "[r]",
+            TransportShardFlushAction.NAME + "[p]" };
         interceptTransportActions(indexShardActions);
 
         FlushRequest flushRequest = new FlushRequest(randomIndicesOrAliases());
         internalCluster().coordOnlyNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
-                .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), flushRequest);
+        String[] indices = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)).concreteIndexNames(
+            client().admin().cluster().prepareState().get().getState(),
+            flushRequest
+        );
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
@@ -425,16 +433,20 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testRefresh() {
-        String[] indexShardActions = new String[]{TransportShardRefreshAction.NAME, TransportShardRefreshAction.NAME + "[r]",
-                TransportShardRefreshAction.NAME + "[p]"};
+        String[] indexShardActions = new String[] {
+            TransportShardRefreshAction.NAME,
+            TransportShardRefreshAction.NAME + "[r]",
+            TransportShardRefreshAction.NAME + "[p]" };
         interceptTransportActions(indexShardActions);
 
         RefreshRequest refreshRequest = new RefreshRequest(randomIndicesOrAliases());
         internalCluster().coordOnlyNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
-                .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), refreshRequest);
+        String[] indices = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)).concreteIndexNames(
+            client().admin().cluster().prepareState().get().getState(),
+            refreshRequest
+        );
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
@@ -537,9 +549,8 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     public void testPutMapping() {
         interceptTransportActions(PutMappingAction.NAME);
 
-        PutMappingRequest putMappingRequest = new PutMappingRequest(randomUniqueIndicesOrAliases())
-                .type("type")
-                .source("field", "type=text");
+        PutMappingRequest putMappingRequest = new PutMappingRequest(randomUniqueIndicesOrAliases()).type("type")
+            .source("field", "type=text");
         internalCluster().coordOnlyNodeClient().admin().indices().putMapping(putMappingRequest).actionGet();
 
         clearInterceptedActions();
@@ -559,8 +570,9 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     public void testUpdateSettings() {
         interceptTransportActions(UpdateSettingsAction.NAME);
 
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(randomIndicesOrAliases())
-                .settings(Settings.builder().put("refresh_interval", -1));
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(randomIndicesOrAliases()).settings(
+            Settings.builder().put("refresh_interval", -1)
+        );
         internalCluster().coordOnlyNodeClient().admin().indices().updateSettings(updateSettingsRequest).actionGet();
 
         clearInterceptedActions();
@@ -568,8 +580,11 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testSearchQueryThenFetch() throws Exception {
-        interceptTransportActions(SearchTransportService.QUERY_ACTION_NAME,
-                SearchTransportService.FETCH_ID_ACTION_NAME, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+        interceptTransportActions(
+            SearchTransportService.QUERY_ACTION_NAME,
+            SearchTransportService.FETCH_ID_ACTION_NAME,
+            SearchTransportService.FREE_CONTEXT_ACTION_NAME
+        );
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
@@ -584,13 +599,17 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
-        //free context messages are not necessarily sent, but if they are, check their indices
+        // free context messages are not necessarily sent, but if they are, check their indices
         assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     public void testSearchDfsQueryThenFetch() throws Exception {
-        interceptTransportActions(SearchTransportService.DFS_ACTION_NAME, SearchTransportService.QUERY_ID_ACTION_NAME,
-                SearchTransportService.FETCH_ID_ACTION_NAME, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+        interceptTransportActions(
+            SearchTransportService.DFS_ACTION_NAME,
+            SearchTransportService.QUERY_ID_ACTION_NAME,
+            SearchTransportService.FETCH_ID_ACTION_NAME,
+            SearchTransportService.FREE_CONTEXT_ACTION_NAME
+        );
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
@@ -604,9 +623,13 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
 
         clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchTransportService.DFS_ACTION_NAME, SearchTransportService.QUERY_ID_ACTION_NAME,
-                SearchTransportService.FETCH_ID_ACTION_NAME);
-        //free context messages are not necessarily sent, but if they are, check their indices
+        assertSameIndices(
+            searchRequest,
+            SearchTransportService.DFS_ACTION_NAME,
+            SearchTransportService.QUERY_ID_ACTION_NAME,
+            SearchTransportService.FETCH_ID_ACTION_NAME
+        );
+        // free context messages are not necessarily sent, but if they are, check their indices
         assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
@@ -631,8 +654,9 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
             }
         }
     }
+
     private static void assertIndicesSubset(List<String> indices, String... actions) {
-        //indices returned by each bulk shard request need to be a subset of the original indices
+        // indices returned by each bulk shard request need to be a subset of the original indices
         for (String action : actions) {
             List<TransportRequest> requests = consumeTransportRequests(action);
             assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
@@ -665,7 +689,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     private String[] randomIndicesOrAliases() {
-        int count = randomIntBetween(1, indices.size() * 2); //every index has an alias
+        int count = randomIntBetween(1, indices.size() * 2); // every index has an alias
         String[] indices = new String[count];
         for (int i = 0; i < count; i++) {
             indices[i] = randomIndexOrAlias();
@@ -695,9 +719,9 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     private static void assertAllRequestsHaveBeenConsumed() {
         Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
         for (PluginsService pluginsService : pluginsServices) {
-            Set<Map.Entry<String, List<TransportRequest>>> entries =
-                pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get()
-                .instance.requests.entrySet();
+            Set<Map.Entry<String, List<TransportRequest>>> entries = pluginsService.filterPlugins(
+                InterceptingTransportService.TestPlugin.class
+            ).stream().findFirst().get().instance.requests.entrySet();
             assertThat(entries, emptyIterable());
 
         }
@@ -706,16 +730,16 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     private static void clearInterceptedActions() {
         Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
         for (PluginsService pluginsService : pluginsServices) {
-            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get()
-                .instance.clearInterceptedActions();
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get().instance
+                .clearInterceptedActions();
         }
     }
 
     private static void interceptTransportActions(String... actions) {
         Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
         for (PluginsService pluginsService : pluginsServices) {
-            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get()
-                .instance.interceptTransportActions(actions);
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get().instance
+                .interceptTransportActions(actions);
         }
     }
 
@@ -725,7 +749,9 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
         for (PluginsService pluginsService : pluginsServices) {
             List<TransportRequest> transportRequests = pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class)
-                .stream().findFirst().get().instance.consumeRequests(action);
+                .stream()
+                .findFirst()
+                .get().instance.consumeRequests(action);
             if (transportRequests != null) {
                 requests.addAll(transportRequests);
             }
@@ -737,9 +763,12 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
         public static class TestPlugin extends Plugin implements NetworkPlugin {
             public final InterceptingTransportService instance = new InterceptingTransportService();
+
             @Override
-            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
-                                                                       ThreadContext threadContext) {
+            public List<TransportInterceptor> getTransportInterceptors(
+                NamedWriteableRegistry namedWriteableRegistry,
+                ThreadContext threadContext
+            ) {
                 return Collections.singletonList(instance);
             }
         }
@@ -749,9 +778,12 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Override
-        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                        boolean forceExecution,
-                                                                                        TransportRequestHandler<T> actualHandler) {
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+            String action,
+            String executor,
+            boolean forceExecution,
+            TransportRequestHandler<T> actualHandler
+        ) {
             return new InterceptingRequestHandler<>(action, actualHandler);
         }
 
@@ -766,7 +798,6 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         synchronized void clearInterceptedActions() {
             actions.clear();
         }
-
 
         private class InterceptingRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
 

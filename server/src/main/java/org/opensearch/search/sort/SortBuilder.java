@@ -90,8 +90,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     /**
      * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
      */
-    public abstract BucketedSort buildBucketedSort(QueryShardContext context,
-            int bucketSize, BucketedSort.ExtraData extra) throws IOException;
+    public abstract BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra)
+        throws IOException;
 
     /**
      * Set the order of sorting.
@@ -121,8 +121,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                     String fieldName = parser.text();
                     sortFields.add(fieldOrScoreSort(fieldName));
                 } else {
-                    throw new IllegalArgumentException("malformed sort format, "
-                            + "within the sort array, an object, or an actual string are allowed");
+                    throw new IllegalArgumentException(
+                        "malformed sort format, " + "within the sort array, an object, or an actual string are allowed"
+                    );
                 }
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
@@ -144,8 +145,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         }
     }
 
-    private static void parseCompoundSortField(XContentParser parser, List<SortBuilder<?>> sortFields)
-            throws IOException {
+    private static void parseCompoundSortField(XContentParser parser, List<SortBuilder<?>> sortFields) throws IOException {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -188,9 +188,12 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                 }
             }
             if (sort) {
-                return Optional.of(new SortAndFormats(
+                return Optional.of(
+                    new SortAndFormats(
                         new Sort(sortFields.toArray(new SortField[sortFields.size()])),
-                        sortFormats.toArray(new DocValueFormat[sortFormats.size()])));
+                        sortFormats.toArray(new DocValueFormat[sortFormats.size()])
+                    )
+                );
             }
         }
         return Optional.empty();
@@ -259,8 +262,10 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         // apply filters from the previous nested level
         if (parentQuery != null) {
             if (objectMapper != null) {
-                childQuery = Queries.filtered(childQuery,
-                    new ToChildBlockJoinQuery(parentQuery, context.bitsetFilter(objectMapper.nestedTypeFilter())));
+                childQuery = Queries.filtered(
+                    childQuery,
+                    new ToChildBlockJoinQuery(parentQuery, context.bitsetFilter(objectMapper.nestedTypeFilter()))
+                );
             }
         }
 

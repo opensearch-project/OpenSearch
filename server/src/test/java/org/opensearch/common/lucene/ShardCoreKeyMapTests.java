@@ -53,8 +53,7 @@ import java.util.Set;
 public class ShardCoreKeyMapTests extends OpenSearchTestCase {
 
     public void testMissingShard() throws IOException {
-        try (Directory dir = newDirectory();
-                RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             w.addDocument(new Document());
             try (IndexReader reader = w.getReader()) {
                 ShardCoreKeyMap map = new ShardCoreKeyMap();
@@ -72,8 +71,7 @@ public class ShardCoreKeyMapTests extends OpenSearchTestCase {
 
     public void testAddingAClosedReader() throws Exception {
         LeafReader reader;
-        try (Directory dir = newDirectory();
-                RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
             writer.addDocument(new Document());
             try (DirectoryReader dirReader = OpenSearchDirectoryReader.wrap(writer.getReader(), new ShardId("index1", "_na_", 1))) {
                 reader = dirReader.leaves().get(0).reader();

@@ -54,9 +54,15 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
     private final Weight[] weights;
     private final String separator;
 
-    public AdjacencyMatrixAggregatorFactory(String name, List<KeyedFilter> filters, String separator,
-                                            QueryShardContext queryShardContext, AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
+    public AdjacencyMatrixAggregatorFactory(
+        String name,
+        List<KeyedFilter> filters,
+        String separator,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactories,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, queryShardContext, parent, subFactories, metadata);
         IndexSearcher contextSearcher = queryShardContext.searcher();
         this.separator = separator;
@@ -71,10 +77,12 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, searchContext, parent, metadata);
     }
 

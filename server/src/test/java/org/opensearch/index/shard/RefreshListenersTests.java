@@ -114,11 +114,12 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         threadPool = new TestThreadPool(getTestName());
         refreshMetric = new MeanMetric();
         listeners = new RefreshListeners(
-                () -> maxListeners,
-                () -> engine.refresh("too-many-listeners"),
-                logger,
-                threadPool.getThreadContext(),
-                refreshMetric);
+            () -> maxListeners,
+            () -> engine.refresh("too-many-listeners"),
+            logger,
+            threadPool.getThreadContext(),
+            refreshMetric
+        );
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
@@ -126,8 +127,12 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         Directory directory = newDirectory();
         store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, createTempDir("translog"), indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE);
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            createTempDir("translog"),
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE
+        );
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Exception e) {
@@ -136,32 +141,37 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         };
         store.createEmpty(Version.CURRENT.luceneVersion);
         final long primaryTerm = randomNonNegativeLong();
-        final String translogUUID =
-            Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
+        final String translogUUID = Translog.createEmptyTranslog(
+            translogConfig.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm
+        );
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = new EngineConfig(
-                shardId,
-                threadPool,
-                indexSettings,
-                null,
-                store,
-                newMergePolicy(),
-                iwc.getAnalyzer(),
-                iwc.getSimilarity(),
-                new CodecService(null, logger),
-                eventListener,
-                IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(),
-                translogConfig,
-                TimeValue.timeValueMinutes(5),
-                Collections.singletonList(listeners),
-                Collections.emptyList(),
-                null,
-                new NoneCircuitBreakerService(),
-                () -> SequenceNumbers.NO_OPS_PERFORMED,
-                () -> RetentionLeases.EMPTY,
-                () -> primaryTerm,
-                EngineTestCase.tombstoneDocSupplier());
+            shardId,
+            threadPool,
+            indexSettings,
+            null,
+            store,
+            newMergePolicy(),
+            iwc.getAnalyzer(),
+            iwc.getSimilarity(),
+            new CodecService(null, logger),
+            eventListener,
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            translogConfig,
+            TimeValue.timeValueMinutes(5),
+            Collections.singletonList(listeners),
+            Collections.emptyList(),
+            null,
+            new NoneCircuitBreakerService(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED,
+            () -> RetentionLeases.EMPTY,
+            () -> primaryTerm,
+            EngineTestCase.tombstoneDocSupplier()
+        );
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
@@ -284,8 +294,10 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         {
             // But adding a listener to a non-refreshed location will fail
             DummyRefreshListener listener = new DummyRefreshListener();
-            Exception e = expectThrows(IllegalStateException.class, () ->
-                listeners.addOrNotify(unrefreshedOperation.getTranslogLocation(), listener));
+            Exception e = expectThrows(
+                IllegalStateException.class,
+                () -> listeners.addOrNotify(unrefreshedOperation.getTranslogLocation(), listener)
+            );
             assertEquals("can't wait for refresh on a closed index", e.getMessage());
             assertNull(listener.forcedRefresh.get());
             assertFalse(listeners.refreshNeeded());
@@ -359,8 +371,9 @@ public class RefreshListenersTests extends OpenSearchTestCase {
                         try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
-                            org.apache.lucene.document.Document document =
-                                    getResult.docIdAndVersion().reader.document(getResult.docIdAndVersion().docId);
+                            org.apache.lucene.document.Document document = getResult.docIdAndVersion().reader.document(
+                                getResult.docIdAndVersion().docId
+                            );
                             assertThat(document.getValues("test"), arrayContaining(testFieldValue));
                         }
                     } catch (Exception t) {
@@ -371,7 +384,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             indexers[thread].start();
         }
 
-        for (Thread indexer: indexers) {
+        for (Thread indexer : indexers) {
             indexer.join();
         }
         refresher.cancel();
@@ -427,8 +440,17 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, "test", null, Arrays.asList(document), source, XContentType.JSON,
-            null);
+        ParsedDocument doc = new ParsedDocument(
+            versionField,
+            seqID,
+            id,
+            "test",
+            null,
+            Arrays.asList(document),
+            source,
+            XContentType.JSON,
+            null
+        );
         Engine.Index index = new Engine.Index(new Term("_id", doc.id()), engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);
     }

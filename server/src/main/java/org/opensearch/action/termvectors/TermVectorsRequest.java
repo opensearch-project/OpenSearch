@@ -91,7 +91,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField DOC = new ParseField("doc");
 
-
     private String type;
 
     private String id;
@@ -132,9 +131,15 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         }
 
-        public FilterSettings(@Nullable Integer maxNumTerms, @Nullable Integer minTermFreq, @Nullable Integer maxTermFreq,
-                              @Nullable Integer minDocFreq, @Nullable Integer maxDocFreq, @Nullable Integer minWordLength,
-                              @Nullable Integer maxWordLength) {
+        public FilterSettings(
+            @Nullable Integer maxNumTerms,
+            @Nullable Integer minTermFreq,
+            @Nullable Integer maxTermFreq,
+            @Nullable Integer minDocFreq,
+            @Nullable Integer maxDocFreq,
+            @Nullable Integer minWordLength,
+            @Nullable Integer maxWordLength
+        ) {
             this.maxNumTerms = maxNumTerms;
             this.minTermFreq = minTermFreq;
             this.maxTermFreq = maxTermFreq;
@@ -165,11 +170,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
     }
 
-    private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
-            Flag.FieldStatistics);
+    private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads, Flag.FieldStatistics);
 
-    public TermVectorsRequest() {
-    }
+    public TermVectorsRequest() {}
 
     TermVectorsRequest(StreamInput in) throws IOException {
         super(in);
@@ -583,7 +586,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     public enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics
+        Positions,
+        Offsets,
+        Payloads,
+        FieldStatistics,
+        TermStatistics
     }
 
     /**
@@ -626,18 +633,19 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.index = parser.text();
                 } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.type = parser.text();
-                    deprecationLogger.deprecate("termvectors_with_types",
-                        RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.deprecate("termvectors_with_types", RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {
-                        throw new OpenSearchParseException("failed to parse term vectors request. " +
-                            "either [id] or [doc] can be specified, but not both!");
+                        throw new OpenSearchParseException(
+                            "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
+                        );
                     }
                     termVectorsRequest.id = parser.text();
                 } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.id != null) {
-                        throw new OpenSearchParseException("failed to parse term vectors request. " +
-                            "either [id] or [doc] can be specified, but not both!");
+                        throw new OpenSearchParseException(
+                            "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
+                        );
                     }
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -663,8 +671,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             if (e.getValue() instanceof String) {
                 mapStrStr.put(e.getKey(), (String) e.getValue());
             } else {
-                throw new OpenSearchParseException("expecting the analyzer at [{}] to be a String, but found [{}] instead",
-                    e.getKey(), e.getValue().getClass());
+                throw new OpenSearchParseException(
+                    "expecting the analyzer at [{}] to be a String, but found [{}] instead",
+                    e.getKey(),
+                    e.getValue().getClass()
+                );
             }
         }
         return mapStrStr;
@@ -693,8 +704,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (currentFieldName.equals("max_word_length")) {
                     settings.maxWordLength = parser.intValue();
                 } else {
-                    throw new OpenSearchParseException("failed to parse term vectors request. " +
-                        "the field [{}] is not valid for filter parameter for term vector request", currentFieldName);
+                    throw new OpenSearchParseException(
+                        "failed to parse term vectors request. "
+                            + "the field [{}] is not valid for filter parameter for term vector request",
+                        currentFieldName
+                    );
                 }
             }
         }

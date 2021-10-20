@@ -45,7 +45,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-
 /**
  * The BoostingQuery class can be used to effectively demote results that match a given query.
  * Unlike the "NOT" clause, this still selects documents that contain undesirable terms,
@@ -70,7 +69,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     private final QueryBuilder negativeQuery;
 
     private float negativeBoost = -1;
-
 
     /**
      * Create a new {@link BoostingQueryBuilder}
@@ -194,8 +192,10 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             throw new ParsingException(parser.getTokenLocation(), "[boosting] query requires 'negative' query to be set'");
         }
         if (negativeBoost < 0) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "[boosting] query requires 'negative_boost' to be set to be a positive value'");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "[boosting] query requires 'negative_boost' to be set to be a positive value'"
+            );
         }
 
         BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
@@ -224,9 +224,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     protected boolean doEquals(BoostingQueryBuilder other) {
-        return Objects.equals(negativeBoost, other.negativeBoost) &&
-                Objects.equals(positiveQuery, other.positiveQuery) &&
-                Objects.equals(negativeQuery, other.negativeQuery);
+        return Objects.equals(negativeBoost, other.negativeBoost)
+            && Objects.equals(positiveQuery, other.positiveQuery)
+            && Objects.equals(negativeQuery, other.negativeQuery);
     }
 
     @Override

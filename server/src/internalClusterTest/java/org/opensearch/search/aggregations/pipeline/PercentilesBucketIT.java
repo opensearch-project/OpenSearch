@@ -65,7 +65,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class PercentilesBucketIT extends OpenSearchIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
-    private static final double[] PERCENTS = {0.0, 1.0, 25.0, 50.0, 75.0, 99.0, 100.0};
+    private static final double[] PERCENTS = { 0.0, 1.0, 25.0, 50.0, 75.0, 99.0, 100.0 };
     static int numDocs;
     static int interval;
     static int minRandomValue;
@@ -75,8 +75,7 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", "tag", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);
@@ -92,17 +91,25 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
-            builders.add(client().prepareIndex("idx", "type").setSource(
-                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, fieldValue).field("tag", "tag" + (i % interval))
-                            .endObject()));
+            builders.add(
+                client().prepareIndex("idx", "type")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field(SINGLE_VALUED_FIELD_NAME, fieldValue)
+                            .field("tag", "tag" + (i % interval))
+                            .endObject()
+                    )
+            );
             final int bucket = (fieldValue / interval); // + (fieldValue < 0 ? -1 : 0) - (minRandomValue / interval - 1);
             valueCounts[bucket]++;
         }
 
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
-                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                    .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
+            );
         }
         indexRandom(true, builders);
         ensureSearchable();
@@ -110,10 +117,11 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
 
     public void testDocCountopLevel() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .extendedBounds(minRandomValue, maxRandomValue))
-                .addAggregation(percentilesBucket("percentiles_bucket", "histo>_count")
-                        .setPercents(PERCENTS)).get();
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+            )
+            .addAggregation(percentilesBucket("percentiles_bucket", "histo>_count").setPercents(PERCENTS))
+            .get();
 
         assertSearchResponse(response);
 
@@ -141,17 +149,16 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testDocCountAsSubAgg() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(percentilesBucket("percentiles_bucket", "histo>_count")
-                                        .setPercents(PERCENTS))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                    )
+                    .subAggregation(percentilesBucket("percentiles_bucket", "histo>_count").setPercents(PERCENTS))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -189,11 +196,10 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testMetricTopLevel() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")
-                        .setPercents(PERCENTS)).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+            .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum").setPercents(PERCENTS))
+            .get();
 
         assertSearchResponse(response);
 
@@ -223,10 +229,10 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testMetricTopLevelDefaultPercents() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+            .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -256,18 +262,19 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testMetricAsSubAgg() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue)
-                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(percentilesBucket("percentiles_bucket", "histo>sum")
-                                        .setPercents(PERCENTS))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
+                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .subAggregation(percentilesBucket("percentiles_bucket", "histo>sum").setPercents(PERCENTS))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -309,20 +316,22 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testMetricAsSubAggWithInsertZeros() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue)
-                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(percentilesBucket("percentiles_bucket", "histo>sum")
-                                        .gapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS)
-                                        .setPercents(PERCENTS)))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
+                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .subAggregation(
+                        percentilesBucket("percentiles_bucket", "histo>sum").gapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS)
+                            .setPercents(PERCENTS)
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -364,10 +373,13 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
 
     public void testNoBuckets() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
-                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")
-                        .setPercents(PERCENTS)).get();
+            .addAggregation(
+                terms("terms").field("tag")
+                    .includeExclude(new IncludeExclude(null, "tag.*"))
+                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+            )
+            .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum").setPercents(PERCENTS))
+            .get();
 
         assertSearchResponse(response);
 
@@ -387,10 +399,13 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
 
     public void testWrongPercents() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
-                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")
-                        .setPercents(PERCENTS)).get();
+            .addAggregation(
+                terms("terms").field("tag")
+                    .includeExclude(new IncludeExclude(null, "tag.*"))
+                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+            )
+            .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum").setPercents(PERCENTS))
+            .get();
 
         assertSearchResponse(response);
 
@@ -413,13 +428,13 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testBadPercents() throws Exception {
-        double[] badPercents = {-1.0, 110.0};
+        double[] badPercents = { -1.0, 110.0 };
 
         try {
             client().prepareSearch("idx")
-                    .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                    .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")
-                            .setPercents(badPercents)).get();
+                .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+                .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum").setPercents(badPercents))
+                .get();
 
             fail("Illegal percent's were provided but no exception was thrown.");
         } catch (Exception e) {
@@ -440,20 +455,21 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testBadPercents_asSubAgg() throws Exception {
-        double[] badPercents = {-1.0, 110.0};
+        double[] badPercents = { -1.0, 110.0 };
 
         try {
-            client()
-                .prepareSearch("idx")
+            client().prepareSearch("idx")
                 .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(percentilesBucket("percentiles_bucket", "histo>_count")
-                                        .setPercents(badPercents))).get();
+                    terms("terms").field("tag")
+                        .order(BucketOrder.key(true))
+                        .subAggregation(
+                            histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                                .interval(interval)
+                                .extendedBounds(minRandomValue, maxRandomValue)
+                        )
+                        .subAggregation(percentilesBucket("percentiles_bucket", "histo>_count").setPercents(badPercents))
+                )
+                .get();
 
             fail("Illegal percent's were provided but no exception was thrown.");
         } catch (Exception e) {
@@ -474,18 +490,17 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testNested() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(percentilesBucket("percentile_histo_bucket", "histo>_count").setPercents(PERCENTS)))
-                .addAggregation(percentilesBucket("percentile_terms_bucket", "terms>percentile_histo_bucket.50")
-                        .setPercents(PERCENTS)).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                    )
+                    .subAggregation(percentilesBucket("percentile_histo_bucket", "histo>_count").setPercents(PERCENTS))
+            )
+            .addAggregation(percentilesBucket("percentile_terms_bucket", "terms>percentile_histo_bucket.50").setPercents(PERCENTS))
+            .get();
 
         assertSearchResponse(response);
 
@@ -532,20 +547,18 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
     }
 
     public void testNestedWithDecimal() throws Exception {
-        double[] percent = {99.9};
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(percentilesBucket("percentile_histo_bucket", "histo>_count")
-                                        .setPercents(percent)))
-                .addAggregation(percentilesBucket("percentile_terms_bucket", "terms>percentile_histo_bucket[99.9]")
-                        .setPercents(percent)).get();
+        double[] percent = { 99.9 };
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                    )
+                    .subAggregation(percentilesBucket("percentile_histo_bucket", "histo>_count").setPercents(percent))
+            )
+            .addAggregation(percentilesBucket("percentile_terms_bucket", "terms>percentile_histo_bucket[99.9]").setPercents(percent))
+            .get();
 
         assertSearchResponse(response);
 
@@ -589,7 +602,7 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
         assertThat(percentilesBucketValue, notNullValue());
         assertThat(percentilesBucketValue.getName(), equalTo("percentile_terms_bucket"));
         for (Double p : percent) {
-            double expected = values[(int)((p / 100) * values.length)];
+            double expected = values[(int) ((p / 100) * values.length)];
             assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
         }
     }

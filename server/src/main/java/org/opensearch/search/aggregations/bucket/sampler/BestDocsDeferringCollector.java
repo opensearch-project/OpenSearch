@@ -142,7 +142,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         runDeferredAggs();
     }
 
-
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
         // no-op - deferred aggs processed in postCollection call

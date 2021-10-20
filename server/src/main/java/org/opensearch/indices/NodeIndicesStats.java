@@ -91,7 +91,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     }
 
     public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard) {
-        //this.stats = stats;
+        // this.stats = stats;
         this.statsByShard = statsByShard;
 
         // make a total common stats from old ones and current ones
@@ -204,8 +204,9 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final String level = params.param("level", "node");
-        final boolean isLevelValid =
-            "indices".equalsIgnoreCase(level) || "node".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level);
+        final boolean isLevelValid = "indices".equalsIgnoreCase(level)
+            || "node".equalsIgnoreCase(level)
+            || "shards".equalsIgnoreCase(level);
         if (!isLevelValid) {
             throw new IllegalArgumentException("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]");
         }

@@ -95,12 +95,19 @@ public interface ActionPlugin {
     default List<ActionFilter> getActionFilters() {
         return Collections.emptyList();
     }
+
     /**
      * Rest handlers added by this plugin.
      */
-    default List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+    default List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return Collections.emptyList();
     }
 
@@ -152,8 +159,11 @@ public interface ActionPlugin {
          * Create a record of an action, the {@linkplain TransportAction} that handles it, and any supporting {@linkplain TransportActions}
          * that are needed by that {@linkplain TransportAction}.
          */
-        public ActionHandler(ActionType<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
-                             Class<?>... supportTransportActions) {
+        public ActionHandler(
+            ActionType<Response> action,
+            Class<? extends TransportAction<Request, Response>> transportAction,
+            Class<?>... supportTransportActions
+        ) {
             this.action = action;
             this.transportAction = transportAction;
             this.supportTransportActions = supportTransportActions;
@@ -187,8 +197,8 @@ public interface ActionPlugin {
             }
             ActionHandler<?, ?> other = (ActionHandler<?, ?>) obj;
             return Objects.equals(action, other.action)
-                    && Objects.equals(transportAction, other.transportAction)
-                    && Objects.deepEquals(supportTransportActions, other.supportTransportActions);
+                && Objects.equals(transportAction, other.transportAction)
+                && Objects.deepEquals(supportTransportActions, other.supportTransportActions);
         }
 
         @Override

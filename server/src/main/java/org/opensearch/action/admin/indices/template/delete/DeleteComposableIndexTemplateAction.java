@@ -62,7 +62,7 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
             name = in.readString();
         }
 
-        public Request() { }
+        public Request() {}
 
         /**
          * Constructs a new delete template request for the specified name.

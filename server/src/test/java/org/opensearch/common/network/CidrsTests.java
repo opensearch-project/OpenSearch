@@ -90,15 +90,21 @@ public class CidrsTests extends OpenSearchTestCase {
 
     public void testValidSpecificCases() {
         List<Tuple<String, long[]>> cases = new ArrayList<>();
-        cases.add(new Tuple<>("192.168.0.0/24", new long[]{(192L << 24) + (168 << 16), (192L << 24) + (168 << 16) + (1 << 8)}));
-        cases.add(new Tuple<>("192.168.128.0/17",
-            new long[]{(192L << 24) + (168 << 16) + (128 << 8), (192L << 24) + (168 << 16) + (128 << 8) + (1 << 15)}));
-        cases.add(new Tuple<>("128.0.0.0/1", new long[]{128L << 24, (128L << 24) + (1L << 31)})); // edge case
-        cases.add(new Tuple<>("0.0.0.0/0", new long[]{0, 1L << 32})); // edge case
-        cases.add(new Tuple<>("0.0.0.0/1", new long[]{0, 1L << 31})); // edge case
-        cases.add(new Tuple<>(
+        cases.add(new Tuple<>("192.168.0.0/24", new long[] { (192L << 24) + (168 << 16), (192L << 24) + (168 << 16) + (1 << 8) }));
+        cases.add(
+            new Tuple<>(
+                "192.168.128.0/17",
+                new long[] { (192L << 24) + (168 << 16) + (128 << 8), (192L << 24) + (168 << 16) + (128 << 8) + (1 << 15) }
+            )
+        );
+        cases.add(new Tuple<>("128.0.0.0/1", new long[] { 128L << 24, (128L << 24) + (1L << 31) })); // edge case
+        cases.add(new Tuple<>("0.0.0.0/0", new long[] { 0, 1L << 32 })); // edge case
+        cases.add(new Tuple<>("0.0.0.0/1", new long[] { 0, 1L << 31 })); // edge case
+        cases.add(
+            new Tuple<>(
                 "192.168.1.1/32",
-                new long[]{(192L << 24) + (168L << 16) + (1L << 8) + 1L, (192L << 24) + (168L << 16) + (1L << 8) + 1L + 1})
+                new long[] { (192L << 24) + (168L << 16) + (1L << 8) + 1L, (192L << 24) + (168L << 16) + (1L << 8) + 1L + 1 }
+            )
         ); // edge case
         for (Tuple<String, long[]> test : cases) {
             long[] actual = Cidrs.cidrMaskToMinMax(test.v1());

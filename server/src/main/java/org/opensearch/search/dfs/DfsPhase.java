@@ -97,9 +97,10 @@ public class DfsPhase {
                 termStatistics[i] = stats.get(terms[i]);
             }
 
-            context.dfsResult().termsStatistics(terms, termStatistics)
-                    .fieldStatistics(fieldStatistics)
-                    .maxDoc(context.searcher().getIndexReader().maxDoc());
+            context.dfsResult()
+                .termsStatistics(terms, termStatistics)
+                .fieldStatistics(fieldStatistics)
+                .maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }

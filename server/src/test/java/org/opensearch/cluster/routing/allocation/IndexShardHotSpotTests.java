@@ -57,7 +57,7 @@ public class IndexShardHotSpotTests extends OpenSearchAllocationWithConstraintsT
         setupInitialCluster(3, 30, 10, 1);
         buildAllocationService();
         addNodesWithIndexing(1, "new_node_", 8, 10, 1);
-        int movesForModeNone = allocateAndCheckIndexShardHotSpots( false, 4, "new_node_0");
+        int movesForModeNone = allocateAndCheckIndexShardHotSpots(false, 4, "new_node_0");
 
         resetCluster();
         buildAllocationService();

@@ -65,8 +65,11 @@ public interface Scheduler {
      * @return executor
      */
     static ScheduledThreadPoolExecutor initScheduler(Settings settings) {
-        final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(1,
-                OpenSearchExecutors.daemonThreadFactory(settings, "scheduler"), new OpenSearchAbortPolicy());
+        final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(
+            1,
+            OpenSearchExecutors.daemonThreadFactory(settings, "scheduler"),
+            new OpenSearchAbortPolicy()
+        );
         scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         scheduler.setRemoveOnCancelPolicy(true);
@@ -83,8 +86,11 @@ public interface Scheduler {
         return awaitTermination(scheduledThreadPoolExecutor, timeout, timeUnit);
     }
 
-    static boolean awaitTermination(final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor,
-            final long timeout, final TimeUnit timeUnit) {
+    static boolean awaitTermination(
+        final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor,
+        final long timeout,
+        final TimeUnit timeUnit
+    ) {
         try {
             if (scheduledThreadPoolExecutor.awaitTermination(timeout, timeUnit)) {
                 return true;
@@ -144,7 +150,6 @@ public interface Scheduler {
         return new ScheduledCancellableAdapter(scheduledFuture);
     }
 
-
     /**
      * This interface represents an object whose execution may be cancelled during runtime.
      */
@@ -165,7 +170,7 @@ public interface Scheduler {
     /**
      * A scheduled cancellable allow cancelling and reading the remaining delay of a scheduled task.
      */
-    interface ScheduledCancellable extends Delayed, Cancellable { }
+    interface ScheduledCancellable extends Delayed, Cancellable {}
 
     /**
      * This class encapsulates the scheduling of a {@link Runnable} that needs to be repeated on a interval. For example, checking a value
@@ -196,8 +201,14 @@ public interface Scheduler {
          * @param executor the executor where this runnable should be scheduled to run
          * @param scheduler the {@link Scheduler} instance to use for scheduling
          */
-        ReschedulingRunnable(Runnable runnable, TimeValue interval, String executor, Scheduler scheduler,
-                             Consumer<Exception> rejectionConsumer, Consumer<Exception> failureConsumer) {
+        ReschedulingRunnable(
+            Runnable runnable,
+            TimeValue interval,
+            String executor,
+            Scheduler scheduler,
+            Consumer<Exception> rejectionConsumer,
+            Consumer<Exception> failureConsumer
+        ) {
             this.runnable = runnable;
             this.interval = interval;
             this.executor = executor;
@@ -252,10 +263,7 @@ public interface Scheduler {
 
         @Override
         public String toString() {
-            return "ReschedulingRunnable{" +
-                "runnable=" + runnable +
-                ", interval=" + interval +
-                '}';
+            return "ReschedulingRunnable{" + "runnable=" + runnable + ", interval=" + interval + '}';
         }
     }
 

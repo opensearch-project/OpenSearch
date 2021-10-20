@@ -68,9 +68,10 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
 
     private static final IndexMetadata EMPTY_INDEX_METADATA = IndexMetadata.builder("")
         .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-        .numberOfShards(1).numberOfReplicas(0).build();
+        .numberOfShards(1)
+        .numberOfReplicas(0)
+        .build();
     private static final IndexSettings indexSettings = new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY);
-
 
     private Analyzer createAnalyzerWithMode(AnalysisMode mode) {
         TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory(indexSettings, "my_analyzer", Settings.EMPTY) {
@@ -84,8 +85,7 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
                 return null;
             }
         };
-        return new CustomAnalyzer(null, new CharFilterFactory[0],
-            new TokenFilterFactory[] { tokenFilter  });
+        return new CustomAnalyzer(null, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
     }
 
     public void testParseTextFieldCheckAnalyzerAnalysisMode() {
@@ -96,8 +96,7 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
 
         // check AnalysisMode.ALL works
         Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
-        analyzers.put("my_analyzer",
-            new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(AnalysisMode.ALL)));
+        analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(AnalysisMode.ALL)));
 
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
@@ -107,16 +106,15 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
         // check that "analyzer" set to something that only supports AnalysisMode.SEARCH_TIME or AnalysisMode.INDEX_TIME is blocked
         AnalysisMode mode = randomFrom(AnalysisMode.SEARCH_TIME, AnalysisMode.INDEX_TIME);
         analyzers = defaultAnalyzers();
-        analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX,
-            createAnalyzerWithMode(mode)));
+        analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(mode)));
         indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         fieldNode.put("analyzer", "my_analyzer");
-        MapperException ex = expectThrows(MapperException.class, () -> {
-            TextFieldMapper.PARSER.parse("name", fieldNode, parserContext);
-        });
-        assertThat(ex.getMessage(),
-            containsString("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run"));
+        MapperException ex = expectThrows(MapperException.class, () -> { TextFieldMapper.PARSER.parse("name", fieldNode, parserContext); });
+        assertThat(
+            ex.getMessage(),
+            containsString("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run")
+        );
     }
 
     public void testParseTextFieldCheckSearchAnalyzerAnalysisMode() {
@@ -133,8 +131,7 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
             // check AnalysisMode.ALL and AnalysisMode.SEARCH_TIME works
             Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
             AnalysisMode mode = randomFrom(AnalysisMode.ALL, AnalysisMode.SEARCH_TIME);
-            analyzers.put("my_analyzer",
-                new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(mode)));
+            analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(mode)));
             analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
 
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
@@ -144,8 +141,7 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
             // check that "analyzer" set to AnalysisMode.INDEX_TIME is blocked
             mode = AnalysisMode.INDEX_TIME;
             analyzers = defaultAnalyzers();
-            analyzers.put("my_analyzer",
-                new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(mode)));
+            analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(mode)));
             analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
             indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
             when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
@@ -155,11 +151,14 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
             if (settingToTest.equals("search_quote_analyzer")) {
                 fieldNode.put("search_analyzer", "standard");
             }
-            MapperException ex = expectThrows(MapperException.class, () -> {
-                TextFieldMapper.PARSER.parse("field", fieldNode, parserContext);
-            });
-            assertEquals("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run in search time mode.",
-                ex.getMessage());
+            MapperException ex = expectThrows(
+                MapperException.class,
+                () -> { TextFieldMapper.PARSER.parse("field", fieldNode, parserContext); }
+            );
+            assertEquals(
+                "analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run in search time mode.",
+                ex.getMessage()
+            );
         }
     }
 
@@ -172,23 +171,24 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
         // check that "analyzer" set to AnalysisMode.INDEX_TIME is blocked if there is no search analyzer
         AnalysisMode mode = AnalysisMode.INDEX_TIME;
         Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
-        analyzers.put("my_analyzer",
-            new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(mode)));
+        analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(mode)));
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        MapperException ex = expectThrows(MapperException.class, () -> {
-            TextFieldMapper.PARSER.parse("field", fieldNode, parserContext);
-        });
-        assertThat(ex.getMessage(),
-            containsString("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run"));
+        MapperException ex = expectThrows(
+            MapperException.class,
+            () -> { TextFieldMapper.PARSER.parse("field", fieldNode, parserContext); }
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run")
+        );
 
         // check AnalysisMode.INDEX_TIME is okay if search analyzer is also set
         fieldNode.put("analyzer", "my_analyzer");
         fieldNode.put("search_analyzer", "standard");
         analyzers = defaultAnalyzers();
         mode = randomFrom(AnalysisMode.ALL, AnalysisMode.INDEX_TIME);
-        analyzers.put("my_analyzer",
-            new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(mode)));
+        analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(mode)));
         analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
 
         indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());

@@ -150,7 +150,6 @@ public class KeyedLockTests extends OpenSearchTestCase {
         assertFalse(lock.hasLockedKeys());
     }
 
-
     public static class AcquireAndReleaseThread extends Thread {
         private CountDownLatch startLatch;
         KeyedLock<String> connectionLock;
@@ -159,8 +158,13 @@ public class KeyedLockTests extends OpenSearchTestCase {
         ConcurrentHashMap<String, AtomicInteger> safeCounter;
         final int numRuns = scaledRandomIntBetween(5000, 50000);
 
-        public AcquireAndReleaseThread(CountDownLatch startLatch, KeyedLock<String> connectionLock, String[] names,
-                ConcurrentHashMap<String, Integer> counter, ConcurrentHashMap<String, AtomicInteger> safeCounter) {
+        public AcquireAndReleaseThread(
+            CountDownLatch startLatch,
+            KeyedLock<String> connectionLock,
+            String[] names,
+            ConcurrentHashMap<String, Integer> counter,
+            ConcurrentHashMap<String, AtomicInteger> safeCounter
+        ) {
             this.startLatch = startLatch;
             this.connectionLock = connectionLock;
             this.names = names;

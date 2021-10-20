@@ -61,7 +61,9 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.
     public LineStringBuilder(List<Coordinate> coordinates) {
         super(coordinates);
         if (coordinates.size() < 2) {
-            throw new IllegalArgumentException("invalid number of points in LineString (found [" + coordinates.size()+ "] - must be >= 2)");
+            throw new IllegalArgumentException(
+                "invalid number of points in LineString (found [" + coordinates.size() + "] - must be >= 2)"
+            );
         }
     }
 
@@ -93,7 +95,7 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.
     public LineStringBuilder close() {
         Coordinate start = coordinates.get(0);
         Coordinate end = coordinates.get(coordinates.size() - 1);
-        if(start.x != end.x || start.y != end.y) {
+        if (start.x != end.x || start.y != end.y) {
             coordinates.add(start);
         }
         return this;
@@ -107,8 +109,7 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.
     @Override
     public int numDimensions() {
         if (coordinates == null || coordinates.isEmpty()) {
-            throw new IllegalStateException("unable to get number of dimensions, " +
-                "LineString has not yet been initialized");
+            throw new IllegalStateException("unable to get number of dimensions, " + "LineString has not yet been initialized");
         }
         return Double.isNaN(coordinates.get(0).z) ? 2 : 3;
     }
@@ -117,10 +118,10 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.
     public JtsGeometry buildS4J() {
         Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
         Geometry geometry;
-        if(wrapdateline) {
+        if (wrapdateline) {
             ArrayList<LineString> strings = decomposeS4J(FACTORY, coordinates, new ArrayList<LineString>());
 
-            if(strings.size() == 1) {
+            if (strings.size() == 1) {
                 geometry = strings.get(0);
             } else {
                 LineString[] linestrings = strings.toArray(new LineString[strings.size()]);
@@ -135,13 +136,12 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.
 
     @Override
     public org.opensearch.geometry.Geometry buildGeometry() {
-        return new Line(coordinates.stream().mapToDouble(i->i.x).toArray(), coordinates.stream().mapToDouble(i->i.y).toArray()
-        );
+        return new Line(coordinates.stream().mapToDouble(i -> i.x).toArray(), coordinates.stream().mapToDouble(i -> i.y).toArray());
     }
 
     static ArrayList<LineString> decomposeS4J(GeometryFactory factory, Coordinate[] coordinates, ArrayList<LineString> strings) {
-        for(Coordinate[] part : decompose(+DATELINE, coordinates)) {
-            for(Coordinate[] line : decompose(-DATELINE, part)) {
+        for (Coordinate[] part : decompose(+DATELINE, coordinates)) {
+            for (Coordinate[] line : decompose(-DATELINE, part)) {
                 strings.add(factory.createLineString(line));
             }
         }
@@ -162,35 +162,35 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.
         double shift = coordinates[0].x > DATELINE ? DATELINE : (coordinates[0].x < -DATELINE ? -DATELINE : 0);
 
         for (int i = 1; i < coordinates.length; i++) {
-            double t = intersection(coordinates[i-1], coordinates[i], dateline);
-            if(!Double.isNaN(t)) {
+            double t = intersection(coordinates[i - 1], coordinates[i], dateline);
+            if (!Double.isNaN(t)) {
                 Coordinate[] part;
-                if(t<1) {
-                    part = Arrays.copyOfRange(coordinates, offset, i+1);
-                    part[part.length-1] = Edge.position(coordinates[i-1], coordinates[i], t);
-                    coordinates[offset+i-1] = Edge.position(coordinates[i-1], coordinates[i], t);
+                if (t < 1) {
+                    part = Arrays.copyOfRange(coordinates, offset, i + 1);
+                    part[part.length - 1] = Edge.position(coordinates[i - 1], coordinates[i], t);
+                    coordinates[offset + i - 1] = Edge.position(coordinates[i - 1], coordinates[i], t);
                     shift(shift, part);
-                    offset = i-1;
+                    offset = i - 1;
                     shift = coordinates[i].x > DATELINE ? DATELINE : (coordinates[i].x < -DATELINE ? -DATELINE : 0);
                 } else {
-                    part = shift(shift, Arrays.copyOfRange(coordinates, offset, i+1));
+                    part = shift(shift, Arrays.copyOfRange(coordinates, offset, i + 1));
                     offset = i;
                 }
                 parts.add(part);
             }
         }
 
-        if(offset == 0) {
+        if (offset == 0) {
             parts.add(shift(shift, coordinates));
-        } else if(offset < coordinates.length-1) {
+        } else if (offset < coordinates.length - 1) {
             Coordinate[] part = Arrays.copyOfRange(coordinates, offset, coordinates.length);
             parts.add(shift(shift, part));
         }
         return parts.toArray(new Coordinate[parts.size()][]);
     }
 
-    private static Coordinate[] shift(double shift, Coordinate...coordinates) {
-        if(shift != 0) {
+    private static Coordinate[] shift(double shift, Coordinate... coordinates) {
+        if (shift != 0) {
             for (int j = 0; j < coordinates.length; j++) {
                 coordinates[j] = new Coordinate(coordinates[j].x - 2 * shift, coordinates[j].y);
             }

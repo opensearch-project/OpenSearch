@@ -107,8 +107,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         String providerName = null;
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
+                throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
             }
             switch (parser.currentName()) {
                 case "_name":
@@ -121,8 +120,10 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
                     break;
                 default:
                     if (providerName != null) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "Only one interval rule can be specified, found [" + providerName + "] and [" + parser.currentName() + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Only one interval rule can be specified, found [" + providerName + "] and [" + parser.currentName() + "]"
+                        );
                     }
                     providerName = parser.currentName();
                     provider = IntervalsSourceProvider.fromXContent(parser);
@@ -130,8 +131,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
             }
         }
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
+            throw new ParsingException(parser.getTokenLocation(), "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
         }
         if (provider == null) {
             throw new ParsingException(parser.getTokenLocation(), "Missing intervals from interval query definition");

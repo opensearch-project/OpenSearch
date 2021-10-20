@@ -36,7 +36,6 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.aggregations.metrics.ParsedExtendedStats;
 
-
 public class ParsedExtendedStatsBucket extends ParsedExtendedStats implements ExtendedStatsBucket {
 
     @Override
@@ -45,7 +44,10 @@ public class ParsedExtendedStatsBucket extends ParsedExtendedStats implements Ex
     }
 
     private static final ObjectParser<ParsedExtendedStatsBucket, Void> PARSER = new ObjectParser<>(
-            ParsedExtendedStatsBucket.class.getSimpleName(), true, ParsedExtendedStatsBucket::new);
+        ParsedExtendedStatsBucket.class.getSimpleName(),
+        true,
+        ParsedExtendedStatsBucket::new
+    );
 
     static {
         declareExtendedStatsFields(PARSER);

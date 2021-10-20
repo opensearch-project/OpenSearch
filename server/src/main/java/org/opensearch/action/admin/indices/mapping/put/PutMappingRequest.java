@@ -76,8 +76,19 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable, ToXContentObject {
 
     private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
-            "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
-            "_size", "_timestamp", "_ttl", "_field_names"
+        "_uid",
+        "_id",
+        "_type",
+        "_source",
+        "_all",
+        "_analyzer",
+        "_parent",
+        "_routing",
+        "_index",
+        "_size",
+        "_timestamp",
+        "_ttl",
+        "_field_names"
     );
 
     private String[] indices;
@@ -113,8 +124,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         }
     }
 
-    public PutMappingRequest() {
-    }
+    public PutMappingRequest() {}
 
     /**
      * Constructs a new put mapping request against one or more indices. If nothing is set then
@@ -129,7 +139,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         ActionRequestValidationException validationException = null;
         if (type == null) {
             validationException = addValidationError("mapping type is missing", validationException);
-        }else if (type.isEmpty()) {
+        } else if (type.isEmpty()) {
             validationException = addValidationError("mapping type is empty", validationException);
         }
         if (source == null) {
@@ -138,8 +148,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             validationException = addValidationError("mapping source is empty", validationException);
         }
         if (concreteIndex != null && CollectionUtils.isEmpty(indices) == false) {
-            validationException = addValidationError("either concrete index or unresolved indices can be set, concrete index: ["
-                + concreteIndex + "] and indices: " + Arrays.asList(indices) , validationException);
+            validationException = addValidationError(
+                "either concrete index or unresolved indices can be set, concrete index: ["
+                    + concreteIndex
+                    + "] and indices: "
+                    + Arrays.asList(indices),
+                validationException
+            );
         }
         return validationException;
     }

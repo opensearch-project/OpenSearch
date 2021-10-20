@@ -53,6 +53,7 @@ public class OpenSearchParseException extends OpenSearchException {
     public OpenSearchParseException(StreamInput in) throws IOException {
         super(in);
     }
+
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;

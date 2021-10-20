@@ -60,7 +60,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.Map.of;
 
-
 /**
  * An index template is comprised of a set of index patterns, an optional template, and a list of
  * ids corresponding to component templates that should be composed in order when creating a new
@@ -76,15 +75,19 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>("index_template",
+    public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        "index_template",
         false,
-        a -> new ComposableIndexTemplate((List<String>) a[0],
+        a -> new ComposableIndexTemplate(
+            (List<String>) a[0],
             (Template) a[1],
             (List<String>) a[2],
             (Long) a[3],
             (Long) a[4],
             (Map<String, Object>) a[5],
-            (DataStreamTemplate) a[6]));
+            (DataStreamTemplate) a[6]
+        )
+    );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX_PATTERNS);
@@ -118,14 +121,26 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         return PARSER.parse(parser, null);
     }
 
-    public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
-                                   @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata) {
+    public ComposableIndexTemplate(
+        List<String> indexPatterns,
+        @Nullable Template template,
+        @Nullable List<String> componentTemplates,
+        @Nullable Long priority,
+        @Nullable Long version,
+        @Nullable Map<String, Object> metadata
+    ) {
         this(indexPatterns, template, componentTemplates, priority, version, metadata, null);
     }
 
-    public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
-                                   @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
-                                   @Nullable DataStreamTemplate dataStreamTemplate) {
+    public ComposableIndexTemplate(
+        List<String> indexPatterns,
+        @Nullable Template template,
+        @Nullable List<String> componentTemplates,
+        @Nullable Long priority,
+        @Nullable Long version,
+        @Nullable Map<String, Object> metadata,
+        @Nullable DataStreamTemplate dataStreamTemplate
+    ) {
         this.indexPatterns = indexPatterns;
         this.template = template;
         this.componentTemplates = componentTemplates;
@@ -238,8 +253,15 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.indexPatterns, this.template, this.componentTemplates, this.priority, this.version,
-            this.metadata, this.dataStreamTemplate);
+        return Objects.hash(
+            this.indexPatterns,
+            this.template,
+            this.componentTemplates,
+            this.priority,
+            this.version,
+            this.metadata,
+            this.dataStreamTemplate
+        );
     }
 
     @Override
@@ -251,13 +273,13 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return false;
         }
         ComposableIndexTemplate other = (ComposableIndexTemplate) obj;
-        return Objects.equals(this.indexPatterns, other.indexPatterns) &&
-            Objects.equals(this.template, other.template) &&
-            Objects.equals(this.componentTemplates, other.componentTemplates) &&
-            Objects.equals(this.priority, other.priority) &&
-            Objects.equals(this.version, other.version) &&
-            Objects.equals(this.metadata, other.metadata) &&
-            Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate);
+        return Objects.equals(this.indexPatterns, other.indexPatterns)
+            && Objects.equals(this.template, other.template)
+            && Objects.equals(this.componentTemplates, other.componentTemplates)
+            && Objects.equals(this.priority, other.priority)
+            && Objects.equals(this.version, other.version)
+            && Objects.equals(this.metadata, other.metadata)
+            && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate);
     }
 
     @Override
@@ -306,12 +328,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
          */
         public Map<String, Object> getDataStreamMappingSnippet() {
             return singletonMap(
-                MapperService.SINGLE_MAPPING_NAME, singletonMap(
-                    "_data_stream_timestamp", unmodifiableMap(of(
-                        "enabled", true,
-                        "timestamp_field", getTimestampField().toMap()
-                    ))
-                )
+                MapperService.SINGLE_MAPPING_NAME,
+                singletonMap("_data_stream_timestamp", unmodifiableMap(of("enabled", true, "timestamp_field", getTimestampField().toMap())))
             );
         }
 
@@ -324,10 +342,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder
-                .startObject()
-                .field(TIMESTAMP_FIELD_FIELD.getPreferredName(), getTimestampField())
-                .endObject();
+            return builder.startObject().field(TIMESTAMP_FIELD_FIELD.getPreferredName(), getTimestampField()).endObject();
         }
 
         public static DataStreamTemplate fromXContent(XContentParser parser) {

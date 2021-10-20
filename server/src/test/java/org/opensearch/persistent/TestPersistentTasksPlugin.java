@@ -105,36 +105,46 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     }
 
     @Override
-    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool,
-                                                                       Client client,
-                                                                       SettingsModule settingsModule,
-                                                                       IndexNameExpressionResolver expressionResolver) {
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
         return Collections.singletonList(new TestPersistentTasksExecutor(clusterService));
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
-                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskState.class, TestPersistentTasksExecutor.NAME, State::new)
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskState.class, TestPersistentTasksExecutor.NAME, State::new)
         );
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class,
-                    new ParseField(TestPersistentTasksExecutor.NAME), TestParams::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskState.class,
-                    new ParseField(TestPersistentTasksExecutor.NAME), State::fromXContent)
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(TestPersistentTasksExecutor.NAME),
+                TestParams::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskState.class,
+                new ParseField(TestPersistentTasksExecutor.NAME),
+                State::fromXContent
+            )
         );
     }
 
     public static class TestParams implements PersistentTaskParams {
 
-        public static final ConstructingObjectParser<TestParams, Void> REQUEST_PARSER =
-                new ConstructingObjectParser<>(TestPersistentTasksExecutor.NAME, args -> new TestParams((String) args[0]));
+        public static final ConstructingObjectParser<TestParams, Void> REQUEST_PARSER = new ConstructingObjectParser<>(
+            TestPersistentTasksExecutor.NAME,
+            args -> new TestParams((String) args[0])
+        );
 
         static {
             REQUEST_PARSER.declareString(constructorArg(), new ParseField("param"));
@@ -150,7 +160,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         private String testParam = null;
 
         public TestParams() {
-            this((String)null);
+            this((String) null);
         }
 
         public TestParams(String testParam) {
@@ -218,9 +228,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TestParams that = (TestParams) o;
-            return Objects.equals(executorNodeAttr, that.executorNodeAttr) &&
-                    Objects.equals(responseNode, that.responseNode) &&
-                    Objects.equals(testParam, that.testParam);
+            return Objects.equals(executorNodeAttr, that.executorNodeAttr)
+                && Objects.equals(responseNode, that.responseNode)
+                && Objects.equals(testParam, that.testParam);
         }
 
         @Override
@@ -243,8 +253,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         private final String phase;
 
-        public static final ConstructingObjectParser<State, Void> STATE_PARSER =
-                new ConstructingObjectParser<>(TestPersistentTasksExecutor.NAME, args -> new State((String) args[0]));
+        public static final ConstructingObjectParser<State, Void> STATE_PARSER = new ConstructingObjectParser<>(
+            TestPersistentTasksExecutor.NAME,
+            args -> new State((String) args[0])
+        );
 
         static {
             STATE_PARSER.declareString(constructorArg(), new ParseField("phase"));
@@ -332,8 +344,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             if (params == null || params.getExecutorNodeAttr() == null) {
                 return super.getAssignment(params, clusterState);
             } else {
-                DiscoveryNode executorNode = selectLeastLoadedNode(clusterState,
-                        discoveryNode -> params.getExecutorNodeAttr().equals(discoveryNode.getAttributes().get("test_attr")));
+                DiscoveryNode executorNode = selectLeastLoadedNode(
+                    clusterState,
+                    discoveryNode -> params.getExecutorNodeAttr().equals(discoveryNode.getAttributes().get("test_attr"))
+                );
                 if (executorNode != null) {
                     return new Assignment(executorNode.getId(), "test assignment");
                 } else {
@@ -351,10 +365,15 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 while (true) {
                     // wait for something to happen
                     try {
-                        assertBusy(() -> assertTrue(testTask.isCancelled() ||
-                                testTask.getOperation() != null ||
-                                clusterService.lifecycleState() != Lifecycle.State.STARTED),   // speedup finishing on closed nodes
-                            45, TimeUnit.SECONDS); // This can take a while during large cluster restart
+                        assertBusy(
+                            () -> assertTrue(
+                                testTask.isCancelled()
+                                    || testTask.getOperation() != null
+                                    || clusterService.lifecycleState() != Lifecycle.State.STARTED
+                            ),   // speedup finishing on closed nodes
+                            45,
+                            TimeUnit.SECONDS
+                        ); // This can take a while during large cluster restart
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);
                     }
@@ -410,8 +429,14 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                     PersistentTask<TestParams> task, Map<String, String> headers) {
+        protected AllocatedPersistentTask createTask(
+            long id,
+            String type,
+            String action,
+            TaskId parentTaskId,
+            PersistentTask<TestParams> task,
+            Map<String, String> headers
+        ) {
             return new TestTask(id, type, action, getDescription(task), parentTaskId, headers);
         }
     }
@@ -425,7 +450,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             super(NAME, TestTasksResponse::new);
         }
     }
-
 
     public static class TestTask extends AllocatedPersistentTask {
         private volatile String operation;
@@ -467,8 +491,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     public static class TestTasksRequest extends BaseTasksRequest<TestTasksRequest> {
         private String operation;
 
-        public TestTasksRequest() {
-        }
+        public TestTasksRequest() {}
 
         public TestTasksRequest(StreamInput in) throws IOException {
             super(in);
@@ -507,8 +530,11 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         private List<TestTaskResponse> tasks;
 
-        public TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
-                                 List<? extends FailedNodeException> nodeFailures) {
+        public TestTasksResponse(
+            List<TestTaskResponse> tasks,
+            List<TaskOperationFailure> taskFailures,
+            List<? extends FailedNodeException> nodeFailures
+        ) {
             super(taskFailures, nodeFailures);
             this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
         }
@@ -529,19 +555,33 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
     }
 
-    public static class TransportTestTaskAction extends TransportTasksAction<TestTask,
-            TestTasksRequest, TestTasksResponse, TestTaskResponse> {
+    public static class TransportTestTaskAction extends TransportTasksAction<
+        TestTask,
+        TestTasksRequest,
+        TestTasksResponse,
+        TestTaskResponse> {
 
         @Inject
         public TransportTestTaskAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
-            super(TestTaskAction.NAME, clusterService, transportService, actionFilters,
-                TestTasksRequest::new, TestTasksResponse::new, TestTaskResponse::new, ThreadPool.Names.MANAGEMENT);
+            super(
+                TestTaskAction.NAME,
+                clusterService,
+                transportService,
+                actionFilters,
+                TestTasksRequest::new,
+                TestTasksResponse::new,
+                TestTaskResponse::new,
+                ThreadPool.Names.MANAGEMENT
+            );
         }
 
         @Override
-        protected TestTasksResponse newResponse(TestTasksRequest request, List<TestTaskResponse> tasks,
-                                                List<TaskOperationFailure> taskOperationFailures,
-                                                List<FailedNodeException> failedNodeExceptions) {
+        protected TestTasksResponse newResponse(
+            TestTasksRequest request,
+            List<TestTaskResponse> tasks,
+            List<TaskOperationFailure> taskOperationFailures,
+            List<FailedNodeException> failedNodeExceptions
+        ) {
             return new TestTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
         }
 

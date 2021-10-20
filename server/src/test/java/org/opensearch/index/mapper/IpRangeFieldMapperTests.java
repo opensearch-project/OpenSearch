@@ -61,8 +61,12 @@ public class IpRangeFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testStoreCidr() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", "ip_range")
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "ip_range")
             .field("store", true);
         mapping = mapping.endObject().endObject().endObject().endObject();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
@@ -72,13 +76,15 @@ public class IpRangeFieldMapperTests extends OpenSearchSingleNodeTestCase {
         cases.put("192.168.0.0/16", "192.168.255.255");
         cases.put("192.168.0.0/17", "192.168.127.255");
         for (final Map.Entry<String, String> entry : cases.entrySet()) {
-            ParsedDocument doc =
-                mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", entry.getKey())
-                        .endObject()),
+            ParsedDocument doc = mapper.parse(
+                new SourceToParse(
+                    "test",
+                    "type",
+                    "1",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", entry.getKey()).endObject()),
                     XContentType.JSON
-                ));
+                )
+            );
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(3, fields.length);
             IndexableField dvField = fields[0];
@@ -87,9 +93,9 @@ public class IpRangeFieldMapperTests extends OpenSearchSingleNodeTestCase {
             assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
             IndexableField storedField = fields[2];
             assertTrue(storedField.fieldType().stored());
-            String strVal =
-                InetAddresses.toAddrString(InetAddresses.forString("192.168.0.0")) + " : " +
-                    InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
+            String strVal = InetAddresses.toAddrString(InetAddresses.forString("192.168.0.0"))
+                + " : "
+                + InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
             assertThat(storedField.stringValue(), containsString(strVal));
         }
     }

@@ -100,9 +100,12 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
     }
 
     @Override
-    public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
-        int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, MergeContext mergeContext)
-        throws IOException {
+    public MergeSpecification findForcedMerges(
+        SegmentInfos segmentInfos,
+        int maxSegmentCount,
+        Map<SegmentCommitInfo, Boolean> segmentsToMerge,
+        MergeContext mergeContext
+    ) throws IOException {
 
         if (upgradeInProgress) {
             MergeSpecification spec = new MergeSpecification();
@@ -110,7 +113,7 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
 
                 if (shouldUpgrade(info)) {
 
-                    // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
+                    // TODO: Use IndexUpgradeMergePolicy instead. We should be comparing codecs,
                     // for now we just assume every minor upgrade has a new format.
                     logger.debug("Adding segment {} to be upgraded", info.info.name);
                     spec.add(new OneMerge(Collections.singletonList(info)));
@@ -119,7 +122,7 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
                 // TODO: we could check IndexWriter.getMergingSegments and avoid adding merges that IW will just reject?
 
                 if (spec.merges.size() == MAX_CONCURRENT_UPGRADE_MERGES) {
-                    // hit our max upgrades, so return the spec.  we will get a cascaded call to continue.
+                    // hit our max upgrades, so return the spec. we will get a cascaded call to continue.
                     logger.debug("Returning {} merges for upgrade", spec.merges.size());
                     return spec;
                 }

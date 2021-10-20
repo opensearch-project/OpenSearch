@@ -34,4 +34,3 @@
  */
 
 package org.opensearch.search.aggregations.metrics;
-

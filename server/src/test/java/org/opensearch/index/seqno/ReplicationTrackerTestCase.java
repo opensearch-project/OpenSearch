@@ -53,19 +53,21 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
 
     ReplicationTracker newTracker(
-            final AllocationId allocationId,
-            final LongConsumer updatedGlobalCheckpoint,
-            final LongSupplier currentTimeMillisSupplier) {
+        final AllocationId allocationId,
+        final LongConsumer updatedGlobalCheckpoint,
+        final LongSupplier currentTimeMillisSupplier
+    ) {
         return new ReplicationTracker(
-                new ShardId("test", "_na_", 0),
-                allocationId.getId(),
-                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
-                randomNonNegativeLong(),
-                UNASSIGNED_SEQ_NO,
-                updatedGlobalCheckpoint,
-                currentTimeMillisSupplier,
-                (leases, listener) -> {},
-                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
+            new ShardId("test", "_na_", 0),
+            allocationId.getId(),
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+            randomNonNegativeLong(),
+            UNASSIGNED_SEQ_NO,
+            updatedGlobalCheckpoint,
+            currentTimeMillisSupplier,
+            (leases, listener) -> {},
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+        );
     }
 
     static final Supplier<SafeCommitInfo> OPS_BASED_RECOVERY_ALWAYS_REASONABLE = () -> SafeCommitInfo.EMPTY;
@@ -77,7 +79,13 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final ShardRouting primaryShard = TestShardRouting.newShardRouting(
-            shardId, nodeIdFromAllocationId(primaryId), null, true, ShardRoutingState.STARTED, primaryId);
+            shardId,
+            nodeIdFromAllocationId(primaryId),
+            null,
+            true,
+            ShardRoutingState.STARTED,
+            primaryId
+        );
         return routingTable(initializingIds, primaryShard);
     }
 
@@ -86,8 +94,16 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
         for (final AllocationId initializingId : initializingIds) {
-            builder.addShard(TestShardRouting.newShardRouting(
-                    shardId, nodeIdFromAllocationId(initializingId), null, false, ShardRoutingState.INITIALIZING, initializingId));
+            builder.addShard(
+                TestShardRouting.newShardRouting(
+                    shardId,
+                    nodeIdFromAllocationId(initializingId),
+                    null,
+                    false,
+                    ShardRoutingState.INITIALIZING,
+                    initializingId
+                )
+            );
         }
 
         builder.addShard(primaryShard);

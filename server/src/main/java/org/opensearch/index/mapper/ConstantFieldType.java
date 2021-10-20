@@ -75,9 +75,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     protected abstract boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context);
 
     private static String valueToString(Object value) {
-        return value instanceof BytesRef
-                ? ((BytesRef) value).utf8ToString()
-                : value.toString();
+        return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
     }
 
     @Override
@@ -113,10 +111,12 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query prefixQuery(String prefix,
-                             @Nullable MultiTermQuery.RewriteMethod method,
-                             boolean caseInsensitive,
-                             QueryShardContext context) {
+    public final Query prefixQuery(
+        String prefix,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        QueryShardContext context
+    ) {
         String pattern = prefix + "*";
         if (matches(pattern, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
@@ -126,10 +126,12 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query wildcardQuery(String value,
-                               @Nullable MultiTermQuery.RewriteMethod method,
-                               boolean caseInsensitive,
-                               QueryShardContext context) {
+    public final Query wildcardQuery(
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        QueryShardContext context
+    ) {
         if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {

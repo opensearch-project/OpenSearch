@@ -109,16 +109,14 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
         Script scriptTwo = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
         SearchResponse response = client().search(
-                searchRequest().source(
-                        searchSource().query(
-                                functionScoreQuery(
-                                        functionScoreQuery(
-                                                functionScoreQuery(scriptFunction(scriptOne)),
-                                                scriptFunction(scriptTwo)),
-                                                scriptFunction(scriptTwo)
-                                )
-                        )
+            searchRequest().source(
+                searchSource().query(
+                    functionScoreQuery(
+                        functionScoreQuery(functionScoreQuery(scriptFunction(scriptOne)), scriptFunction(scriptTwo)),
+                        scriptFunction(scriptTwo)
+                    )
                 )
+            )
         ).actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
@@ -132,11 +130,9 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
         SearchResponse response = client().search(
-                searchRequest().source(
-                        searchSource()
-                                .query(functionScoreQuery(scriptFunction(script)))
-                                .aggregation(terms("score_agg").script(script))
-                )
+            searchRequest().source(
+                searchSource().query(functionScoreQuery(scriptFunction(script))).aggregation(terms("score_agg").script(script))
+            )
         ).actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
@@ -147,16 +143,20 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
     public void testMinScoreFunctionScoreBasic() throws IOException {
         float score = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, OpenSearchTestCase::randomFloat);
         float minScore = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, OpenSearchTestCase::randomFloat);
-        index(INDEX, TYPE, jsonBuilder().startObject()
-            .field("num", 2)
-            .field("random_score", score) // Pass the random score as a document field so that it can be extracted in the script
-            .endObject());
+        index(
+            INDEX,
+            TYPE,
+            jsonBuilder().startObject()
+                .field("num", 2)
+                .field("random_score", score) // Pass the random score as a document field so that it can be extracted in the script
+                .endObject()
+        );
         refresh();
         ensureYellow();
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", Collections.emptyMap());
         SearchResponse searchResponse = client().search(
-                searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)))
+            searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)))
         ).actionGet();
         if (score < minScore) {
             assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
@@ -165,11 +165,17 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
         }
 
         searchResponse = client().search(
-                searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FilterFunctionBuilder[] {
-                                new FilterFunctionBuilder(scriptFunction(script)),
-                                new FilterFunctionBuilder(scriptFunction(script))
-                        }).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)))
-                ).actionGet();
+            searchRequest().source(
+                searchSource().query(
+                    functionScoreQuery(
+                        new MatchAllQueryBuilder(),
+                        new FilterFunctionBuilder[] {
+                            new FilterFunctionBuilder(scriptFunction(script)),
+                            new FilterFunctionBuilder(scriptFunction(script)) }
+                    ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
+                )
+            )
+        ).actionGet();
         if (score < minScore) {
             assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
         } else {
@@ -196,15 +202,22 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
         }
 
         SearchResponse searchResponse = client().search(
-                searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script))
-                        .setMinScore(minScore)).size(numDocs))).actionGet();
+            searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)).size(numDocs))
+        ).actionGet();
         assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
 
         searchResponse = client().search(
-                searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FilterFunctionBuilder[] {
-                        new FilterFunctionBuilder(scriptFunction(script)),
-                        new FilterFunctionBuilder(scriptFunction(script))
-                }).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)).size(numDocs))).actionGet();
+            searchRequest().source(
+                searchSource().query(
+                    functionScoreQuery(
+                        new MatchAllQueryBuilder(),
+                        new FilterFunctionBuilder[] {
+                            new FilterFunctionBuilder(scriptFunction(script)),
+                            new FilterFunctionBuilder(scriptFunction(script)) }
+                    ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
+                ).size(numDocs)
+            )
+        ).actionGet();
         assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
     }
 
@@ -224,10 +237,8 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
         index("test", "testtype", "1", jsonBuilder().startObject().field("text", "test text").endObject());
         refresh();
 
-        SearchResponse termQuery = client().search(
-            searchRequest().source(
-                    searchSource().explain(true).query(
-                            termQuery("text", "text")))).get();
+        SearchResponse termQuery = client().search(searchRequest().source(searchSource().explain(true).query(termQuery("text", "text"))))
+            .get();
         assertSearchResponse(termQuery);
         assertThat(termQuery.getHits().getTotalHits().value, equalTo(1L));
         float termQueryScore = termQuery.getHits().getAt(0).getScore();
@@ -239,20 +250,21 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
 
     protected void testMinScoreApplied(CombineFunction boostMode, float expectedScore) throws InterruptedException, ExecutionException {
         SearchResponse response = client().search(
-                searchRequest().source(
-                        searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f)))).get();
+            searchRequest().source(
+                searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f))
+            )
+        ).get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
 
         response = client().search(
-                searchRequest().source(
-                        searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f)))).get();
+            searchRequest().source(
+                searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f))
+            )
+        ).get();
 
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(0L));
     }
 }
-

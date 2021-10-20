@@ -120,29 +120,36 @@ public class NodeJoinTests extends OpenSearchTestCase {
         masterService.close();
     }
 
-    private static ClusterState initialState(DiscoveryNode localNode, long term, long version,
-                                             VotingConfiguration config) {
+    private static ClusterState initialState(DiscoveryNode localNode, long term, long version, VotingConfiguration config) {
         return ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
-            .nodes(DiscoveryNodes.builder()
-                .add(localNode)
-                .localNodeId(localNode.getId()))
-            .metadata(Metadata.builder()
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
+            .metadata(
+                Metadata.builder()
                     .coordinationMetadata(
                         CoordinationMetadata.builder()
-                        .term(term)
-                        .lastAcceptedConfiguration(config)
-                        .lastCommittedConfiguration(config)
-                    .build()))
+                            .term(term)
+                            .lastAcceptedConfiguration(config)
+                            .lastCommittedConfiguration(config)
+                            .build()
+                    )
+            )
             .version(version)
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
     }
 
     private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState, NodeHealthService nodeHealthService) {
-        deterministicTaskQueue
-            = new DeterministicTaskQueue(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), random());
+        deterministicTaskQueue = new DeterministicTaskQueue(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
+            random()
+        );
         final ThreadPool fakeThreadPool = deterministicTaskQueue.getThreadPool();
-        FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test_node","test",
-            fakeThreadPool, deterministicTaskQueue::scheduleNow);
+        FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService(
+            "test_node",
+            "test",
+            fakeThreadPool,
+            deterministicTaskQueue::scheduleNow
+        );
         setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, fakeThreadPool, Randomness.get(), nodeHealthService);
         fakeMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             coordinator.handlePublishRequest(new PublishRequest(event.state()));
@@ -152,21 +159,36 @@ public class NodeJoinTests extends OpenSearchTestCase {
     }
 
     private void setupRealMasterServiceAndCoordinator(long term, ClusterState initialState) {
-        MasterService masterService = new MasterService(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
+        MasterService masterService = new MasterService(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool
+        );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             clusterStateRef.set(event.state());
             publishListener.onResponse(null);
         });
-        setupMasterServiceAndCoordinator(term, initialState, masterService, threadPool, new Random(Randomness.get().nextLong()),
-            () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupMasterServiceAndCoordinator(
+            term,
+            initialState,
+            masterService,
+            threadPool,
+            new Random(Randomness.get().nextLong()),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();
     }
 
-    private void setupMasterServiceAndCoordinator(long term, ClusterState initialState, MasterService masterService,
-                                                  ThreadPool threadPool, Random random, NodeHealthService nodeHealthService) {
+    private void setupMasterServiceAndCoordinator(
+        long term,
+        ClusterState initialState,
+        MasterService masterService,
+        ThreadPool threadPool,
+        Random random,
+        NodeHealthService nodeHealthService
+    ) {
         if (this.masterService != null || coordinator != null) {
             throw new IllegalStateException("method setupMasterServiceAndCoordinator can only be called once");
         }
@@ -175,8 +197,10 @@ public class NodeJoinTests extends OpenSearchTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination) {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportService.HandshakeResponse(destination, initialState.getClusterName(),
-                        destination.getVersion()));
+                    handleResponse(
+                        requestId,
+                        new TransportService.HandshakeResponse(destination, initialState.getClusterName(), destination.getVersion())
+                    );
                 } else if (action.equals(JoinHelper.VALIDATE_JOIN_ACTION_NAME)) {
                     handleResponse(requestId, new TransportResponse.Empty());
                 } else {
@@ -185,18 +209,31 @@ public class NodeJoinTests extends OpenSearchTestCase {
             }
         };
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY, threadPool,
+        TransportService transportService = capturingTransport.createTransportService(
+            Settings.EMPTY,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> initialState.nodes().getLocalNode(),
-            clusterSettings, Collections.emptySet());
-        coordinator = new Coordinator("test_node", Settings.EMPTY, clusterSettings,
-            transportService, writableRegistry(),
+            clusterSettings,
+            Collections.emptySet()
+        );
+        coordinator = new Coordinator(
+            "test_node",
+            Settings.EMPTY,
+            clusterSettings,
+            transportService,
+            writableRegistry(),
             OpenSearchAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
-            () -> new InMemoryPersistedState(term, initialState), r -> emptyList(),
+            () -> new InMemoryPersistedState(term, initialState),
+            r -> emptyList(),
             new NoOpClusterApplier(),
             Collections.emptyList(),
-            random, (s, p, r) -> {}, ElectionStrategy.DEFAULT_INSTANCE, nodeHealthService);
+            random,
+            (s, p, r) -> {},
+            ElectionStrategy.DEFAULT_INSTANCE,
+            nodeHealthService
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         transport = capturingTransport;
@@ -286,14 +323,17 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(randomFrom(node0, node1))),
-            () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(randomFrom(node0, node1))),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
         assertFalse(isLocalNodeElectedMaster());
         assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
         long newTerm = initialTerm + randomLongBetween(1, 10);
-        SimpleFuture fut = joinNodeAsync(new JoinRequest(node1, newTerm,
-            Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))));
+        SimpleFuture fut = joinNodeAsync(
+            new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
+        );
         assertEquals(Coordinator.Mode.LEADER, coordinator.getMode());
         assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
         deterministicTaskQueue.runAllRunnableTasks();
@@ -307,14 +347,18 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node1)), () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node1)),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
-        expectThrows(CoordinationStateRejectedException.class,
-            () -> joinNodeAndRun(new JoinRequest(node1, newTerm,
-                Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion)))));
+        expectThrows(
+            CoordinationStateRejectedException.class,
+            () -> joinNodeAndRun(new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))))
+        );
         assertFalse(isLocalNodeElectedMaster());
     }
 
@@ -323,8 +367,11 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)), () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
@@ -337,8 +384,11 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)), () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
@@ -354,8 +404,11 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)), () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
         long newTerm = initialTerm + randomLongBetween(1, 10);
 
         joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
@@ -373,17 +426,22 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node2 = newNode(2, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node2)), () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node2)),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
-        SimpleFuture futNode0 = joinNodeAsync(new JoinRequest(node0, newTerm, Optional.of(
-            new Join(node0, node0, newTerm, initialTerm, initialVersion))));
+        SimpleFuture futNode0 = joinNodeAsync(
+            new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+        );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(futNode0.isDone());
         assertFalse(isLocalNodeElectedMaster());
-        SimpleFuture futNode1 = joinNodeAsync(new JoinRequest(node1, newTerm, Optional.of(
-            new Join(node1, node0, newTerm, initialTerm, initialVersion))));
+        SimpleFuture futNode1 = joinNodeAsync(
+            new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
+        );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(futNode1.isDone());
         assertFalse(isLocalNodeElectedMaster());
@@ -400,14 +458,16 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)), () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
         long newTerm = initialTerm + randomLongBetween(1, 10);
         handleStartJoinFrom(node1, newTerm);
         handleFollowerCheckFrom(node1, newTerm);
         long newerTerm = newTerm + randomLongBetween(1, 10);
-        joinNodeAndRun(new JoinRequest(node1, newerTerm,
-            Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion))));
+        joinNodeAndRun(new JoinRequest(node1, newerTerm, Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion))));
         assertTrue(isLocalNodeElectedMaster());
     }
 
@@ -417,36 +477,62 @@ public class NodeJoinTests extends OpenSearchTestCase {
         long initialVersion = randomLongBetween(1, 10);
 
         CoordinationMetadata.VotingConfigExclusion votingConfigExclusion = new CoordinationMetadata.VotingConfigExclusion(
-                                                        CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER, "knownNodeName");
+            CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER,
+            "knownNodeName"
+        );
 
-        setupFakeMasterServiceAndCoordinator(initialTerm, buildStateWithVotingConfigExclusion(initialNode, initialTerm,
-            initialVersion, votingConfigExclusion),
-            () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            buildStateWithVotingConfigExclusion(initialNode, initialTerm, initialVersion, votingConfigExclusion),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
 
-        DiscoveryNode knownJoiningNode = new DiscoveryNode("knownNodeName", "newNodeId", buildNewFakeTransportAddress(),
-                                                            emptyMap(), singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+        DiscoveryNode knownJoiningNode = new DiscoveryNode(
+            "knownNodeName",
+            "newNodeId",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long newerTerm = newTerm + randomLongBetween(1, 10);
 
-        joinNodeAndRun(new JoinRequest(knownJoiningNode, initialTerm,
-            Optional.of(new Join(knownJoiningNode, initialNode, newerTerm, initialTerm, initialVersion))));
+        joinNodeAndRun(
+            new JoinRequest(
+                knownJoiningNode,
+                initialTerm,
+                Optional.of(new Join(knownJoiningNode, initialNode, newerTerm, initialTerm, initialVersion))
+            )
+        );
 
-        assertTrue(MasterServiceTests.discoveryState(masterService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
-            return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
-        }));
+        assertTrue(
+            MasterServiceTests.discoveryState(masterService)
+                .getVotingConfigExclusions()
+                .stream()
+                .anyMatch(
+                    exclusion -> { return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId()); }
+                )
+        );
     }
 
-    private ClusterState buildStateWithVotingConfigExclusion(DiscoveryNode initialNode,
-                                                             long initialTerm,
-                                                             long initialVersion,
-                                                             CoordinationMetadata.VotingConfigExclusion votingConfigExclusion) {
-        ClusterState initialState = initialState(initialNode, initialTerm, initialVersion,
-                                                    new VotingConfiguration(singleton(initialNode.getId())));
+    private ClusterState buildStateWithVotingConfigExclusion(
+        DiscoveryNode initialNode,
+        long initialTerm,
+        long initialVersion,
+        CoordinationMetadata.VotingConfigExclusion votingConfigExclusion
+    ) {
+        ClusterState initialState = initialState(
+            initialNode,
+            initialTerm,
+            initialVersion,
+            new VotingConfiguration(singleton(initialNode.getId()))
+        );
         Metadata newMetadata = Metadata.builder(initialState.metadata())
-                                        .coordinationMetadata(CoordinationMetadata.builder(initialState.coordinationMetadata())
-                                                                                    .addVotingConfigExclusion(votingConfigExclusion)
-                                                                                    .build())
-                                        .build();
+            .coordinationMetadata(
+                CoordinationMetadata.builder(initialState.coordinationMetadata()).addVotingConfigExclusion(votingConfigExclusion).build()
+            )
+            .build();
 
         return ClusterState.builder(initialState).metadata(newMetadata).build();
     }
@@ -454,17 +540,18 @@ public class NodeJoinTests extends OpenSearchTestCase {
     private void handleStartJoinFrom(DiscoveryNode node, long term) throws Exception {
         final RequestHandlerRegistry<StartJoinRequest> startJoinHandler = transport.getRequestHandlers()
             .getHandler(JoinHelper.START_JOIN_ACTION_NAME);
-        startJoinHandler.processMessageReceived(new StartJoinRequest(node, term), new TestTransportChannel(
-            new ActionListener<TransportResponse>() {
+        startJoinHandler.processMessageReceived(
+            new StartJoinRequest(node, term),
+            new TestTransportChannel(new ActionListener<TransportResponse>() {
                 @Override
-                public void onResponse(TransportResponse transportResponse) {
-                }
+                public void onResponse(TransportResponse transportResponse) {}
 
                 @Override
                 public void onFailure(Exception e) {
-                fail();
-            }
-        }));
+                    fail();
+                }
+            })
+        );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(isLocalNodeElectedMaster());
         assertThat(coordinator.getMode(), equalTo(Coordinator.Mode.CANDIDATE));
@@ -496,14 +583,19 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)), () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
         long newTerm = initialTerm + randomLongBetween(1, 10);
         handleStartJoinFrom(node1, newTerm);
         handleFollowerCheckFrom(node1, newTerm);
-        assertThat(expectThrows(CoordinationStateRejectedException.class,
-            () -> joinNodeAndRun(new JoinRequest(node1, newTerm, Optional.empty()))).getMessage(),
-            containsString("join target is a follower"));
+        assertThat(
+            expectThrows(CoordinationStateRejectedException.class, () -> joinNodeAndRun(new JoinRequest(node1, newTerm, Optional.empty())))
+                .getMessage(),
+            containsString("join target is a follower")
+        );
         assertFalse(isLocalNodeElectedMaster());
     }
 
@@ -512,33 +604,43 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node1)), () -> new StatusInfo(HEALTHY, "healthy-info"));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node1)),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
         long newTerm = initialTerm + randomLongBetween(1, 10);
-        SimpleFuture fut = joinNodeAsync(new JoinRequest(node0, newTerm,
-            Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
+        SimpleFuture fut = joinNodeAsync(
+            new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+        );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(fut.isDone());
         assertFalse(isLocalNodeElectedMaster());
         handleFollowerCheckFrom(node1, newTerm);
         assertFalse(isLocalNodeElectedMaster());
-        assertThat(expectThrows(CoordinationStateRejectedException.class,
-            () -> FutureUtils.get(fut)).getMessage(),
-            containsString("became follower"));
+        assertThat(
+            expectThrows(CoordinationStateRejectedException.class, () -> FutureUtils.get(fut)).getMessage(),
+            containsString("became follower")
+        );
         assertFalse(isLocalNodeElectedMaster());
     }
 
     public void testConcurrentJoining() {
         List<DiscoveryNode> masterNodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
-            .mapToObj(nodeId -> newNode(nodeId, true)).collect(Collectors.toList());
+            .mapToObj(nodeId -> newNode(nodeId, true))
+            .collect(Collectors.toList());
         List<DiscoveryNode> otherNodes = IntStream.rangeClosed(masterNodes.size() + 1, masterNodes.size() + 1 + randomIntBetween(0, 5))
-            .mapToObj(nodeId -> newNode(nodeId, false)).collect(Collectors.toList());
+            .mapToObj(nodeId -> newNode(nodeId, false))
+            .collect(Collectors.toList());
         List<DiscoveryNode> allNodes = Stream.concat(masterNodes.stream(), otherNodes.stream()).collect(Collectors.toList());
 
         DiscoveryNode localNode = masterNodes.get(0);
-        VotingConfiguration votingConfiguration = new VotingConfiguration(randomValueOtherThan(singletonList(localNode),
-            () -> randomSubsetOf(randomIntBetween(1, masterNodes.size()), masterNodes)).stream()
-            .map(DiscoveryNode::getId).collect(Collectors.toSet()));
+        VotingConfiguration votingConfiguration = new VotingConfiguration(
+            randomValueOtherThan(singletonList(localNode), () -> randomSubsetOf(randomIntBetween(1, masterNodes.size()), masterNodes))
+                .stream()
+                .map(DiscoveryNode::getId)
+                .collect(Collectors.toSet())
+        );
 
         logger.info("Voting configuration: {}", votingConfiguration);
 
@@ -551,13 +653,12 @@ public class NodeJoinTests extends OpenSearchTestCase {
         List<DiscoveryNode> successfulNodes;
         do {
             successfulNodes = randomSubsetOf(allNodes);
-        } while (votingConfiguration.hasQuorum(successfulNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList()))
-            == false);
+        } while (votingConfiguration.hasQuorum(successfulNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())) == false);
 
         logger.info("Successful voting nodes: {}", successfulNodes);
 
-        List<JoinRequest> correctJoinRequests = successfulNodes.stream().map(
-            node -> new JoinRequest(node, newTerm, Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))))
+        List<JoinRequest> correctJoinRequests = successfulNodes.stream()
+            .map(node -> new JoinRequest(node, newTerm, Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))))
             .collect(Collectors.toList());
 
         List<DiscoveryNode> possiblyUnsuccessfulNodes = new ArrayList<>(allNodes);
@@ -568,16 +669,21 @@ public class NodeJoinTests extends OpenSearchTestCase {
         List<JoinRequest> possiblyFailingJoinRequests = possiblyUnsuccessfulNodes.stream().map(node -> {
             if (randomBoolean()) {
                 // a correct request
-                return new JoinRequest(node, newTerm, Optional.of(new Join(node, localNode,
-                    newTerm, initialTerm, initialVersion)));
+                return new JoinRequest(node, newTerm, Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion)));
             } else if (randomBoolean()) {
                 // term too low
-                return new JoinRequest(node, newTerm, Optional.of(new Join(node, localNode,
-                    randomLongBetween(0, initialTerm), initialTerm, initialVersion)));
+                return new JoinRequest(
+                    node,
+                    newTerm,
+                    Optional.of(new Join(node, localNode, randomLongBetween(0, initialTerm), initialTerm, initialVersion))
+                );
             } else {
                 // better state
-                return new JoinRequest(node, newTerm, Optional.of(new Join(node, localNode,
-                    newTerm, initialTerm, initialVersion + randomLongBetween(1, 10))));
+                return new JoinRequest(
+                    node,
+                    newTerm,
+                    Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion + randomLongBetween(1, 10)))
+                );
             }
         }).collect(Collectors.toList());
 
@@ -601,19 +707,17 @@ public class NodeJoinTests extends OpenSearchTestCase {
             }
         }, "assert invariants");
 
-        final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream().map(joinRequest ->
-            new Thread(() -> {
-                awaitBarrier.run();
+        final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream().map(joinRequest -> new Thread(() -> {
+            awaitBarrier.run();
+            joinNode(joinRequest);
+        }, "process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
+            awaitBarrier.run();
+            try {
                 joinNode(joinRequest);
-            }, "process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest ->
-            new Thread(() -> {
-                awaitBarrier.run();
-                try {
-                    joinNode(joinRequest);
-                } catch (CoordinationStateRejectedException e) {
-                    // ignore - these requests are expected to fail
-                }
-            }, "process " + joinRequest))).collect(Collectors.toList());
+            } catch (CoordinationStateRejectedException e) {
+                // ignore - these requests are expected to fail
+            }
+        }, "process " + joinRequest))).collect(Collectors.toList());
 
         assertionThread.start();
         joinThreads.forEach(Thread::start);

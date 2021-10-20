@@ -119,8 +119,9 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                             // we can't return null here lucenes DocIdMerger expects an instance
                             intersection = DocIdSetIterator.empty();
                         } else {
-                            intersection = ConjunctionDISI.intersectIterators(Arrays.asList(numeric,
-                                new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length())));
+                            intersection = ConjunctionDISI.intersectIterators(
+                                Arrays.asList(numeric, new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length()))
+                            );
                         }
                         return new FilterNumericDocValues(numeric) {
                             @Override
@@ -147,8 +148,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
         @Override
         public StoredFieldsReader getFieldsReader() {
-            return new RecoverySourcePruningStoredFieldsReader(
-                    super.getFieldsReader(), recoverySourceToKeep, recoverySourceField);
+            return new RecoverySourcePruningStoredFieldsReader(super.getFieldsReader(), recoverySourceToKeep, recoverySourceField);
         }
 
         @Override

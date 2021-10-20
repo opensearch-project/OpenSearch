@@ -103,4 +103,3 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
         }
     }
 }
-

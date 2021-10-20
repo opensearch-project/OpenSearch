@@ -52,10 +52,9 @@ import java.util.function.Function;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(LeafDocLookup.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LeafDocLookup.class);
     static final String TYPES_DEPRECATION_KEY = "type-field-doc-lookup";
-    static final String TYPES_DEPRECATION_MESSAGE =
-            "[types removal] Looking up doc types [_type] in scripts is deprecated.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Looking up doc types [_type] in scripts is deprecated.";
 
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
 
@@ -69,8 +68,12 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private int docId = -1;
 
-    LeafDocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup, @Nullable String[] types,
-                  LeafReaderContext reader) {
+    LeafDocLookup(
+        MapperService mapperService,
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+        @Nullable String[] types,
+        LeafReaderContext reader
+    ) {
         this.mapperService = mapperService;
         this.fieldDataLookup = fieldDataLookup;
         this.types = types;
@@ -97,8 +100,9 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         if (scriptValues == null) {
             final MappedFieldType fieldType = mapperService.fieldType(fieldName);
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " +
-                        Arrays.toString(types));
+                throw new IllegalArgumentException(
+                    "No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types)
+                );
             }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc

@@ -45,14 +45,16 @@ import java.util.Map;
 
 public interface IpRangeAggregatorSupplier {
 
-    Aggregator build(String name,
-                     AggregatorFactories factories,
-                     ValuesSource valuesSource,
-                     DocValueFormat format,
-                     List<BinaryRangeAggregator.Range> ranges,
-                     boolean keyed,
-                     SearchContext context,
-                     Aggregator parent,
-                     CardinalityUpperBound cardinality,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource valuesSource,
+        DocValueFormat format,
+        List<BinaryRangeAggregator.Range> ranges,
+        boolean keyed,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

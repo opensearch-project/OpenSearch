@@ -19,13 +19,13 @@ import java.util.Map;
 
 public class ShardIndexingPressureStoreTests extends OpenSearchTestCase {
 
-    private final Settings settings = Settings.builder()
-        .put(ShardIndexingPressureStore.MAX_COLD_STORE_SIZE.getKey(), 200)
-        .build();
+    private final Settings settings = Settings.builder().put(ShardIndexingPressureStore.MAX_COLD_STORE_SIZE.getKey(), 200).build();
     private final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    private final ShardIndexingPressureSettings shardIndexingPressureSettings =
-        new ShardIndexingPressureSettings(new ClusterService(settings, clusterSettings, null), settings,
-            IndexingPressure.MAX_INDEXING_BYTES.get(settings).getBytes());
+    private final ShardIndexingPressureSettings shardIndexingPressureSettings = new ShardIndexingPressureSettings(
+        new ClusterService(settings, clusterSettings, null),
+        settings,
+        IndexingPressure.MAX_INDEXING_BYTES.get(settings).getBytes()
+    );
     private ShardIndexingPressureStore store;
     private ShardId testShardId;
 
@@ -104,12 +104,10 @@ public class ShardIndexingPressureStoreTests extends OpenSearchTestCase {
         }
 
         // Verify cold store size is maximum
-        assertEquals(ShardIndexingPressureStore.MAX_COLD_STORE_SIZE.get(settings) + 1,
-            store.getShardIndexingPressureColdStore().size());
+        assertEquals(ShardIndexingPressureStore.MAX_COLD_STORE_SIZE.get(settings) + 1, store.getShardIndexingPressureColdStore().size());
 
         // get and remove one more tracker object from hot store
-        ShardId shardId = new ShardId("index", "uuid",
-            ShardIndexingPressureStore.MAX_COLD_STORE_SIZE.get(settings) + 1);
+        ShardId shardId = new ShardId("index", "uuid", ShardIndexingPressureStore.MAX_COLD_STORE_SIZE.get(settings) + 1);
         ShardIndexingPressureTracker tracker = store.getShardIndexingPressureTracker(shardId);
         store.tryTrackerCleanupFromHotStore(tracker, () -> true);
 
@@ -125,9 +123,7 @@ public class ShardIndexingPressureStoreTests extends OpenSearchTestCase {
         final ShardIndexingPressureTracker[] trackers = new ShardIndexingPressureTracker[NUM_THREADS];
         for (int i = 0; i < NUM_THREADS; i++) {
             int counter = i;
-            threads[i] = new Thread(() -> {
-                trackers[counter] = store.getShardIndexingPressureTracker(testShardId);
-            });
+            threads[i] = new Thread(() -> { trackers[counter] = store.getShardIndexingPressureTracker(testShardId); });
             threads[i].start();
         }
 
@@ -167,7 +163,7 @@ public class ShardIndexingPressureStoreTests extends OpenSearchTestCase {
     }
 
     public void testTrackerConcurrentEvictionFromColdStore() throws Exception {
-        int maxColdStoreSize =  ShardIndexingPressureStore.MAX_COLD_STORE_SIZE.get(settings);
+        int maxColdStoreSize = ShardIndexingPressureStore.MAX_COLD_STORE_SIZE.get(settings);
         final int NUM_THREADS = scaledRandomIntBetween(maxColdStoreSize * 2, maxColdStoreSize * 8);
         final Thread[] threads = new Thread[NUM_THREADS];
         for (int i = 0; i < NUM_THREADS; i++) {

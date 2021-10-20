@@ -137,6 +137,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     Comparable getUpperValueLeadSource() throws IOException {
         return size() >= maxSize ? arrays[0].toComparable(top()) : null;
     }
+
     /**
      * Returns the document count in <code>slot</code>.
      */
@@ -151,7 +152,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         for (int i = 0; i < arrays.length; i++) {
             arrays[i].copyCurrent(slot);
         }
-        docCounts = bigArrays.grow(docCounts, slot+1);
+        docCounts = bigArrays.grow(docCounts, slot + 1);
         docCounts.set(slot, 1);
     }
 
@@ -168,7 +169,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
                 cmp = arrays[i].compare(slot1, slot2);
             }
             if (cmp != 0) {
-                return cmp > 0 ? i+1 : -(i+1);
+                return cmp > 0 ? i + 1 : -(i + 1);
             }
         }
         return 0;
@@ -211,7 +212,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         for (int i = 0; i < arrays.length; i++) {
             int cmp = arrays[i].compareCurrentWithAfter();
             if (cmp != 0) {
-                return cmp > 0 ? i+1 : -(i+1);
+                return cmp > 0 ? i + 1 : -(i + 1);
             }
         }
         return 0;
@@ -236,14 +237,15 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector in) throws IOException {
         return getLeafCollector(null, context, in);
     }
+
     /**
      * Creates the collector that will visit the composite buckets of the matching documents.
      * If <code>forceLeadSourceValue</code> is not null, the leading source will use this value
      * for each document.
      * The provided collector <code>in</code> is called on each composite bucket.
      */
-    LeafBucketCollector getLeafCollector(Comparable forceLeadSourceValue,
-                                         LeafReaderContext context, LeafBucketCollector in) throws IOException {
+    LeafBucketCollector getLeafCollector(Comparable forceLeadSourceValue, LeafReaderContext context, LeafBucketCollector in)
+        throws IOException {
         int last = arrays.length - 1;
         LeafBucketCollector collector = in;
         while (last > 0) {
@@ -264,7 +266,6 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     boolean addIfCompetitive() {
         return addIfCompetitive(0);
     }
-
 
     /**
      * Add or update the current composite key in the queue if the values are competitive.

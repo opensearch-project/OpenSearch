@@ -38,5 +38,4 @@ import org.opensearch.search.aggregations.bucket.SingleBucketAggregation;
  * top-matching documents. Computation of child aggregations is deferred until
  * the top-matching documents on a shard have been determined.
  */
-public interface Sampler extends SingleBucketAggregation {
-}
+public interface Sampler extends SingleBucketAggregation {}

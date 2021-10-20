@@ -44,8 +44,13 @@ public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineR
         super(client, action, new PutPipelineRequest());
     }
 
-    public PutPipelineRequestBuilder(OpenSearchClient client, PutPipelineAction action, String id, BytesReference source,
-                                     XContentType xContentType) {
+    public PutPipelineRequestBuilder(
+        OpenSearchClient client,
+        PutPipelineAction action,
+        String id,
+        BytesReference source,
+        XContentType xContentType
+    ) {
         super(client, action, new PutPipelineRequest(id, source, xContentType));
     }
 }

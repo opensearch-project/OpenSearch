@@ -35,9 +35,9 @@ import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilde
 import org.opensearch.client.OpenSearchClient;
 
 public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<
-        GetIndexTemplatesRequest,
-        GetIndexTemplatesResponse,
-        GetIndexTemplatesRequestBuilder> {
+    GetIndexTemplatesRequest,
+    GetIndexTemplatesResponse,
+    GetIndexTemplatesRequestBuilder> {
 
     public GetIndexTemplatesRequestBuilder(OpenSearchClient client, GetIndexTemplatesAction action) {
         super(client, action, new GetIndexTemplatesRequest());
@@ -47,4 +47,3 @@ public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequ
         super(client, action, new GetIndexTemplatesRequest(names));
     }
 }
-

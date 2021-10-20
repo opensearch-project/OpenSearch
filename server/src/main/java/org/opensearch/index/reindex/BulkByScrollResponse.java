@@ -75,18 +75,15 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     private static final String FAILURES_FIELD = "failures";
 
     @SuppressWarnings("unchecked")
-    private static final ObjectParser<BulkByScrollResponseBuilder, Void> PARSER =
-        new ObjectParser<>(
-            "bulk_by_scroll_response",
-            true,
-            BulkByScrollResponseBuilder::new
-        );
+    private static final ObjectParser<BulkByScrollResponseBuilder, Void> PARSER = new ObjectParser<>(
+        "bulk_by_scroll_response",
+        true,
+        BulkByScrollResponseBuilder::new
+    );
     static {
         PARSER.declareLong(BulkByScrollResponseBuilder::setTook, new ParseField(TOOK_FIELD));
         PARSER.declareBoolean(BulkByScrollResponseBuilder::setTimedOut, new ParseField(TIMED_OUT_FIELD));
-        PARSER.declareObjectArray(
-            BulkByScrollResponseBuilder::setFailures, (p, c) -> parseFailure(p), new ParseField(FAILURES_FIELD)
-        );
+        PARSER.declareObjectArray(BulkByScrollResponseBuilder::setFailures, (p, c) -> parseFailure(p), new ParseField(FAILURES_FIELD));
         // since the result of BulkByScrollResponse.Status are mixed we also parse that in this
         Status.declareFields(PARSER);
     }
@@ -100,8 +97,13 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         timedOut = in.readBoolean();
     }
 
-    public BulkByScrollResponse(TimeValue took, BulkByScrollTask.Status status, List<Failure> bulkFailures,
-                                List<ScrollableHitSource.SearchFailure> searchFailures, boolean timedOut) {
+    public BulkByScrollResponse(
+        TimeValue took,
+        BulkByScrollTask.Status status,
+        List<Failure> bulkFailures,
+        List<ScrollableHitSource.SearchFailure> searchFailures,
+        boolean timedOut
+    ) {
         this.took = took;
         this.status = requireNonNull(status, "Null status not supported");
         this.bulkFailures = bulkFailures;
@@ -218,12 +220,12 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         builder.field(TIMED_OUT_FIELD, timedOut);
         status.innerXContent(builder, params);
         builder.startArray("failures");
-        for (Failure failure: bulkFailures) {
+        for (Failure failure : bulkFailures) {
             builder.startObject();
             failure.toXContent(builder, params);
             builder.endObject();
         }
-        for (ScrollableHitSource.SearchFailure failure: searchFailures) {
+        for (ScrollableHitSource.SearchFailure failure : searchFailures) {
             failure.toXContent(builder, params);
         }
         builder.endArray();
@@ -235,77 +237,77 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     }
 
     private static Object parseFailure(XContentParser parser) throws IOException {
-       ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser);
-       Token token;
-       String index = null;
-       String type = null;
-       String id = null;
-       Integer status = null;
-       Integer shardId = null;
-       String nodeId = null;
-       OpenSearchException bulkExc = null;
-       OpenSearchException searchExc = null;
-       while ((token = parser.nextToken()) != Token.END_OBJECT) {
-           ensureExpectedToken(Token.FIELD_NAME, token, parser);
-           String name = parser.currentName();
-           token = parser.nextToken();
-           if (token == Token.START_ARRAY) {
-               parser.skipChildren();
-           } else if (token == Token.START_OBJECT) {
-               switch (name) {
-                   case SearchFailure.REASON_FIELD:
-                       searchExc = OpenSearchException.fromXContent(parser);
-                       break;
-                   case Failure.CAUSE_FIELD:
-                       bulkExc = OpenSearchException.fromXContent(parser);
-                       break;
-                   default:
-                       parser.skipChildren();
-               }
-           } else if (token == Token.VALUE_STRING) {
-               switch (name) {
-                   // This field is the same as SearchFailure.index
-                   case Failure.INDEX_FIELD:
-                       index = parser.text();
-                       break;
-                   case Failure.TYPE_FIELD:
-                       type = parser.text();
-                       break;
-                   case Failure.ID_FIELD:
-                       id = parser.text();
-                       break;
-                   case SearchFailure.NODE_FIELD:
-                       nodeId = parser.text();
-                       break;
-                   default:
-                       // Do nothing
-                       break;
-               }
-           } else if (token == Token.VALUE_NUMBER) {
-               switch (name) {
-                   case Failure.STATUS_FIELD:
-                       status = parser.intValue();
-                       break;
-                   case SearchFailure.SHARD_FIELD:
-                       shardId = parser.intValue();
-                       break;
-                   default:
-                       // Do nothing
-                       break;
-               }
-           }
-       }
-       if (bulkExc != null) {
-           return new Failure(index, type, id, bulkExc, RestStatus.fromCode(status));
-       } else if (searchExc != null) {
-           if (status == null) {
-               return new SearchFailure(searchExc, index, shardId, nodeId);
-           } else {
-               return new SearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
-           }
-       } else {
-           throw new OpenSearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
-       }
+        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser);
+        Token token;
+        String index = null;
+        String type = null;
+        String id = null;
+        Integer status = null;
+        Integer shardId = null;
+        String nodeId = null;
+        OpenSearchException bulkExc = null;
+        OpenSearchException searchExc = null;
+        while ((token = parser.nextToken()) != Token.END_OBJECT) {
+            ensureExpectedToken(Token.FIELD_NAME, token, parser);
+            String name = parser.currentName();
+            token = parser.nextToken();
+            if (token == Token.START_ARRAY) {
+                parser.skipChildren();
+            } else if (token == Token.START_OBJECT) {
+                switch (name) {
+                    case SearchFailure.REASON_FIELD:
+                        searchExc = OpenSearchException.fromXContent(parser);
+                        break;
+                    case Failure.CAUSE_FIELD:
+                        bulkExc = OpenSearchException.fromXContent(parser);
+                        break;
+                    default:
+                        parser.skipChildren();
+                }
+            } else if (token == Token.VALUE_STRING) {
+                switch (name) {
+                    // This field is the same as SearchFailure.index
+                    case Failure.INDEX_FIELD:
+                        index = parser.text();
+                        break;
+                    case Failure.TYPE_FIELD:
+                        type = parser.text();
+                        break;
+                    case Failure.ID_FIELD:
+                        id = parser.text();
+                        break;
+                    case SearchFailure.NODE_FIELD:
+                        nodeId = parser.text();
+                        break;
+                    default:
+                        // Do nothing
+                        break;
+                }
+            } else if (token == Token.VALUE_NUMBER) {
+                switch (name) {
+                    case Failure.STATUS_FIELD:
+                        status = parser.intValue();
+                        break;
+                    case SearchFailure.SHARD_FIELD:
+                        shardId = parser.intValue();
+                        break;
+                    default:
+                        // Do nothing
+                        break;
+                }
+            }
+        }
+        if (bulkExc != null) {
+            return new Failure(index, type, id, bulkExc, RestStatus.fromCode(status));
+        } else if (searchExc != null) {
+            if (status == null) {
+                return new SearchFailure(searchExc, index, shardId, nodeId);
+            } else {
+                return new SearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
+            }
+        } else {
+            throw new OpenSearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
+        }
     }
 
     @Override

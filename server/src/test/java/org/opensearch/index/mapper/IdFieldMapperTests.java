@@ -64,16 +64,26 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper docMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
         try {
-            docMapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("_id", "1").endObject()), XContentType.JSON));
+            docMapper.parse(
+                new SourceToParse(
+                    "test",
+                    "type",
+                    "1",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_id", "1").endObject()),
+                    XContentType.JSON
+                )
+            );
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
-            assertTrue(e.getCause().getMessage(),
-                e.getCause().getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document"));
+            assertTrue(
+                e.getCause().getMessage(),
+                e.getCause().getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document")
+            );
         }
     }
 
@@ -81,8 +91,7 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
         Settings indexSettings = Settings.EMPTY;
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "type", "id",
-            new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
         IndexableField[] fields = document.rootDoc().getFields(IdFieldMapper.NAME);
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
@@ -96,25 +105,27 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
         mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
         IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) service.mapperService().fieldType("_id");
 
-        ft.fielddataBuilder("test", () -> {
-            throw new UnsupportedOperationException();
-        }).build(null, null);
+        ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null);
         assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
         assertTrue(ft.isAggregatable());
 
-        client().admin().cluster().prepareUpdateSettings()
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), false))
             .get();
         try {
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-                () -> ft.fielddataBuilder("test", () -> {
-                    throw new UnsupportedOperationException();
-                }).build(null, null));
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null)
+            );
             assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
             assertFalse(ft.isAggregatable());
         } finally {
             // unset cluster setting
-            client().admin().cluster().prepareUpdateSettings()
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
                 .get();
         }

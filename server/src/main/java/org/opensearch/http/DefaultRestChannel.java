@@ -78,9 +78,16 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     @Nullable
     private final HttpTracer tracerLog;
 
-    DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
-                       HttpHandlingSettings settings, ThreadContext threadContext, CorsHandler corsHandler,
-                       @Nullable HttpTracer tracerLog) {
+    DefaultRestChannel(
+        HttpChannel httpChannel,
+        HttpRequest httpRequest,
+        RestRequest request,
+        BigArrays bigArrays,
+        HttpHandlingSettings settings,
+        ThreadContext threadContext,
+        CorsHandler corsHandler,
+        @Nullable HttpTracer tracerLog
+    ) {
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
@@ -121,8 +128,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                     finalContent = BytesArray.EMPTY;
                 }
             } catch (IllegalArgumentException ignored) {
-                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED :
-                    "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+                assert restResponse
+                    .status() == RestStatus.METHOD_NOT_ALLOWED : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
             }
 
             final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);

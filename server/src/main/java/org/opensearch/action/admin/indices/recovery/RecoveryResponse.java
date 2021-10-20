@@ -66,8 +66,13 @@ public class RecoveryResponse extends BroadcastResponse {
      * @param shardRecoveryStates    Map of indices to shard recovery information
      * @param shardFailures     List of failures processing shards
      */
-    public RecoveryResponse(int totalShards, int successfulShards, int failedShards, Map<String, List<RecoveryState>> shardRecoveryStates,
-                            List<DefaultShardOperationFailedException> shardFailures) {
+    public RecoveryResponse(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        Map<String, List<RecoveryState>> shardRecoveryStates,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shardRecoveryStates = shardRecoveryStates;
     }

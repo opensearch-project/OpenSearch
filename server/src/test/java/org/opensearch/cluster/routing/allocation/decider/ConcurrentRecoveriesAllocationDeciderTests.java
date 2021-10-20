@@ -43,10 +43,13 @@ public class ConcurrentRecoveriesAllocationDeciderTests extends OpenSearchAlloca
         int clusterConcurrentRecoveries = -1;
         int nodeConcurrentRecoveries = 4;
         AllocationService initialStrategy = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone")
-                    .put("cluster.routing.allocation.node_initial_primaries_recoveries", "8")
-                    .put("cluster.routing.allocation.node_concurrent_recoveries", String.valueOf(nodeConcurrentRecoveries))
-                    .put("cluster.routing.allocation.exclude.tag", "tag_0").build());
+            Settings.builder()
+                .put("cluster.routing.allocation.awareness.attributes", "zone")
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", "8")
+                .put("cluster.routing.allocation.node_concurrent_recoveries", String.valueOf(nodeConcurrentRecoveries))
+                .put("cluster.routing.allocation.exclude.tag", "tag_0")
+                .build()
+        );
 
         AllocationService excludeStrategy = null;
 
@@ -54,8 +57,12 @@ public class ConcurrentRecoveriesAllocationDeciderTests extends OpenSearchAlloca
 
         Metadata.Builder metadataBuilder = Metadata.builder();
         for (int i = 0; i < numberIndices; i++) {
-            metadataBuilder.put(IndexMetadata.builder("test_" + i).settings(settings(Version.CURRENT)).numberOfShards(primaryShards)
-                                    .numberOfReplicas(replicaShards));
+            metadataBuilder.put(
+                IndexMetadata.builder("test_" + i)
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(primaryShards)
+                    .numberOfReplicas(replicaShards)
+            );
         }
         RoutingTable.Builder initialRoutingTableBuilder = RoutingTable.builder();
         Metadata metadata = metadataBuilder.build();
@@ -66,10 +73,8 @@ public class ConcurrentRecoveriesAllocationDeciderTests extends OpenSearchAlloca
 
         logger.info("--> adding nodes and starting shards");
 
-        List<Tuple<Integer, Integer>> srcTargetNodes = Collections.unmodifiableList(Arrays.<Tuple<Integer, Integer>>asList(
-            new Tuple(10, 4),
-            new Tuple(4, 10),
-            new Tuple(10, 10))
+        List<Tuple<Integer, Integer>> srcTargetNodes = Collections.unmodifiableList(
+            Arrays.<Tuple<Integer, Integer>>asList(new Tuple(10, 4), new Tuple(4, 10), new Tuple(10, 10))
         );
 
         for (Tuple<Integer, Integer> srcTargetNode : srcTargetNodes) {
@@ -79,8 +84,11 @@ public class ConcurrentRecoveriesAllocationDeciderTests extends OpenSearchAlloca
 
             logger.info("Setting up tests for src node {} and target node {}", srcNodes, targetNodes);
 
-            ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metadata(metadata)
-                                            .routingTable(routingTable).nodes(setUpClusterNodes(srcNodes, targetNodes)).build();
+            ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(setUpClusterNodes(srcNodes, targetNodes))
+                .build();
 
             clusterState = initialStrategy.reroute(clusterState, "reroute");
 
@@ -96,25 +104,35 @@ public class ConcurrentRecoveriesAllocationDeciderTests extends OpenSearchAlloca
                 clusterState = startInitializingShardsAndReroute(initialStrategy, clusterState);
             }
 
-            assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(),
-                equalTo((replicaShards + 1) * primaryShards * numberIndices));
+            assertThat(
+                clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(),
+                equalTo((replicaShards + 1) * primaryShards * numberIndices)
+            );
             assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(0));
             assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
 
             clusterConcurrentRecoveries = Math.min(srcNodes, targetNodes) * nodeConcurrentRecoveries;
-            excludeStrategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone")
+            excludeStrategy = createAllocationService(
+                Settings.builder()
+                    .put("cluster.routing.allocation.awareness.attributes", "zone")
                     .put("cluster.routing.allocation.node_concurrent_recoveries", String.valueOf(nodeConcurrentRecoveries))
                     .put("cluster.routing.allocation.cluster_concurrent_recoveries", String.valueOf(clusterConcurrentRecoveries))
-                    .put("cluster.routing.allocation.exclude.tag", "tag_1").build());
+                    .put("cluster.routing.allocation.exclude.tag", "tag_1")
+                    .build()
+            );
 
             for (int counter = 0; counter < 3; counter++) {
                 logger.info("--> Performing a reroute ");
                 clusterState = excludeStrategy.reroute(clusterState, "reroute");
-                assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(),
-                    equalTo(clusterConcurrentRecoveries));
+                assertThat(
+                    clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(),
+                    equalTo(clusterConcurrentRecoveries)
+                );
                 for (ShardRouting startedShard : clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED)) {
-                    assertThat(clusterState.getRoutingNodes().node(startedShard.currentNodeId()).node().getAttributes().get("tag"),
-                        equalTo("tag_1"));
+                    assertThat(
+                        clusterState.getRoutingNodes().node(startedShard.currentNodeId()).node().getAttributes().get("tag"),
+                        equalTo("tag_1")
+                    );
                 }
             }
 
@@ -124,19 +142,27 @@ public class ConcurrentRecoveriesAllocationDeciderTests extends OpenSearchAlloca
             }
 
             clusterConcurrentRecoveries = clusterConcurrentRecoveries - randomInt(5);
-            excludeStrategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone")
+            excludeStrategy = createAllocationService(
+                Settings.builder()
+                    .put("cluster.routing.allocation.awareness.attributes", "zone")
                     .put("cluster.routing.allocation.node_concurrent_recoveries", String.valueOf(nodeConcurrentRecoveries))
                     .put("cluster.routing.allocation.cluster_concurrent_recoveries", String.valueOf(clusterConcurrentRecoveries))
-                    .put("cluster.routing.allocation.exclude.tag", "tag_1").build());
+                    .put("cluster.routing.allocation.exclude.tag", "tag_1")
+                    .build()
+            );
 
             for (int counter = 0; counter < 3; counter++) {
                 logger.info("--> Performing a reroute ");
                 clusterState = excludeStrategy.reroute(clusterState, "reroute");
-                assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(),
-                    equalTo(clusterConcurrentRecoveries));
+                assertThat(
+                    clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(),
+                    equalTo(clusterConcurrentRecoveries)
+                );
                 for (ShardRouting startedShard : clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED)) {
-                    assertThat(clusterState.getRoutingNodes().node(startedShard.currentNodeId()).node().getAttributes().get("tag"),
-                        equalTo("tag_1"));
+                    assertThat(
+                        clusterState.getRoutingNodes().node(startedShard.currentNodeId()).node().getAttributes().get("tag"),
+                        equalTo("tag_1")
+                    );
                 }
             }
 
@@ -151,19 +177,26 @@ public class ConcurrentRecoveriesAllocationDeciderTests extends OpenSearchAlloca
             for (int counter = 0; counter < 3; counter++) {
                 logger.info("--> Performing a reroute ");
                 excludeStrategy = createAllocationService(
-                    Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone")
-                            .put("cluster.routing.allocation.node_concurrent_recoveries", String.valueOf(nodeConcurrentRecoveries))
-                            .put("cluster.routing.allocation.exclude.tag", "tag_1").build());
+                    Settings.builder()
+                        .put("cluster.routing.allocation.awareness.attributes", "zone")
+                        .put("cluster.routing.allocation.node_concurrent_recoveries", String.valueOf(nodeConcurrentRecoveries))
+                        .put("cluster.routing.allocation.exclude.tag", "tag_1")
+                        .build()
+                );
 
                 clusterState = excludeStrategy.reroute(clusterState, "reroute");
-                //When srcNodes < targetNodes relocations go beyond the Math.min(srcNodes, targetNodes) * nodeConcurrentRecoveries limit as
+                // When srcNodes < targetNodes relocations go beyond the Math.min(srcNodes, targetNodes) * nodeConcurrentRecoveries limit as
                 // outgoing recoveries happens target nodes which anyways doesn't get throttled on incoming recoveries
                 if (srcNodes >= targetNodes) {
-                    assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(),
-                        equalTo(clusterConcurrentRecoveries));
-                }else {
-                    assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(),
-                        greaterThanOrEqualTo(clusterConcurrentRecoveries));
+                    assertThat(
+                        clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(),
+                        equalTo(clusterConcurrentRecoveries)
+                    );
+                } else {
+                    assertThat(
+                        clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(),
+                        greaterThanOrEqualTo(clusterConcurrentRecoveries)
+                    );
                 }
 
             }
@@ -177,12 +210,18 @@ public class ConcurrentRecoveriesAllocationDeciderTests extends OpenSearchAlloca
             int expectedClusterConcurrentRecoveries = Math.min(srcNodes, targetNodes) * nodeConcurrentRecoveries;
             for (int counter = 0; counter < 3; counter++) {
                 logger.info("--> Performing a reroute ");
-                excludeStrategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone")
+                excludeStrategy = createAllocationService(
+                    Settings.builder()
+                        .put("cluster.routing.allocation.awareness.attributes", "zone")
                         .put("cluster.routing.allocation.node_concurrent_recoveries", String.valueOf(nodeConcurrentRecoveries))
-                        .put("cluster.routing.allocation.exclude.tag", "tag_1").build());
+                        .put("cluster.routing.allocation.exclude.tag", "tag_1")
+                        .build()
+                );
                 clusterState = excludeStrategy.reroute(clusterState, "reroute");
-                assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(),
-                        equalTo(expectedClusterConcurrentRecoveries));
+                assertThat(
+                    clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(),
+                    equalTo(expectedClusterConcurrentRecoveries)
+                );
 
             }
         }

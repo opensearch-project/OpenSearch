@@ -67,8 +67,10 @@ public class IndexFieldTypeTests extends OpenSearchTestCase {
     public void testRegexpQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
-        QueryShardException e = expectThrows(QueryShardException.class, () ->
-            assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext())));
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
+        );
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
     }
 
@@ -81,7 +83,24 @@ public class IndexFieldTypeTests extends OpenSearchTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
-        return new QueryShardContext(0, indexSettings, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, System::currentTimeMillis, null, indexNameMatcher, () -> true, null);
+        return new QueryShardContext(
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            System::currentTimeMillis,
+            null,
+            indexNameMatcher,
+            () -> true,
+            null
+        );
     }
 }

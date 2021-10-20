@@ -61,9 +61,16 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private ObjectArray<BytesRefBuilder> valueBuilders;
     private BytesRef currentValue;
 
-    BinaryValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer,
-                       MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
-                       DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
+    BinaryValuesSource(
+        BigArrays bigArrays,
+        LongConsumer breakerConsumer,
+        MappedFieldType fieldType,
+        CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
+        DocValueFormat format,
+        boolean missingBucket,
+        int size,
+        int reverseMul
+    ) {
         super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
@@ -73,8 +80,8 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     void copyCurrent(int slot) {
-        values =  bigArrays.grow(values, slot+1);
-        valueBuilders = bigArrays.grow(valueBuilders, slot+1);
+        values = bigArrays.grow(values, slot + 1);
+        valueBuilders = bigArrays.grow(valueBuilders, slot + 1);
         BytesRefBuilder builder = valueBuilders.get(slot);
         int byteSize = builder == null ? 0 : builder.bytes().length;
         if (builder == null) {
@@ -162,7 +169,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     BytesRef toComparable(int slot) {
-       return values.get(slot);
+        return values.get(slot);
     }
 
     @Override
@@ -201,9 +208,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                fieldType instanceof StringFieldType == false ||
-                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            || fieldType instanceof StringFieldType == false
+            || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());

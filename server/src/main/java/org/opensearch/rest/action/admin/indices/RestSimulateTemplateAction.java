@@ -49,9 +49,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 public class RestSimulateTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return Arrays.asList(
-            new Route(POST, "/_index_template/_simulate"),
-            new Route(POST, "/_index_template/_simulate/{name}"));
+        return Arrays.asList(new Route(POST, "/_index_template/_simulate"), new Route(POST, "/_index_template/_simulate/{name}"));
     }
 
     @Override
@@ -64,8 +62,9 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
         SimulateTemplateAction.Request simulateRequest = new SimulateTemplateAction.Request();
         simulateRequest.templateName(request.param("name"));
         if (request.hasContent()) {
-            PutComposableIndexTemplateAction.Request indexTemplateRequest =
-                new PutComposableIndexTemplateAction.Request("simulating_template");
+            PutComposableIndexTemplateAction.Request indexTemplateRequest = new PutComposableIndexTemplateAction.Request(
+                "simulating_template"
+            );
             indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parse(request.contentParser()));
             indexTemplateRequest.create(request.paramAsBoolean("create", false));
             indexTemplateRequest.cause(request.param("cause", "api"));

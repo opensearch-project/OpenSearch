@@ -56,7 +56,7 @@ public class TimestampParsingException extends OpenSearchException {
         return timestamp;
     }
 
-    public TimestampParsingException(StreamInput in) throws IOException{
+    public TimestampParsingException(StreamInput in) throws IOException {
         super(in);
         this.timestamp = in.readOptionalString();
     }

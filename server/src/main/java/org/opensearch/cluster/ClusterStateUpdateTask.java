@@ -42,7 +42,10 @@ import java.util.List;
  * A task that can update the cluster state.
  */
 public abstract class ClusterStateUpdateTask
-        implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
+    implements
+        ClusterStateTaskConfig,
+        ClusterStateTaskExecutor<ClusterStateUpdateTask>,
+        ClusterStateTaskListener {
 
     private final Priority priority;
 
@@ -56,7 +59,7 @@ public abstract class ClusterStateUpdateTask
 
     @Override
     public final ClusterTasksResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks)
-            throws Exception {
+        throws Exception {
         ClusterState result = execute(currentState);
         return ClusterTasksResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
     }

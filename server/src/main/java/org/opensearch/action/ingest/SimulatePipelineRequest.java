@@ -71,8 +71,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         this.xContentType = Objects.requireNonNull(xContentType);
     }
 
-    SimulatePipelineRequest() {
-    }
+    SimulatePipelineRequest() {}
 
     SimulatePipelineRequest(StreamInput in) throws IOException {
         super(in);
@@ -173,49 +172,48 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
         Pipeline pipeline = Pipeline.create(
-            SIMULATED_PIPELINE_ID, pipelineConfig, ingestService.getProcessorFactories(), ingestService.getScriptService()
+            SIMULATED_PIPELINE_ID,
+            pipelineConfig,
+            ingestService.getProcessorFactories(),
+            ingestService.getScriptService()
         );
         List<IngestDocument> ingestDocumentList = parseDocs(config);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
     private static List<IngestDocument> parseDocs(Map<String, Object> config) {
-        List<Map<String, Object>> docs =
-            ConfigurationUtils.readList(null, null, config, Fields.DOCS);
+        List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, config, Fields.DOCS);
         if (docs.isEmpty()) {
             throw new IllegalArgumentException("must specify at least one document in [docs]");
         }
         List<IngestDocument> ingestDocumentList = new ArrayList<>();
         for (Object object : docs) {
-            if ((object instanceof Map) ==  false) {
+            if ((object instanceof Map) == false) {
                 throw new IllegalArgumentException("malformed [docs] section, should include an inner object");
             }
             Map<String, Object> dataMap = (Map<String, Object>) object;
-            Map<String, Object> document = ConfigurationUtils.readMap(null, null,
-                dataMap, Fields.SOURCE);
-            String index = ConfigurationUtils.readStringOrIntProperty(null, null,
-                dataMap, Metadata.INDEX.getFieldName(), "_index");
+            Map<String, Object> document = ConfigurationUtils.readMap(null, null, dataMap, Fields.SOURCE);
+            String index = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.INDEX.getFieldName(), "_index");
             if (dataMap.containsKey(Metadata.TYPE.getFieldName())) {
-                deprecationLogger.deprecate("simulate_pipeline_with_types",
-                    "[types removal] specifying _type in pipeline simulation requests is deprecated");
+                deprecationLogger.deprecate(
+                    "simulate_pipeline_with_types",
+                    "[types removal] specifying _type in pipeline simulation requests is deprecated"
+                );
             }
-            String type = ConfigurationUtils.readStringOrIntProperty(null, null,
-                dataMap, Metadata.TYPE.getFieldName(), "_doc");
-            String id = ConfigurationUtils.readStringOrIntProperty(null, null,
-                dataMap, Metadata.ID.getFieldName(), "_id");
-            String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
-                dataMap, Metadata.ROUTING.getFieldName());
+            String type = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.TYPE.getFieldName(), "_doc");
+            String id = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.ID.getFieldName(), "_id");
+            String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null, dataMap, Metadata.ROUTING.getFieldName());
             Long version = null;
             if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
                 version = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.VERSION.getFieldName());
             }
             VersionType versionType = null;
             if (dataMap.containsKey(Metadata.VERSION_TYPE.getFieldName())) {
-                versionType = VersionType.fromString(ConfigurationUtils.readStringProperty(null, null, dataMap,
-                    Metadata.VERSION_TYPE.getFieldName()));
+                versionType = VersionType.fromString(
+                    ConfigurationUtils.readStringProperty(null, null, dataMap, Metadata.VERSION_TYPE.getFieldName())
+                );
             }
-            IngestDocument ingestDocument =
-                new IngestDocument(index, type, id, routing, version, versionType, document);
+            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
                 Long ifSeqNo = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_SEQ_NO.getFieldName());
                 ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo);

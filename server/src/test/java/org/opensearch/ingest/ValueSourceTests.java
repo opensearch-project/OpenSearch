@@ -69,8 +69,10 @@ public class ValueSourceTests extends OpenSearchTestCase {
         myPreciousMap.put("field2", "value2");
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
-        ingestDocument.setFieldValue(new TestTemplateService.MockTemplateScript.Factory("field1"),
-                ValueSource.wrap(myPreciousMap, TestTemplateService.instance()));
+        ingestDocument.setFieldValue(
+            new TestTemplateService.MockTemplateScript.Factory("field1"),
+            ValueSource.wrap(myPreciousMap, TestTemplateService.instance())
+        );
         ingestDocument.removeField("field1.field2");
 
         assertThat(myPreciousMap.size(), equalTo(1));
@@ -82,8 +84,10 @@ public class ValueSourceTests extends OpenSearchTestCase {
         myPreciousList.add("value");
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
-        ingestDocument.setFieldValue(new TestTemplateService.MockTemplateScript.Factory("field1"),
-                ValueSource.wrap(myPreciousList, TestTemplateService.instance()));
+        ingestDocument.setFieldValue(
+            new TestTemplateService.MockTemplateScript.Factory("field1"),
+            ValueSource.wrap(myPreciousList, TestTemplateService.instance())
+        );
         ingestDocument.removeField("field1.0");
 
         assertThat(myPreciousList.size(), equalTo(1));

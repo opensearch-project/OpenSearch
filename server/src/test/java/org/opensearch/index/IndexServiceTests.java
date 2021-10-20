@@ -176,15 +176,21 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(indexService.getRefreshTask().mustReschedule());
 
         // now disable
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1))
+            .get();
         assertNotSame(refreshTask, indexService.getRefreshTask());
         assertTrue(refreshTask.isClosed());
         assertFalse(refreshTask.isScheduled());
 
         // set it to 100ms
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),  "100ms")).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "100ms"))
+            .get();
         assertNotSame(refreshTask, indexService.getRefreshTask());
         assertTrue(refreshTask.isClosed());
 
@@ -194,8 +200,11 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(100, refreshTask.getInterval().millis());
 
         // set it to 200ms
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "200ms")).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "200ms"))
+            .get();
         assertNotSame(refreshTask, indexService.getRefreshTask());
         assertTrue(refreshTask.isClosed());
 
@@ -205,8 +214,11 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(200, refreshTask.getInterval().millis());
 
         // set it to 200ms again
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "200ms")).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "200ms"))
+            .get();
         assertSame(refreshTask, indexService.getRefreshTask());
         assertTrue(indexService.getRefreshTask().mustReschedule());
         assertTrue(refreshTask.isScheduled());
@@ -242,7 +254,8 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testFsyncTaskIsRunning() throws Exception {
         Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC).build();
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+            .build();
         IndexService indexService = createIndex("test", settings);
         IndexService.AsyncTranslogFSync fsyncTask = indexService.getFsyncTask();
         assertNotNull(fsyncTask);
@@ -289,41 +302,53 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         IndexShard shard = indexService.getShard(0);
         client().prepareIndex("test", "test", "0").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         // now disable the refresh
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1))
+            .get();
         // when we update we reschedule the existing task AND fire off an async refresh to make sure we make everything visible
         // before that this is why we need to wait for the refresh task to be unscheduled and the first doc to be visible
         assertTrue(refreshTask.isClosed());
         refreshTask = indexService.getRefreshTask();
-        assertBusy(() -> {
-            // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
-            // we are running on updateMetadata if the interval changes
-            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
-                assertEquals(1, search.totalHits.value);
+        assertBusy(
+            () -> {
+                // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
+                // we are running on updateMetadata if the interval changes
+                try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                    TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                    assertEquals(1, search.totalHits.value);
+                }
             }
-        });
+        );
         assertFalse(refreshTask.isClosed());
         // refresh every millisecond
         client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1ms")).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1ms"))
+            .get();
         assertTrue(refreshTask.isClosed());
-        assertBusy(() -> {
-            // this one becomes visible due to the force refresh we are running on updateMetadata if the interval changes
-            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
-                assertEquals(2, search.totalHits.value);
+        assertBusy(
+            () -> {
+                // this one becomes visible due to the force refresh we are running on updateMetadata if the interval changes
+                try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                    TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                    assertEquals(2, search.totalHits.value);
+                }
             }
-        });
+        );
         client().prepareIndex("test", "test", "2").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
-        assertBusy(() -> {
-            // this one becomes visible due to the scheduled refresh
-            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
-                assertEquals(3, search.totalHits.value);
+        assertBusy(
+            () -> {
+                // this one becomes visible due to the scheduled refresh
+                try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                    TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                    assertEquals(3, search.totalHits.value);
+                }
             }
-        });
+        );
     }
 
     public void testAsyncFsyncActuallyWorks() throws Exception {
@@ -341,19 +366,18 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testRescheduleAsyncFsync() throws Exception {
         final Settings settings = Settings.builder()
-                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
             .build();
         final IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
         assertNull(indexService.getFsyncTask());
 
-        client()
-                .admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC))
-                .get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC))
+            .get();
 
         assertNotNull(indexService.getFsyncTask());
         assertTrue(indexService.getFsyncTask().mustReschedule());
@@ -362,20 +386,18 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         final IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertFalse(shard.isSyncNeeded()));
 
-        client()
-                .admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
-                .get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
+            .get();
         assertNull(indexService.getFsyncTask());
 
-        client()
-                .admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC))
-                .get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC))
+            .get();
         assertNotNull(indexService.getFsyncTask());
     }
 
@@ -388,10 +410,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(indexService.getTrimTranslogTask().mustReschedule());
         client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         client().admin().indices().prepareFlush("test").get();
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder()
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), -1)
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), -1))
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), -1)
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), -1)
+            )
             .get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertThat(IndexShardTestCase.getTranslog(shard).totalOperations(), equalTo(0)));
@@ -399,9 +425,10 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testAsyncTranslogTrimTaskOnClosedIndex() throws Exception {
         final String indexName = "test";
-        IndexService indexService = createIndex(indexName, Settings.builder()
-            .put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms")
-            .build());
+        IndexService indexService = createIndex(
+            indexName,
+            Settings.builder().put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms").build()
+        );
 
         Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
 
@@ -425,8 +452,12 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(indexService.getTrimTranslogTask().mustReschedule());
 
         final Engine readOnlyEngine = getEngine(indexService.getShard(0));
-        assertBusy(() ->
-            assertThat(readOnlyEngine.getTranslogStats().getTranslogSizeInBytes(), equalTo((long) Translog.DEFAULT_HEADER_SIZE_IN_BYTES)));
+        assertBusy(
+            () -> assertThat(
+                readOnlyEngine.getTranslogStats().getTranslogSizeInBytes(),
+                equalTo((long) Translog.DEFAULT_HEADER_SIZE_IN_BYTES)
+            )
+        );
 
         assertAcked(client().admin().indices().prepareOpen("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
 
@@ -456,15 +487,11 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         ensureGreen("test");
         assertNull(indexService.getFsyncTask());
 
-        Settings.Builder builder = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "5s")
+        Settings.Builder builder = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "5s")
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC.name());
 
-        client()
-            .admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(builder)
-            .get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(builder).get();
 
         assertNotNull(indexService.getFsyncTask());
         assertTrue(indexService.getFsyncTask().mustReschedule());
@@ -473,8 +500,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals("5s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
 
         client().admin().indices().prepareClose("test").get();
-        client()
-            .admin()
+        client().admin()
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "20s"))

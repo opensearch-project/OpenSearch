@@ -92,7 +92,7 @@ public class JodaDateMathParser implements DateMathParser {
             timeZone = DateTimeZone.UTC;
         }
         MutableDateTime dateTime = new MutableDateTime(time, timeZone);
-        for (int i = 0; i < mathString.length(); ) {
+        for (int i = 0; i < mathString.length();) {
             char c = mathString.charAt(i++);
             final boolean round;
             final int sign;
@@ -225,8 +225,7 @@ public class JodaDateMathParser implements DateMathParser {
             }
             return date.getMillis();
         } catch (IllegalArgumentException e) {
-            throw new OpenSearchParseException("failed to parse date field [{}] with format [{}]", e, value,
-                dateTimeFormatter.pattern());
+            throw new OpenSearchParseException("failed to parse date field [{}] with format [{}]", e, value, dateTimeFormatter.pattern());
         }
     }
 

@@ -78,8 +78,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         nowInMillis = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readOptionalLong() : null;
     }
 
-    public FieldCapabilitiesRequest() {
-    }
+    public FieldCapabilitiesRequest() {}
 
     /**
      * Returns <code>true</code> iff the results should be merged.
@@ -213,13 +212,13 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesRequest that = (FieldCapabilitiesRequest) o;
-        return includeUnmapped == that.includeUnmapped &&
-            mergeResults == that.mergeResults &&
-            Arrays.equals(indices, that.indices) &&
-            indicesOptions.equals(that.indicesOptions) &&
-            Arrays.equals(fields, that.fields) &&
-            Objects.equals(indexFilter, that.indexFilter) &&
-            Objects.equals(nowInMillis, that.nowInMillis);
+        return includeUnmapped == that.includeUnmapped
+            && mergeResults == that.mergeResults
+            && Arrays.equals(indices, that.indices)
+            && indicesOptions.equals(that.indicesOptions)
+            && Arrays.equals(fields, that.fields)
+            && Objects.equals(indexFilter, that.indexFilter)
+            && Objects.equals(nowInMillis, that.nowInMillis);
     }
 
     @Override
