@@ -57,7 +57,7 @@ sdk install java 14.0.2-open
 sdk use java 14.0.2-open
 ```
 
-By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch also supports JDK 8 as the runtime, the build supports compiling with JDK 14 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
+By default, the test tasks use bundled JDK runtime, configured in `buildSrc/version.properties` and set to JDK 15. Other kind of test tasks (integration, cluster, ... ) use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8 as the runtime, the build supports compiling with JDK 14 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
 
 To run the full suite of tests you will also need `JAVA8_HOME` and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
 
