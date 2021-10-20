@@ -69,8 +69,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.collection.IsEmptyCollection.empty;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
 public class NodeStatsTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
@@ -180,8 +179,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     final Map<String, JvmStats.MemoryPool> deserializedPools = StreamSupport.stream(deserializedMem.spliterator(), false)
                         .collect(Collectors.toMap(JvmStats.MemoryPool::getName, Function.identity()));
 
-                    assertThat(pools.keySet(), not(empty()));
-                    assertThat(deserializedPools.keySet(), not(empty()));
+                    final int poolsCount = (int) StreamSupport.stream(nodeStats.getJvm().getMem().spliterator(), false).count();
+                    assertThat(pools.keySet(), hasSize(poolsCount));
+                    assertThat(deserializedPools.keySet(), hasSize(poolsCount));
 
                     for (final Map.Entry<String, JvmStats.MemoryPool> entry : pools.entrySet()) {
                         assertThat(deserializedPools.containsKey(entry.getKey()), is(true));
