@@ -92,12 +92,3 @@ forbiddenPatterns {
   exclude '**/*.p12'
 }
 
-jdks {
-  legacy {
-    vendor = 'adoptopenjdk'
-    version = '8u242+b08'
-    platform = OS.current().name().toLowerCase()
-    architecture = Architecture.current().name().toLowerCase()
-  }
-}
-
