@@ -33,10 +33,10 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.index.ShardIndexingPressureSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -83,7 +83,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             includeUnloadedSegments = in.readBoolean();
         }
-        if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
             includeAllShardIndexingPressureTrackers = in.readBoolean();
             includeOnlyTopIndexingPressureMetrics = in.readBoolean();
         }
@@ -105,7 +105,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeBoolean(includeUnloadedSegments);
         }
-        if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeBoolean(includeAllShardIndexingPressureTrackers);
             out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
         }
