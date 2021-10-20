@@ -98,6 +98,7 @@ import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.DeleteResult;
 import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
@@ -1695,6 +1696,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 i -> store,
                 null,
                 new InternalEngineFactory(),
+                new EngineConfigFactory(new IndexSettings(metadata, metadata.getSettings())),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER
@@ -2558,6 +2560,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             null,
             shard.getEngineFactory(),
+            shard.getEngineConfigFactory(),
             shard.getGlobalCheckpointSyncer(),
             shard.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER
@@ -2694,6 +2697,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             wrapper,
             new InternalEngineFactory(),
+            shard.getEngineConfigFactory(),
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER
@@ -2845,6 +2849,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             wrapper,
             new InternalEngineFactory(),
+            shard.getEngineConfigFactory(),
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER
@@ -3506,6 +3511,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             null,
             indexShard.engineFactory,
+            indexShard.engineConfigFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER
@@ -3562,6 +3568,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             null,
             indexShard.engineFactory,
+            indexShard.engineConfigFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER
@@ -3595,6 +3602,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             null,
             indexShard.engineFactory,
+            indexShard.engineConfigFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER
@@ -3648,6 +3656,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             null,
             indexShard.engineFactory,
+            indexShard.engineConfigFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER
@@ -4120,6 +4129,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             null,
             new InternalEngineFactory(),
+            new EngineConfigFactory(new IndexSettings(metadata, settings)),
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             new IndexEventListener() {
@@ -4692,7 +4702,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(SeqNoStats seqNoStats) {
                     // just like a following shard, we need to skip this check for now.
                 }
-            }
+            },
+            shard.getEngineConfigFactory()
         );
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         readonlyShard.markAsRecovering("store", new RecoveryState(readonlyShard.routingEntry(), localNode, null));

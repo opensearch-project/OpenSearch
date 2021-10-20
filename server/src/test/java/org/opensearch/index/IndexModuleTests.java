@@ -74,6 +74,7 @@ import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.cache.query.IndexQueryCache;
 import org.opensearch.index.cache.query.QueryCache;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.InternalEngineTests;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -218,6 +219,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             indexSettings,
             emptyAnalysisRegistry,
             engineFactory,
+            new EngineConfigFactory(indexSettings),
             Collections.emptyMap(),
             () -> true,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
@@ -243,6 +245,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             indexSettings,
             emptyAnalysisRegistry,
             new InternalEngineFactory(),
+            new EngineConfigFactory(indexSettings),
             indexStoreFactories,
             () -> true,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
@@ -570,6 +573,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             indexSettings,
             emptyAnalysisRegistry,
             new InternalEngineFactory(),
+            new EngineConfigFactory(indexSettings),
             Collections.emptyMap(),
             () -> true,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
@@ -601,6 +605,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             indexSettings,
             emptyAnalysisRegistry,
             new InternalEngineFactory(),
+            new EngineConfigFactory(indexSettings),
             Collections.emptyMap(),
             () -> true,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),

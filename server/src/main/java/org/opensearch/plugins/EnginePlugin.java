@@ -33,6 +33,7 @@
 package org.opensearch.plugins;
 
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineFactory;
 
 import java.util.Optional;
@@ -52,4 +53,14 @@ public interface EnginePlugin {
      */
     Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings);
 
+    /**
+     * EXPERT:
+     * When an index is created this method is invoked for each engine plugin. Engine plugins can inspect the index settings
+     * to determine if a custom {@link CodecService} should be provided for the given index. A plugin that is not overriding
+     * the {@link CodecService} through the plugin can ignore this method and the Codec specified in the {@link IndexSettings}
+     * will be used.
+     */
+    default Optional<CodecService> getCustomCodecService(IndexSettings indexSettings) {
+        return Optional.empty();
+    }
 }
