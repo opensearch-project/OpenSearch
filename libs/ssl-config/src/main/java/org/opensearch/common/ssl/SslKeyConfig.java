@@ -56,4 +56,3 @@ public interface SslKeyConfig {
     X509ExtendedKeyManager createKeyManager();
 
 }
-

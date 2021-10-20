@@ -106,8 +106,9 @@ public enum SslClientAuthenticationMode {
         final SslClientAuthenticationMode mode = LOOKUP.get(value.toLowerCase(Locale.ROOT));
         if (mode == null) {
             final String allowedValues = LOOKUP.keySet().stream().collect(Collectors.joining(","));
-            throw new SslConfigException("could not resolve ssl client authentication, unknown value ["
-                + value + "], recognised values are [" + allowedValues + "]");
+            throw new SslConfigException(
+                "could not resolve ssl client authentication, unknown value [" + value + "], recognised values are [" + allowedValues + "]"
+            );
         }
         return mode;
     }

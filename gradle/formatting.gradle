@@ -57,16 +57,6 @@ import org.opensearch.gradle.BuildPlugin
 
 // Do not add new sub-projects here!
 def projectPathsToExclude = [
-  ':libs:opensearch-cli',
-  ':libs:opensearch-core',
-  ':libs:opensearch-dissect',
-  ':libs:opensearch-geo',
-  ':libs:opensearch-grok',
-  ':libs:opensearch-nio',
-  ':libs:opensearch-plugin-classloader',
-  ':libs:opensearch-secure-sm',
-  ':libs:opensearch-ssl-config',
-  ':libs:opensearch-x-content',
   ':modules:aggs-matrix-stats',
   ':modules:analysis-common',
   ':modules:ingest-common',
