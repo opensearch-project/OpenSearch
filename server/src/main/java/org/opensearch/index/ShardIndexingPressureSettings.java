@@ -5,14 +5,10 @@
 
 package org.opensearch.index;
 
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-
-import java.util.Iterator;
-import java.util.Objects;
 
 /**
  * This class contains all the settings which are required and owned by {TODO link ShardIndexingPressure}. These will be
@@ -69,10 +65,8 @@ public final class ShardIndexingPressureSettings {
     private volatile int requestSizeWindow;
     private volatile double shardMinLimit;
     private final long primaryAndCoordinatingNodeLimits;
-    private static ClusterService clusterService;
 
     public ShardIndexingPressureSettings(ClusterService clusterService, Settings settings, long primaryAndCoordinatingLimits) {
-        ShardIndexingPressureSettings.clusterService = clusterService;
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
 
         this.shardIndexingPressureEnabled = SHARD_INDEXING_PRESSURE_ENABLED.get(settings);
@@ -90,20 +84,6 @@ public final class ShardIndexingPressureSettings {
         this.shardPrimaryAndCoordinatingBaseLimits = (long) (primaryAndCoordinatingLimits * shardMinLimit);
         this.shardReplicaBaseLimits = (long) (shardPrimaryAndCoordinatingBaseLimits * 1.5);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MIN_LIMIT, this::setShardMinLimit);
-    }
-
-    public static boolean isShardIndexingPressureAttributeEnabled() {
-        // Null check is required only for bwc tests which start node without initializing cluster service.
-        // In actual run time, clusterService will never be null.
-        if (Objects.nonNull(clusterService) && clusterService.getClusterApplierService().isInitialClusterStateSet()) {
-            Iterator<DiscoveryNode> nodes = clusterService.state().getNodes().getNodes().valuesIt();
-            while (nodes.hasNext()) {
-                if (Boolean.parseBoolean(nodes.next().getAttributes().get(SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY)) == false) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
     private void setShardIndexingPressureEnabled(Boolean shardIndexingPressureEnableValue) {

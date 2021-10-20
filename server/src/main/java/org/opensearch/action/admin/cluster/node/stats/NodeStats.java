@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -43,7 +44,6 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
-import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.index.stats.ShardIndexingPressureStats;
 import org.opensearch.indices.NodeIndicesStats;
@@ -152,7 +152,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             indexingPressureStats = null;
         }
-        if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
             shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
         } else {
             shardIndexingPressureStats = null;
@@ -337,7 +337,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeOptionalWriteable(indexingPressureStats);
         }
-        if (ShardIndexingPressureSettings.isShardIndexingPressureAttributeEnabled()) {
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeOptionalWriteable(shardIndexingPressureStats);
         }
     }
