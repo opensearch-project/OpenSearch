@@ -210,7 +210,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                         throw new IllegalArgumentException("document [" + topDocs.scoreDocs[i].doc
                                 + "] has more than one value for [" + context.factorField.getFieldName() + "]");
                     }
-                    topDocs.scoreDocs[i].score *= data.nextValue();
+                    topDocs.scoreDocs[i].score *= (float) data.nextValue();
                 }
             }
             // Sort by score descending, then docID ascending, just like lucene's QueryRescorer
