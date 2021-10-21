@@ -1464,13 +1464,6 @@ public class MetadataCreateIndexService {
                         + "and [index.translog.retention.size] are deprecated and effectively ignored. "
                         + "They will be removed in a future version."
                 );
-            } else if (IndexSettings.INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.exists(indexSettings)) {
-                DEPRECATION_LOGGER.deprecate(
-                    "translog_pruning_retention_lease",
-                    "[index.plugins.replication.translog.retention_lease.pruning.enabled] "
-                        + "setting was deprecated in OpenSearch and will be removed in a future release! "
-                        + "See the breaking changes documentation for the next major version."
-                );
             }
         }
     }
