@@ -38,15 +38,17 @@ import org.opensearch.test.OpenSearchTestCase;
 public class TimedRequestTests extends OpenSearchTestCase {
 
     public void testDefaults() {
-        TimedRequest timedRequest = new TimedRequest(){};
+        TimedRequest timedRequest = new TimedRequest() {
+        };
         assertEquals(timedRequest.timeout(), TimedRequest.DEFAULT_ACK_TIMEOUT);
         assertEquals(timedRequest.masterNodeTimeout(), TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT);
     }
 
     public void testNonDefaults() {
-        TimedRequest timedRequest = new TimedRequest(){};
+        TimedRequest timedRequest = new TimedRequest() {
+        };
         TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
-        TimeValue masterTimeout = TimeValue.timeValueSeconds(randomIntBetween(0,1000));
+        TimeValue masterTimeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
         timedRequest.setTimeout(timeout);
         timedRequest.setMasterTimeout(masterTimeout);
         assertEquals(timedRequest.timeout(), timeout);

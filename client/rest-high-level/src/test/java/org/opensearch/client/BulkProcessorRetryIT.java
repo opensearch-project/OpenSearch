@@ -31,7 +31,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.client.RequestOptions;
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -63,7 +62,9 @@ public class BulkProcessorRetryIT extends OpenSearchRestHighLevelClientTestCase 
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
         return BulkProcessor.builder(
-                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
+            (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+            listener
+        );
     }
 
     public void testBulkRejectionLoadWithoutBackoff() throws Exception {
@@ -84,8 +85,7 @@ public class BulkProcessorRetryIT extends OpenSearchRestHighLevelClientTestCase 
 
         BulkProcessor bulkProcessor = initBulkProcessorBuilder(new BulkProcessor.Listener() {
             @Override
-            public void beforeBulk(long executionId, BulkRequest request) {
-            }
+            public void beforeBulk(long executionId, BulkRequest request) {}
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
@@ -100,10 +100,7 @@ public class BulkProcessorRetryIT extends OpenSearchRestHighLevelClientTestCase 
                 responses.add(failure);
                 latch.countDown();
             }
-        }).setBulkActions(1)
-            .setConcurrentRequests(randomIntBetween(0, 100))
-            .setBackoffPolicy(internalPolicy)
-            .build();
+        }).setBulkActions(1).setConcurrentRequests(randomIntBetween(0, 100)).setBackoffPolicy(internalPolicy).build();
 
         MultiGetRequest multiGetRequest = indexDocs(bulkProcessor, numberOfAsyncOps);
         latch.await(10, TimeUnit.SECONDS);
@@ -171,8 +168,10 @@ public class BulkProcessorRetryIT extends OpenSearchRestHighLevelClientTestCase 
     private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(new IndexRequest(INDEX_NAME).id(Integer.toString(i))
-                .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30)));
+            processor.add(
+                new IndexRequest(INDEX_NAME).id(Integer.toString(i))
+                    .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30))
+            );
             multiGetRequest.add(INDEX_NAME, Integer.toString(i));
         }
         return multiGetRequest;

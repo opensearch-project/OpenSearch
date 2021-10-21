@@ -112,16 +112,20 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
     /**
      * Executes the provided request using either the sync method or its async variant, both provided as functions
      */
-    protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
-                                       AsyncMethod<Req, Resp> asyncMethod) throws IOException {
+    protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod, AsyncMethod<Req, Resp> asyncMethod)
+        throws IOException {
         return execute(request, syncMethod, asyncMethod, RequestOptions.DEFAULT);
     }
 
     /**
      * Executes the provided request using either the sync method or its async variant, both provided as functions
      */
-    protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
-                                       AsyncMethod<Req, Resp> asyncMethod, RequestOptions options) throws IOException {
+    protected static <Req, Resp> Resp execute(
+        Req request,
+        SyncMethod<Req, Resp> syncMethod,
+        AsyncMethod<Req, Resp> asyncMethod,
+        RequestOptions options
+    ) throws IOException {
         if (async == false) {
             return syncMethod.execute(request, options);
         } else {
@@ -136,8 +140,11 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
      * variant, both provided as functions. This variant is used when the call does
      * not have a request object (only headers and the request path).
      */
-    protected static <Resp> Resp execute(SyncMethodNoRequest<Resp> syncMethodNoRequest, AsyncMethodNoRequest<Resp> asyncMethodNoRequest,
-            RequestOptions requestOptions) throws IOException {
+    protected static <Resp> Resp execute(
+        SyncMethodNoRequest<Resp> syncMethodNoRequest,
+        AsyncMethodNoRequest<Resp> asyncMethodNoRequest,
+        RequestOptions requestOptions
+    ) throws IOException {
         if (async == false) {
             return syncMethodNoRequest.execute(requestOptions);
         } else {
@@ -181,16 +188,12 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
             {
                 pipelineBuilder.startObject().startObject("set");
                 {
-                    pipelineBuilder
-                        .field("field", "foo")
-                        .field("value", "bar");
+                    pipelineBuilder.field("field", "foo").field("value", "bar");
                 }
                 pipelineBuilder.endObject().endObject();
                 pipelineBuilder.startObject().startObject("convert");
                 {
-                    pipelineBuilder
-                        .field("field", "rank")
-                        .field("type", "integer");
+                    pipelineBuilder.field("field", "rank").field("type", "integer");
                 }
                 pipelineBuilder.endObject().endObject();
             }
@@ -207,16 +210,15 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
     }
 
     protected static void createFieldAddingPipleine(String id, String fieldName, String value) throws IOException {
-        XContentBuilder pipeline = jsonBuilder()
+        XContentBuilder pipeline = jsonBuilder().startObject()
+            .startArray("processors")
             .startObject()
-                .startArray("processors")
-                    .startObject()
-                        .startObject("set")
-                            .field("field", fieldName)
-                            .field("value", value)
-                        .endObject()
-                    .endObject()
-                .endArray()
+            .startObject("set")
+            .field("field", fieldName)
+            .field("value", value)
+            .endObject()
+            .endObject()
+            .endArray()
             .endObject();
 
         createPipeline(new PutPipelineRequest(id, BytesReference.bytes(pipeline), XContentType.JSON));
@@ -228,39 +230,43 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
     }
 
     protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
-        assertTrue(execute(
-            putPipelineRequest, highLevelClient().ingest()::putPipeline, highLevelClient().ingest()::putPipelineAsync).isAcknowledged());
+        assertTrue(
+            execute(putPipelineRequest, highLevelClient().ingest()::putPipeline, highLevelClient().ingest()::putPipelineAsync)
+                .isAcknowledged()
+        );
     }
 
-    protected static void clusterUpdateSettings(Settings persistentSettings,
-                                                Settings transientSettings) throws IOException {
+    protected static void clusterUpdateSettings(Settings persistentSettings, Settings transientSettings) throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         request.persistentSettings(persistentSettings);
         request.transientSettings(transientSettings);
-        assertTrue(execute(
-            request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync).isAcknowledged());
+        assertTrue(
+            execute(request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync).isAcknowledged()
+        );
     }
 
     protected void putConflictPipeline() throws IOException {
-        final XContentBuilder pipelineBuilder = jsonBuilder()
+        final XContentBuilder pipelineBuilder = jsonBuilder().startObject()
+            .startArray("processors")
             .startObject()
-                .startArray("processors")
-                    .startObject()
-                        .startObject("set")
-                            .field("field", "_version")
-                            .field("value", 1)
-                        .endObject()
-                    .endObject()
-                    .startObject()
-                        .startObject("set")
-                            .field("field", "_id")
-                            .field("value", "1")
-                        .endObject()
-                    .endObject()
-                .endArray()
+            .startObject("set")
+            .field("field", "_version")
+            .field("value", 1)
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("set")
+            .field("field", "_id")
+            .field("value", "1")
+            .endObject()
+            .endObject()
+            .endArray()
             .endObject();
-        final PutPipelineRequest putPipelineRequest = new PutPipelineRequest(CONFLICT_PIPELINE_ID, BytesReference.bytes(pipelineBuilder),
-            pipelineBuilder.contentType());
+        final PutPipelineRequest putPipelineRequest = new PutPipelineRequest(
+            CONFLICT_PIPELINE_ID,
+            BytesReference.bytes(pipelineBuilder),
+            pipelineBuilder.contentType()
+        );
         assertTrue(highLevelClient().ingest().putPipeline(putPipelineRequest, RequestOptions.DEFAULT).isAcknowledged());
     }
 
@@ -269,10 +275,7 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
         final String user = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username"));
         final String pass = Objects.requireNonNull(System.getProperty("tests.rest.cluster.password"));
         final String token = "Basic " + Base64.getEncoder().encodeToString((user + ":" + pass).getBytes(StandardCharsets.UTF_8));
-        return Settings.builder()
-            .put(super.restClientSettings())
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     protected Iterable<SearchHit> searchAll(String... indices) throws IOException {
@@ -287,19 +290,15 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
     }
 
     protected void refreshIndexes(String... indices) throws IOException {
-        String joinedIndices = Arrays.stream(indices)
-            .collect(Collectors.joining(","));
+        String joinedIndices = Arrays.stream(indices).collect(Collectors.joining(","));
         Response refreshResponse = client().performRequest(new Request("POST", "/" + joinedIndices + "/_refresh"));
         assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
     }
 
     protected void createIndexWithMultipleShards(String index) throws IOException {
         CreateIndexRequest indexRequest = new CreateIndexRequest(index);
-        int shards = randomIntBetween(8,10);
-        indexRequest.settings(Settings.builder()
-            .put("index.number_of_shards", shards)
-            .put("index.number_of_replicas", 0)
-        );
+        int shards = randomIntBetween(8, 10);
+        indexRequest.settings(Settings.builder().put("index.number_of_shards", shards).put("index.number_of_replicas", 0));
         highLevelClient().indices().create(indexRequest, RequestOptions.DEFAULT);
     }
 
@@ -314,8 +313,8 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
-        ClusterUpdateSettingsResponse updateSettingsResponse =
-                restHighLevelClient.cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
+        ClusterUpdateSettingsResponse updateSettingsResponse = restHighLevelClient.cluster()
+            .putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
 
         assertBusy(() -> {
@@ -337,11 +336,11 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
         do {
             ListTasksResponse list = highLevelClient().tasks().list(request, RequestOptions.DEFAULT);
             list.rethrowFailures("Finding tasks to rethrottle");
-            List<TaskGroup> taskGroups =
-                list.getTaskGroups().stream()
-                    .filter(taskGroup -> taskGroup.getTaskInfo().getDescription().equals(description)).collect(Collectors.toList());
-            assertThat("tasks are left over from the last execution of this test",
-                taskGroups, hasSize(lessThan(2)));
+            List<TaskGroup> taskGroups = list.getTaskGroups()
+                .stream()
+                .filter(taskGroup -> taskGroup.getTaskInfo().getDescription().equals(description))
+                .collect(Collectors.toList());
+            assertThat("tasks are left over from the last execution of this test", taskGroups, hasSize(lessThan(2)));
             if (0 == taskGroups.size()) {
                 // The parent task hasn't started yet
                 continue;
@@ -350,8 +349,10 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
             assertThat(taskGroup.getChildTasks(), empty());
             return taskGroup.getTaskInfo().getTaskId();
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
-        throw new AssertionError("Couldn't find tasks to rethrottle. Here are the running tasks " +
-            highLevelClient().tasks().list(request, RequestOptions.DEFAULT));
+        throw new AssertionError(
+            "Couldn't find tasks to rethrottle. Here are the running tasks "
+                + highLevelClient().tasks().list(request, RequestOptions.DEFAULT)
+        );
     }
 
     protected static CheckedRunnable<Exception> checkTaskCompletionStatus(RestClient client, String taskId) {

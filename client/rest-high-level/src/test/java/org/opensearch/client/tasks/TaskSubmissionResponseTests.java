@@ -42,11 +42,7 @@ import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 public class TaskSubmissionResponseTests extends OpenSearchTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            TaskSubmissionResponse::fromXContent)
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, TaskSubmissionResponse::fromXContent)
             .supportsUnknownFields(true)
             .test();
     }

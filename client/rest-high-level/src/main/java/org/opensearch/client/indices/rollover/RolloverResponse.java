@@ -54,9 +54,19 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse {
     private static final ParseField CONDITIONS = new ParseField("conditions");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RolloverResponse, Void> PARSER = new ConstructingObjectParser<>("rollover",
-            true, args -> new RolloverResponse((String) args[0], (String) args[1], (Map<String,Boolean>) args[2],
-            (Boolean)args[3], (Boolean)args[4], (Boolean) args[5], (Boolean) args[6]));
+    private static final ConstructingObjectParser<RolloverResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "rollover",
+        true,
+        args -> new RolloverResponse(
+            (String) args[0],
+            (String) args[1],
+            (Map<String, Boolean>) args[2],
+            (Boolean) args[3],
+            (Boolean) args[4],
+            (Boolean) args[5],
+            (Boolean) args[6]
+        )
+    );
 
     static {
         PARSER.declareString(constructorArg(), OLD_INDEX);
@@ -73,8 +83,15 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse {
     private final boolean dryRun;
     private final boolean rolledOver;
 
-    public RolloverResponse(String oldIndex, String newIndex, Map<String, Boolean> conditionResults,
-                            boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcknowledged) {
+    public RolloverResponse(
+        String oldIndex,
+        String newIndex,
+        Map<String, Boolean> conditionResults,
+        boolean dryRun,
+        boolean rolledOver,
+        boolean acknowledged,
+        boolean shardsAcknowledged
+    ) {
         super(acknowledged, shardsAcknowledged);
         this.oldIndex = oldIndex;
         this.newIndex = newIndex;
@@ -126,11 +143,11 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse {
     public boolean equals(Object o) {
         if (super.equals(o)) {
             RolloverResponse that = (RolloverResponse) o;
-            return dryRun == that.dryRun &&
-                    rolledOver == that.rolledOver &&
-                    Objects.equals(oldIndex, that.oldIndex) &&
-                    Objects.equals(newIndex, that.newIndex) &&
-                    Objects.equals(conditionStatus, that.conditionStatus);
+            return dryRun == that.dryRun
+                && rolledOver == that.rolledOver
+                && Objects.equals(oldIndex, that.oldIndex)
+                && Objects.equals(newIndex, that.newIndex)
+                && Objects.equals(conditionStatus, that.conditionStatus);
         }
         return false;
     }

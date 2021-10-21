@@ -55,32 +55,31 @@ public class StoredScriptsIT extends OpenSearchRestHighLevelClientTestCase {
     private static final String id = "calculate-score";
 
     public void testGetStoredScript() throws Exception {
-        final StoredScriptSource scriptSource =
-            new StoredScriptSource("painless",
-                "Math.log(_score * 2) + params.my_modifier",
-            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+        final StoredScriptSource scriptSource = new StoredScriptSource(
+            "painless",
+            "Math.log(_score * 2) + params.my_modifier",
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+        );
 
-        PutStoredScriptRequest request =
-            new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
+        PutStoredScriptRequest request = new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest("calculate-score");
         getRequest.masterNodeTimeout("50s");
 
-        GetStoredScriptResponse getResponse = execute(getRequest, highLevelClient()::getScript,
-            highLevelClient()::getScriptAsync);
+        GetStoredScriptResponse getResponse = execute(getRequest, highLevelClient()::getScript, highLevelClient()::getScriptAsync);
 
         assertThat(getResponse.getSource(), equalTo(scriptSource));
     }
 
     public void testDeleteStoredScript() throws Exception {
-        final StoredScriptSource scriptSource =
-            new StoredScriptSource("painless",
-                "Math.log(_score * 2) + params.my_modifier",
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+        final StoredScriptSource scriptSource = new StoredScriptSource(
+            "painless",
+            "Math.log(_score * 2) + params.my_modifier",
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+        );
 
-        PutStoredScriptRequest request =
-            new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
+        PutStoredScriptRequest request = new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         DeleteStoredScriptRequest deleteRequest = new DeleteStoredScriptRequest(id);
@@ -90,20 +89,21 @@ public class StoredScriptsIT extends OpenSearchRestHighLevelClientTestCase {
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
 
-        final OpenSearchStatusException statusException = expectThrows(OpenSearchStatusException.class,
-            () -> execute(getRequest, highLevelClient()::getScript,
-                highLevelClient()::getScriptAsync));
+        final OpenSearchStatusException statusException = expectThrows(
+            OpenSearchStatusException.class,
+            () -> execute(getRequest, highLevelClient()::getScript, highLevelClient()::getScriptAsync)
+        );
         assertThat(statusException.status(), equalTo(RestStatus.NOT_FOUND));
     }
 
     public void testPutScript() throws Exception {
-        final StoredScriptSource scriptSource =
-            new StoredScriptSource("painless",
-                "Math.log(_score * 2) + params.my_modifier",
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+        final StoredScriptSource scriptSource = new StoredScriptSource(
+            "painless",
+            "Math.log(_score * 2) + params.my_modifier",
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+        );
 
-        PutStoredScriptRequest request =
-            new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
+        PutStoredScriptRequest request = new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         Map<String, Object> script = getAsMap("/_scripts/" + id);

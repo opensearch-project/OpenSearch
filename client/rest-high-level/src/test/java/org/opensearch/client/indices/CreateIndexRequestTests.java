@@ -68,8 +68,10 @@ public class CreateIndexRequestTests extends AbstractXContentTestCase<CreateInde
             assertNull(actual.mappings());
         } else {
             assertNotNull(actual.mappings());
-            try (XContentParser expectedJson = createParser(expected.mappingsXContentType().xContent(), expected.mappings());
-                 XContentParser actualJson = createParser(actual.mappingsXContentType().xContent(), actual.mappings())) {
+            try (
+                XContentParser expectedJson = createParser(expected.mappingsXContentType().xContent(), expected.mappings());
+                XContentParser actualJson = createParser(actual.mappingsXContentType().xContent(), actual.mappings())
+            ) {
                 assertEquals(expectedJson.map(), actualJson.map());
             } catch (IOException e) {
                 throw new RuntimeException(e);

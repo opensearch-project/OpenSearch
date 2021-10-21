@@ -57,13 +57,6 @@ import org.opensearch.gradle.BuildPlugin
 
 // Do not add new sub-projects here!
 def projectPathsToExclude = [
-  ':client:benchmark',
-  ':client:client-benchmark-noop-api-plugin',
-  ':client:rest',
-  ':client:rest-high-level',
-  ':client:sniffer',
-  ':client:test',
-  ':client:transport',
   ':example-plugins:custom-settings',
   ':example-plugins:custom-significance-heuristic',
   ':example-plugins:custom-suggester',
