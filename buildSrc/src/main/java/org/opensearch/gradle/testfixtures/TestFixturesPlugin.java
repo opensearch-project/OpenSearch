@@ -57,6 +57,7 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
+import org.apache.tools.ant.taskdefs.condition.Os;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -73,10 +74,15 @@ public class TestFixturesPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(TestFixturesPlugin.class);
     private static final String DOCKER_COMPOSE_THROTTLE = "dockerComposeThrottle";
     static final String DOCKER_COMPOSE_YML = "docker-compose.yml";
-    private static String[] DOCKER_COMPOSE_BINARIES = {
-        "/usr/local/bin/docker-compose",
-        "/usr/bin/docker-compose",
+
+    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+
+    private static String[] DOCKER_COMPOSE_BINARIES_WINDOWS = {
         System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
+
+    private static String[] DOCKER_COMPOSE_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS)
+        ? DOCKER_COMPOSE_BINARIES_WINDOWS
+        : DOCKER_COMPOSE_BINARIES_UNIX;
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -141,10 +147,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 .stream()
                 .filter(path -> project.file(path).exists())
                 .findFirst();
-            if (!dockerCompose.isPresent()) {
-                throw new IllegalStateException("No docker-compose found. Searched in " + String.join(", ", DOCKER_COMPOSE_BINARIES) + ".");
-            }
-            composeExtension.setExecutable(dockerCompose.get());
+
+            composeExtension.setExecutable(dockerCompose.isPresent() ? dockerCompose.get() : "/usr/bin/docker");
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
