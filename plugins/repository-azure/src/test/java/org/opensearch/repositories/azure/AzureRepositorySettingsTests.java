@@ -32,7 +32,9 @@
 
 package org.opensearch.repositories.azure;
 
-import com.microsoft.azure.storage.LocationMode;
+import reactor.core.scheduler.Schedulers;
+
+import org.junit.AfterClass;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -49,6 +51,10 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class AzureRepositorySettingsTests extends OpenSearchTestCase {
+    @AfterClass
+    public static void shutdownSchedulers() {
+        Schedulers.shutdownNow();
+    }
 
     private AzureRepository azureRepository(Settings settings) {
         Settings internalSettings = Settings.builder()

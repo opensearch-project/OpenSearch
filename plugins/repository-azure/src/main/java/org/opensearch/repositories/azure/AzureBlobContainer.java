@@ -32,9 +32,10 @@
 
 package org.opensearch.repositories.azure;
 
-import com.microsoft.azure.storage.Constants;
-import com.microsoft.azure.storage.LocationMode;
-import com.microsoft.azure.storage.StorageException;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.specialized.BlobInputStream;
+import com.azure.storage.common.implementation.Constants;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
@@ -49,6 +50,7 @@ import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -59,6 +61,10 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 public class AzureBlobContainer extends AbstractBlobContainer {
+    /**
+     * The default minimum read size, in bytes, for a {@link BlobInputStream} or {@link FileInputStream}.
+     */
+    public static final int DEFAULT_MINIMUM_READ_SIZE_IN_BYTES = 4 * Constants.MB;
 
     private final Logger logger = LogManager.getLogger(AzureBlobContainer.class);
     private final AzureBlobStore blobStore;
@@ -77,7 +83,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(buildKey(blobName));
-        } catch (URISyntaxException | StorageException e) {
+        } catch (URISyntaxException | BlobStorageException e) {
             logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
         }
         return false;
@@ -96,8 +102,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         }
         try {
             return blobStore.getInputStream(buildKey(blobName), position, length);
-        } catch (StorageException e) {
-            if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                 throw new NoSuchFileException(e.getMessage());
             }
             throw new IOException(e);
@@ -118,7 +124,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public long readBlobPreferredLength() {
-        return Constants.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES;
+        return DEFAULT_MINIMUM_READ_SIZE_IN_BYTES;
     }
 
     @Override
@@ -126,7 +132,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         logger.trace("writeBlob({}, stream, {})", buildKey(blobName), blobSize);
         try {
             blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
-        } catch (URISyntaxException|StorageException e) {
+        } catch (URISyntaxException | BlobStorageException e) {
             throw new IOException("Can not write blob " + blobName, e);
         }
     }
@@ -140,7 +146,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public DeleteResult delete() throws IOException {
         try {
             return blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME));
-        } catch (URISyntaxException | StorageException e) {
+        } catch (URISyntaxException | BlobStorageException e) {
             throw new IOException(e);
         }
     }
@@ -161,8 +167,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
                     logger.trace("deleteBlob({})", blobName);
                     try {
                         blobStore.deleteBlob(buildKey(blobName));
-                    } catch (StorageException e) {
-                        if (e.getHttpStatusCode() != HttpURLConnection.HTTP_NOT_FOUND) {
+                    } catch (BlobStorageException e) {
+                        if (e.getStatusCode() != HttpURLConnection.HTTP_NOT_FOUND) {
                             throw new IOException(e);
                         }
                     } catch (URISyntaxException e) {
@@ -184,7 +190,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
         try {
             return blobStore.listBlobsByPrefix(keyPath, prefix);
-        } catch (URISyntaxException | StorageException e) {
+        } catch (URISyntaxException | BlobStorageException e) {
             logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore, e.getMessage());
             throw new IOException(e);
         }
@@ -201,7 +207,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         final BlobPath path = path();
         try {
             return blobStore.children(path);
-        } catch (URISyntaxException | StorageException e) {
+        } catch (URISyntaxException | BlobStorageException e) {
             throw new IOException("Failed to list children in path [" + path.buildAsString() + "].", e);
         }
     }
