@@ -31,6 +31,15 @@
       - [testImplementation](#testimplementation)
   - [Misc](#misc)
     - [git-secrets](#git-secrets)
+      - [Installation](#installation)
+      - [Configuration](#configuration)
+  - [Components](#components)
+    - [Build libraries & interfaces](#build-libraries--interfaces)
+    - [Clients & Libraries](#clients--libraries)
+    - [Plugins](#plugins-1)
+    - [Indexing & search](#indexing--search)
+    - [Aggregations](#aggregations)
+    - [Distributed Framework](#distributed-framework)
   - [Submitting Changes](#submitting-changes)
 
 # Developer Guide
@@ -52,6 +61,10 @@ OpenSearch builds using Java 11 at a minimum. This means you must have a JDK 11 
 By default, the test tasks use bundled JDK runtime, configured in `buildSrc/version.properties` and set to JDK 17 (LTS). Other kind of test tasks (integration, cluster, ... ) use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8 as the runtime, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
 
 To run the full suite of tests you will also need `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
+
+Download x64 OpenJDK [11](https://adoptium.net/releases.html?variant=openjdk11), [8](https://adoptium.net/releases.html?variant=openjdk8) and [17](https://adoptium.net/releases.html?variant=openjdk17).
+
+On Windows, set `_JAVA_OPTIONS: -Xmx4096M`. You may also need to set `LongPathsEnabled=0x1` under `Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem`.
 
 #### Docker
 
