@@ -2801,7 +2801,12 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+    public void onSettingsChanged(
+        TimeValue translogRetentionAge,
+        ByteSizeValue translogRetentionSize,
+        long softDeletesRetentionOps,
+        boolean translogPruningByRetentionLease
+    ) {
         mergeScheduler.refreshConfig();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
         maybePruneDeletes();
@@ -2814,6 +2819,7 @@ public class InternalEngine extends Engine {
         final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
         translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
+        translogDeletionPolicy.shouldPruneTranslogByRetentionLease(translogPruningByRetentionLease);
         softDeletesPolicy.setRetentionOperations(softDeletesRetentionOps);
     }
 
