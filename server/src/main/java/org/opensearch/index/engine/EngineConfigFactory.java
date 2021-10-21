@@ -22,7 +22,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
-import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
@@ -32,7 +32,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -41,7 +40,7 @@ import java.util.function.Supplier;
  */
 public class EngineConfigFactory {
     private final CodecService codecService;
-    private final BiFunction<IndexSettings, Supplier<RetentionLeases>, TranslogDeletionPolicy> customTranslogDeletionPolicyFn;
+    private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
 
     /** default ctor primarily used for tests without plugins */
     public EngineConfigFactory(IndexSettings idxSettings) {
@@ -59,8 +58,7 @@ public class EngineConfigFactory {
     EngineConfigFactory(Collection<EnginePlugin> enginePlugins, IndexSettings idxSettings) {
         Optional<CodecService> codecService = Optional.empty();
         String codecServiceOverridingPlugin = null;
-        Optional<BiFunction<IndexSettings, Supplier<RetentionLeases>, TranslogDeletionPolicy>> customTranslogDeletionPolicyFn = Optional
-            .empty();
+        Optional<TranslogDeletionPolicyFactory> translogDeletionPolicyFactory = Optional.empty();
         String translogDeletionPolicyOverridingPlugin = null;
         for (EnginePlugin enginePlugin : enginePlugins) {
             // get overriding codec service from EnginePlugin
@@ -75,12 +73,12 @@ public class EngineConfigFactory {
                         + enginePlugin.getClass().getName()
                 );
             }
-            if (customTranslogDeletionPolicyFn.isPresent() == false) {
-                customTranslogDeletionPolicyFn = enginePlugin.getCustomTranslogDeletionPolicyFunction();
+            if (translogDeletionPolicyFactory.isPresent() == false) {
+                translogDeletionPolicyFactory = enginePlugin.getCustomTranslogDeletionPolicyFactory();
                 translogDeletionPolicyOverridingPlugin = enginePlugin.getClass().getName();
             } else {
                 throw new IllegalStateException(
-                    "existing translog deletion policy function is already overridden in: "
+                    "existing TranslogDeletionPolicyFactory is already overridden in: "
                         + translogDeletionPolicyOverridingPlugin
                         + " attempting to override again by: "
                         + enginePlugin.getClass().getName()
@@ -88,7 +86,7 @@ public class EngineConfigFactory {
             }
         }
         this.codecService = codecService.orElse(null);
-        this.customTranslogDeletionPolicyFn = customTranslogDeletionPolicyFn.orElse((idxs, rtls) -> null);
+        this.translogDeletionPolicyFactory = translogDeletionPolicyFactory.orElse((idxs, rtls) -> null);
     }
 
     /** Instantiates a new EngineConfig from the provided custom overrides */
@@ -131,7 +129,7 @@ public class EngineConfigFactory {
             queryCache,
             queryCachingPolicy,
             translogConfig,
-            customTranslogDeletionPolicyFn,
+            translogDeletionPolicyFactory,
             flushMergesAfter,
             externalRefreshListener,
             internalRefreshListener,

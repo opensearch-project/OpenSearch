@@ -16,6 +16,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.IndexSettingsModule;
@@ -25,7 +26,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 public class EngineConfigFactoryTests extends OpenSearchTestCase {
@@ -65,8 +65,8 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         );
 
         assertNotNull(config.getCodec());
-        assertNotNull(config.getCustomTranslogDeletionPolicyFn());
-        assertTrue(config.getCustomTranslogDeletionPolicyFn().apply(indexSettings, null) instanceof CustomTranslogDeletionPolicy);
+        assertNotNull(config.getCustomTranslogDeletionPolicyFactory());
+        assertTrue(config.getCustomTranslogDeletionPolicyFactory().create(indexSettings, null) instanceof CustomTranslogDeletionPolicy);
     }
 
     public void testCreateEngineConfigFromFactoryMultipleCodecServiceIllegalStateException() {
@@ -81,7 +81,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
     }
 
-    public void testCreateEngineConfigFromFactoryMultipleCustomTranslogDeletionPolicyFnIllegalStateException() {
+    public void testCreateEngineConfigFromFactoryMultipleCustomTranslogDeletionPolicyFactoryIllegalStateException() {
         IndexMetadata meta = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
@@ -105,12 +105,8 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         }
 
         @Override
-        public
-            Optional<BiFunction<IndexSettings, Supplier<RetentionLeases>, TranslogDeletionPolicy>>
-            getCustomTranslogDeletionPolicyFunction() {
-            BiFunction<IndexSettings, Supplier<RetentionLeases>, TranslogDeletionPolicy> customTranslogDeletionPolicyFn =
-                CustomTranslogDeletionPolicy::new;
-            return Optional.of(customTranslogDeletionPolicyFn);
+        public Optional<TranslogDeletionPolicyFactory> getCustomTranslogDeletionPolicyFactory() {
+            return Optional.of(CustomTranslogDeletionPolicy::new);
         }
     }
 
@@ -133,12 +129,8 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         }
 
         @Override
-        public
-            Optional<BiFunction<IndexSettings, Supplier<RetentionLeases>, TranslogDeletionPolicy>>
-            getCustomTranslogDeletionPolicyFunction() {
-            BiFunction<IndexSettings, Supplier<RetentionLeases>, TranslogDeletionPolicy> customTranslogDeletionPolicyFn =
-                CustomTranslogDeletionPolicy::new;
-            return Optional.of(customTranslogDeletionPolicyFn);
+        public Optional<TranslogDeletionPolicyFactory> getCustomTranslogDeletionPolicyFactory() {
+            return Optional.of(CustomTranslogDeletionPolicy::new);
         }
     }
 

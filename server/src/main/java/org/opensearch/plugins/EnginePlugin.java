@@ -37,9 +37,9 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -77,9 +77,7 @@ public interface EnginePlugin {
      *
      * @return a function that returns an instance of {@link TranslogDeletionPolicy}
      */
-    default
-        Optional<BiFunction<IndexSettings, Supplier<RetentionLeases>, TranslogDeletionPolicy>>
-        getCustomTranslogDeletionPolicyFunction() {
+    default Optional<TranslogDeletionPolicyFactory> getCustomTranslogDeletionPolicyFactory() {
         return Optional.empty();
     }
 }

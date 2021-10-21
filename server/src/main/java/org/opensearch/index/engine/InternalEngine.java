@@ -226,9 +226,9 @@ public class InternalEngine extends Engine {
         }
         final TranslogDeletionPolicy translogDeletionPolicy;
         TranslogDeletionPolicy customTranslogDeletionPolicy = null;
-        if (engineConfig.getCustomTranslogDeletionPolicyFn() != null) {
-            customTranslogDeletionPolicy = engineConfig.getCustomTranslogDeletionPolicyFn()
-                .apply(engineConfig.getIndexSettings(), engineConfig.retentionLeasesSupplier());
+        if (engineConfig.getCustomTranslogDeletionPolicyFactory() != null) {
+            customTranslogDeletionPolicy = engineConfig.getCustomTranslogDeletionPolicyFactory()
+                .create(engineConfig.getIndexSettings(), engineConfig.retentionLeasesSupplier());
         }
         if (customTranslogDeletionPolicy != null) {
             translogDeletionPolicy = customTranslogDeletionPolicy;

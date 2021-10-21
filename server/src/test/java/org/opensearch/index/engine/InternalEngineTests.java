@@ -149,6 +149,7 @@ import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
@@ -3804,13 +3805,12 @@ public class InternalEngineTests extends EngineTestCase {
                 );
             }
         }
-        BiFunction<IndexSettings, Supplier<RetentionLeases>, TranslogDeletionPolicy> customTranslogDeletionPolicyFn =
-            CustomTranslogDeletionPolicy::new;
+        TranslogDeletionPolicyFactory translogDeletionPolicyFactory = CustomTranslogDeletionPolicy::new;
 
         try (Store store = createStore()) {
             EngineConfig config = engine.config();
 
-            EngineConfig configWithCustomTranslogDeletionPolicyFn = new EngineConfig(
+            EngineConfig configWithCustomTranslogDeletionPolicyFactory = new EngineConfig(
                 config.getShardId(),
                 config.getThreadPool(),
                 config.getIndexSettings(),
@@ -3824,7 +3824,7 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getQueryCache(),
                 config.getQueryCachingPolicy(),
                 config.getTranslogConfig(),
-                customTranslogDeletionPolicyFn,
+                translogDeletionPolicyFactory,
                 config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(),
                 config.getInternalRefreshListener(),
@@ -3835,7 +3835,7 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getPrimaryTermSupplier(),
                 config.getTombstoneDocSupplier()
             );
-            try (InternalEngine engine = createEngine(configWithCustomTranslogDeletionPolicyFn)) {
+            try (InternalEngine engine = createEngine(configWithCustomTranslogDeletionPolicyFactory)) {
                 assertTrue(engine.getTranslog().getDeletionPolicy() instanceof CustomTranslogDeletionPolicy);
             }
         }
