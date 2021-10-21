@@ -65,12 +65,18 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.function.BiConsumer;
+import java.util.List;
+import java.util.Optional;
 
 public class TestFixturesPlugin implements Plugin<Project> {
 
     private static final Logger LOGGER = Logging.getLogger(TestFixturesPlugin.class);
     private static final String DOCKER_COMPOSE_THROTTLE = "dockerComposeThrottle";
     static final String DOCKER_COMPOSE_YML = "docker-compose.yml";
+    private static String[] DOCKER_COMPOSE_BINARIES = {
+        "/usr/local/bin/docker-compose",
+        "/usr/bin/docker-compose",
+        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -130,9 +136,15 @@ public class TestFixturesPlugin implements Plugin<Project> {
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
             composeExtension.setUseComposeFiles(Collections.singletonList(DOCKER_COMPOSE_YML));
             composeExtension.setRemoveContainers(true);
-            composeExtension.setExecutable(
-                project.file("/usr/local/bin/docker-compose").exists() ? "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose"
-            );
+
+            Optional<String> dockerCompose = List.of(DOCKER_COMPOSE_BINARIES)
+                .stream()
+                .filter(path -> project.file(path).exists())
+                .findFirst();
+            if (!dockerCompose.isPresent()) {
+                throw new IllegalStateException("No docker-compose found. Searched in " + String.join(", ", DOCKER_COMPOSE_BINARIES) + ".");
+            }
+            composeExtension.setExecutable(dockerCompose.get());
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
