@@ -70,6 +70,7 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.query.QueryCache;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
@@ -138,6 +139,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
+    private final EngineConfigFactory engineConfigFactory;
     private final IndexWarmer warmer;
     private volatile Map<Integer, IndexShard> shards = emptyMap();
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -174,6 +176,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ShardStoreDeleter shardStoreDeleter,
         IndexAnalyzers indexAnalyzers,
         EngineFactory engineFactory,
+        EngineConfigFactory engineConfigFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
         ThreadPool threadPool,
@@ -254,6 +257,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.directoryFactory = directoryFactory;
         this.recoveryStateFactory = recoveryStateFactory;
         this.engineFactory = Objects.requireNonNull(engineFactory);
+        this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.readerWrapper = wrapperFactory.apply(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
@@ -507,6 +511,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperService,
                 similarityService,
                 engineFactory,
+                engineConfigFactory,
                 eventListener,
                 readerWrapper,
                 threadPool,
