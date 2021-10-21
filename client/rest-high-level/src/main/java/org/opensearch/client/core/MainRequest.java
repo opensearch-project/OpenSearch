@@ -34,5 +34,4 @@ package org.opensearch.client.core;
 
 import org.opensearch.client.Validatable;
 
-public class MainRequest implements Validatable {
-}
+public class MainRequest implements Validatable {}

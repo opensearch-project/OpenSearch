@@ -64,8 +64,13 @@ public final class TasksClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ListTasksResponse list(ListTasksRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, TasksRequestConverters::listTasks, options,
-                ListTasksResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            TasksRequestConverters::listTasks,
+            options,
+            ListTasksResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -77,8 +82,14 @@ public final class TasksClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable listAsync(ListTasksRequest request, RequestOptions options, ActionListener<ListTasksResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, TasksRequestConverters::listTasks, options,
-                ListTasksResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            TasksRequestConverters::listTasks,
+            options,
+            ListTasksResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -90,8 +101,12 @@ public final class TasksClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public Optional<GetTaskResponse> get(GetTaskRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseOptionalEntity(request, TasksRequestConverters::getTask, options,
-                GetTaskResponse::fromXContent);
+        return restHighLevelClient.performRequestAndParseOptionalEntity(
+            request,
+            TasksRequestConverters::getTask,
+            options,
+            GetTaskResponse::fromXContent
+        );
     }
 
     /**
@@ -102,11 +117,15 @@ public final class TasksClient {
      * @param listener an actionlistener that takes an optional response (404s are returned as an empty Optional)
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getAsync(GetTaskRequest request, RequestOptions options,
-                                ActionListener<Optional<GetTaskResponse>> listener) {
+    public Cancellable getAsync(GetTaskRequest request, RequestOptions options, ActionListener<Optional<GetTaskResponse>> listener) {
 
-        return restHighLevelClient.performRequestAsyncAndParseOptionalEntity(request, TasksRequestConverters::getTask, options,
-                GetTaskResponse::fromXContent, listener);
+        return restHighLevelClient.performRequestAsyncAndParseOptionalEntity(
+            request,
+            TasksRequestConverters::getTask,
+            options,
+            GetTaskResponse::fromXContent,
+            listener
+        );
     }
 
     /**
@@ -118,7 +137,7 @@ public final class TasksClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      *
      */
-    public CancelTasksResponse cancel(CancelTasksRequest cancelTasksRequest, RequestOptions options ) throws IOException {
+    public CancelTasksResponse cancel(CancelTasksRequest cancelTasksRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             cancelTasksRequest,
             TasksRequestConverters::cancelTasks,
@@ -136,8 +155,11 @@ public final class TasksClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable cancelAsync(CancelTasksRequest cancelTasksRequest, RequestOptions options,
-                                   ActionListener<CancelTasksResponse> listener) {
+    public Cancellable cancelAsync(
+        CancelTasksRequest cancelTasksRequest,
+        RequestOptions options,
+        ActionListener<CancelTasksResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             cancelTasksRequest,
             TasksRequestConverters::cancelTasks,

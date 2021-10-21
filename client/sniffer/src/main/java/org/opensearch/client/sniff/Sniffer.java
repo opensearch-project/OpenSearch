@@ -108,7 +108,7 @@ public class Sniffer implements Closeable {
      * it will also schedule a new round after sniffAfterFailureDelay ms.
      */
     public void sniffOnFailure() {
-        //sniffOnFailure does nothing until the initial sniffing round has been completed
+        // sniffOnFailure does nothing until the initial sniffing round has been completed
         if (initialized.get()) {
             /*
              * If sniffing is already running, there is no point in scheduling another round right after the current one.
@@ -127,7 +127,9 @@ public class Sniffer implements Closeable {
     }
 
     enum TaskState {
-        WAITING, SKIPPED, STARTED
+        WAITING,
+        SKIPPED,
+        STARTED
     }
 
     class Task implements Runnable {
@@ -155,12 +157,12 @@ public class Sniffer implements Closeable {
             } finally {
                 Task task = new Task(sniffIntervalMillis);
                 Future<?> future = scheduler.schedule(task, nextTaskDelay);
-                //tasks are run by a single threaded executor, so swapping is safe with a simple volatile variable
+                // tasks are run by a single threaded executor, so swapping is safe with a simple volatile variable
                 ScheduledTask previousTask = nextScheduledTask;
                 nextScheduledTask = new ScheduledTask(task, future);
-                assert initialized.get() == false ||
-                        previousTask.task.isSkipped() || previousTask.task.hasStarted() : "task that we are replacing is neither " +
-                        "cancelled nor has it ever started";
+                assert initialized.get() == false
+                    || previousTask.task.isSkipped()
+                    || previousTask.task.hasStarted() : "task that we are replacing is neither " + "cancelled nor has it ever started";
             }
         }
 

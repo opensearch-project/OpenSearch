@@ -48,14 +48,14 @@ public class SniffOnFailureListenerTests extends RestClientTestCase {
         try {
             listener.onFailure(null);
             fail("should have failed");
-        } catch(IllegalStateException e) {
+        } catch (IllegalStateException e) {
             assertEquals("sniffer was not set, unable to sniff on failure", e.getMessage());
         }
 
         try {
             listener.setSniffer(null);
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("sniffer must not be null", e.getMessage());
         }
 
@@ -65,7 +65,7 @@ public class SniffOnFailureListenerTests extends RestClientTestCase {
                 try {
                     listener.setSniffer(sniffer);
                     fail("should have failed");
-                } catch(IllegalStateException e) {
+                } catch (IllegalStateException e) {
                     assertEquals("sniffer can only be set once", e.getMessage());
                 }
                 listener.onFailure(new Node(new HttpHost("localhost", 9200)));

@@ -45,8 +45,11 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 public class AcknowledgedResponse {
 
     protected static final String PARSE_FIELD_NAME = "acknowledged";
-    private static final ConstructingObjectParser<AcknowledgedResponse, Void> PARSER = AcknowledgedResponse
-        .generateParser("acknowledged_response", AcknowledgedResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
+    private static final ConstructingObjectParser<AcknowledgedResponse, Void> PARSER = AcknowledgedResponse.generateParser(
+        "acknowledged_response",
+        AcknowledgedResponse::new,
+        AcknowledgedResponse.PARSE_FIELD_NAME
+    );
 
     private final boolean acknowledged;
 

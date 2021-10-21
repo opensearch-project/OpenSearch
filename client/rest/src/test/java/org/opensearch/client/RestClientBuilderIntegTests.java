@@ -122,18 +122,25 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     private static SSLContext getSslContext() throws Exception {
         SSLContext sslContext = SSLContext.getInstance(getProtocol());
-        try (InputStream certFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test.crt");
-             InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore.jks")) {
+        try (
+            InputStream certFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test.crt");
+            InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore.jks")
+        ) {
             // Build a keystore of default type programmatically since we can't use JKS keystores to
             // init a KeyManagerFactory in FIPS 140 JVMs.
             KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             keyStore.load(null, "password".toCharArray());
             CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(Files.readAllBytes(Paths.get(RestClientBuilderIntegTests.class
-                .getResource("/test.der").toURI())));
+            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(
+                Files.readAllBytes(Paths.get(RestClientBuilderIntegTests.class.getResource("/test.der").toURI()))
+            );
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            keyStore.setKeyEntry("mykey", keyFactory.generatePrivate(privateKeySpec), "password".toCharArray(),
-                new Certificate[]{certFactory.generateCertificate(certFile)});
+            keyStore.setKeyEntry(
+                "mykey",
+                keyFactory.generatePrivate(privateKeySpec),
+                "password".toCharArray(),
+                new Certificate[] { certFactory.generateCertificate(certFile) }
+            );
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             kmf.init(keyStore, "password".toCharArray());
             KeyStore trustStore = KeyStore.getInstance("JKS");

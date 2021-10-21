@@ -183,7 +183,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(Map<String, ?> source) {
-       try {
+        try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
             return mapping(BytesReference.bytes(builder), builder.contentType());
@@ -243,15 +243,21 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      */
     public CreateIndexRequest aliases(BytesReference source, XContentType contentType) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source, contentType)) {
-            //move to the first alias
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                source,
+                contentType
+            )
+        ) {
+            // move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 alias(Alias.fromXContent(parser));
             }
             return this;
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new OpenSearchParseException("Failed to parse aliases", e);
         }
     }

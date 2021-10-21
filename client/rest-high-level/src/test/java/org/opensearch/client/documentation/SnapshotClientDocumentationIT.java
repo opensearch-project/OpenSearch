@@ -318,7 +318,6 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         request.includeAliases(false); // <1>
         // end::restore-snapshot-request-include-aliases
 
-
         // tag::restore-snapshot-request-indices
         request.indices("test_index"); // <1>
         // end::restore-snapshot-request-indices
