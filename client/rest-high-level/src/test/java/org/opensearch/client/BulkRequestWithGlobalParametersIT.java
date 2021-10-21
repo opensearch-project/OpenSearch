@@ -61,10 +61,8 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
         createFieldAddingPipleine("xyz", "fieldNameXYZ", "valueXYZ");
 
         BulkRequest request = new BulkRequest();
-        request.add(new IndexRequest("test").id("1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("test").id("2")
-            .source(XContentType.JSON, "field", "bulk2"));
+        request.add(new IndexRequest("test").id("1").source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("test").id("2").source(XContentType.JSON, "field", "bulk2"));
         request.pipeline("xyz");
 
         bulk(request);
@@ -80,12 +78,8 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
 
         BulkRequest request = new BulkRequest();
         request.pipeline("globalId");
-        request.add(new IndexRequest("test").id("1")
-            .source(XContentType.JSON, "field", "bulk1")
-            .setPipeline("perIndexId"));
-        request.add(new IndexRequest("test").id("2")
-            .source(XContentType.JSON, "field", "bulk2")
-            .setPipeline("perIndexId"));
+        request.add(new IndexRequest("test").id("1").source(XContentType.JSON, "field", "bulk1").setPipeline("perIndexId"));
+        request.add(new IndexRequest("test").id("2").source(XContentType.JSON, "field", "bulk2").setPipeline("perIndexId"));
 
         bulk(request);
 
@@ -113,19 +107,19 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
         bulk(request);
 
         Iterable<SearchHit> hits = searchAll("test");
-        assertThat(hits, containsInAnyOrder(
-            both(hasId("1"))
-                .and(hasProperty(fieldFromSource("someNewField"), equalTo("someValue"))),
-            both(hasId("2"))
-                .and(hasProperty(fieldFromSource("fieldXYZ"), equalTo("valueXYZ")))));
+        assertThat(
+            hits,
+            containsInAnyOrder(
+                both(hasId("1")).and(hasProperty(fieldFromSource("someNewField"), equalTo("someValue"))),
+                both(hasId("2")).and(hasProperty(fieldFromSource("fieldXYZ"), equalTo("valueXYZ")))
+            )
+        );
     }
 
     public void testGlobalIndex() throws IOException {
         BulkRequest request = new BulkRequest("global_index", null);
-        request.add(new IndexRequest().id("1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest().id("2")
-            .source(XContentType.JSON, "field", "bulk2"));
+        request.add(new IndexRequest().id("1").source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest().id("2").source(XContentType.JSON, "field", "bulk2"));
 
         bulk(request);
 
@@ -136,27 +130,22 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
     @SuppressWarnings("unchecked")
     public void testIndexGlobalAndPerRequest() throws IOException {
         BulkRequest request = new BulkRequest("global_index", null);
-        request.add(new IndexRequest("local_index").id("1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest().id("2") // will take global index
-            .source(XContentType.JSON, "field", "bulk2"));
+        request.add(new IndexRequest("local_index").id("1").source(XContentType.JSON, "field", "bulk1"));
+        request.add(
+            new IndexRequest().id("2") // will take global index
+                .source(XContentType.JSON, "field", "bulk2")
+        );
 
         bulk(request);
 
         Iterable<SearchHit> hits = searchAll("local_index", "global_index");
-        assertThat(hits, containsInAnyOrder(
-            both(hasId("1"))
-                .and(hasIndex("local_index")),
-            both(hasId("2"))
-                .and(hasIndex("global_index"))));
+        assertThat(hits, containsInAnyOrder(both(hasId("1")).and(hasIndex("local_index")), both(hasId("2")).and(hasIndex("global_index"))));
     }
 
     public void testGlobalType() throws IOException {
         BulkRequest request = new BulkRequest(null, "global_type");
-        request.add(new IndexRequest("index").id("1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index").id("2")
-            .source(XContentType.JSON, "field", "bulk2"));
+        request.add(new IndexRequest("index").id("1").source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("index").id("2").source(XContentType.JSON, "field", "bulk2"));
 
         bulkWithTypes(request);
 
@@ -166,28 +155,23 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
 
     public void testTypeGlobalAndPerRequest() throws IOException {
         BulkRequest request = new BulkRequest(null, "global_type");
-        request.add(new IndexRequest("index1", "local_type", "1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index2").id("2") // will take global type
-            .source(XContentType.JSON, "field", "bulk2"));
+        request.add(new IndexRequest("index1", "local_type", "1").source(XContentType.JSON, "field", "bulk1"));
+        request.add(
+            new IndexRequest("index2").id("2") // will take global type
+                .source(XContentType.JSON, "field", "bulk2")
+        );
 
         bulkWithTypes(request);
 
         Iterable<SearchHit> hits = searchAll("index1", "index2");
-        assertThat(hits, containsInAnyOrder(
-            both(hasId("1"))
-                .and(hasType("local_type")),
-            both(hasId("2"))
-                .and(hasType("global_type"))));
+        assertThat(hits, containsInAnyOrder(both(hasId("1")).and(hasType("local_type")), both(hasId("2")).and(hasType("global_type"))));
     }
 
     public void testGlobalRouting() throws IOException {
         createIndexWithMultipleShards("index");
         BulkRequest request = new BulkRequest((String) null);
-        request.add(new IndexRequest("index").id("1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index").id("2")
-            .source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("index").id("1").source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("index").id("2").source(XContentType.JSON, "field", "bulk1"));
         request.routing("1");
         bulk(request);
 
@@ -201,11 +185,8 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
     public void testMixLocalAndGlobalRouting() throws IOException {
         BulkRequest request = new BulkRequest((String) null);
         request.routing("globalRouting");
-        request.add(new IndexRequest("index").id("1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index").id( "2")
-            .routing("localRouting")
-            .source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("index").id("1").source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("index").id("2").routing("localRouting").source(XContentType.JSON, "field", "bulk1"));
 
         bulk(request);
 
@@ -215,10 +196,8 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
 
     public void testGlobalIndexNoTypes() throws IOException {
         BulkRequest request = new BulkRequest("global_index");
-        request.add(new IndexRequest().id("1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest().id("2")
-            .source(XContentType.JSON, "field", "bulk2"));
+        request.add(new IndexRequest().id("1").source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest().id("2").source(XContentType.JSON, "field", "bulk2"));
 
         bulk(request);
 
@@ -227,8 +206,12 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
     }
 
     private BulkResponse bulkWithTypes(BulkRequest request) throws IOException {
-        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync,
-                expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        BulkResponse bulkResponse = execute(
+            request,
+            highLevelClient()::bulk,
+            highLevelClient()::bulkAsync,
+            expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE)
+        );
         assertFalse(bulkResponse.hasFailures());
         return bulkResponse;
     }

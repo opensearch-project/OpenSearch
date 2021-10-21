@@ -89,9 +89,7 @@ public interface NodeSelector {
             for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                 Node node = itr.next();
                 if (node.getRoles() == null) continue;
-                if (node.getRoles().isMasterEligible()
-                        && false == node.getRoles().isData()
-                        && false == node.getRoles().isIngest()) {
+                if (node.getRoles().isMasterEligible() && false == node.getRoles().isData() && false == node.getRoles().isIngest()) {
                     itr.remove();
                 }
             }

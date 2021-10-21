@@ -30,6 +30,7 @@
  */
 
 package org.opensearch.client.tasks;
+
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.XContentParser;
 import java.io.IOException;
@@ -83,7 +84,7 @@ public class OpenSearchException {
         return suppressed;
     }
 
-    void addSuppressed(List<OpenSearchException> suppressed){
+    void addSuppressed(List<OpenSearchException> suppressed) {
         this.suppressed.addAll(suppressed);
     }
 
@@ -191,7 +192,7 @@ public class OpenSearchException {
     }
 
     void addHeader(String key, List<String> value) {
-        headers.put(key,value);
+        headers.put(key, value);
 
     }
 
@@ -215,10 +216,10 @@ public class OpenSearchException {
         if (this == o) return true;
         if (!(o instanceof OpenSearchException)) return false;
         OpenSearchException that = (OpenSearchException) o;
-        return Objects.equals(getMsg(), that.getMsg()) &&
-            Objects.equals(getCause(), that.getCause()) &&
-            Objects.equals(getHeaders(), that.getHeaders()) &&
-            Objects.equals(getSuppressed(), that.getSuppressed());
+        return Objects.equals(getMsg(), that.getMsg())
+            && Objects.equals(getCause(), that.getCause())
+            && Objects.equals(getHeaders(), that.getHeaders())
+            && Objects.equals(getSuppressed(), that.getSuppressed());
     }
 
     @Override
@@ -228,11 +229,16 @@ public class OpenSearchException {
 
     @Override
     public String toString() {
-        return "OpenSearchException{" +
-            "msg='" + msg + '\'' +
-            ", cause=" + cause +
-            ", headers=" + headers +
-            ", suppressed=" + suppressed +
-            '}';
+        return "OpenSearchException{"
+            + "msg='"
+            + msg
+            + '\''
+            + ", cause="
+            + cause
+            + ", headers="
+            + headers
+            + ", suppressed="
+            + suppressed
+            + '}';
     }
 }
