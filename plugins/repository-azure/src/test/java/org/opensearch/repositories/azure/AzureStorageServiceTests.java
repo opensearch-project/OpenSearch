@@ -32,9 +32,13 @@
 
 package org.opensearch.repositories.azure;
 
-import com.microsoft.azure.storage.RetryExponentialRetry;
-import com.microsoft.azure.storage.blob.CloudBlobClient;
-import com.microsoft.azure.storage.core.Base64;
+import reactor.core.scheduler.Schedulers;
+
+import com.azure.core.http.policy.HttpPipelinePolicy;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.common.policy.RequestRetryPolicy;
+
+import org.junit.AfterClass;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
@@ -50,19 +54,23 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.opensearch.repositories.azure.AzureStorageService.blobNameFromUri;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AzureStorageServiceTests extends OpenSearchTestCase {
+    @AfterClass
+    public static void shutdownSchedulers() {
+        Schedulers.shutdownNow();
+    }
 
     public void testReadSecuredSettings() {
         final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings())
@@ -95,10 +103,10 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .put("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix").build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final CloudBlobClient client1 = azureStorageService.client("azure1").v1();
-            assertThat(client1.getEndpoint().toString(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
-            final CloudBlobClient client2 = azureStorageService.client("azure2").v1();
-            assertThat(client2.getEndpoint().toString(), equalTo("https://myaccount2.blob.core.windows.net"));
+            final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
+            assertThat(client1.getAccountUrl(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
+            final BlobServiceClient client2 = azureStorageService.client("azure2").v1();
+            assertThat(client2.getAccountUrl(), equalTo("https://myaccount2.blob.core.windows.net"));
         }
     }
 
@@ -117,28 +125,28 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings1)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final CloudBlobClient client11 = azureStorageService.client("azure1").v1();
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount11.blob.core.windows.net"));
-            final CloudBlobClient client12 = azureStorageService.client("azure2").v1();
-            assertThat(client12.getEndpoint().toString(), equalTo("https://myaccount12.blob.core.windows.net"));
+            final BlobServiceClient client11 = azureStorageService.client("azure1").v1();
+            assertThat(client11.getAccountUrl(), equalTo("https://myaccount11.blob.core.windows.net"));
+            final BlobServiceClient client12 = azureStorageService.client("azure2").v1();
+            assertThat(client12.getAccountUrl(), equalTo("https://myaccount12.blob.core.windows.net"));
             // client 3 is missing
             final SettingsException e1 = expectThrows(SettingsException.class, () -> azureStorageService.client("azure3"));
             assertThat(e1.getMessage(), is("Unable to find client with name [azure3]"));
             // update client settings
             plugin.reload(settings2);
             // old client 1 not changed
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount11.blob.core.windows.net"));
+            assertThat(client11.getAccountUrl(), equalTo("https://myaccount11.blob.core.windows.net"));
             // new client 1 is changed
-            final CloudBlobClient client21 = azureStorageService.client("azure1").v1();
-            assertThat(client21.getEndpoint().toString(), equalTo("https://myaccount21.blob.core.windows.net"));
+            final BlobServiceClient client21 = azureStorageService.client("azure1").v1();
+            assertThat(client21.getAccountUrl(), equalTo("https://myaccount21.blob.core.windows.net"));
             // old client 2 not changed
-            assertThat(client12.getEndpoint().toString(), equalTo("https://myaccount12.blob.core.windows.net"));
+            assertThat(client12.getAccountUrl(), equalTo("https://myaccount12.blob.core.windows.net"));
             // new client2 is gone
             final SettingsException e2 = expectThrows(SettingsException.class, () -> azureStorageService.client("azure2"));
             assertThat(e2.getMessage(), is("Unable to find client with name [azure2]"));
             // client 3 emerged
-            final CloudBlobClient client23 = azureStorageService.client("azure3").v1();
-            assertThat(client23.getEndpoint().toString(), equalTo("https://myaccount23.blob.core.windows.net"));
+            final BlobServiceClient client23 = azureStorageService.client("azure3").v1();
+            assertThat(client23.getAccountUrl(), equalTo("https://myaccount23.blob.core.windows.net"));
         }
     }
 
@@ -149,16 +157,16 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final CloudBlobClient client11 = azureStorageService.client("azure1").v1();
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            final BlobServiceClient client11 = azureStorageService.client("azure1").v1();
+            assertThat(client11.getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             // reinit with empty settings
             final SettingsException e = expectThrows(SettingsException.class, () -> plugin.reload(Settings.EMPTY));
             assertThat(e.getMessage(), is("If you want to use an azure repository, you need to define a client configuration."));
             // existing client untouched
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            assertThat(client11.getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             // new client also untouched
-            final CloudBlobClient client21 = azureStorageService.client("azure1").v1();
-            assertThat(client21.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            final BlobServiceClient client21 = azureStorageService.client("azure1").v1();
+            assertThat(client21.getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
         }
     }
 
@@ -178,14 +186,14 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         final Settings settings3 = Settings.builder().setSecureSettings(secureSettings3).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings1)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final CloudBlobClient client11 = azureStorageService.client("azure1").v1();
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            final BlobServiceClient client11 = azureStorageService.client("azure1").v1();
+            assertThat(client11.getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             final SettingsException e1 = expectThrows(SettingsException.class, () -> plugin.reload(settings2));
             assertThat(e1.getMessage(), is("Neither a secret key nor a shared access token was set."));
             final SettingsException e2 = expectThrows(SettingsException.class, () -> plugin.reload(settings3));
             assertThat(e2.getMessage(), is("Both a secret as well as a shared access token were set."));
             // existing client untouched
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            assertThat(client11.getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
         }
     }
 
@@ -201,23 +209,19 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .put("azure.client.azure3.timeout", "30s")
             .build();
         final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(timeoutSettings);
-        final CloudBlobClient client1 = azureStorageService.client("azure1").v1();
-        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), nullValue());
-        final CloudBlobClient client3 = azureStorageService.client("azure3").v1();
-        assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
+        assertThat(azureStorageService.getBlobRequestTimeout("azure1"), nullValue());
+        assertThat(azureStorageService.getBlobRequestTimeout("azure3"), is(Duration.ofSeconds(30)));
     }
 
     public void testGetSelectedClientNoTimeout() {
         final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(buildSettings());
-        final CloudBlobClient client1 = azureStorageService.client("azure1").v1();
-        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(nullValue()));
+        assertThat(azureStorageService.getBlobRequestTimeout("azure1"), nullValue());
     }
 
     public void testGetSelectedClientBackoffPolicy() {
         final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(buildSettings());
-        final CloudBlobClient client1 = azureStorageService.client("azure1").v1();
-        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
-        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
+        final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
+        assertThat(requestRetryOptions(client1), is(notNullValue()));
     }
 
     public void testGetSelectedClientBackoffPolicyNbRetries() {
@@ -227,9 +231,8 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .build();
 
         final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(timeoutSettings);
-        final CloudBlobClient client1 = azureStorageService.client("azure1").v1();
-        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
-        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
+        final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
+        assertThat(requestRetryOptions(client1), is(notNullValue()));
     }
 
     public void testNoProxy() {
@@ -368,6 +371,36 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     private static String encodeKey(final String value) {
-        return Base64.encode(value.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
+    
+    private static RequestRetryPolicy requestRetryOptions(BlobServiceClient client) {
+        for (int i = 0; i < client.getHttpPipeline().getPolicyCount(); ++i) {
+            final HttpPipelinePolicy policy = client.getHttpPipeline().getPolicy(i);
+            if (policy instanceof RequestRetryPolicy) {
+                return (RequestRetryPolicy)policy;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Extract the blob name from a URI like https://myservice.azure.net/container/path/to/myfile
+     * It should remove the container part (first part of the path) and gives path/to/myfile
+     * @param uri URI to parse
+     * @return The blob name relative to the container
+     */
+    private static String blobNameFromUri(URI uri) {
+        final String path = uri.getPath();
+        // We remove the container name from the path
+        // The 3 magic number cames from the fact if path is /container/path/to/myfile
+        // First occurrence is empty "/"
+        // Second occurrence is "container
+        // Last part contains "path/to/myfile" which is what we want to get
+        final String[] splits = path.split("/", 3);
+        // We return the remaining end of the string
+        return splits[2];
+    }
+
 }

@@ -87,6 +87,7 @@ public class AzureHttpHandler implements HttpHandler {
 
                 final String blockId = params.get("blockid");
                 blobs.put(blockId, Streams.readFully(exchange.getRequestBody()));
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + container + "/*comp=blocklist*", request)) {
@@ -104,6 +105,7 @@ public class AzureHttpHandler implements HttpHandler {
                     block.writeTo(blob);
                 }
                 blobs.put(exchange.getRequestURI().getPath(), new BytesArray(blob.toByteArray()));
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + container + "/*", request)) {
@@ -117,6 +119,7 @@ public class AzureHttpHandler implements HttpHandler {
                 } else {
                     blobs.put(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody()));
                 }
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("HEAD /" + container + "/*", request)) {
@@ -126,8 +129,9 @@ public class AzureHttpHandler implements HttpHandler {
                     sendError(exchange, RestStatus.NOT_FOUND);
                     return;
                 }
-                exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(blob.length()));
+                exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.length()));
                 exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
             } else if (Regex.simpleMatch("GET /" + container + "/*", request)) {
@@ -149,8 +153,9 @@ public class AzureHttpHandler implements HttpHandler {
                 final int length = Integer.parseInt(matcher.group(2)) - start + 1;
 
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
                 exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                 exchange.getResponseBody().write(blob.toBytesRef().bytes, start, length);
 
@@ -169,6 +174,7 @@ public class AzureHttpHandler implements HttpHandler {
                 list.append("<EnumerationResults>");
                 final String prefix = params.get("prefix");
                 final Set<String> blobPrefixes = new HashSet<>();
+                // Always use the delimiter (explicit or implicit), some APIs do not send it anymore
                 final String delimiter = params.get("delimiter");
                 if (delimiter != null) {
                     list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
@@ -187,9 +193,15 @@ public class AzureHttpHandler implements HttpHandler {
                             continue;
                         }
                     }
-                    list.append("<Blob><Name>").append(blobPath).append("</Name>");
+
+                    list.append("<Blob>");
+                    if (delimiter != null) {
+                        list.append("<IsPrefix>").append(blobPath.endsWith(delimiter)).append("</IsPrefix>");
+                    }
+                    list.append("<Name>").append(blobPath).append("</Name>");
                     list.append("<Properties><Content-Length>").append(blob.getValue().length()).append("</Content-Length>");
-                    list.append("<BlobType>BlockBlob</BlobType></Properties></Blob>");
+                    list.append("<BlobType>BlockBlob</BlobType></Properties>");
+                    list.append("</Blob>");
                 }
                 if (blobPrefixes.isEmpty() == false) {
                     blobPrefixes.forEach(p -> list.append("<BlobPrefix><Name>").append(p).append("</Name></BlobPrefix>"));
@@ -200,6 +212,7 @@ public class AzureHttpHandler implements HttpHandler {
 
                 byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
