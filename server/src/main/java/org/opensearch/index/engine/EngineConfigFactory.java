@@ -80,7 +80,7 @@ public class EngineConfigFactory {
                 translogDeletionPolicyOverridingPlugin = enginePlugin.getClass().getName();
             } else {
                 throw new IllegalStateException(
-                    "existing translog deletion policy supplier is already overridden in: "
+                    "existing translog deletion policy function is already overridden in: "
                         + translogDeletionPolicyOverridingPlugin
                         + " attempting to override again by: "
                         + enginePlugin.getClass().getName()
@@ -91,7 +91,7 @@ public class EngineConfigFactory {
         this.customTranslogDeletionPolicyFn = customTranslogDeletionPolicyFn.orElse((idxs, rtls) -> null);
     }
 
-    /** Insantiates a new EngineConfig from the provided custom overrides */
+    /** Instantiates a new EngineConfig from the provided custom overrides */
     public EngineConfig newEngineConfig(
         ShardId shardId,
         ThreadPool threadPool,

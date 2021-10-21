@@ -202,7 +202,7 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.opensearch.index.engine.EngineConfig}
      */
-    public EngineConfig(
+    EngineConfig(
         ShardId shardId,
         ThreadPool threadPool,
         IndexSettings indexSettings,
