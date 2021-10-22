@@ -199,7 +199,7 @@ public class TruncateTranslogAction {
                 Integer.MAX_VALUE
             ) {
                 @Override
-                long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) {
+                public long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) {
                     long minGen = writer.generation;
                     for (TranslogReader reader : readers) {
                         minGen = Math.min(reader.generation, minGen);

@@ -44,7 +44,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class TranslogDeletionPolicy {
+public abstract class TranslogDeletionPolicy {
 
     private final Map<Object, RuntimeException> openTranslogRef;
 
@@ -68,12 +68,6 @@ public class TranslogDeletionPolicy {
     private long retentionAgeInMillis;
 
     private int retentionTotalFiles;
-
-    /**
-     * @deprecated EXPERT: this variable is specific to CCR and will be moved to a plugin in the next release
-     */
-    @Deprecated
-    private boolean shouldPruneTranslogByRetentionLease;
 
     public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles) {
         this.retentionSizeInBytes = retentionSizeInBytes;
@@ -165,20 +159,7 @@ public class TranslogDeletionPolicy {
      * @param readers current translog readers
      * @param writer  current translog writer
      */
-    synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException {
-        long minByLocks = getMinTranslogGenRequiredByLocks();
-        long minByAge = getMinTranslogGenByAge(readers, writer, retentionAgeInMillis, currentTime());
-        long minBySize = getMinTranslogGenBySize(readers, writer, retentionSizeInBytes);
-        final long minByAgeAndSize;
-        if (minBySize == Long.MIN_VALUE && minByAge == Long.MIN_VALUE) {
-            // both size and age are disabled;
-            minByAgeAndSize = Long.MAX_VALUE;
-        } else {
-            minByAgeAndSize = Math.max(minByAge, minBySize);
-        }
-        long minByNumFiles = getMinTranslogGenByTotalFiles(readers, writer, retentionTotalFiles);
-        return Math.min(Math.max(minByAgeAndSize, minByNumFiles), minByLocks);
-    }
+    public abstract long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException;
 
     static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
         if (retentionSizeInBytes >= 0) {
@@ -221,10 +202,6 @@ public class TranslogDeletionPolicy {
 
     protected long currentTime() {
         return System.currentTimeMillis();
-    }
-
-    private long getMinTranslogGenRequiredByLocks() {
-        return translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
     }
 
     /**

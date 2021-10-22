@@ -17,11 +17,14 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
+import org.opensearch.index.translog.TranslogReader;
+import org.opensearch.index.translog.TranslogWriter;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -141,6 +144,11 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
                 indexSettings.getTranslogRetentionAge().getMillis(),
                 indexSettings.getTranslogRetentionTotalFiles()
             );
+        }
+
+        @Override
+        public long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException {
+            return 0;
         }
     }
 }

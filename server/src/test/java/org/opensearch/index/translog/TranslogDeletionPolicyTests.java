@@ -275,7 +275,7 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
         return new Tuple<>(readers, writer);
     }
 
-    private static class MockDeletionPolicy extends TranslogDeletionPolicy {
+    private static class MockDeletionPolicy extends DefaultTranslogDeletionPolicy {
 
         long now;
 
