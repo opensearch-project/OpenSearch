@@ -40,6 +40,7 @@ import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
+import org.apache.tools.ant.taskdefs.condition.Os;
 
 import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
@@ -64,8 +65,21 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
     private static Logger LOGGER = Logging.getLogger(DockerSupportService.class);
     // Defines the possible locations of the Docker CLI. These will be searched in order.
-    private static String[] DOCKER_BINARIES = { "/usr/bin/docker", "/usr/local/bin/docker" };
-    private static String[] DOCKER_COMPOSE_BINARIES = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+    private static String[] DOCKER_BINARIES_UNIX = { "/usr/bin/docker", "/usr/local/bin/docker" };
+
+    private static String[] DOCKER_BINARIES_WINDOWS = { System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker.exe" };
+
+    private static String[] DOCKER_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS) ? DOCKER_BINARIES_WINDOWS : DOCKER_BINARIES_UNIX;
+
+    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+
+    private static String[] DOCKER_COMPOSE_BINARIES_WINDOWS = {
+        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
+
+    private static String[] DOCKER_COMPOSE_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS)
+        ? DOCKER_COMPOSE_BINARIES_WINDOWS
+        : DOCKER_COMPOSE_BINARIES_UNIX;
+
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
     private final ExecOperations execOperations;
