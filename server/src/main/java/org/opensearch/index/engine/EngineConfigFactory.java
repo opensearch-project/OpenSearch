@@ -22,6 +22,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
@@ -38,7 +39,8 @@ import java.util.function.Supplier;
  * A factory to create an EngineConfig based on custom plugin overrides
  */
 public class EngineConfigFactory {
-    private final Optional<CodecService> codecService;
+    private final CodecService codecService;
+    private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
 
     /** default ctor primarily used for tests without plugins */
     public EngineConfigFactory(IndexSettings idxSettings) {
@@ -56,6 +58,8 @@ public class EngineConfigFactory {
     EngineConfigFactory(Collection<EnginePlugin> enginePlugins, IndexSettings idxSettings) {
         Optional<CodecService> codecService = Optional.empty();
         String codecServiceOverridingPlugin = null;
+        Optional<TranslogDeletionPolicyFactory> translogDeletionPolicyFactory = Optional.empty();
+        String translogDeletionPolicyOverridingPlugin = null;
         for (EnginePlugin enginePlugin : enginePlugins) {
             // get overriding codec service from EnginePlugin
             if (codecService.isPresent() == false) {
@@ -69,11 +73,23 @@ public class EngineConfigFactory {
                         + enginePlugin.getClass().getName()
                 );
             }
+            if (translogDeletionPolicyFactory.isPresent() == false) {
+                translogDeletionPolicyFactory = enginePlugin.getCustomTranslogDeletionPolicyFactory();
+                translogDeletionPolicyOverridingPlugin = enginePlugin.getClass().getName();
+            } else {
+                throw new IllegalStateException(
+                    "existing TranslogDeletionPolicyFactory is already overridden in: "
+                        + translogDeletionPolicyOverridingPlugin
+                        + " attempting to override again by: "
+                        + enginePlugin.getClass().getName()
+                );
+            }
         }
-        this.codecService = codecService;
+        this.codecService = codecService.orElse(null);
+        this.translogDeletionPolicyFactory = translogDeletionPolicyFactory.orElse((idxs, rtls) -> null);
     }
 
-    /** Insantiates a new EngineConfig from the provided custom overrides */
+    /** Instantiates a new EngineConfig from the provided custom overrides */
     public EngineConfig newEngineConfig(
         ShardId shardId,
         ThreadPool threadPool,
@@ -108,11 +124,12 @@ public class EngineConfigFactory {
             mergePolicy,
             analyzer,
             similarity,
-            this.codecService.isPresent() == true ? this.codecService.get() : codecService,
+            this.codecService != null ? this.codecService : codecService,
             eventListener,
             queryCache,
             queryCachingPolicy,
             translogConfig,
+            translogDeletionPolicyFactory,
             flushMergesAfter,
             externalRefreshListener,
             internalRefreshListener,

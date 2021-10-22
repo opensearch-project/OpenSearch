@@ -35,8 +35,12 @@ package org.opensearch.plugins;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * A plugin that provides alternative engine implementations.
@@ -61,6 +65,19 @@ public interface EnginePlugin {
      * will be used.
      */
     default Optional<CodecService> getCustomCodecService(IndexSettings indexSettings) {
+        return Optional.empty();
+    }
+
+    /**
+     * When an index is created this method is invoked for each engine plugin. Engine plugins that need to provide a
+     * custom {@link TranslogDeletionPolicy} can override this method to return a function that takes the {@link IndexSettings}
+     * and a {@link Supplier} for {@link RetentionLeases} and returns a custom {@link TranslogDeletionPolicy}.
+     *
+     * Only one of the installed Engine plugins can override this otherwise {@link IllegalStateException} will be thrown.
+     *
+     * @return a function that returns an instance of {@link TranslogDeletionPolicy}
+     */
+    default Optional<TranslogDeletionPolicyFactory> getCustomTranslogDeletionPolicyFactory() {
         return Optional.empty();
     }
 }
