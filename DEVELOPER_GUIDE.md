@@ -79,7 +79,7 @@ On Windows, set `_JAVA_OPTIONS: -Xmx4096M`. You may also need to set `LongPathsE
 
 Download and install [Docker](https://docs.docker.com/install/), required for building OpenSearch artifacts, and executing certain test suites.
 
-On Windows, uncheck support for Hyper-V during installation, run `"C:\Program Files\Docker\Docker\DockerCli.exe" -SwitchDaemon` to fix the ` In the default daemon configuration on Windows, the docker client must be run with elevated privileges to connect.` error, run Docker Desktop once, review and accept license agreement, and ensure that the Docker daemon is running.
+On Windows, [use Docker Desktop 3.6](https://docs.docker.com/desktop/windows/release-notes/3.x/). See [OpenSearch#1425](https://github.com/opensearch-project/OpenSearch/issues/1425) for workarounds and issues with Docker Desktop 4.1.1.
 
 ### Run Tests
 
