@@ -56,8 +56,8 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
 
     public void testParseRequest() throws Exception {
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/opensearch/script/mustache/simple-msearch-template.json");
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withContent(new BytesArray(data), XContentType.JSON).build();
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), XContentType.JSON)
+            .build();
 
         MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
 
@@ -93,10 +93,10 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
     }
 
     public void testParseWithCarriageReturn() throws Exception {
-        final String content = "{\"index\":[\"test0\", \"test1\"], \"request_cache\": true}\r\n" +
-            "{\"source\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withContent(new BytesArray(content), XContentType.JSON).build();
+        final String content = "{\"index\":[\"test0\", \"test1\"], \"request_cache\": true}\r\n"
+            + "{\"source\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
+            .build();
 
         MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
 
@@ -115,8 +115,7 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
     public void testMaxConcurrentSearchRequests() {
         MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
         request.maxConcurrentSearchRequests(randomIntBetween(1, Integer.MAX_VALUE));
-        expectThrows(IllegalArgumentException.class, () ->
-                request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
+        expectThrows(IllegalArgumentException.class, () -> request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
     }
 
     public void testMultiSearchTemplateToJson() throws Exception {
@@ -124,7 +123,7 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
         MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
         for (int i = 0; i < numSearchRequests; i++) {
             // Create a random request.
-            String[] indices = {"test"};
+            String[] indices = { "test" };
             SearchRequest searchRequest = new SearchRequest(indices);
             // scroll is not supported in the current msearch or msearchtemplate api, so unset it:
             searchRequest.scroll((Scroll) null);
@@ -144,12 +143,12 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
             multiSearchTemplateRequest.add(searchTemplateRequest);
         }
 
-        //Serialize the request
+        // Serialize the request
         String serialized = toJsonString(multiSearchTemplateRequest);
 
-        //Deserialize the request
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-                .withContent(new BytesArray(serialized), XContentType.JSON).build();
+        // Deserialize the request
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(serialized), XContentType.JSON)
+            .build();
         MultiSearchTemplateRequest deser = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
 
         // For object equality purposes need to set the search requests' source to non-null

@@ -79,9 +79,10 @@ public class StoreDotDefNode extends StoreNode {
 
         methodWriter.writeDebugInfo(getLocation());
         Type methodType = Type.getMethodType(
-                MethodWriter.getType(void.class),
-                MethodWriter.getType(def.class),
-                MethodWriter.getType(getStoreType()));
+            MethodWriter.getType(void.class),
+            MethodWriter.getType(def.class),
+            MethodWriter.getType(getStoreType())
+        );
         methodWriter.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
 }

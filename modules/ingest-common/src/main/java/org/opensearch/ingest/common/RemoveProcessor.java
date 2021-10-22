@@ -93,8 +93,12 @@ public final class RemoveProcessor extends AbstractProcessor {
         }
 
         @Override
-        public RemoveProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                      String description, Map<String, Object> config) throws Exception {
+        public RemoveProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             final List<String> fields = new ArrayList<>();
             final Object field = ConfigurationUtils.readObject(TYPE, processorTag, config, "field");
             if (field instanceof List) {
@@ -113,4 +117,3 @@ public final class RemoveProcessor extends AbstractProcessor {
         }
     }
 }
-

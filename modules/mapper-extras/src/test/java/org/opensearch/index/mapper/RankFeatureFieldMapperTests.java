@@ -140,8 +140,10 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", Arrays.asList(10, 20))))
         );
-        assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [field] in the same document",
-                e.getCause().getMessage());
+        assertEquals(
+            "[rank_feature] fields do not support indexing multiple values for the same field [field] in the same document",
+            e.getCause().getMessage()
+        );
 
         e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("foo");
@@ -151,7 +153,9 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         })));
-        assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
-                e.getCause().getMessage());
+        assertEquals(
+            "[rank_feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
+            e.getCause().getMessage()
+        );
     }
 }

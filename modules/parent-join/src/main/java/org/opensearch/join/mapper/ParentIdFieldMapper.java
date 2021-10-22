@@ -103,8 +103,13 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
         @Override
         public ParentIdFieldMapper build(BuilderContext context) {
-            return new ParentIdFieldMapper(name, parent, children, fieldType,
-                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals, meta));
+            return new ParentIdFieldMapper(
+                name,
+                parent,
+                children,
+                fieldType,
+                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals, meta)
+            );
         }
     }
 
@@ -144,11 +149,13 @@ public final class ParentIdFieldMapper extends FieldMapper {
     private final String parentName;
     private Set<String> children;
 
-    protected ParentIdFieldMapper(String simpleName,
-                                  String parentName,
-                                  Set<String> children,
-                                  FieldType fieldType,
-                                  MappedFieldType mappedFieldType) {
+    protected ParentIdFieldMapper(
+        String simpleName,
+        String parentName,
+        Set<String> children,
+        FieldType fieldType,
+        MappedFieldType mappedFieldType
+    ) {
         super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.parentName = parentName;
         this.children = children;
@@ -169,6 +176,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     public Query getParentFilter() {
         return new TermQuery(new Term(name().substring(0, name().indexOf('#')), parentName));
     }
+
     /**
      * Returns the children names associated with this mapper.
      */

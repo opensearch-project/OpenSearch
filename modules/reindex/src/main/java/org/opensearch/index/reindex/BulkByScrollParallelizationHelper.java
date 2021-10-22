@@ -80,7 +80,8 @@ class BulkByScrollParallelizationHelper {
         ActionListener<BulkByScrollResponse> listener,
         Client client,
         DiscoveryNode node,
-        Runnable workerAction) {
+        Runnable workerAction
+    ) {
         initTaskState(task, request, client, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
@@ -111,7 +112,8 @@ class BulkByScrollParallelizationHelper {
         ActionListener<BulkByScrollResponse> listener,
         Client client,
         DiscoveryNode node,
-        Runnable workerAction) {
+        Runnable workerAction
+    ) {
         if (task.isLeader()) {
             sendSubRequests(client, action, node.getId(), task, request, listener);
         } else if (task.isWorker()) {
@@ -133,7 +135,8 @@ class BulkByScrollParallelizationHelper {
         BulkByScrollTask task,
         Request request,
         Client client,
-        ActionListener<Void> listener) {
+        ActionListener<Void> listener
+    ) {
         int configuredSlices = request.getSlices();
         if (configuredSlices == AbstractBulkByScrollRequest.AUTO_SLICES) {
             ClusterSearchShardsRequest shardsRequest = new ClusterSearchShardsRequest();
@@ -159,7 +162,8 @@ class BulkByScrollParallelizationHelper {
     private static <Request extends AbstractBulkByScrollRequest<Request>> void setWorkerCount(
         Request request,
         BulkByScrollTask task,
-        int slices) {
+        int slices
+    ) {
         if (slices > 1) {
             task.setWorkerCount(slices);
         } else {
@@ -170,23 +174,21 @@ class BulkByScrollParallelizationHelper {
     }
 
     private static int countSlicesBasedOnShards(ClusterSearchShardsResponse response) {
-        Map<Index, Integer> countsByIndex = Arrays.stream(response.getGroups()).collect(Collectors.toMap(
-            group -> group.getShardId().getIndex(),
-            group -> 1,
-            (sum, term) -> sum + term
-        ));
+        Map<Index, Integer> countsByIndex = Arrays.stream(response.getGroups())
+            .collect(Collectors.toMap(group -> group.getShardId().getIndex(), group -> 1, (sum, term) -> sum + term));
         Set<Integer> counts = new HashSet<>(countsByIndex.values());
         int leastShards = counts.isEmpty() ? 1 : Collections.min(counts);
         return Math.min(leastShards, AUTO_SLICE_CEILING);
     }
 
     private static <Request extends AbstractBulkByScrollRequest<Request>> void sendSubRequests(
-            Client client,
-            ActionType<BulkByScrollResponse> action,
-            String localNodeId,
-            BulkByScrollTask task,
-            Request request,
-            ActionListener<BulkByScrollResponse> listener) {
+        Client client,
+        ActionType<BulkByScrollResponse> action,
+        String localNodeId,
+        BulkByScrollTask task,
+        Request request,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
 
         LeaderBulkByScrollTaskState worker = task.getLeaderState();
         int totalSlices = worker.getSlices();
@@ -195,8 +197,9 @@ class BulkByScrollParallelizationHelper {
             // TODO move the request to the correct node. maybe here or somehow do it as part of startup for reindex in general....
             Request requestForSlice = request.forSlice(parentTaskId, slice, totalSlices);
             ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
-                    r -> worker.onSliceResponse(listener, slice.source().slice().getId(), r),
-                    e -> worker.onSliceFailure(listener, slice.source().slice().getId(), e));
+                r -> worker.onSliceResponse(listener, slice.source().slice().getId(), r),
+                e -> worker.onSliceFailure(listener, slice.source().slice().getId(), e)
+            );
             client.execute(action, requestForSlice, sliceListener);
         }
     }

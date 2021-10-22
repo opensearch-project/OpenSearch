@@ -78,8 +78,16 @@ public class Netty4SizeHeaderFrameDecoderTests extends OpenSearchTestCase {
         threadPool = new ThreadPool(settings);
         NetworkService networkService = new NetworkService(Collections.emptyList());
         PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
-        nettyTransport = new Netty4Transport(settings, Version.CURRENT, threadPool, networkService, recycler,
-            new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService(), new SharedGroupFactory(settings));
+        nettyTransport = new Netty4Transport(
+            settings,
+            Version.CURRENT,
+            threadPool,
+            networkService,
+            recycler,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(settings)
+        );
         nettyTransport.start();
 
         TransportAddress[] boundAddresses = nettyTransport.boundAddress().boundAddresses();

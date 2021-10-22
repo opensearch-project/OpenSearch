@@ -59,9 +59,15 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, RecoverySettings recoverySettings) {
-        return Collections.singletonMap(URLRepository.TYPE,
-            metadata -> new URLRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings));
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings
+    ) {
+        return Collections.singletonMap(
+            URLRepository.TYPE,
+            metadata -> new URLRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings)
+        );
     }
 }

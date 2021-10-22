@@ -79,9 +79,17 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     private final SearchRequest searchRequest;
     Version remoteVersion;
 
-    public RemoteScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-                                     Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
-                                     RestClient client, BytesReference query, SearchRequest searchRequest) {
+    public RemoteScrollableHitSource(
+        Logger logger,
+        BackoffPolicy backoffPolicy,
+        ThreadPool threadPool,
+        Runnable countSearchRetry,
+        Consumer<AsyncResponse> onResponse,
+        Consumer<Exception> fail,
+        RestClient client,
+        BytesReference query,
+        SearchRequest searchRequest
+    ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.query = query;
         this.searchRequest = searchRequest;
@@ -92,8 +100,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     protected void doStart(RejectAwareActionListener<Response> searchListener) {
         lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
             remoteVersion = version;
-            execute(RemoteRequestBuilders.initialSearch(searchRequest, query, remoteVersion),
-                RESPONSE_PARSER, RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)));
+            execute(
+                RemoteRequestBuilders.initialSearch(searchRequest, query, remoteVersion),
+                RESPONSE_PARSER,
+                RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r))
+            );
         }));
     }
 
@@ -134,11 +145,15 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             private void logFailure(Exception e) {
                 if (e instanceof ResponseException) {
                     ResponseException re = (ResponseException) e;
-                            if (remoteVersion.before(Version.fromId(2000099))
-                                    && re.getResponse().getStatusLine().getStatusCode() == 404) {
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                    if (remoteVersion.before(Version.fromId(2000099)) && re.getResponse().getStatusLine().getStatusCode() == 404) {
+                        logger.debug(
+                            (Supplier<?>) () -> new ParameterizedMessage(
                                 "Failed to clear scroll [{}] from pre-2.0 OpenSearch. This is normal if the request terminated "
-                                        + "normally as the scroll has already been cleared automatically.", scrollId), e);
+                                    + "normally as the scroll has already been cleared automatically.",
+                                scrollId
+                            ),
+                            e
+                        );
                         return;
                     }
                 }
@@ -164,8 +179,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         });
     }
 
-    private <T> void execute(Request request,
-                             BiFunction<XContentParser, XContentType, T> parser, RejectAwareActionListener<? super T> listener) {
+    private <T> void execute(
+        Request request,
+        BiFunction<XContentParser, XContentType, T> parser,
+        RejectAwareActionListener<? super T> listener
+    ) {
         // Preserve the thread context so headers survive after the call
         java.util.function.Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         try {
@@ -188,7 +206,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                 try {
                                     logger.debug("Response didn't include Content-Type: " + bodyMessage(response.getEntity()));
                                     throw new OpenSearchException(
-                                        "Response didn't include supported Content-Type, remote is likely not an OpenSearch instance");
+                                        "Response didn't include supported Content-Type, remote is likely not an OpenSearch instance"
+                                    );
                                 } catch (IOException e) {
                                     OpenSearchException ee = new OpenSearchException("Error extracting body from response");
                                     ee.addSuppressed(e);
@@ -196,18 +215,18 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                 }
                             }
                             // EMPTY is safe here because we don't call namedObject
-                            try (XContentParser xContentParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-                                LoggingDeprecationHandler.INSTANCE, content)) {
+                            try (
+                                XContentParser xContentParser = xContentType.xContent()
+                                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, content)
+                            ) {
                                 parsedResponse = parser.apply(xContentParser, xContentType);
                             } catch (XContentParseException e) {
                                 /* Because we're streaming the response we can't get a copy of it here. The best we can do is hint that it
                                  * is totally wrong and we're probably not talking to Elasticsearch. */
-                                throw new OpenSearchException(
-                                    "Error parsing the response, remote is likely not an OpenSearch instance", e);
+                                throw new OpenSearchException("Error parsing the response, remote is likely not an OpenSearch instance", e);
                             }
                         } catch (IOException e) {
-                            throw new OpenSearchException(
-                                "Error deserializing response, remote is likely not an OpenSearch instance", e);
+                            throw new OpenSearchException("Error deserializing response, remote is likely not an OpenSearch instance", e);
                         }
                         listener.onResponse(parsedResponse);
                     }
@@ -220,15 +239,16 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                         if (e instanceof ResponseException) {
                             ResponseException re = (ResponseException) e;
                             int statusCode = re.getResponse().getStatusLine().getStatusCode();
-                            e = wrapExceptionToPreserveStatus(statusCode,
-                                re.getResponse().getEntity(), re);
+                            e = wrapExceptionToPreserveStatus(statusCode, re.getResponse().getEntity(), re);
                             if (RestStatus.TOO_MANY_REQUESTS.getStatus() == statusCode) {
                                 listener.onRejection(e);
                                 return;
                             }
                         } else if (e instanceof ContentTooLongException) {
                             e = new IllegalArgumentException(
-                                "Remote responded with a chunk that was too large. Use a smaller batch size.", e);
+                                "Remote responded with a chunk that was too large. Use a smaller batch size.",
+                                e
+                            );
                         }
                         listener.onFailure(e);
                     }

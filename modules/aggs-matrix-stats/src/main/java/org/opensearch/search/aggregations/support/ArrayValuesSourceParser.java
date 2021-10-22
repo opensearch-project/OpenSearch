@@ -80,8 +80,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
     }
 
     @Override
-    public final ArrayValuesSourceAggregationBuilder<?> parse(String aggregationName, XContentParser parser)
-        throws IOException {
+    public final ArrayValuesSourceAggregationBuilder<?> parse(String aggregationName, XContentParser parser) throws IOException {
 
         List<String> fields = null;
         String format = null;
@@ -98,12 +97,22 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
                 } else if (formattable && CommonFields.FORMAT.match(currentFieldName, parser.getDeprecationHandler())) {
                     format = parser.text();
                 } else if (CommonFields.VALUE_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
-                            "Multi-field aggregations do not support scripts.");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unexpected token "
+                            + token
+                            + " ["
+                            + currentFieldName
+                            + "] in ["
+                            + aggregationName
+                            + "]. "
+                            + "Multi-field aggregations do not support scripts."
+                    );
                 } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (CommonFields.MISSING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -112,41 +121,69 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
                         parseMissingAndAdd(aggregationName, currentFieldName, parser, missingMap);
                     }
                 } else if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
-                            "Multi-field aggregations do not support scripts.");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unexpected token "
+                            + token
+                            + " ["
+                            + currentFieldName
+                            + "] in ["
+                            + aggregationName
+                            + "]. "
+                            + "Multi-field aggregations do not support scripts."
+                    );
 
                 } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
-                            "Multi-field aggregations do not support scripts.");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unexpected token "
+                            + token
+                            + " ["
+                            + currentFieldName
+                            + "] in ["
+                            + aggregationName
+                            + "]. "
+                            + "Multi-field aggregations do not support scripts."
+                    );
                 } else if (CommonFields.FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                     fields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             fields.add(parser.text());
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]."
+                            );
                         }
                     }
                 } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]."
+                    );
                 }
             } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]."
+                );
             }
         }
 
-        ArrayValuesSourceAggregationBuilder<?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
-            otherOptions);
+        ArrayValuesSourceAggregationBuilder<?> factory = createFactory(
+            aggregationName,
+            this.valuesSourceType,
+            this.targetValueType,
+            otherOptions
+        );
         if (fields != null) {
             factory.fields(fields);
         }
@@ -159,8 +196,12 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
         return factory;
     }
 
-    private void parseMissingAndAdd(final String aggregationName, final String currentFieldName,
-                                    XContentParser parser, final Map<String, Object> missing) throws IOException {
+    private void parseMissingAndAdd(
+        final String aggregationName,
+        final String currentFieldName,
+        XContentParser parser,
+        final Map<String, Object> missing
+    ) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
@@ -169,15 +210,18 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
         if (token == XContentParser.Token.FIELD_NAME) {
             final String fieldName = parser.currentName();
             if (missing.containsKey(fieldName)) {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Missing field [" + fieldName + "] already defined as [" + missing.get(fieldName)
-                        + "] in [" + aggregationName + "].");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Missing field [" + fieldName + "] already defined as [" + missing.get(fieldName) + "] in [" + aggregationName + "]."
+                );
             }
             parser.nextToken();
             missing.put(fieldName, parser.objectText());
         } else {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]"
+            );
         }
     }
 
@@ -199,10 +243,12 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      *            method
      * @return the created factory
      */
-    protected abstract ArrayValuesSourceAggregationBuilder<?> createFactory(String aggregationName,
-                                                                            ValuesSourceType valuesSourceType,
-                                                                            ValueType targetValueType,
-                                                                            Map<ParseField, Object> otherOptions);
+    protected abstract ArrayValuesSourceAggregationBuilder<?> createFactory(
+        String aggregationName,
+        ValuesSourceType valuesSourceType,
+        ValueType targetValueType,
+        Map<ParseField, Object> otherOptions
+    );
 
     /**
      * Allows subclasses of {@link ArrayValuesSourceParser} to parse extra
@@ -227,6 +273,11 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      * @throws IOException
      *             if an error occurs whilst parsing
      */
-    protected abstract boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
-                                     Map<ParseField, Object> otherOptions) throws IOException;
+    protected abstract boolean token(
+        String aggregationName,
+        String currentFieldName,
+        XContentParser.Token token,
+        XContentParser parser,
+        Map<ParseField, Object> otherOptions
+    ) throws IOException;
 }

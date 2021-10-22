@@ -72,17 +72,19 @@ public class MultiSearchTemplateIT extends OpenSearchIntegTestCase {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             indexRequestBuilders[i] = client().prepareIndex("msearch", "test", String.valueOf(i))
-                    .setSource("odd", (i % 2 == 0), "group", (i % 3));
+                .setSource("odd", (i % 2 == 0), "group", (i % 3));
         }
         indexRandom(true, indexRequestBuilders);
 
-        final String template = Strings.toString(jsonBuilder().startObject()
-                                                .startObject("query")
-                                                    .startObject("{{query_type}}")
-                                                        .field("{{field_name}}", "{{field_value}}")
-                                                    .endObject()
-                                                .endObject()
-                                            .endObject());
+        final String template = Strings.toString(
+            jsonBuilder().startObject()
+                .startObject("query")
+                .startObject("{{query_type}}")
+                .field("{{field_name}}", "{{field_value}}")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 
@@ -161,23 +163,23 @@ public class MultiSearchTemplateIT extends OpenSearchIntegTestCase {
         SearchTemplateResponse searchTemplateResponse1 = response1.getResponse();
         assertThat(searchTemplateResponse1.hasResponse(), is(true));
         assertHitCount(searchTemplateResponse1.getResponse(), (numDocs / 2) + (numDocs % 2));
-        assertThat(searchTemplateResponse1.getSource().utf8ToString(),
-                equalTo("{\"query\":{\"match\":{\"odd\":\"true\"}}}"));
+        assertThat(searchTemplateResponse1.getSource().utf8ToString(), equalTo("{\"query\":{\"match\":{\"odd\":\"true\"}}}"));
 
         MultiSearchTemplateResponse.Item response2 = response.getResponses()[1];
         assertThat(response2.isFailure(), is(false));
         SearchTemplateResponse searchTemplateResponse2 = response2.getResponse();
         assertThat(searchTemplateResponse2.hasResponse(), is(false));
-        assertThat(searchTemplateResponse2.getSource().utf8ToString(),
-                equalTo("{\"query\":{\"match_phrase_prefix\":{\"message\":\"quick brown f\"}}}"));
+        assertThat(
+            searchTemplateResponse2.getSource().utf8ToString(),
+            equalTo("{\"query\":{\"match_phrase_prefix\":{\"message\":\"quick brown f\"}}}")
+        );
 
         MultiSearchTemplateResponse.Item response3 = response.getResponses()[2];
         assertThat(response3.isFailure(), is(false));
         SearchTemplateResponse searchTemplateResponse3 = response3.getResponse();
         assertThat(searchTemplateResponse3.hasResponse(), is(true));
         assertHitCount(searchTemplateResponse3.getResponse(), (numDocs / 2));
-        assertThat(searchTemplateResponse3.getSource().utf8ToString(),
-                equalTo("{\"query\":{\"term\":{\"odd\":\"false\"}}}"));
+        assertThat(searchTemplateResponse3.getSource().utf8ToString(), equalTo("{\"query\":{\"term\":{\"odd\":\"false\"}}}"));
 
         MultiSearchTemplateResponse.Item response4 = response.getResponses()[3];
         assertThat(response4.isFailure(), is(true));
@@ -188,7 +190,6 @@ public class MultiSearchTemplateIT extends OpenSearchIntegTestCase {
         assertThat(response5.isFailure(), is(false));
         SearchTemplateResponse searchTemplateResponse5 = response5.getResponse();
         assertThat(searchTemplateResponse5.hasResponse(), is(false));
-        assertThat(searchTemplateResponse5.getSource().utf8ToString(),
-                equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
+        assertThat(searchTemplateResponse5.getSource().utf8ToString(), equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
     }
 }

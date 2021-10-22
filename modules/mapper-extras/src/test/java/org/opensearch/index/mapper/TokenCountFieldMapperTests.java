@@ -82,22 +82,15 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerConflictCheck("enable_position_increments", b -> b.field("enable_position_increments", false));
-        checker.registerUpdateCheck(
-            this::minimalMapping,
-            b -> b.field("type", "token_count").field("analyzer", "standard"),
-            m -> {
-                TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
-                assertThat(tcfm.analyzer(), equalTo("standard"));
-            });
+        checker.registerUpdateCheck(this::minimalMapping, b -> b.field("type", "token_count").field("analyzer", "standard"), m -> {
+            TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
+            assertThat(tcfm.analyzer(), equalTo("standard"));
+        });
     }
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        NamedAnalyzer dflt = new NamedAnalyzer(
-            "default",
-            AnalyzerScope.INDEX,
-            new StandardAnalyzer()
-        );
+        NamedAnalyzer dflt = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
         NamedAnalyzer standard = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
         NamedAnalyzer keyword = new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer());
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
@@ -144,7 +137,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         Token t3 = new Token();
         t2.setPositionIncrement(2);  // Funny token with more than one increment
         int finalTokenIncrement = 4; // Final token increment
-        Token[] tokens = new Token[] {t1, t2, t3};
+        Token[] tokens = new Token[] { t1, t2, t3 };
         Collections.shuffle(Arrays.asList(tokens), random());
         final TokenStream tokenStream = new CannedTokenStream(finalTokenIncrement, 0, tokens);
         // TODO: we have no CannedAnalyzer?
@@ -199,7 +192,6 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     }
 
     private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {
-        return mapper.parse(request)
-            .docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
+        return mapper.parse(request).docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
     }
 }

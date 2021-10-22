@@ -26,6 +26,8 @@
   <!-- Excludes checkstyle run on libs module -->
   <suppress files="libs" checks="." />
 
+  <!-- Excludes checkstyle run on modules -->
+  <suppress files="modules" checks="." />
   <!--
     Truly temporary suppressions suppression of snippets included in
     documentation that are so wide that they scroll.

@@ -41,8 +41,7 @@ import org.opensearch.client.OpenSearchClient;
  * Java API support for changing the throttle on reindex tasks while they are running.
  */
 public class RethrottleRequestBuilder extends TasksRequestBuilder<RethrottleRequest, ListTasksResponse, RethrottleRequestBuilder> {
-    public RethrottleRequestBuilder(OpenSearchClient client,
-                                    ActionType<ListTasksResponse> action) {
+    public RethrottleRequestBuilder(OpenSearchClient client, ActionType<ListTasksResponse> action) {
         super(client, action, new RethrottleRequest());
     }
 
