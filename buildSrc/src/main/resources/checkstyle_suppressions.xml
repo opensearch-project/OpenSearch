@@ -21,6 +21,8 @@
   <suppress files="server" checks="." />
   <!-- Excludes checkstyle run on client module -->
   <suppress files="client" checks="." />
+  <!-- Excludes checkstyle run on plugins/examples -->
+  <suppress files="plugins[/\\]examples" checks="." />
 
   <!--
     Truly temporary suppressions suppression of snippets included in

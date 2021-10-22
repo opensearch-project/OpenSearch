@@ -43,6 +43,7 @@ public class ExampleRescorePlugin extends Plugin implements SearchPlugin {
     @Override
     public List<RescorerSpec<?>> getRescorers() {
         return singletonList(
-                new RescorerSpec<>(ExampleRescoreBuilder.NAME, ExampleRescoreBuilder::new, ExampleRescoreBuilder::fromXContent));
+            new RescorerSpec<>(ExampleRescoreBuilder.NAME, ExampleRescoreBuilder::new, ExampleRescoreBuilder::fromXContent)
+        );
     }
 }

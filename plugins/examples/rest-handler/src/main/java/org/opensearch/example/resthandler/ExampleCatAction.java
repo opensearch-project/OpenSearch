@@ -52,9 +52,7 @@ public class ExampleCatAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_cat/example"),
-            new Route(POST, "/_cat/example")));
+        return unmodifiableList(asList(new Route(GET, "/_cat/example"), new Route(POST, "/_cat/example")));
     }
 
     @Override
