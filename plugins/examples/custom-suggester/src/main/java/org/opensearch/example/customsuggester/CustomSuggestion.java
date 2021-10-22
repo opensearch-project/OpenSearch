@@ -169,13 +169,15 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
         public static class Option extends Suggest.Suggestion.Entry.Option {
 
             private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>(
-                "CustomSuggestionObjectParser", true,
+                "CustomSuggestionObjectParser",
+                true,
                 args -> {
                     Text text = new Text((String) args[0]);
                     float score = (float) args[1];
                     String dummy = (String) args[2];
                     return new Option(text, score, dummy);
-                });
+                }
+            );
 
             static {
                 PARSER.declareString(constructorArg(), TEXT);

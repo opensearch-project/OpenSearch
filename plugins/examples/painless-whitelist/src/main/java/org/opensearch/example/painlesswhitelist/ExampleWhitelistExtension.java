@@ -53,16 +53,32 @@ public class ExampleWhitelistExtension implements PainlessExtension {
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         Map<String, WhitelistAnnotationParser> parsers = new HashMap<>(WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS);
         parsers.put(ExamplePainlessAnnotation.NAME, ExampleWhitelistAnnotationParser.INSTANCE);
-        Whitelist classWhitelist =
-                WhitelistLoader.loadFromResourceFiles(ExampleWhitelistExtension.class, parsers, "example_whitelist.txt");
+        Whitelist classWhitelist = WhitelistLoader.loadFromResourceFiles(ExampleWhitelistExtension.class, parsers, "example_whitelist.txt");
 
         ExampleWhitelistedInstance ewi = new ExampleWhitelistedInstance(1);
-        WhitelistInstanceBinding addValue = new WhitelistInstanceBinding("example addValue", ewi,
-            "addValue", "int", Collections.singletonList("int"), Collections.emptyList());
-        WhitelistInstanceBinding getValue = new WhitelistInstanceBinding("example getValue", ewi,
-            "getValue", "int", Collections.emptyList(), Collections.emptyList());
-        Whitelist instanceWhitelist = new Whitelist(ewi.getClass().getClassLoader(), Collections.emptyList(),
-            Collections.emptyList(), Collections.emptyList(), Arrays.asList(addValue, getValue));
+        WhitelistInstanceBinding addValue = new WhitelistInstanceBinding(
+            "example addValue",
+            ewi,
+            "addValue",
+            "int",
+            Collections.singletonList("int"),
+            Collections.emptyList()
+        );
+        WhitelistInstanceBinding getValue = new WhitelistInstanceBinding(
+            "example getValue",
+            ewi,
+            "getValue",
+            "int",
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
+        Whitelist instanceWhitelist = new Whitelist(
+            ewi.getClass().getClassLoader(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Arrays.asList(addValue, getValue)
+        );
 
         return Collections.singletonMap(FieldScript.CONTEXT, Arrays.asList(classWhitelist, instanceWhitelist));
     }
