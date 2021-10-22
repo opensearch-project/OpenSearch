@@ -65,7 +65,7 @@ public class HeaderWarningTests extends OpenSearchTestCase {
 
     @Override
     protected boolean enableWarningsCheck() {
-        //this is a low level test for the deprecation logger, setup and checks are done manually
+        // this is a low level test for the deprecation logger, setup and checks are done manually
         return false;
     }
 
@@ -118,10 +118,10 @@ public class HeaderWarningTests extends OpenSearchTestCase {
         final int code = 0x10000 + ((0xD83D & 0x3FF) << 10) + (0xDE31 & 0x3FF);
         @SuppressWarnings("PointlessBitwiseExpression")
         final int[] points = new int[] {
-                (code >> 18) & 0x07 | 0xF0,
-                (code >> 12) & 0x3F | 0x80,
-                (code >> 6) & 0x3F | 0x80,
-                (code >> 0) & 0x3F | 0x80};
+            (code >> 18) & 0x07 | 0xF0,
+            (code >> 12) & 0x3F | 0x80,
+            (code >> 6) & 0x3F | 0x80,
+            (code >> 0) & 0x3F | 0x80 };
         final StringBuilder sb = new StringBuilder();
         // noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < points.length; i++) {
@@ -191,8 +191,7 @@ public class HeaderWarningTests extends OpenSearchTestCase {
     }
 
     public void testFailsWithoutThreadContextSet() {
-        expectThrows(NullPointerException.class,
-            () -> HeaderWarning.addWarning((Set<ThreadContext>)null, "Does not explode"));
+        expectThrows(NullPointerException.class, () -> HeaderWarning.addWarning((Set<ThreadContext>) null, "Does not explode"));
     }
 
     public void testFailsWhenDoubleSettingSameThreadContext() throws IOException {
@@ -222,15 +221,17 @@ public class HeaderWarningTests extends OpenSearchTestCase {
         assertThat(HeaderWarning.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
 
         final String withNegativePos = "[context][-1:-1] Blah blah blah";
-        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(HeaderWarning.formatWarning(withNegativePos), true),
-            equalTo("Blah blah blah"));
+        assertThat(
+            HeaderWarning.extractWarningValueFromWarningHeader(HeaderWarning.formatWarning(withNegativePos), true),
+            equalTo("Blah blah blah")
+        );
     }
 
     public void testEscapeBackslashesAndQuotes() {
         assertThat(HeaderWarning.escapeBackslashesAndQuotes("\\"), equalTo("\\\\"));
         assertThat(HeaderWarning.escapeBackslashesAndQuotes("\""), equalTo("\\\""));
         assertThat(HeaderWarning.escapeBackslashesAndQuotes("\\\""), equalTo("\\\\\\\""));
-        assertThat(HeaderWarning.escapeBackslashesAndQuotes("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
+        assertThat(HeaderWarning.escapeBackslashesAndQuotes("\"foo\\bar\""), equalTo("\\\"foo\\\\bar\\\""));
         // test that characters other than '\' and '"' are left unchanged
         String chars = "\t !" + range(0x23, 0x24) + range(0x26, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff);
         final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
@@ -250,13 +251,10 @@ public class HeaderWarningTests extends OpenSearchTestCase {
         assertThat(HeaderWarning.encode(s), IsSame.sameInstance(s));
     }
 
-
-    public void testWarningHeaderCountSetting() throws IOException{
+    public void testWarningHeaderCountSetting() throws IOException {
         // Test that the number of warning headers don't exceed 'http.max_warning_header_count'
         final int maxWarningHeaderCount = 2;
-        Settings settings = Settings.builder()
-            .put("http.max_warning_header_count", maxWarningHeaderCount)
-            .build();
+        Settings settings = Settings.builder().put("http.max_warning_header_count", maxWarningHeaderCount).build();
         ThreadContext threadContext = new ThreadContext(settings);
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
         // try to log three warning messages
@@ -273,13 +271,11 @@ public class HeaderWarningTests extends OpenSearchTestCase {
         assertThat(responses.get(1), containsString("\"A simple message 2"));
     }
 
-    public void testWarningHeaderSizeSetting() throws IOException{
+    public void testWarningHeaderSizeSetting() throws IOException {
         // Test that the size of warning headers don't exceed 'http.max_warning_header_size'
-        Settings settings = Settings.builder()
-            .put("http.max_warning_header_size", "1Kb")
-            .build();
+        Settings settings = Settings.builder().put("http.max_warning_header_size", "1Kb").build();
 
-        byte [] arr = new byte[300];
+        byte[] arr = new byte[300];
         String message1 = new String(arr, StandardCharsets.UTF_8) + "1";
         String message2 = new String(arr, StandardCharsets.UTF_8) + "2";
         String message3 = new String(arr, StandardCharsets.UTF_8) + "3";
@@ -294,19 +290,17 @@ public class HeaderWarningTests extends OpenSearchTestCase {
         final List<String> responses = responseHeaders.get("Warning");
 
         long warningHeadersSize = 0L;
-        for (String response : responses){
-            warningHeadersSize += "Warning".getBytes(StandardCharsets.UTF_8).length +
-                response.getBytes(StandardCharsets.UTF_8).length;
+        for (String response : responses) {
+            warningHeadersSize += "Warning".getBytes(StandardCharsets.UTF_8).length + response.getBytes(StandardCharsets.UTF_8).length;
         }
         // assert that the size of all warning headers is less or equal to 1Kb
         assertTrue(warningHeadersSize <= 1024);
     }
 
     private String range(int lowerInclusive, int upperInclusive) {
-        return IntStream
-                .range(lowerInclusive, upperInclusive + 1)
-                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
-                .toString();
+        return IntStream.range(lowerInclusive, upperInclusive + 1)
+            .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+            .toString();
     }
 
 }

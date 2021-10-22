@@ -57,8 +57,11 @@ public class GetTaskResponse {
         return taskInfo;
     }
 
-    private static final ConstructingObjectParser<GetTaskResponse, Void> PARSER = new ConstructingObjectParser<>("get_task",
-            true, a -> new GetTaskResponse((boolean) a[0],  (TaskInfo) a[1]));
+    private static final ConstructingObjectParser<GetTaskResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_task",
+        true,
+        a -> new GetTaskResponse((boolean) a[0], (TaskInfo) a[1])
+    );
     static {
         PARSER.declareBoolean(constructorArg(), COMPLETED);
         PARSER.declareObject(constructorArg(), (p, c) -> TaskInfo.fromXContent(p), TASK);

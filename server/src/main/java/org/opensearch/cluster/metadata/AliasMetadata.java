@@ -76,8 +76,14 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     @Nullable
     private final Boolean isHidden;
 
-    private AliasMetadata(String alias, CompressedXContent filter, String indexRouting, String searchRouting, Boolean writeIndex,
-                          @Nullable Boolean isHidden) {
+    private AliasMetadata(
+        String alias,
+        CompressedXContent filter,
+        String indexRouting,
+        String searchRouting,
+        Boolean writeIndex,
+        @Nullable Boolean isHidden
+    ) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
@@ -92,8 +98,14 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     }
 
     private AliasMetadata(AliasMetadata aliasMetadata, String alias) {
-        this(alias, aliasMetadata.filter(), aliasMetadata.indexRouting(), aliasMetadata.searchRouting(), aliasMetadata.writeIndex(),
-            aliasMetadata.isHidden);
+        this(
+            alias,
+            aliasMetadata.filter(),
+            aliasMetadata.indexRouting(),
+            aliasMetadata.searchRouting(),
+            aliasMetadata.writeIndex(),
+            aliasMetadata.isHidden
+        );
     }
 
     public String alias() {

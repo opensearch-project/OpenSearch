@@ -56,11 +56,6 @@ public class ScriptMetrics {
     }
 
     public ScriptContextStats stats(String context) {
-        return new ScriptContextStats(
-            context,
-            compilationsMetric.count(),
-            cacheEvictionsMetric.count(),
-            compilationLimitTriggered.count()
-        );
+        return new ScriptContextStats(context, compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
     }
 }

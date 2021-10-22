@@ -48,7 +48,7 @@ public class DelayRecoveryException extends OpenSearchException {
         super(msg);
     }
 
-    public DelayRecoveryException(StreamInput in) throws IOException{
+    public DelayRecoveryException(StreamInput in) throws IOException {
         super(in);
     }
 

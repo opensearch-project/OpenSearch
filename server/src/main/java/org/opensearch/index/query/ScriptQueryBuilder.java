@@ -130,8 +130,10 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 if (token != XContentParser.Token.START_ARRAY) {
                     throw new AssertionError("Impossible token received: " + token.name());
                 }
-                throw new ParsingException(parser.getTokenLocation(),
-                    "[script] query does not support an array of scripts. Use a bool query with a clause per script instead.");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[script] query does not support an array of scripts. Use a bool query with a clause per script instead."
+                );
             }
         }
 
@@ -139,16 +141,15 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             throw new ParsingException(parser.getTokenLocation(), "script must be provided with a [script] filter");
         }
 
-        return new ScriptQueryBuilder(script)
-                .boost(boost)
-                .queryName(queryName);
+        return new ScriptQueryBuilder(script).boost(boost).queryName(queryName);
     }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (context.allowExpensiveQueries() == false) {
-            throw new OpenSearchException("[script] queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            throw new OpenSearchException(
+                "[script] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
         }
         FilterScript.Factory factory = context.compile(script, FilterScript.CONTEXT);
         FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), context.lookup());
@@ -176,8 +177,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         @Override
         public boolean equals(Object obj) {
-            if (sameClassAs(obj) == false)
-                return false;
+            if (sameClassAs(obj) == false) return false;
             ScriptQuery other = (ScriptQuery) obj;
             return Objects.equals(script, other.script);
         }
@@ -234,6 +234,5 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     protected boolean doEquals(ScriptQueryBuilder other) {
         return Objects.equals(script, other.script);
     }
-
 
 }

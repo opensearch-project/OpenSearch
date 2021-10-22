@@ -33,7 +33,6 @@ package org.opensearch.action.admin.indices.datastream;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction.Request;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -81,7 +80,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
     }
 
     public void testValidateRequest() {
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{"my-data-stream"});
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { "my-data-stream" });
         ActionRequestValidationException e = req.validate();
         assertNull(e);
     }
@@ -98,8 +97,10 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
         final String dataStreamName = "my-data-stream";
         final List<String> otherIndices = randomSubsetOf(org.opensearch.common.collect.List.of("foo", "bar", "baz"));
         ClusterState cs = getClusterStateWithDataStreams(
-            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{dataStreamName});
+            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, 2)),
+            otherIndices
+        );
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
         assertThat(newState.metadata().indices().size(), equalTo(otherIndices.size()));
@@ -109,15 +110,18 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
     }
 
     public void testDeleteMultipleDataStreams() {
-        String[] dataStreamNames = {"foo", "bar", "baz", "eggplant"};
-        ClusterState cs = getClusterStateWithDataStreams(org.opensearch.common.collect.List.of(
-            new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
-            new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
-            new Tuple<>(dataStreamNames[2], randomIntBetween(1, 3)),
-            new Tuple<>(dataStreamNames[3], randomIntBetween(1, 3))
-        ), org.opensearch.common.collect.List.of());
+        String[] dataStreamNames = { "foo", "bar", "baz", "eggplant" };
+        ClusterState cs = getClusterStateWithDataStreams(
+            org.opensearch.common.collect.List.of(
+                new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
+                new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
+                new Tuple<>(dataStreamNames[2], randomIntBetween(1, 3)),
+                new Tuple<>(dataStreamNames[3], randomIntBetween(1, 3))
+            ),
+            org.opensearch.common.collect.List.of()
+        );
 
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{"ba*", "eggplant"});
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { "ba*", "eggplant" });
         ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         DataStream remainingDataStream = newState.metadata().dataStreams().get(dataStreamNames[0]);
@@ -133,58 +137,82 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
         final String dataStreamName2 = "my-data-stream2";
         final List<String> otherIndices = randomSubsetOf(Arrays.asList("foo", "bar", "baz"));
 
-        ClusterState cs = getClusterStateWithDataStreams(Arrays.asList(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
-            otherIndices);
-        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.of(Arrays.asList(
-            createEntry(dataStreamName, "repo1", false),
-            createEntry(dataStreamName2, "repo2", true)));
+        ClusterState cs = getClusterStateWithDataStreams(
+            Arrays.asList(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
+            otherIndices
+        );
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.of(
+            Arrays.asList(createEntry(dataStreamName, "repo1", false), createEntry(dataStreamName2, "repo2", true))
+        );
         ClusterState snapshotCs = ClusterState.builder(cs).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
 
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{dataStreamName});
-        SnapshotInProgressException e = expectThrows(SnapshotInProgressException.class,
-            () -> DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), snapshotCs, req));
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
+        SnapshotInProgressException e = expectThrows(
+            SnapshotInProgressException.class,
+            () -> DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), snapshotCs, req)
+        );
 
-        assertThat(e.getMessage(), equalTo("Cannot delete data streams that are being snapshotted: [my-data-stream1]. Try again after " +
-            "snapshot finishes or cancel the currently running snapshot."));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Cannot delete data streams that are being snapshotted: [my-data-stream1]. Try again after "
+                    + "snapshot finishes or cancel the currently running snapshot."
+            )
+        );
     }
 
     private SnapshotsInProgress.Entry createEntry(String dataStreamName, String repo, boolean partial) {
-        return new SnapshotsInProgress.Entry(new Snapshot(repo, new SnapshotId("", "")), false, partial,
-            SnapshotsInProgress.State.SUCCESS, Collections.emptyList(), Collections.singletonList(dataStreamName), 0, 1,
-            ImmutableOpenMap.of(), null, null, null);
+        return new SnapshotsInProgress.Entry(
+            new Snapshot(repo, new SnapshotId("", "")),
+            false,
+            partial,
+            SnapshotsInProgress.State.SUCCESS,
+            Collections.emptyList(),
+            Collections.singletonList(dataStreamName),
+            0,
+            1,
+            ImmutableOpenMap.of(),
+            null,
+            null,
+            null
+        );
     }
 
     public void testDeleteNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
-        String[] dataStreamNames = {"foo", "bar", "baz", "eggplant"};
-        ClusterState cs = getClusterStateWithDataStreams(org.opensearch.common.collect.List.of(
-            new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
-            new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
-            new Tuple<>(dataStreamNames[2], randomIntBetween(1, 3)),
-            new Tuple<>(dataStreamNames[3], randomIntBetween(1, 3))
-        ), org.opensearch.common.collect.List.of());
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{dataStreamName});
+        String[] dataStreamNames = { "foo", "bar", "baz", "eggplant" };
+        ClusterState cs = getClusterStateWithDataStreams(
+            org.opensearch.common.collect.List.of(
+                new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
+                new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
+                new Tuple<>(dataStreamNames[2], randomIntBetween(1, 3)),
+                new Tuple<>(dataStreamNames[3], randomIntBetween(1, 3))
+            ),
+            org.opensearch.common.collect.List.of()
+        );
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(cs.metadata().dataStreams().size()));
-        assertThat(newState.metadata().dataStreams().keySet(),
-            containsInAnyOrder(cs.metadata().dataStreams().keySet().toArray(Strings.EMPTY_ARRAY)));
+        assertThat(
+            newState.metadata().dataStreams().keySet(),
+            containsInAnyOrder(cs.metadata().dataStreams().keySet().toArray(Strings.EMPTY_ARRAY))
+        );
     }
 
     @SuppressWarnings("unchecked")
     private static MetadataDeleteIndexService getMetadataDeleteIndexService() {
         MetadataDeleteIndexService s = mock(MetadataDeleteIndexService.class);
-        when(s.deleteIndices(any(ClusterState.class), any(Set.class)))
-            .thenAnswer(mockInvocation -> {
-                ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
-                Set<Index> indices = (Set<Index>) mockInvocation.getArguments()[1];
+        when(s.deleteIndices(any(ClusterState.class), any(Set.class))).thenAnswer(mockInvocation -> {
+            ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
+            Set<Index> indices = (Set<Index>) mockInvocation.getArguments()[1];
 
-                final Metadata.Builder b = Metadata.builder(currentState.metadata());
-                for (Index index : indices) {
-                    b.remove(index.getName());
-                }
+            final Metadata.Builder b = Metadata.builder(currentState.metadata());
+            for (Index index : indices) {
+                b.remove(index.getName());
+            }
 
-                return ClusterState.builder(currentState).metadata(b.build()).build();
-            });
+            return ClusterState.builder(currentState).metadata(b.build()).build();
+        });
 
         return s;
     }
@@ -206,8 +234,12 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(dsTuple.v1(), createTimestampField("@timestamp"),
-                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()), dsTuple.v2());
+            DataStream ds = new DataStream(
+                dsTuple.v1(),
+                createTimestampField("@timestamp"),
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
+                dsTuple.v2()
+            );
             builder.put(ds);
         }
 
@@ -223,14 +255,8 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
     }
 
     private static IndexMetadata createIndexMetadata(String name, boolean hidden) {
-        Settings.Builder b = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put("index.hidden", hidden);
+        Settings.Builder b = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put("index.hidden", hidden);
 
-        return IndexMetadata.builder(name)
-            .settings(b)
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
+        return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(1).build();
     }
 }

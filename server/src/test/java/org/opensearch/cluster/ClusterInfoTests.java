@@ -43,8 +43,12 @@ public class ClusterInfoTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         ClusterInfo clusterInfo = new ClusterInfo(
-                randomDiskUsage(), randomDiskUsage(), randomShardSizes(), randomRoutingToDataPath(),
-                randomReservedSpace());
+            randomDiskUsage(),
+            randomDiskUsage(),
+            randomShardSizes(),
+            randomRoutingToDataPath(),
+            randomReservedSpace()
+        );
         BytesStreamOutput output = new BytesStreamOutput();
         clusterInfo.writeTo(output);
 
@@ -62,8 +66,11 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
             DiskUsage diskUsage = new DiskUsage(
-                    randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4),
-                    randomIntBetween(0, Integer.MAX_VALUE), randomIntBetween(0, Integer.MAX_VALUE)
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                randomIntBetween(0, Integer.MAX_VALUE)
             );
             builder.put(key, diskUsage);
         }
@@ -98,7 +105,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         for (int i = 0; i < numEntries; i++) {
             final ClusterInfo.NodeAndPath key = new ClusterInfo.NodeAndPath(randomAlphaOfLength(10), randomAlphaOfLength(10));
             final ClusterInfo.ReservedSpace.Builder valueBuilder = new ClusterInfo.ReservedSpace.Builder();
-            for (int j = between(0,10); j > 0; j--) {
+            for (int j = between(0, 10); j > 0; j--) {
                 ShardId shardId = new ShardId(randomAlphaOfLength(32), randomAlphaOfLength(32), randomIntBetween(0, Integer.MAX_VALUE));
                 valueBuilder.add(shardId, between(0, Integer.MAX_VALUE));
             }

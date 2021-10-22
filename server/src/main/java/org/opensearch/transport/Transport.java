@@ -64,8 +64,7 @@ public interface Transport extends LifecycleComponent {
 
     void setMessageListener(TransportMessageListener listener);
 
-    default void setSlowLogThreshold(TimeValue slowLogThreshold) {
-    }
+    default void setSlowLogThreshold(TimeValue slowLogThreshold) {}
 
     default boolean isSecure() {
         return false;
@@ -121,8 +120,8 @@ public interface Transport extends LifecycleComponent {
          * @param options request options to apply
          * @throws NodeNotConnectedException if the given node is not connected
          */
-        void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
-            IOException, TransportException;
+        void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException,
+            TransportException;
 
         /**
          * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
@@ -250,8 +249,10 @@ public interface Transport extends LifecycleComponent {
          * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
          * found.
          */
-        public TransportResponseHandler<? extends TransportResponse> onResponseReceived(final long requestId,
-                                                                                        final TransportMessageListener listener) {
+        public TransportResponseHandler<? extends TransportResponse> onResponseReceived(
+            final long requestId,
+            final TransportMessageListener listener
+        ) {
             ResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
             listener.onResponseReceived(requestId, context);
             if (context == null) {
@@ -274,7 +275,7 @@ public interface Transport extends LifecycleComponent {
         }
 
         // TODO: Only visible for testing. Perhaps move StubbableTransport from
-        //  org.opensearch.test.transport to org.opensearch.transport
+        // org.opensearch.test.transport to org.opensearch.transport
         public synchronized <Request extends TransportRequest> void forceRegister(RequestHandlerRegistry<Request> reg) {
             requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
         }

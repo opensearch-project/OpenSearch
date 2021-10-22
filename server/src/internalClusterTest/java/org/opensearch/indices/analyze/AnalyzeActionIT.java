@@ -102,23 +102,35 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
-        expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices().prepareAnalyze(indexOrAlias(), "123").setField("long").get());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareAnalyze(indexOrAlias(), "123").setField("long").get()
+        );
 
-        expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get()
+        );
     }
 
     public void testAnalyzeWithNoIndex() throws Exception {
         AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").addTokenFilter("lowercase")
+        analyzeResponse = client().admin()
+            .indices()
+            .prepareAnalyze("THIS IS A TEST")
+            .setTokenizer("keyword")
+            .addTokenFilter("lowercase")
             .get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").addTokenFilter("lowercase")
+        analyzeResponse = client().admin()
+            .indices()
+            .prepareAnalyze("THIS IS A TEST")
+            .setTokenizer("standard")
+            .addTokenFilter("lowercase")
             .get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
         AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(0);
@@ -143,8 +155,7 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
-        client().admin().indices().preparePutMapping("test")
-                .setType("document").setSource("simple", "type=text,analyzer=simple").get();
+        client().admin().indices().preparePutMapping("test").setType("document").setSource("simple", "type=text,analyzer=simple").get();
 
         for (int i = 0; i < 10; i++) {
             final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("THIS IS A TEST");
@@ -172,7 +183,7 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
         assertTokens(response, "this", "is", "a", "test");
     }
 
-    private void assertTokens(AnalyzeAction.Response response, String ... tokens) {
+    private void assertTokens(AnalyzeAction.Response response, String... tokens) {
         assertThat(response.getTokens(), hasSize(tokens.length));
         for (int i = 0; i < tokens.length; i++) {
             assertThat(response.getTokens().get(i).getTerm(), is(tokens[i]));
@@ -187,10 +198,14 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
-        client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
+        client().admin()
+            .indices()
+            .preparePutMapping("test")
+            .setType("document")
+            .setSource("simple", "type=text,analyzer=simple,position_increment_gap=100")
+            .get();
 
-        String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
+        String[] texts = new String[] { "THIS IS A TEST", "THE SECOND TEXT" };
 
         final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze();
         requestBuilder.setText(texts);
@@ -214,9 +229,13 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
     }
 
     public void testDetailAnalyzeWithNoIndex() throws Exception {
-        //analyzer only
-        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
-            .setExplain(true).setAnalyzer("simple").get();
+        // analyzer only
+        AnalyzeAction.Response analyzeResponse = client().admin()
+            .indices()
+            .prepareAnalyze("THIS IS A TEST")
+            .setExplain(true)
+            .setAnalyzer("simple")
+            .get();
 
         assertThat(analyzeResponse.detail().tokenizer(), IsNull.nullValue());
         assertThat(analyzeResponse.detail().tokenfilters(), IsNull.nullValue());
@@ -226,9 +245,13 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
     }
 
     public void testDetailAnalyzeCustomAnalyzerWithNoIndex() throws Exception {
-        //analyzer only
-        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
-            .setExplain(true).setAnalyzer("simple").get();
+        // analyzer only
+        AnalyzeAction.Response analyzeResponse = client().admin()
+            .indices()
+            .prepareAnalyze("THIS IS A TEST")
+            .setExplain(true)
+            .setAnalyzer("simple")
+            .get();
 
         assertThat(analyzeResponse.detail().tokenizer(), IsNull.nullValue());
         assertThat(analyzeResponse.detail().tokenfilters(), IsNull.nullValue());
@@ -236,45 +259,66 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
         assertThat(analyzeResponse.detail().analyzer().getName(), equalTo("simple"));
         assertThat(analyzeResponse.detail().analyzer().getTokens().length, equalTo(4));
 
-        //custom analyzer
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
-            .setExplain(true).setTokenizer("keyword").addTokenFilter("lowercase").get();
+        // custom analyzer
+        analyzeResponse = client().admin()
+            .indices()
+            .prepareAnalyze("THIS IS A TEST")
+            .setExplain(true)
+            .setTokenizer("keyword")
+            .addTokenFilter("lowercase")
+            .get();
         assertThat(analyzeResponse.detail().analyzer(), IsNull.nullValue());
-        //tokenizer
+        // tokenizer
         assertThat(analyzeResponse.detail().tokenizer().getName(), equalTo("keyword"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("THIS IS A TEST"));
-        //tokenfilters
+        // tokenfilters
         assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("lowercase"));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getTerm(), equalTo("this is a test"));
 
-        //check other attributes
-        analyzeResponse = client().admin().indices().prepareAnalyze("This is troubled")
-            .setExplain(true).setTokenizer("standard").addTokenFilter("lowercase").get();
+        // check other attributes
+        analyzeResponse = client().admin()
+            .indices()
+            .prepareAnalyze("This is troubled")
+            .setExplain(true)
+            .setTokenizer("standard")
+            .addTokenFilter("lowercase")
+            .get();
 
         assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("lowercase"));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(3));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getTerm(), equalTo("troubled"));
-        String[] expectedAttributesKey = {
-            "bytes",
-            "termFrequency",
-            "positionLength"};
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().keySet(),
-                equalTo(new HashSet<>(Arrays.asList(expectedAttributesKey))));
+        String[] expectedAttributesKey = { "bytes", "termFrequency", "positionLength" };
+        assertThat(
+            analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().keySet(),
+            equalTo(new HashSet<>(Arrays.asList(expectedAttributesKey)))
+        );
     }
 
     public void testDetailAnalyzeWithMultiValues() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
-        client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
+        client().admin()
+            .indices()
+            .preparePutMapping("test")
+            .setType("document")
+            .setSource("simple", "type=text,analyzer=simple,position_increment_gap=100")
+            .get();
 
-        String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
-        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze().setIndex(indexOrAlias()).setText(texts)
-            .setExplain(true).setField("simple").setText(texts).execute().get();
+        String[] texts = new String[] { "THIS IS A TEST", "THE SECOND TEXT" };
+        AnalyzeAction.Response analyzeResponse = client().admin()
+            .indices()
+            .prepareAnalyze()
+            .setIndex(indexOrAlias())
+            .setText(texts)
+            .setExplain(true)
+            .setField("simple")
+            .setText(texts)
+            .execute()
+            .get();
 
         assertThat(analyzeResponse.detail().analyzer().getName(), equalTo("simple"));
         assertThat(analyzeResponse.detail().analyzer().getTokens().length, equalTo(7));
@@ -295,11 +339,9 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
     }
 
     public void testNonExistTokenizer() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices()
-                .prepareAnalyze("this is a test")
-                .setAnalyzer("not_exist_analyzer")
-                .get()
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareAnalyze("this is a test").setAnalyzer("not_exist_analyzer").get()
         );
         assertThat(e.getMessage(), startsWith("failed to find global analyzer"));
     }
@@ -307,8 +349,9 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
     public void testCustomTokenFilterInRequest() throws Exception {
         Map<String, Object> stopFilterSettings = new HashMap<>();
         stopFilterSettings.put("type", "stop");
-        stopFilterSettings.put("stopwords", new String[]{"foo", "buzz"});
-        AnalyzeAction.Response analyzeResponse = client().admin().indices()
+        stopFilterSettings.put("stopwords", new String[] { "foo", "buzz" });
+        AnalyzeAction.Response analyzeResponse = client().admin()
+            .indices()
             .prepareAnalyze()
             .setText("Foo buzz test")
             .setTokenizer("standard")
@@ -317,7 +360,7 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
             .setExplain(true)
             .get();
 
-        //tokenizer
+        // tokenizer
         assertThat(analyzeResponse.detail().tokenizer().getName(), equalTo("standard"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens().length, equalTo(3));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("Foo"));
@@ -386,11 +429,16 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
     }
 
     public void testAnalyzeNormalizedKeywordField() throws IOException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-            .setSettings(Settings.builder().put(indexSettings())
-                .put("index.analysis.normalizer.my_normalizer.type", "custom")
-                .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase"))
-            .addMapping("test", "keyword", "type=keyword,normalizer=my_normalizer"));
+        assertAcked(
+            prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(
+                    Settings.builder()
+                        .put(indexSettings())
+                        .put("index.analysis.normalizer.my_normalizer.type", "custom")
+                        .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase")
+                )
+                .addMapping("test", "keyword", "type=keyword,normalizer=my_normalizer")
+        );
         ensureGreen("test");
 
         AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();

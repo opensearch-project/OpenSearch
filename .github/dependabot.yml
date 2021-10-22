@@ -1,0 +1,882 @@
+updates:
+  - directory: /
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /benchmarks/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/reaper/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/archives/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/archives/darwin-tar/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/archives/oss-darwin-tar/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/bwc/bugfix/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/bwc/minor/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/testKit/opensearch-build-resources/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/testKit/opensearch.build/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/testKit/reaper/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/testKit/symbolic-link-preserving-tar/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/testKit/testingConventions/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/testKit/thirdPartyAudit/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /buildSrc/src/testKit/thirdPartyAudit/sample_jars/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /client/benchmark/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /client/client-benchmark-noop-api-plugin/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /client/rest/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /client/rest-high-level/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /client/sniffer/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /client/test/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /client/transport/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/archives/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/archives/darwin-tar/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/archives/integ-test-zip/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/archives/linux-arm64-tar/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/archives/linux-tar/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/archives/no-jdk-darwin-tar/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/archives/no-jdk-linux-tar/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/archives/no-jdk-windows-zip/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/archives/windows-zip/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/bwc/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/bwc/bugfix/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/bwc/maintenance/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/bwc/minor/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/bwc/staged/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/docker/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/docker/docker-arm64-export/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/docker/docker-build-context/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/docker/docker-export/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/packages/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/packages/arm64-deb/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/packages/arm64-rpm/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/packages/deb/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/packages/no-jdk-deb/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/packages/no-jdk-rpm/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/packages/rpm/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/tools/java-version-checker/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/tools/keystore-cli/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/tools/launchers/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/tools/plugin-cli/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /distribution/tools/upgrade-cli/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /doc-tools/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /doc-tools/missing-doclet/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/cli/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/core/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/dissect/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/geo/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/grok/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/nio/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/plugin-classloader/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/secure-sm/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/ssl-config/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /libs/x-content/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/aggs-matrix-stats/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/analysis-common/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/geo/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/ingest-common/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/ingest-geoip/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/ingest-user-agent/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/lang-expression/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/lang-mustache/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/lang-painless/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/lang-painless/spi/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/mapper-extras/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/opensearch-dashboards/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/parent-join/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/percolator/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/rank-eval/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/reindex/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/repository-url/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/systemd/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /modules/transport-netty4/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/analysis-icu/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/analysis-kuromoji/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/analysis-nori/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/analysis-phonetic/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/analysis-smartcn/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/analysis-stempel/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/analysis-ukrainian/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/discovery-azure-classic/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/discovery-ec2/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/discovery-ec2/qa/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/discovery-ec2/qa/amazon-ec2/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/discovery-gce/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/discovery-gce/qa/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/discovery-gce/qa/gce/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/examples/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/examples/custom-settings/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/examples/custom-significance-heuristic/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/examples/custom-suggester/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/examples/painless-whitelist/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/examples/rescore/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/examples/rest-handler/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/examples/script-expert-scoring/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/ingest-attachment/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/mapper-annotated-text/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/mapper-murmur3/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/mapper-size/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/repository-azure/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/repository-gcs/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/repository-hdfs/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/repository-s3/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/store-smb/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /plugins/transport-nio/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/ccs-unavailable-clusters/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/die-with-dignity/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/evil-tests/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/full-cluster-restart/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/logging-config/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/mixed-cluster/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/multi-cluster-search/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/no-bootstrap-tests/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/centos-6/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/centos-7/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/debian-8/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/debian-9/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/fedora-28/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/fedora-29/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/oel-6/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/oel-7/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/sles-12/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/ubuntu-1604/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/ubuntu-1804/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/windows-2012r2/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/os/windows-2016/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/remote-clusters/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/repository-multi-version/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/rolling-upgrade/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/smoke-test-client/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/smoke-test-http/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/smoke-test-ingest-disabled/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/smoke-test-ingest-with-all-dependencies/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/smoke-test-multinode/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/smoke-test-plugins/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/translog-policy/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/unconfigured-node-name/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/verify-version-constants/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /qa/wildfly/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /rest-api-spec/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /sandbox/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /sandbox/libs/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /sandbox/modules/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /sandbox/plugins/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /server/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/external-modules/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/external-modules/delayed-aggs/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/fixtures/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/fixtures/azure-fixture/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/fixtures/gcs-fixture/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/fixtures/hdfs-fixture/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/fixtures/krb5kdc-fixture/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/fixtures/minio-fixture/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/fixtures/old-elasticsearch/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/fixtures/s3-fixture/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/framework/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+  - directory: /test/logger-usage/build.gradle
+    open-pull-requests-limit: 0
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+version: 2

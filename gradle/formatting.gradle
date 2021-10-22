@@ -57,20 +57,6 @@ import org.opensearch.gradle.BuildPlugin
 
 // Do not add new sub-projects here!
 def projectPathsToExclude = [
-  ':client:benchmark',
-  ':client:client-benchmark-noop-api-plugin',
-  ':client:rest',
-  ':client:rest-high-level',
-  ':client:sniffer',
-  ':client:test',
-  ':client:transport',
-  ':example-plugins:custom-settings',
-  ':example-plugins:custom-significance-heuristic',
-  ':example-plugins:custom-suggester',
-  ':example-plugins:painless-whitelist',
-  ':example-plugins:rescore',
-  ':example-plugins:rest-handler',
-  ':example-plugins:script-expert-scoring',
   ':libs:opensearch-cli',
   ':libs:opensearch-core',
   ':libs:opensearch-dissect',
@@ -121,7 +107,6 @@ def projectPathsToExclude = [
   ':plugins:transport-nio',
   ':qa:die-with-dignity',
   ':rest-api-spec',
-  ':server',
   ':test:fixtures:azure-fixture',
   ':test:fixtures:gcs-fixture',
   ':test:fixtures:hdfs-fixture',
@@ -148,7 +133,7 @@ subprojects {
           eclipse().configFile rootProject.file('buildSrc/formatterConfig.xml')
           trimTrailingWhitespace()
 
-          // See CONTRIBUTING.md for details of when to enabled this.
+          // See DEVELOPER_GUIDE.md for details of when to enable this.
           if (System.getProperty('spotless.paddedcell') != null) {
             paddedCell()
           }

@@ -34,7 +34,6 @@ package org.opensearch.action.admin.cluster.storedscripts;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.opensearch.action.admin.cluster.storedscripts.GetScriptContextResponse;
 
 import java.io.IOException;
 import java.util.Collections;

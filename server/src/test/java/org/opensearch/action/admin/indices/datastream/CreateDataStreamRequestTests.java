@@ -32,7 +32,6 @@
 package org.opensearch.action.admin.indices.datastream;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction.Request;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;

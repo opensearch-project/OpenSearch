@@ -32,10 +32,14 @@
 
 package org.opensearch.repositories.azure;
 
-import com.microsoft.azure.storage.OperationContext;
-import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.CloudBlobClient;
-import com.microsoft.azure.storage.blob.CloudBlobContainer;
+import reactor.core.scheduler.Schedulers;
+
+import com.azure.core.util.Context;
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.models.BlobStorageException;
+
+import org.junit.AfterClass;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -57,7 +61,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
-
+    @AfterClass
+    public static void shutdownSchedulers() {
+        Schedulers.shutdownNow();
+    }
+    
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(AzureRepositoryPlugin.class);
@@ -117,15 +125,15 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, l -> {
             final AzureBlobStore blobStore = (AzureBlobStore) repository.blobStore();
             final String account = "default";
-            final Tuple<CloudBlobClient, Supplier<OperationContext>> client = blobStore.getService().client(account);
-            final CloudBlobContainer blobContainer = client.v1().getContainerReference(blobStore.toString());
+            final Tuple<BlobServiceClient, Supplier<Context>> client = blobStore.getService().client(account);
+            final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(blobStore.toString());
             try {
-                SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, client.v2().get()));
+                SocketAccess.doPrivilegedException(() -> blobContainer.existsWithResponse(null, client.v2().get()));
                 future.onFailure(new RuntimeException(
                     "The SAS token used in this test allowed for checking container existence. This test only supports tokens " +
                         "that grant only the documented permission requirements for the Azure repository plugin."));
-            } catch (StorageException e) {
-                if (e.getHttpStatusCode() == HttpURLConnection.HTTP_FORBIDDEN) {
+            } catch (BlobStorageException e) {
+                if (e.getStatusCode() == HttpURLConnection.HTTP_FORBIDDEN) {
                     future.onResponse(null);
                 } else {
                     future.onFailure(e);

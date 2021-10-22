@@ -55,9 +55,8 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     @Override
-    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder,
-                                       Query query,
-                                       QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, QueryShardContext context)
+        throws IOException {
         String fieldInQuery = expectedFieldName(queryBuilder.fieldName());
         assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
         FieldMaskingSpanQuery fieldMaskingSpanQuery = (FieldMaskingSpanQuery) query;
@@ -73,22 +72,21 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"field_masking_span\" : {\n" +
-                "    \"query\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"value\" : {\n" +
-                "          \"value\" : 0.5,\n" +
-                "          \"boost\" : 0.23\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"field\" : \"mapped_geo_shape\",\n" +
-                "    \"boost\" : 42.0,\n" +
-                "    \"_name\" : \"KPI\"\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"field_masking_span\" : {\n"
+            + "    \"query\" : {\n"
+            + "      \"span_term\" : {\n"
+            + "        \"value\" : {\n"
+            + "          \"value\" : 0.5,\n"
+            + "          \"boost\" : 0.23\n"
+            + "        }\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"field\" : \"mapped_geo_shape\",\n"
+            + "    \"boost\" : 42.0,\n"
+            + "    \"_name\" : \"KPI\"\n"
+            + "  }\n"
+            + "}";
         FieldMaskingSpanQueryBuilder parsed = (FieldMaskingSpanQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.00001);

@@ -38,20 +38,24 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public enum OS {
-    WINDOWS,
+    FREEBSD,
+    LINUX,
     MAC,
-    LINUX;
+    WINDOWS;
 
     public static OS current() {
         String os = System.getProperty("os.name", "");
-        if (os.startsWith("Windows")) {
-            return OS.WINDOWS;
+        if (os.startsWith("FreeBSD")) {
+            return OS.FREEBSD;
         }
         if (os.startsWith("Linux") || os.startsWith("LINUX")) {
             return OS.LINUX;
         }
         if (os.startsWith("Mac")) {
             return OS.MAC;
+        }
+        if (os.startsWith("Windows")) {
+            return OS.WINDOWS;
         }
         throw new IllegalStateException("Can't determine OS from: " + os);
     }
@@ -60,13 +64,13 @@ public enum OS {
 
         private final Map<OS, Supplier<T>> conditions = new HashMap<>();
 
-        public Conditional<T> onWindows(Supplier<T> supplier) {
-            conditions.put(WINDOWS, supplier);
+        public Conditional<T> onLinux(Supplier<T> supplier) {
+            conditions.put(LINUX, supplier);
             return this;
         }
 
-        public Conditional<T> onLinux(Supplier<T> supplier) {
-            conditions.put(LINUX, supplier);
+        public Conditional<T> onFreeBSD(Supplier<T> supplier) {
+            conditions.put(FREEBSD, supplier);
             return this;
         }
 
@@ -76,8 +80,14 @@ public enum OS {
         }
 
         public Conditional<T> onUnix(Supplier<T> supplier) {
-            conditions.put(MAC, supplier);
+            conditions.put(FREEBSD, supplier);
             conditions.put(LINUX, supplier);
+            conditions.put(MAC, supplier);
+            return this;
+        }
+
+        public Conditional<T> onWindows(Supplier<T> supplier) {
+            conditions.put(WINDOWS, supplier);
             return this;
         }
 

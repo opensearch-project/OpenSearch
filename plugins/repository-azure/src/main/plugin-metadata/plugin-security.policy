@@ -32,6 +32,10 @@
 
 grant {
   // azure client opens socket connections for to access repository
-  permission java.net.SocketPermission "*", "connect";
+  permission java.net.SocketPermission "*", "connect,resolve";
   permission java.lang.RuntimePermission "setFactory";
+  permission java.net.NetPermission "getProxySelector";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "setContextClassLoader";
 };

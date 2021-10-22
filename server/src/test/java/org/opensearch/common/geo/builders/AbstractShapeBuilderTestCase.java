@@ -50,7 +50,7 @@ import java.io.IOException;
 
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder<?,?,?>> extends OpenSearchTestCase {
+public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder<?, ?, ?>> extends OpenSearchTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;

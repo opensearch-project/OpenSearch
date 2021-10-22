@@ -70,12 +70,16 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
     private int shardsPerIndex;
     private int totalNumberOfShards;
     private static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-    private final AllocationService ALLOCATION_SERVICE = createAllocationService(Settings.builder()
+    private final AllocationService ALLOCATION_SERVICE = createAllocationService(
+        Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE) // don't limit recoveries
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", Integer.MAX_VALUE)
-            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
-                Integer.MAX_VALUE)
-            .build());
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .build()
+    );
     private ClusterState clusterState;
 
     @Override
@@ -88,19 +92,19 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         this.totalNumberOfShards = this.shardsPerIndex * 2;
         logger.info("Setup test with {} shards and {} replicas.", this.numberOfShards, this.numberOfReplicas);
         this.emptyRoutingTable = new RoutingTable.Builder().build();
-        Metadata metadata = Metadata.builder()
-                .put(createIndexMetadata(TEST_INDEX_1))
-                .put(createIndexMetadata(TEST_INDEX_2))
-                .build();
+        Metadata metadata = Metadata.builder().put(createIndexMetadata(TEST_INDEX_1)).put(createIndexMetadata(TEST_INDEX_2)).build();
 
-        RoutingTable testRoutingTable = new RoutingTable.Builder()
-                .add(new IndexRoutingTable.Builder(metadata.index(TEST_INDEX_1).
-                    getIndex()).initializeAsNew(metadata.index(TEST_INDEX_1)).build())
-                .add(new IndexRoutingTable.Builder(metadata.index(TEST_INDEX_2)
-                    .getIndex()).initializeAsNew(metadata.index(TEST_INDEX_2)).build())
-                .build();
-        this.clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(testRoutingTable).build();
+        RoutingTable testRoutingTable = new RoutingTable.Builder().add(
+            new IndexRoutingTable.Builder(metadata.index(TEST_INDEX_1).getIndex()).initializeAsNew(metadata.index(TEST_INDEX_1)).build()
+        )
+            .add(
+                new IndexRoutingTable.Builder(metadata.index(TEST_INDEX_2).getIndex()).initializeAsNew(metadata.index(TEST_INDEX_2)).build()
+            )
+            .build();
+        this.clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(testRoutingTable)
+            .build();
     }
 
     /**
@@ -124,10 +128,9 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
     }
 
     private IndexMetadata.Builder createIndexMetadata(String indexName) {
-        return new IndexMetadata.Builder(indexName)
-                .settings(DEFAULT_SETTINGS)
-                .numberOfReplicas(this.numberOfReplicas)
-                .numberOfShards(this.numberOfShards);
+        return new IndexMetadata.Builder(indexName).settings(DEFAULT_SETTINGS)
+            .numberOfReplicas(this.numberOfReplicas)
+            .numberOfShards(this.numberOfShards);
     }
 
     public void testAllShards() {
@@ -163,23 +166,29 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(), is(this.totalNumberOfShards));
 
         initPrimaries();
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(),
-            is(this.totalNumberOfShards - 2 * this.numberOfShards));
+        assertThat(
+            clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(),
+            is(this.totalNumberOfShards - 2 * this.numberOfShards)
+        );
         assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.INITIALIZING).size(), is(2 * this.numberOfShards));
 
         startInitializingShards(TEST_INDEX_1);
         assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.STARTED).size(), is(this.numberOfShards));
         int initializingExpected = this.numberOfShards + this.numberOfShards * this.numberOfReplicas;
         assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.INITIALIZING).size(), is(initializingExpected));
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(),
-            is(this.totalNumberOfShards - initializingExpected - this.numberOfShards));
+        assertThat(
+            clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(),
+            is(this.totalNumberOfShards - initializingExpected - this.numberOfShards)
+        );
 
         startInitializingShards(TEST_INDEX_2);
         assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.STARTED).size(), is(2 * this.numberOfShards));
         initializingExpected = 2 * this.numberOfShards * this.numberOfReplicas;
         assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.INITIALIZING).size(), is(initializingExpected));
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(),
-            is(this.totalNumberOfShards - initializingExpected - 2 * this.numberOfShards));
+        assertThat(
+            clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(),
+            is(this.totalNumberOfShards - initializingExpected - 2 * this.numberOfShards)
+        );
 
         // now start all replicas too
         startInitializingShards(TEST_INDEX_1);
@@ -187,7 +196,7 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.STARTED).size(), is(this.totalNumberOfShards));
     }
 
-    public void testShardsMatchingPredicateCount(){
+    public void testShardsMatchingPredicateCount() {
         MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
@@ -195,9 +204,11 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build()).build();
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build())
+            .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = allocation.reroute(clusterState, "reroute");
 
         Predicate<ShardRouting> predicate = s -> s.state() == ShardRoutingState.UNASSIGNED && s.unassignedInfo().isDelayed();
@@ -218,33 +229,49 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         assertThat(this.emptyRoutingTable.activePrimaryShardsGrouped(new String[0], true).size(), is(0));
         assertThat(this.emptyRoutingTable.activePrimaryShardsGrouped(new String[0], false).size(), is(0));
 
-        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(new String[]{TEST_INDEX_1}, false).size(), is(0));
-        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(new String[]{TEST_INDEX_1}, true).size(),
-            is(this.numberOfShards));
+        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
+        assertThat(
+            clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(),
+            is(this.numberOfShards)
+        );
 
         initPrimaries();
-        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(new String[]{TEST_INDEX_1}, false).size(), is(0));
-        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(new String[]{TEST_INDEX_1}, true).size(),
-            is(this.numberOfShards));
+        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
+        assertThat(
+            clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(),
+            is(this.numberOfShards)
+        );
 
         startInitializingShards(TEST_INDEX_1);
-        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(new String[]{TEST_INDEX_1}, false).size(),
-            is(this.numberOfShards));
-        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(
-            new String[]{TEST_INDEX_1, TEST_INDEX_2}, false).size(), is(this.numberOfShards));
-        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(
-            new String[]{TEST_INDEX_1}, true).size(), is(this.numberOfShards));
+        assertThat(
+            clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(),
+            is(this.numberOfShards)
+        );
+        assertThat(
+            clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, false).size(),
+            is(this.numberOfShards)
+        );
+        assertThat(
+            clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(),
+            is(this.numberOfShards)
+        );
 
         startInitializingShards(TEST_INDEX_2);
-        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(
-            new String[]{TEST_INDEX_2}, false).size(), is(this.numberOfShards));
-        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(
-            new String[]{TEST_INDEX_1, TEST_INDEX_2}, false).size(), is(2 * this.numberOfShards));
-        assertThat(clusterState.routingTable().activePrimaryShardsGrouped(
-            new String[]{TEST_INDEX_1, TEST_INDEX_2}, true).size(), is(2 * this.numberOfShards));
+        assertThat(
+            clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_2 }, false).size(),
+            is(this.numberOfShards)
+        );
+        assertThat(
+            clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, false).size(),
+            is(2 * this.numberOfShards)
+        );
+        assertThat(
+            clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, true).size(),
+            is(2 * this.numberOfShards)
+        );
 
         try {
-            clusterState.routingTable().activePrimaryShardsGrouped(new String[]{TEST_INDEX_1, "not_exists"}, true);
+            clusterState.routingTable().activePrimaryShardsGrouped(new String[] { TEST_INDEX_1, "not_exists" }, true);
             fail("Calling with non-existing index name should raise IndexMissingException");
         } catch (IndexNotFoundException e) {
             // expected
@@ -255,56 +282,73 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         assertThat(this.emptyRoutingTable.allActiveShardsGrouped(new String[0], true).size(), is(0));
         assertThat(this.emptyRoutingTable.allActiveShardsGrouped(new String[0], false).size(), is(0));
 
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[]{TEST_INDEX_1}, false).size(), is(0));
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(
-            new String[]{TEST_INDEX_1}, true).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
+        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(), is(this.shardsPerIndex));
 
         initPrimaries();
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[]{TEST_INDEX_1}, false).size(), is(0));
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(
-            new String[]{TEST_INDEX_1}, true).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
+        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(), is(this.shardsPerIndex));
 
         startInitializingShards(TEST_INDEX_1);
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(
-            new String[]{TEST_INDEX_1}, false).size(), is(this.numberOfShards));
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(
-            new String[]{TEST_INDEX_1, TEST_INDEX_2}, false).size(), is(this.numberOfShards));
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(
-            new String[]{TEST_INDEX_1}, true).size(), is(this.shardsPerIndex));
+        assertThat(
+            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(),
+            is(this.numberOfShards)
+        );
+        assertThat(
+            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, false).size(),
+            is(this.numberOfShards)
+        );
+        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(), is(this.shardsPerIndex));
 
         startInitializingShards(TEST_INDEX_2);
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(
-            new String[]{TEST_INDEX_2}, false).size(), is(this.numberOfShards));
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(
-            new String[]{TEST_INDEX_1, TEST_INDEX_2}, false).size(), is(2 * this.numberOfShards));
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(
-            new String[]{TEST_INDEX_1, TEST_INDEX_2}, true).size(), is(this.totalNumberOfShards));
+        assertThat(
+            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_2 }, false).size(),
+            is(this.numberOfShards)
+        );
+        assertThat(
+            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, false).size(),
+            is(2 * this.numberOfShards)
+        );
+        assertThat(
+            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, true).size(),
+            is(this.totalNumberOfShards)
+        );
 
         try {
-            clusterState.routingTable().allActiveShardsGrouped(new String[]{TEST_INDEX_1, "not_exists"}, true);
+            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, "not_exists" }, true);
         } catch (IndexNotFoundException e) {
             fail("Calling with non-existing index should be ignored at the moment");
         }
     }
 
     public void testAllAssignedShardsGrouped() {
-        assertThat(clusterState.routingTable().allAssignedShardsGrouped(new String[]{TEST_INDEX_1}, false).size(), is(0));
-        assertThat(clusterState.routingTable().allAssignedShardsGrouped(
-            new String[]{TEST_INDEX_1}, true).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allAssignedShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
+        assertThat(
+            clusterState.routingTable().allAssignedShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(),
+            is(this.shardsPerIndex)
+        );
 
         initPrimaries();
-        assertThat(clusterState.routingTable().allAssignedShardsGrouped(
-            new String[]{TEST_INDEX_1}, false).size(), is(this.numberOfShards));
-        assertThat(clusterState.routingTable().allAssignedShardsGrouped(
-            new String[]{TEST_INDEX_1}, true).size(), is(this.shardsPerIndex));
+        assertThat(
+            clusterState.routingTable().allAssignedShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(),
+            is(this.numberOfShards)
+        );
+        assertThat(
+            clusterState.routingTable().allAssignedShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(),
+            is(this.shardsPerIndex)
+        );
 
-        assertThat(clusterState.routingTable().allAssignedShardsGrouped(
-            new String[]{TEST_INDEX_1, TEST_INDEX_2}, false).size(), is(2 * this.numberOfShards));
-        assertThat(clusterState.routingTable().allAssignedShardsGrouped(
-            new String[]{TEST_INDEX_1, TEST_INDEX_2}, true).size(), is(this.totalNumberOfShards));
+        assertThat(
+            clusterState.routingTable().allAssignedShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, false).size(),
+            is(2 * this.numberOfShards)
+        );
+        assertThat(
+            clusterState.routingTable().allAssignedShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, true).size(),
+            is(this.totalNumberOfShards)
+        );
 
         try {
-            clusterState.routingTable().allAssignedShardsGrouped(new String[]{TEST_INDEX_1, "not_exists"}, false);
+            clusterState.routingTable().allAssignedShardsGrouped(new String[] { TEST_INDEX_1, "not_exists" }, false);
         } catch (IndexNotFoundException e) {
             fail("Calling with non-existing index should be ignored at the moment");
         }
@@ -313,19 +357,19 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
     public void testAllShardsForMultipleIndices() {
         assertThat(this.emptyRoutingTable.allShards(new String[0]).size(), is(0));
 
-        assertThat(clusterState.routingTable().allShards(new String[]{TEST_INDEX_1}).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).size(), is(this.shardsPerIndex));
 
         initPrimaries();
-        assertThat(clusterState.routingTable().allShards(new String[]{TEST_INDEX_1}).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).size(), is(this.shardsPerIndex));
 
         startInitializingShards(TEST_INDEX_1);
-        assertThat(clusterState.routingTable().allShards(new String[]{TEST_INDEX_1}).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).size(), is(this.shardsPerIndex));
 
         startInitializingShards(TEST_INDEX_2);
-        assertThat(clusterState.routingTable().allShards(new String[]{TEST_INDEX_1, TEST_INDEX_2}).size(), is(this.totalNumberOfShards));
+        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, TEST_INDEX_2 }).size(), is(this.totalNumberOfShards));
 
         try {
-            clusterState.routingTable().allShards(new String[]{TEST_INDEX_1, "not_exists"});
+            clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, "not_exists" });
         } catch (IndexNotFoundException e) {
             fail("Calling with non-existing index should be ignored at the moment");
         }
@@ -347,7 +391,7 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
             assertThat(e.getMessage(), containsString("cannot be reused"));
         }
         try {
-            b.updateNumberOfReplicas(1, new String[]{"foo"});
+            b.updateNumberOfReplicas(1, new String[] { "foo" });
             fail("expected exception");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("cannot be reused"));
@@ -366,10 +410,10 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         final int numShards = 1;
         final int numReplicas = randomIntBetween(0, 1);
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-                                                   .settings(settings(Version.CURRENT))
-                                                   .numberOfShards(numShards)
-                                                   .numberOfReplicas(numReplicas)
-                                                   .build();
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(numShards)
+            .numberOfReplicas(numReplicas)
+            .build();
         final RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
         final RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         final IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetadata, counter);
@@ -379,26 +423,26 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         assertTrue(indexRoutingTable.validate(metadata));
         // test wrong number of shards causes validation errors
         indexMetadata = IndexMetadata.builder(indexName)
-                                     .settings(settings(Version.CURRENT))
-                                     .numberOfShards(numShards + 1)
-                                     .numberOfReplicas(numReplicas)
-                                     .build();
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(numShards + 1)
+            .numberOfReplicas(numReplicas)
+            .build();
         final Metadata metadata2 = Metadata.builder().put(indexMetadata, true).build();
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metadata2));
         // test wrong number of replicas causes validation errors
         indexMetadata = IndexMetadata.builder(indexName)
-                                     .settings(settings(Version.CURRENT))
-                                     .numberOfShards(numShards)
-                                     .numberOfReplicas(numReplicas + 1)
-                                     .build();
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(numShards)
+            .numberOfReplicas(numReplicas + 1)
+            .build();
         final Metadata metadata3 = Metadata.builder().put(indexMetadata, true).build();
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metadata3));
         // test wrong number of shards and replicas causes validation errors
         indexMetadata = IndexMetadata.builder(indexName)
-                                     .settings(settings(Version.CURRENT))
-                                     .numberOfShards(numShards + 1)
-                                     .numberOfReplicas(numReplicas + 1)
-                                     .build();
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(numShards + 1)
+            .numberOfReplicas(numReplicas + 1)
+            .build();
         final Metadata metadata4 = Metadata.builder().put(indexMetadata, true).build();
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metadata4));
     }
@@ -408,8 +452,7 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         ShardRouting routing1 = TestShardRouting.newShardRouting(shardId, "node1", randomBoolean(), ShardRoutingState.STARTED);
         ShardRouting routing2 = TestShardRouting.newShardRouting(shardId, "node2", randomBoolean(), ShardRoutingState.STARTED);
         ShardRouting routing3 = TestShardRouting.newShardRouting(shardId, "node1", randomBoolean(), ShardRoutingState.STARTED);
-        ShardRouting routing4 = TestShardRouting.newShardRouting(
-            shardId, "node3", "node2", randomBoolean(), ShardRoutingState.RELOCATING);
+        ShardRouting routing4 = TestShardRouting.newShardRouting(shardId, "node3", "node2", randomBoolean(), ShardRoutingState.RELOCATING);
         assertTrue(IndexShardRoutingTable.Builder.distinctNodes(Arrays.asList(routing1, routing2)));
         assertFalse(IndexShardRoutingTable.Builder.distinctNodes(Arrays.asList(routing1, routing3)));
         assertFalse(IndexShardRoutingTable.Builder.distinctNodes(Arrays.asList(routing1, routing2, routing3)));
@@ -435,10 +478,12 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
             final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).build();
             final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
                 .state(IndexMetadata.State.CLOSE)
-                .settings(Settings.builder()
-                    .put(indexMetadata.getSettings())
-                    .put(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
-                    .build())
+                .settings(
+                    Settings.builder()
+                        .put(indexMetadata.getSettings())
+                        .put(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
+                        .build()
+                )
                 .settingsVersion(indexMetadata.getSettingsVersion() + 1);
             final RoutingTable routingTable = new RoutingTable.Builder().addAsRecovery(indexMetadataBuilder.build()).build();
             assertThat(routingTable.hasIndex(TEST_INDEX_1), is(true));
@@ -452,8 +497,10 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         IndexMetadata.Builder imdBuilder = IndexMetadata.builder(indexMetadata);
         for (IndexShardRoutingTable shardTable : indexRoutingTable) {
             for (ShardRouting shardRouting : shardTable) {
-                Set<String> insyncAids = shardTable.activeShards().stream().map(
-                    shr -> shr.allocationId().getId()).collect(Collectors.toSet());
+                Set<String> insyncAids = shardTable.activeShards()
+                    .stream()
+                    .map(shr -> shr.allocationId().getId())
+                    .collect(Collectors.toSet());
                 final ShardRouting primaryShard = shardTable.primaryShard();
                 if (primaryShard.initializing() && primaryShard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
                     // simulate a primary was initialized based on aid

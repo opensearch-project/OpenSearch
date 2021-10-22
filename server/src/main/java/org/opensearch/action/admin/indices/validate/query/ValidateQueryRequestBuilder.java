@@ -36,8 +36,10 @@ import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.index.query.QueryBuilder;
 
-public class ValidateQueryRequestBuilder
-    extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
+public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<
+    ValidateQueryRequest,
+    ValidateQueryResponse,
+    ValidateQueryRequestBuilder> {
 
     public ValidateQueryRequestBuilder(OpenSearchClient client, ValidateQueryAction action) {
         super(client, action, new ValidateQueryRequest());

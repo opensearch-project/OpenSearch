@@ -49,8 +49,9 @@ import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.opensearch.action.admin.cluster.remote.RemoteInfoResponse,
-        RemoteInfoResponse> {
+public class RemoteInfoResponseTests extends AbstractResponseTestCase<
+    org.opensearch.action.admin.cluster.remote.RemoteInfoResponse,
+    RemoteInfoResponse> {
 
     @Override
     protected org.opensearch.action.admin.cluster.remote.RemoteInfoResponse createServerTestInstance(XContentType xContentType) {
@@ -68,33 +69,36 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.opense
     }
 
     @Override
-    protected void assertInstances(org.opensearch.action.admin.cluster.remote.RemoteInfoResponse serverTestInstance,
-                                   RemoteInfoResponse clientInstance) {
+    protected void assertInstances(
+        org.opensearch.action.admin.cluster.remote.RemoteInfoResponse serverTestInstance,
+        RemoteInfoResponse clientInstance
+    ) {
         assertThat(clientInstance.getInfos().size(), equalTo(serverTestInstance.getInfos().size()));
-        Map<String, RemoteConnectionInfo> serverInfos = serverTestInstance.getInfos().stream()
-                .collect(toMap(RemoteConnectionInfo::getClusterAlias, identity()));
+        Map<String, RemoteConnectionInfo> serverInfos = serverTestInstance.getInfos()
+            .stream()
+            .collect(toMap(RemoteConnectionInfo::getClusterAlias, identity()));
         for (org.opensearch.client.cluster.RemoteConnectionInfo clientRemoteInfo : clientInstance.getInfos()) {
             RemoteConnectionInfo serverRemoteInfo = serverInfos.get(clientRemoteInfo.getClusterAlias());
             assertThat(clientRemoteInfo.getClusterAlias(), equalTo(serverRemoteInfo.getClusterAlias()));
-            assertThat(clientRemoteInfo.getInitialConnectionTimeoutString(),
-                equalTo(serverRemoteInfo.getInitialConnectionTimeout().toString()));
+            assertThat(
+                clientRemoteInfo.getInitialConnectionTimeoutString(),
+                equalTo(serverRemoteInfo.getInitialConnectionTimeout().toString())
+            );
             assertThat(clientRemoteInfo.isConnected(), equalTo(serverRemoteInfo.isConnected()));
             assertThat(clientRemoteInfo.isSkipUnavailable(), equalTo(serverRemoteInfo.isSkipUnavailable()));
             assertThat(clientRemoteInfo.getModeInfo().isConnected(), equalTo(serverRemoteInfo.getModeInfo().isConnected()));
             assertThat(clientRemoteInfo.getModeInfo().modeName(), equalTo(serverRemoteInfo.getModeInfo().modeName()));
             if (clientRemoteInfo.getModeInfo().modeName().equals(SniffModeInfo.NAME)) {
-                SniffModeInfo clientModeInfo =
-                        (SniffModeInfo) clientRemoteInfo.getModeInfo();
-                SniffConnectionStrategy.SniffModeInfo serverModeInfo =
-                        (SniffConnectionStrategy.SniffModeInfo) serverRemoteInfo.getModeInfo();
+                SniffModeInfo clientModeInfo = (SniffModeInfo) clientRemoteInfo.getModeInfo();
+                SniffConnectionStrategy.SniffModeInfo serverModeInfo = (SniffConnectionStrategy.SniffModeInfo) serverRemoteInfo
+                    .getModeInfo();
                 assertThat(clientModeInfo.getMaxConnectionsPerCluster(), equalTo(serverModeInfo.getMaxConnectionsPerCluster()));
                 assertThat(clientModeInfo.getNumNodesConnected(), equalTo(serverModeInfo.getNumNodesConnected()));
                 assertThat(clientModeInfo.getSeedNodes(), equalTo(serverModeInfo.getSeedNodes()));
             } else if (clientRemoteInfo.getModeInfo().modeName().equals(ProxyModeInfo.NAME)) {
-                ProxyModeInfo clientModeInfo =
-                        (ProxyModeInfo) clientRemoteInfo.getModeInfo();
-                ProxyConnectionStrategy.ProxyModeInfo serverModeInfo =
-                        (ProxyConnectionStrategy.ProxyModeInfo) serverRemoteInfo.getModeInfo();
+                ProxyModeInfo clientModeInfo = (ProxyModeInfo) clientRemoteInfo.getModeInfo();
+                ProxyConnectionStrategy.ProxyModeInfo serverModeInfo = (ProxyConnectionStrategy.ProxyModeInfo) serverRemoteInfo
+                    .getModeInfo();
                 assertThat(clientModeInfo.getAddress(), equalTo(serverModeInfo.getAddress()));
                 assertThat(clientModeInfo.getServerName(), equalTo(serverModeInfo.getServerName()));
                 assertThat(clientModeInfo.getMaxSocketConnections(), equalTo(serverModeInfo.getMaxSocketConnections()));

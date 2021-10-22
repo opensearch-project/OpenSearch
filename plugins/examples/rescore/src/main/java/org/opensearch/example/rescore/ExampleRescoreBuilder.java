@@ -101,6 +101,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 
     private static final ParseField FACTOR = new ParseField("factor");
     private static final ParseField FACTOR_FIELD = new ParseField("factor_field");
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(FACTOR.getPreferredName(), factor);
@@ -109,20 +110,22 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         }
     }
 
-    private static final ConstructingObjectParser<ExampleRescoreBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            args -> new ExampleRescoreBuilder((float) args[0], (String) args[1]));
+    private static final ConstructingObjectParser<ExampleRescoreBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new ExampleRescoreBuilder((float) args[0], (String) args[1])
+    );
     static {
         PARSER.declareFloat(constructorArg(), FACTOR);
         PARSER.declareString(optionalConstructorArg(), FACTOR_FIELD);
     }
+
     public static ExampleRescoreBuilder fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     @Override
     public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
-        IndexFieldData<?> factorField =
-                this.factorField == null ? null : context.getForField(context.fieldMapper(this.factorField));
+        IndexFieldData<?> factorField = this.factorField == null ? null : context.getForField(context.fieldMapper(this.factorField));
         return new ExampleRescoreContext(windowSize, factor, factorField);
     }
 
@@ -132,8 +135,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
             return false;
         }
         ExampleRescoreBuilder other = (ExampleRescoreBuilder) obj;
-        return factor == other.factor
-                && Objects.equals(factorField, other.factorField);
+        return factor == other.factor && Objects.equals(factorField, other.factorField);
     }
 
     @Override
@@ -203,12 +205,22 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                         data = ((LeafNumericFieldData) fd).getDoubleValues();
                     }
                     if (false == data.advanceExact(topDocs.scoreDocs[i].doc - leaf.docBase)) {
-                        throw new IllegalArgumentException("document [" + topDocs.scoreDocs[i].doc
-                                + "] does not have the field [" + context.factorField.getFieldName() + "]");
+                        throw new IllegalArgumentException(
+                            "document ["
+                                + topDocs.scoreDocs[i].doc
+                                + "] does not have the field ["
+                                + context.factorField.getFieldName()
+                                + "]"
+                        );
                     }
                     if (data.docValueCount() > 1) {
-                        throw new IllegalArgumentException("document [" + topDocs.scoreDocs[i].doc
-                                + "] has more than one value for [" + context.factorField.getFieldName() + "]");
+                        throw new IllegalArgumentException(
+                            "document ["
+                                + topDocs.scoreDocs[i].doc
+                                + "] has more than one value for ["
+                                + context.factorField.getFieldName()
+                                + "]"
+                        );
                     }
                     topDocs.scoreDocs[i].score *= data.nextValue();
                 }
@@ -228,8 +240,8 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         }
 
         @Override
-        public Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
-                Explanation sourceExplanation) throws IOException {
+        public Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext, Explanation sourceExplanation)
+            throws IOException {
             ExampleRescoreContext context = (ExampleRescoreContext) rescoreContext;
             // Note that this is inaccurate because it ignores factor field
             return Explanation.match(context.factor, "test", singletonList(sourceExplanation));

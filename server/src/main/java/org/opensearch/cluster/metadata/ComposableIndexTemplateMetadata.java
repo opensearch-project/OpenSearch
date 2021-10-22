@@ -59,8 +59,11 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "index_template";
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ComposableIndexTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE,
-        false, a -> new ComposableIndexTemplateMetadata((Map<String, ComposableIndexTemplate>) a[0]));
+    private static final ConstructingObjectParser<ComposableIndexTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE,
+        false,
+        a -> new ComposableIndexTemplateMetadata((Map<String, ComposableIndexTemplate>) a[0])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
@@ -157,13 +160,20 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
         final Diff<Map<String, ComposableIndexTemplate>> indexTemplateDiff;
 
         ComposableIndexTemplateMetadataDiff(ComposableIndexTemplateMetadata before, ComposableIndexTemplateMetadata after) {
-            this.indexTemplateDiff = DiffableUtils.diff(before.indexTemplates, after.indexTemplates,
-                DiffableUtils.getStringKeySerializer());
+            this.indexTemplateDiff = DiffableUtils.diff(
+                before.indexTemplates,
+                after.indexTemplates,
+                DiffableUtils.getStringKeySerializer()
+            );
         }
 
         ComposableIndexTemplateMetadataDiff(StreamInput in) throws IOException {
-            this.indexTemplateDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                ComposableIndexTemplate::new, ComposableIndexTemplate::readITV2DiffFrom);
+            this.indexTemplateDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                ComposableIndexTemplate::new,
+                ComposableIndexTemplate::readITV2DiffFrom
+            );
         }
 
         @Override

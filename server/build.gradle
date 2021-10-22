@@ -355,3 +355,9 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
     excludes << 'org/opensearch/client/documentation/placeholder.txt'
 }
+
+tasks.test {
+    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+        jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
+    }
+}

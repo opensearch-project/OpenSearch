@@ -75,8 +75,7 @@ public class FieldDataCacheTests extends OpenSearchTestCase {
             }
         }
         iw.close();
-        DirectoryReader ir =
-            OpenSearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", "_na_", 0));
+        DirectoryReader ir = OpenSearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", "_na_", 0));
 
         DummyAccountingFieldDataCache fieldDataCache = new DummyAccountingFieldDataCache();
         // Testing SortedSetOrdinalsIndexFieldData:
@@ -98,8 +97,13 @@ public class FieldDataCacheTests extends OpenSearchTestCase {
     }
 
     private SortedSetOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
-        return new SortedSetOrdinalsIndexFieldData(indexFieldDataCache, fieldName, CoreValuesSourceType.BYTES,
-            new NoneCircuitBreakerService(), AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        return new SortedSetOrdinalsIndexFieldData(
+            indexFieldDataCache,
+            fieldName,
+            CoreValuesSourceType.BYTES,
+            new NoneCircuitBreakerService(),
+            AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+        );
     }
 
     private PagedBytesIndexFieldData createPagedBytes(String fieldName, IndexFieldDataCache indexFieldDataCache) {
@@ -125,19 +129,17 @@ public class FieldDataCacheTests extends OpenSearchTestCase {
         }
 
         @Override
-        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
-                                                                                          IFD indexFieldData) throws Exception {
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData)
+            throws Exception {
             cachedGlobally++;
             return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }
 
         @Override
-        public void clear() {
-        }
+        public void clear() {}
 
         @Override
-        public void clear(String fieldName) {
-        }
+        public void clear(String fieldName) {}
     }
 
 }

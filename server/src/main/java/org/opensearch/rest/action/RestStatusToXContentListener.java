@@ -51,7 +51,7 @@ public class RestStatusToXContentListener<Response extends StatusToXContentObjec
      */
     public RestStatusToXContentListener(RestChannel channel) {
         this(channel, r -> {
-            assert false: "Returned a 201 CREATED but not set up to support a Location header";
+            assert false : "Returned a 201 CREATED but not set up to support a Location header";
             return null;
         });
     }
@@ -66,7 +66,7 @@ public class RestStatusToXContentListener<Response extends StatusToXContentObjec
 
     @Override
     public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-        assert response.isFragment() == false; //would be nice if we could make default methods final
+        assert response.isFragment() == false; // would be nice if we could make default methods final
         response.toXContent(builder, channel.request());
         RestResponse restResponse = new BytesRestResponse(response.status(), builder);
         if (RestStatus.CREATED == restResponse.status()) {

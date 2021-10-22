@@ -63,9 +63,8 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
 
     private final long rewriteTime;
 
-    public QueryProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime,
-                              CollectorResult profileCollector) {
-        assert(profileCollector != null);
+    public QueryProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
+        assert (profileCollector != null);
         this.queryProfileResults = queryProfileResults;
         this.profileCollector = profileCollector;
         this.rewriteTime = rewriteTime;
@@ -94,7 +93,6 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         profileCollector.writeTo(out);
         out.writeLong(rewriteTime);
     }
-
 
     public List<ProfileResult> getQueryResults() {
         return Collections.unmodifiableList(queryProfileResults);
@@ -131,7 +129,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         List<ProfileResult> queryProfileResults = new ArrayList<>();
         long rewriteTime = 0;
         CollectorResult collector = null;
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {

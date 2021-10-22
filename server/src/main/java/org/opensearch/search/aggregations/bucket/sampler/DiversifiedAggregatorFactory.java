@@ -54,10 +54,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(
-                CoreValuesSourceType.NUMERIC,
-                CoreValuesSourceType.DATE,
-                CoreValuesSourceType.BOOLEAN),
+            org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             (
                 String name,
                 int shardSize,
@@ -77,7 +74,8 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                     valuesSourceConfig,
                     maxDocsPerValue
                 ),
-                true);
+            true
+        );
 
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
@@ -106,16 +104,25 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                 }
                 return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSourceConfig, context, parent, metadata);
             },
-            true);
+            true
+        );
     }
 
     private final int shardSize;
     private final int maxDocsPerValue;
     private final String executionHint;
 
-    DiversifiedAggregatorFactory(String name, ValuesSourceConfig config, int shardSize, int maxDocsPerValue,
-                                 String executionHint, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+    DiversifiedAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        int shardSize,
+        int maxDocsPerValue,
+        String executionHint,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.shardSize = shardSize;
         this.maxDocsPerValue = maxDocsPerValue;
@@ -123,10 +130,12 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
 
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(DiversifiedAggregationBuilder.REGISTRY_KEY, config)
@@ -134,9 +143,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         final UnmappedSampler aggregation = new UnmappedSampler(name, metadata);
 
         return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {

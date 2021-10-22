@@ -65,8 +65,12 @@ public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNod
 
     public void testStartDeleteIndexEventCallback() throws Throwable {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+        );
         ensureGreen();
         Index idx = resolveIndex("test");
         IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
@@ -147,8 +151,13 @@ public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNod
             IndexShard shard = index.createShard(newRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
-            final DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
-                    emptyMap(), emptySet(), Version.CURRENT);
+            final DiscoveryNode localNode = new DiscoveryNode(
+                "foo",
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                emptySet(),
+                Version.CURRENT
+            );
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
             IndexShardTestCase.recoverFromStore(shard);
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);

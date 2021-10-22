@@ -49,8 +49,11 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
-    private static final DocValueFormat STRICT_DATE_TIME = new DocValueFormat.DateTime(DateFormatter.forPattern("strict_date_time"),
-            ZoneId.of("UTC"), DateFieldMapper.Resolution.MILLISECONDS);
+    private static final DocValueFormat STRICT_DATE_TIME = new DocValueFormat.DateTime(
+        DateFormatter.forPattern("strict_date_time"),
+        ZoneId.of("UTC"),
+        DateFieldMapper.Resolution.MILLISECONDS
+    );
 
     @Override
     protected Class<SortValue> categoryClass() {

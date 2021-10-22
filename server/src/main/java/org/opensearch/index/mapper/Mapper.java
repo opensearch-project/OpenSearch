@@ -107,10 +107,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final ScriptService scriptService;
 
-            public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
-                                 MapperService mapperService, Function<String, TypeParser> typeParsers,
-                                 Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier,
-                                 DateFormatter dateFormatter, ScriptService scriptService) {
+            public ParserContext(
+                Function<String, SimilarityProvider> similarityLookupService,
+                MapperService mapperService,
+                Function<String, TypeParser> typeParsers,
+                Version indexVersionCreated,
+                Supplier<QueryShardContext> queryShardContextSupplier,
+                DateFormatter dateFormatter,
+                ScriptService scriptService
+            ) {
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
@@ -157,11 +162,17 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return dateFormatter;
             }
 
-            public boolean isWithinMultiField() { return false; }
+            public boolean isWithinMultiField() {
+                return false;
+            }
 
-            protected Function<String, TypeParser> typeParsers() { return typeParsers; }
+            protected Function<String, TypeParser> typeParsers() {
+                return typeParsers;
+            }
 
-            protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
+            protected Function<String, SimilarityProvider> similarityLookupService() {
+                return similarityLookupService;
+            }
 
             /**
              * The {@linkplain ScriptService} to compile scripts needed by the {@linkplain Mapper}.
@@ -176,12 +187,21 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.similarityLookupService(), in.mapperService(), in.typeParsers(),
-                            in.indexVersionCreated(), in.queryShardContextSupplier(), in.getDateFormatter(), in.scriptService());
+                    super(
+                        in.similarityLookupService(),
+                        in.mapperService(),
+                        in.typeParsers(),
+                        in.indexVersionCreated(),
+                        in.queryShardContextSupplier(),
+                        in.getDateFormatter(),
+                        in.scriptService()
+                    );
                 }
 
                 @Override
-                public boolean isWithinMultiField() { return true; }
+                public boolean isWithinMultiField() {
+                    return true;
+                }
             }
 
         }

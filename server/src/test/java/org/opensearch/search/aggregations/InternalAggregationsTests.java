@@ -64,7 +64,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class InternalAggregationsTests extends OpenSearchTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());
+        new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables()
+    );
 
     public void testReduceEmptyAggs() {
         List<InternalAggregations> aggs = Collections.emptyList();
@@ -73,30 +74,58 @@ public class InternalAggregationsTests extends OpenSearchTestCase {
         assertNull(InternalAggregations.reduce(aggs, reduceContext));
     }
 
-    public void testNonFinalReduceTopLevelPipelineAggs()  {
-        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true), BucketOrder.key(true),
-            10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
+    public void testNonFinalReduceTopLevelPipelineAggs() {
+        InternalAggregation terms = new StringTerms(
+            "name",
+            BucketOrder.key(true),
+            BucketOrder.key(true),
+            10,
+            1,
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            25,
+            false,
+            10,
+            Collections.emptyList(),
+            0
+        );
         List<InternalAggregations> aggs = singletonList(InternalAggregations.from(Collections.singletonList(terms)));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, maxBucketReduceContext().forPartialReduction());
         assertEquals(1, reducedAggs.getTopLevelPipelineAggregators().size());
         assertEquals(1, reducedAggs.aggregations.size());
     }
 
-    public void testFinalReduceTopLevelPipelineAggs()  {
-        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true), BucketOrder.key(true),
-            10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
+    public void testFinalReduceTopLevelPipelineAggs() {
+        InternalAggregation terms = new StringTerms(
+            "name",
+            BucketOrder.key(true),
+            BucketOrder.key(true),
+            10,
+            1,
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            25,
+            false,
+            10,
+            Collections.emptyList(),
+            0
+        );
 
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(terms));
-        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(Collections.singletonList(aggs),
-                maxBucketReduceContext().forFinalReduction());
+        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(
+            Collections.singletonList(aggs),
+            maxBucketReduceContext().forFinalReduction()
+        );
         assertEquals(0, reducedAggs.getTopLevelPipelineAggregators().size());
         assertEquals(2, reducedAggs.aggregations.size());
     }
 
     private InternalAggregation.ReduceContextBuilder maxBucketReduceContext() {
         MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
-        PipelineAggregator.PipelineTree tree =
-                new PipelineAggregator.PipelineTree(emptyMap(), singletonList(maxBucketPipelineAggregationBuilder.create()));
+        PipelineAggregator.PipelineTree tree = new PipelineAggregator.PipelineTree(
+            emptyMap(),
+            singletonList(maxBucketPipelineAggregationBuilder.create())
+        );
         return InternalAggregationTestCase.emptyReduceContextBuilder(tree);
     }
 
@@ -128,13 +157,13 @@ public class InternalAggregationsTests extends OpenSearchTestCase {
         List<PipelineAggregator> topLevelPipelineAggs = new ArrayList<>();
         if (randomBoolean()) {
             if (randomBoolean()) {
-                topLevelPipelineAggs.add((SiblingPipelineAggregator)new MaxBucketPipelineAggregationBuilder("name1", "bucket1").create());
+                topLevelPipelineAggs.add((SiblingPipelineAggregator) new MaxBucketPipelineAggregationBuilder("name1", "bucket1").create());
             }
             if (randomBoolean()) {
-                topLevelPipelineAggs.add((SiblingPipelineAggregator)new AvgBucketPipelineAggregationBuilder("name2", "bucket2").create());
+                topLevelPipelineAggs.add((SiblingPipelineAggregator) new AvgBucketPipelineAggregationBuilder("name2", "bucket2").create());
             }
             if (randomBoolean()) {
-                topLevelPipelineAggs.add((SiblingPipelineAggregator)new SumBucketPipelineAggregationBuilder("name3", "bucket3").create());
+                topLevelPipelineAggs.add((SiblingPipelineAggregator) new SumBucketPipelineAggregationBuilder("name3", "bucket3").create());
             }
         }
         return new PipelineAggregator.PipelineTree(emptyMap(), topLevelPipelineAggs);
@@ -147,8 +176,7 @@ public class InternalAggregationsTests extends OpenSearchTestCase {
 
     public void testSerializedSize() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        assertThat(aggregations.getSerializedSize(),
-            equalTo((long) serialize(aggregations, Version.CURRENT).length));
+        assertThat(aggregations.getSerializedSize(), equalTo((long) serialize(aggregations, Version.CURRENT).length));
     }
 
     private void writeToAndReadFrom(InternalAggregations aggregations, Version version, int iteration) throws IOException {

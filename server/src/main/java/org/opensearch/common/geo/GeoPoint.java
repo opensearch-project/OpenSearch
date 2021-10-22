@@ -61,8 +61,7 @@ public class GeoPoint implements ToXContentFragment {
     protected double lat;
     protected double lon;
 
-    public GeoPoint() {
-    }
+    public GeoPoint() {}
 
     /**
      * Create a new Geopoint from a string. This String must either be a geohash
@@ -112,18 +111,16 @@ public class GeoPoint implements ToXContentFragment {
         return parseGeoHash(value, effectivePoint);
     }
 
-
     public GeoPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
         String[] vals = value.split(",");
         if (vals.length > 3) {
-            throw new OpenSearchParseException("failed to parse [{}], expected 2 or 3 coordinates "
-                + "but found: [{}]", vals.length);
+            throw new OpenSearchParseException("failed to parse [{}], expected 2 or 3 coordinates " + "but found: [{}]", vals.length);
         }
         final double lat;
         final double lon;
         try {
             lat = Double.parseDouble(vals[0].trim());
-         } catch (NumberFormatException ex) {
+        } catch (NumberFormatException ex) {
             throw new OpenSearchParseException("latitude must be a number");
         }
         try {
@@ -140,14 +137,12 @@ public class GeoPoint implements ToXContentFragment {
     private GeoPoint resetFromWKT(String value, boolean ignoreZValue) {
         Geometry geometry;
         try {
-            geometry = new WellKnownText(false, new GeographyValidator(ignoreZValue))
-                .fromWKT(value);
+            geometry = new WellKnownText(false, new GeographyValidator(ignoreZValue)).fromWKT(value);
         } catch (Exception e) {
             throw new OpenSearchParseException("Invalid WKT format", e);
         }
         if (geometry.type() != ShapeType.POINT) {
-            throw new OpenSearchParseException("[geo_point] supports only POINT among WKT primitives, " +
-                "but found " + geometry.type());
+            throw new OpenSearchParseException("[geo_point] supports only POINT among WKT primitives, " + "but found " + geometry.type());
         }
         Point point = (Point) geometry;
         return reset(point.getY(), point.getX());
@@ -183,14 +178,10 @@ public class GeoPoint implements ToXContentFragment {
         if (field instanceof LatLonPoint) {
             BytesRef br = field.binaryValue();
             byte[] bytes = Arrays.copyOfRange(br.bytes, br.offset, br.length);
-            return this.reset(
-                GeoEncodingUtils.decodeLatitude(bytes, 0),
-                GeoEncodingUtils.decodeLongitude(bytes, Integer.BYTES));
+            return this.reset(GeoEncodingUtils.decodeLatitude(bytes, 0), GeoEncodingUtils.decodeLongitude(bytes, Integer.BYTES));
         } else if (field instanceof LatLonDocValuesField) {
-            long encoded = (long)(field.numericValue());
-            return this.reset(
-                GeoEncodingUtils.decodeLatitude((int)(encoded >>> 32)),
-                GeoEncodingUtils.decodeLongitude((int)encoded));
+            long encoded = (long) (field.numericValue());
+            return this.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
         }
         return resetFromIndexHash(Long.parseLong(field.stringValue()));
     }
@@ -206,7 +197,7 @@ public class GeoPoint implements ToXContentFragment {
     }
 
     public GeoPoint resetFromGeoHash(long geohashLong) {
-        final int level = (int)(12 - (geohashLong&15));
+        final int level = (int) (12 - (geohashLong & 15));
         return this.resetFromIndexHash(BitUtil.flipFlop((geohashLong >>> 4) << ((level * 5) + 2)));
     }
 
@@ -278,8 +269,12 @@ public class GeoPoint implements ToXContentFragment {
 
     public static double assertZValue(final boolean ignoreZValue, double zValue) {
         if (ignoreZValue == false) {
-            throw new OpenSearchParseException("Exception parsing coordinates: found Z value [{}] but [{}] "
-                + "parameter is [{}]", zValue, IGNORE_Z_VALUE, ignoreZValue);
+            throw new OpenSearchParseException(
+                "Exception parsing coordinates: found Z value [{}] but [{}] " + "parameter is [{}]",
+                zValue,
+                IGNORE_Z_VALUE,
+                ignoreZValue
+            );
         }
         return zValue;
     }

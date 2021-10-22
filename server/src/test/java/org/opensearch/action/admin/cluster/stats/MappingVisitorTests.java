@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.cluster.stats.MappingVisitor;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,14 +44,13 @@ import java.util.Set;
 public class MappingVisitorTests extends OpenSearchTestCase {
 
     private static void collectTypes(Map<String, ?> mapping, Set<String> types) {
-        MappingVisitor.visitMapping(mapping,
-                m -> {
-                    if (m.containsKey("type")) {
-                        types.add(m.get("type").toString());
-                    } else {
-                        types.add("object");
-                    }
-                });
+        MappingVisitor.visitMapping(mapping, m -> {
+            if (m.containsKey("type")) {
+                types.add(m.get("type").toString());
+            } else {
+                types.add("object");
+            }
+        });
     }
 
     public void testCountTopLevelFields() {

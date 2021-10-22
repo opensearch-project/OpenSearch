@@ -43,7 +43,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-abstract class  AbstractBinaryDVLeafFieldData implements LeafFieldData {
+abstract class AbstractBinaryDVLeafFieldData implements LeafFieldData {
     private final BinaryDocValues values;
 
     AbstractBinaryDVLeafFieldData(BinaryDocValues values) {
@@ -98,7 +98,6 @@ abstract class  AbstractBinaryDVLeafFieldData implements LeafFieldData {
 
         };
     }
-
 
     @Override
     public void close() {

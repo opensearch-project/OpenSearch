@@ -119,8 +119,7 @@ public class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionB
                     suffix = parser.text();
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "suggester[custom] doesn't support field [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "suggester[custom] doesn't support field [" + currentFieldName + "]");
             }
         }
 

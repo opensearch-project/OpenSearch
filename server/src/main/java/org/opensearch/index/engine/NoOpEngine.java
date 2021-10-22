@@ -113,13 +113,12 @@ public final class NoOpEngine extends ReadOnlyEngine {
             }
 
             @Override
-            public IndexCommit getIndexCommit()  {
+            public IndexCommit getIndexCommit() {
                 return indexCommit;
             }
 
             @Override
-            protected void doClose() {
-            }
+            protected void doClose() {}
 
             @Override
             public CacheHelper getReaderCacheHelper() {
@@ -168,13 +167,24 @@ public final class NoOpEngine extends ReadOnlyEngine {
                 final long localCheckpoint = Long.parseLong(commitUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
                 final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(-1, -1, 0);
                 translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
-                try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy,
-                    engineConfig.getGlobalCheckpointSupplier(), engineConfig.getPrimaryTermSupplier(), seqNo -> {})) {
+                try (
+                    Translog translog = new Translog(
+                        translogConfig,
+                        translogUuid,
+                        translogDeletionPolicy,
+                        engineConfig.getGlobalCheckpointSupplier(),
+                        engineConfig.getPrimaryTermSupplier(),
+                        seqNo -> {}
+                    )
+                ) {
                     translog.trimUnreferencedReaders();
                     // refresh the translog stats
                     this.translogStats = translog.stats();
                     assert translog.currentFileGeneration() == translog.getMinFileGeneration() : "translog was not trimmed "
-                        + " current gen " + translog.currentFileGeneration() + " != min gen " + translog.getMinFileGeneration();
+                        + " current gen "
+                        + translog.currentFileGeneration()
+                        + " != min gen "
+                        + translog.getMinFileGeneration();
                 }
             }
         } catch (final Exception e) {

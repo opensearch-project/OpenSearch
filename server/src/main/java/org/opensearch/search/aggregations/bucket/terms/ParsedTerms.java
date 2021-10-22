@@ -92,13 +92,16 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
         return builder;
     }
 
-    static void declareParsedTermsFields(final ObjectParser<? extends ParsedTerms, Void> objectParser,
-                                         final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser) {
+    static void declareParsedTermsFields(
+        final ObjectParser<? extends ParsedTerms, Void> objectParser,
+        final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser
+    ) {
         declareMultiBucketAggregationFields(objectParser, bucketParser::apply, bucketParser::apply);
-        objectParser.declareLong((parsedTerms, value) -> parsedTerms.docCountErrorUpperBound = value ,
-                DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME);
-        objectParser.declareLong((parsedTerms, value) -> parsedTerms.sumOtherDocCount = value,
-                SUM_OF_OTHER_DOC_COUNTS);
+        objectParser.declareLong(
+            (parsedTerms, value) -> parsedTerms.docCountErrorUpperBound = value,
+            DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME
+        );
+        objectParser.declareLong((parsedTerms, value) -> parsedTerms.sumOtherDocCount = value, SUM_OF_OTHER_DOC_COUNTS);
     }
 
     public abstract static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Terms.Bucket {
@@ -124,10 +127,11 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
             return builder;
         }
 
-
-        static <B extends ParsedBucket> B parseTermsBucketXContent(final XContentParser parser, final Supplier<B> bucketSupplier,
-                                                                   final CheckedBiConsumer<XContentParser, B, IOException> keyConsumer)
-                throws IOException {
+        static <B extends ParsedBucket> B parseTermsBucketXContent(
+            final XContentParser parser,
+            final Supplier<B> bucketSupplier,
+            final CheckedBiConsumer<XContentParser, B, IOException> keyConsumer
+        ) throws IOException {
 
             final B bucket = bucketSupplier.get();
             final List<Aggregation> aggregations = new ArrayList<>();
@@ -149,8 +153,12 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
                         bucket.showDocCountError = true;
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
-                            aggregations::add);
+                    XContentParserUtils.parseTypedKeysObject(
+                        parser,
+                        Aggregation.TYPED_KEYS_DELIMITER,
+                        Aggregation.class,
+                        aggregations::add
+                    );
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

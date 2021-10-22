@@ -51,11 +51,14 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_field_caps"),
-            new Route(POST, "/_field_caps"),
-            new Route(GET, "/{index}/_field_caps"),
-            new Route(POST, "/{index}/_field_caps")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_field_caps"),
+                new Route(POST, "/_field_caps"),
+                new Route(GET, "/{index}/_field_caps"),
+                new Route(POST, "/{index}/_field_caps")
+            )
+        );
     }
 
     @Override
@@ -64,15 +67,13 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request,
-                                              final NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest()
-            .fields(Strings.splitStringByCommaToArray(request.param("fields")))
-            .indices(indices);
+        FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest().fields(
+            Strings.splitStringByCommaToArray(request.param("fields"))
+        ).indices(indices);
 
-        fieldRequest.indicesOptions(
-            IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
+        fieldRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
         fieldRequest.includeUnmapped(request.paramAsBoolean("include_unmapped", false));
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {

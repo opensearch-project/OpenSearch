@@ -69,9 +69,11 @@ public class ResponseExceptionTests extends RestClientTestCase {
             if (getRandom().nextBoolean()) {
                 entity = new StringEntity(responseBody, ContentType.APPLICATION_JSON);
             } else {
-                //test a non repeatable entity
-                entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)),
-                    ContentType.APPLICATION_JSON);
+                // test a non repeatable entity
+                entity = new InputStreamEntity(
+                    new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)),
+                    ContentType.APPLICATION_JSON
+                );
             }
             httpResponse.setEntity(entity);
         }
@@ -88,7 +90,8 @@ public class ResponseExceptionTests extends RestClientTestCase {
             assertNull(responseException.getResponse().getEntity());
         }
 
-        String message = String.format(Locale.ROOT,
+        String message = String.format(
+            Locale.ROOT,
             "method [%s], host [%s], URI [%s], status line [%s]",
             response.getRequestLine().getMethod(),
             response.getHost(),

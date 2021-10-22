@@ -48,9 +48,14 @@ import java.util.Map;
 
 class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    AvgAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
-                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metadata) throws IOException {
+    AvgAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
@@ -59,13 +64,12 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
             AvgAggregationBuilder.REGISTRY_KEY,
             org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             AvgAggregator::new,
-                true);
+            true
+        );
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new AvgAggregator(name, config, searchContext, parent, metadata);
     }
 

@@ -45,7 +45,7 @@ import java.io.IOException;
 public class NodeNotConnectedException extends ConnectTransportException {
 
     public NodeNotConnectedException(DiscoveryNode node, String msg) {
-        super(node, msg, (String)null);
+        super(node, msg, (String) null);
     }
 
     public NodeNotConnectedException(StreamInput in) throws IOException {

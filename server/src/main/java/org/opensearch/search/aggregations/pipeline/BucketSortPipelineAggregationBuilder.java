@@ -67,23 +67,26 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     private static final ParseField FROM = new ParseField("from");
     private static final ParseField SIZE = new ParseField("size");
 
-    public static final ConstructingObjectParser<BucketSortPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(NAME,
-            false, (a, context) -> new BucketSortPipelineAggregationBuilder(context, (List<FieldSortBuilder>) a[0]));
+    public static final ConstructingObjectParser<BucketSortPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        false,
+        (a, context) -> new BucketSortPipelineAggregationBuilder(context, (List<FieldSortBuilder>) a[0])
+    );
 
     static {
         PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-                    List<SortBuilder<?>> sorts = SortBuilder.fromXContent(p);
-                        List<FieldSortBuilder> fieldSorts = new ArrayList<>(sorts.size());
-                        for (SortBuilder<?> sort : sorts) {
-                            if (sort instanceof FieldSortBuilder == false) {
-                                throw new IllegalArgumentException("[" + NAME + "] only supports field based sorting; incompatible sort: ["
-                                        + sort + "]");
-                            }
-                            fieldSorts.add((FieldSortBuilder) sort);
-                        }
-                    return fieldSorts;
-                }, SearchSourceBuilder.SORT_FIELD,
-                ObjectParser.ValueType.OBJECT_ARRAY);
+            List<SortBuilder<?>> sorts = SortBuilder.fromXContent(p);
+            List<FieldSortBuilder> fieldSorts = new ArrayList<>(sorts.size());
+            for (SortBuilder<?> sort : sorts) {
+                if (sort instanceof FieldSortBuilder == false) {
+                    throw new IllegalArgumentException(
+                        "[" + NAME + "] only supports field based sorting; incompatible sort: [" + sort + "]"
+                    );
+                }
+                fieldSorts.add((FieldSortBuilder) sort);
+            }
+            return fieldSorts;
+        }, SearchSourceBuilder.SORT_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareInt(BucketSortPipelineAggregationBuilder::from, FROM);
         PARSER.declareInt(BucketSortPipelineAggregationBuilder::size, SIZE);
         PARSER.declareField(BucketSortPipelineAggregationBuilder::gapPolicy, p -> {
@@ -156,9 +159,14 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     protected void validate(ValidationContext context) {
         context.validateHasParent(NAME, name);
         if (sorts.isEmpty() && size == null && from == 0) {
-            context.addValidationError("[" + name + "] is configured to perform nothing. Please set either of "
+            context.addValidationError(
+                "["
+                    + name
+                    + "] is configured to perform nothing. Please set either of "
                     + Arrays.asList(SearchSourceBuilder.SORT_FIELD.getPreferredName(), SIZE.getPreferredName(), FROM.getPreferredName())
-                    + " to use " + NAME);
+                    + " to use "
+                    + NAME
+            );
         }
     }
 
@@ -194,9 +202,9 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
         if (super.equals(obj) == false) return false;
         BucketSortPipelineAggregationBuilder other = (BucketSortPipelineAggregationBuilder) obj;
         return Objects.equals(sorts, other.sorts)
-                && Objects.equals(from, other.from)
-                && Objects.equals(size, other.size)
-                && Objects.equals(gapPolicy, other.gapPolicy);
+            && Objects.equals(from, other.from)
+            && Objects.equals(size, other.size)
+            && Objects.equals(gapPolicy, other.gapPolicy);
     }
 
     @Override

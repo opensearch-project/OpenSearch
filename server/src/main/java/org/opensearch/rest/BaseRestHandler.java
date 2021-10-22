@@ -67,8 +67,11 @@ import java.util.stream.Collectors;
  */
 public abstract class BaseRestHandler implements RestHandler {
 
-    public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
-        Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
+    public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
+        "rest.action.multi.allow_explicit_index",
+        true,
+        Property.NodeScope
+    );
 
     private final LongAdder usageCount = new LongAdder();
     /**
@@ -103,8 +106,10 @@ public abstract class BaseRestHandler implements RestHandler {
 
         // validate unconsumed params, but we must exclude params used to format the response
         // use a sorted set so the unconsumed parameters appear in a reliable sorted order
-        final SortedSet<String> unconsumedParams =
-            request.unconsumedParams().stream().filter(p -> !responseParams().contains(p)).collect(Collectors.toCollection(TreeSet::new));
+        final SortedSet<String> unconsumedParams = request.unconsumedParams()
+            .stream()
+            .filter(p -> !responseParams().contains(p))
+            .collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
         if (!unconsumedParams.isEmpty()) {
@@ -127,13 +132,11 @@ public abstract class BaseRestHandler implements RestHandler {
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
-        final String detail) {
-        StringBuilder message = new StringBuilder(String.format(
-            Locale.ROOT,
-            "request [%s] contains unrecognized %s%s: ",
-            request.path(),
-            detail,
-            invalids.size() > 1 ? "s" : ""));
+        final String detail
+    ) {
+        StringBuilder message = new StringBuilder(
+            String.format(Locale.ROOT, "request [%s] contains unrecognized %s%s: ", request.path(), detail, invalids.size() > 1 ? "s" : "")
+        );
         boolean first = true;
         for (final String invalid : invalids) {
             final LevenshteinDistance ld = new LevenshteinDistance();
@@ -175,8 +178,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * the request against a channel.
      */
     @FunctionalInterface
-    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {
-    }
+    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
 
     /**
      * Prepare the request for execution. Implementations should consume all request params before

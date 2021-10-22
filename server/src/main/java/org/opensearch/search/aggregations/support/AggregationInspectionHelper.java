@@ -166,8 +166,9 @@ public class AggregationInspectionHelper {
         return agg.getDocCount() > 0;
     }
 
-    public static <A extends InternalSignificantTerms<A, B>,
-        B extends InternalSignificantTerms.Bucket<B>> boolean hasValue(InternalSignificantTerms<A, B> agg) {
+    public static <A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>> boolean hasValue(
+        InternalSignificantTerms<A, B> agg
+    ) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 

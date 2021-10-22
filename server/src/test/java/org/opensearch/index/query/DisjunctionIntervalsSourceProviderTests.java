@@ -55,13 +55,11 @@ public class DisjunctionIntervalsSourceProviderTests extends AbstractSerializing
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         if (randomBoolean()) {
-            subSources = subSources == null ?
-                IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1) :
-                null;
+            subSources = subSources == null ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1) : null;
         } else {
-            filter = filter == null ?
-                IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean()) :
-                FilterIntervalsSourceProviderTests.mutateFilter(filter);
+            filter = filter == null
+                ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
+                : FilterIntervalsSourceProviderTests.mutateFilter(filter);
         }
         return new Disjunction(subSources, filter);
     }

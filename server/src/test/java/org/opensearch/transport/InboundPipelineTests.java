@@ -130,18 +130,41 @@ public class InboundPipelineTests extends OpenSearchTestCase {
                     if (isRequest) {
                         if (rarely()) {
                             messageData = new MessageData(version, requestId, true, isCompressed, breakThisAction, null);
-                            message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(value),
-                                version, breakThisAction, requestId, false, isCompressed);
+                            message = new OutboundMessage.Request(
+                                threadContext,
+                                new String[0],
+                                new TestRequest(value),
+                                version,
+                                breakThisAction,
+                                requestId,
+                                false,
+                                isCompressed
+                            );
                             expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
                         } else {
                             messageData = new MessageData(version, requestId, true, isCompressed, actionName, value);
-                            message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(value),
-                                version, actionName, requestId, false, isCompressed);
+                            message = new OutboundMessage.Request(
+                                threadContext,
+                                new String[0],
+                                new TestRequest(value),
+                                version,
+                                actionName,
+                                requestId,
+                                false,
+                                isCompressed
+                            );
                         }
                     } else {
                         messageData = new MessageData(version, requestId, false, isCompressed, null, value);
-                        message = new OutboundMessage.Response(threadContext, Collections.emptySet(), new TestResponse(value),
-                            version, requestId, false, isCompressed);
+                        message = new OutboundMessage.Response(
+                            threadContext,
+                            Collections.emptySet(),
+                            new TestResponse(value),
+                            version,
+                            requestId,
+                            false,
+                            isCompressed
+                        );
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
@@ -208,11 +231,26 @@ public class InboundPipelineTests extends OpenSearchTestCase {
 
             OutboundMessage message;
             if (isRequest) {
-                message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(value),
-                    invalidVersion, actionName, requestId, false, false);
+                message = new OutboundMessage.Request(
+                    threadContext,
+                    new String[0],
+                    new TestRequest(value),
+                    invalidVersion,
+                    actionName,
+                    requestId,
+                    false,
+                    false
+                );
             } else {
-                message = new OutboundMessage.Response(threadContext, Collections.emptySet(), new TestResponse(value),
-                    invalidVersion, requestId, false, false);
+                message = new OutboundMessage.Response(
+                    threadContext,
+                    Collections.emptySet(),
+                    new TestResponse(value),
+                    invalidVersion,
+                    requestId,
+                    false,
+                    false
+                );
             }
 
             final BytesReference reference = message.serialize(streamOutput);
@@ -221,8 +259,10 @@ public class InboundPipelineTests extends OpenSearchTestCase {
             }
 
             // Pipeline cannot be reused after uncaught exception
-            final IllegalStateException ise = expectThrows(IllegalStateException.class,
-                () -> pipeline.handleBytes(new FakeTcpChannel(), ReleasableBytesReference.wrap(BytesArray.EMPTY)));
+            final IllegalStateException ise = expectThrows(
+                IllegalStateException.class,
+                () -> pipeline.handleBytes(new FakeTcpChannel(), ReleasableBytesReference.wrap(BytesArray.EMPTY))
+            );
             assertEquals("Pipeline state corrupted by uncaught exception", ise.getMessage());
         }
     }
@@ -245,11 +285,26 @@ public class InboundPipelineTests extends OpenSearchTestCase {
 
             OutboundMessage message;
             if (isRequest) {
-                message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(value),
-                    version, actionName, requestId, false, false);
+                message = new OutboundMessage.Request(
+                    threadContext,
+                    new String[0],
+                    new TestRequest(value),
+                    version,
+                    actionName,
+                    requestId,
+                    false,
+                    false
+                );
             } else {
-                message = new OutboundMessage.Response(threadContext, Collections.emptySet(), new TestResponse(value),
-                    version, requestId, false, false);
+                message = new OutboundMessage.Response(
+                    threadContext,
+                    Collections.emptySet(),
+                    new TestResponse(value),
+                    version,
+                    requestId,
+                    false,
+                    false
+                );
             }
 
             final BytesReference reference = message.serialize(streamOutput);
@@ -295,18 +350,17 @@ public class InboundPipelineTests extends OpenSearchTestCase {
             this.value = value;
         }
 
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             MessageData that = (MessageData) o;
-            return requestId == that.requestId &&
-                isRequest == that.isRequest &&
-                isCompressed == that.isCompressed &&
-                Objects.equals(version, that.version) &&
-                Objects.equals(value, that.value) &&
-                Objects.equals(actionName, that.actionName);
+            return requestId == that.requestId
+                && isRequest == that.isRequest
+                && isCompressed == that.isCompressed
+                && Objects.equals(version, that.version)
+                && Objects.equals(value, that.value)
+                && Objects.equals(actionName, that.actionName);
         }
 
         @Override

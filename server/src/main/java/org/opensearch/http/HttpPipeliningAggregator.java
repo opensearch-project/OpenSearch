@@ -81,8 +81,7 @@ public class HttpPipeliningAggregator<Listener> {
             return readyResponses;
         } else {
             int eventCount = outboundHoldingQueue.size() + 1;
-            throw new IllegalStateException("Too many pipelined events [" + eventCount + "]. Max events allowed ["
-                + maxEventsHeld + "].");
+            throw new IllegalStateException("Too many pipelined events [" + eventCount + "]. Max events allowed [" + maxEventsHeld + "].");
         }
     }
 

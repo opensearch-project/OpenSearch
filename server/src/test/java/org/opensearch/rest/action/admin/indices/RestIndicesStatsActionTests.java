@@ -61,7 +61,8 @@ public class RestIndicesStatsActionTests extends OpenSearchTestCase {
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> action.prepareRequest(request, mock(NodeClient.class)));
+            () -> action.prepareRequest(request, mock(NodeClient.class))
+        );
         assertThat(e, hasToString(containsString("request [/_stats] contains unrecognized metric: [" + metric + "]")));
     }
 
@@ -71,12 +72,14 @@ public class RestIndicesStatsActionTests extends OpenSearchTestCase {
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> action.prepareRequest(request, mock(NodeClient.class)));
+            () -> action.prepareRequest(request, mock(NodeClient.class))
+        );
         assertThat(
             e,
             hasToString(
-                containsString(
-                    "request [/_stats] contains unrecognized metrics: [fieldata] -> did you mean [fielddata]?, [unrecognized]")));
+                containsString("request [/_stats] contains unrecognized metrics: [fieldata] -> did you mean [fielddata]?, [unrecognized]")
+            )
+        );
     }
 
     public void testAllRequestWithOtherMetrics() throws IOException {
@@ -86,7 +89,8 @@ public class RestIndicesStatsActionTests extends OpenSearchTestCase {
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> action.prepareRequest(request, mock(NodeClient.class)));
+            () -> action.prepareRequest(request, mock(NodeClient.class))
+        );
         assertThat(e, hasToString(containsString("request [/_stats] contains _all and individual metrics [_all," + metric + "]")));
     }
 

@@ -36,8 +36,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.opensearch.index.mapper.Mapper;
-import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 

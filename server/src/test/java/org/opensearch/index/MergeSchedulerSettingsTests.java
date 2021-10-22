@@ -158,9 +158,10 @@ public class MergeSchedulerSettingsTests extends OpenSearchTestCase {
     }
 
     public void testMaxThreadAndMergeCount() {
-        IllegalArgumentException exc =
-            expectThrows(IllegalArgumentException.class,
-                () -> new MergeSchedulerConfig(new IndexSettings(createMetadata(10, 4, -1), Settings.EMPTY)));
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MergeSchedulerConfig(new IndexSettings(createMetadata(10, 4, -1), Settings.EMPTY))
+        );
         assertThat(exc.getMessage(), containsString("maxThreadCount (= 10) should be <= maxMergeCount (= 4)"));
 
         IndexSettings settings = new IndexSettings(createMetadata(-1, -1, 2), Settings.EMPTY);
@@ -185,12 +186,10 @@ public class MergeSchedulerSettingsTests extends OpenSearchTestCase {
         assertEquals(45, settings.getMergeSchedulerConfig().getMaxMergeCount());
 
         final IndexSettings finalSettings = settings;
-        exc = expectThrows(IllegalArgumentException.class,
-            () -> finalSettings.updateIndexMetadata(createMetadata(40, 30, -1)));
+        exc = expectThrows(IllegalArgumentException.class, () -> finalSettings.updateIndexMetadata(createMetadata(40, 30, -1)));
         assertThat(exc.getMessage(), containsString("maxThreadCount (= 40) should be <= maxMergeCount (= 30)"));
 
-        exc = expectThrows(IllegalArgumentException.class,
-            () -> finalSettings.updateIndexMetadata(createMetadata(-1, 3, 8)));
+        exc = expectThrows(IllegalArgumentException.class, () -> finalSettings.updateIndexMetadata(createMetadata(-1, 3, 8)));
         assertThat(exc.getMessage(), containsString("maxThreadCount (= 4) should be <= maxMergeCount (= 3)"));
 
         // assertions above may provoke warnings if node.processors exceeds numCpus
@@ -198,8 +197,7 @@ public class MergeSchedulerSettingsTests extends OpenSearchTestCase {
         int numCpus = Runtime.getRuntime().availableProcessors();
         String[] warnings = new String[] {
             "setting [node.processors] to value [2] which is more than available processors [" + numCpus + "] is deprecated",
-            "setting [node.processors] to value [8] which is more than available processors [" + numCpus + "] is deprecated"
-        };
+            "setting [node.processors] to value [8] which is more than available processors [" + numCpus + "] is deprecated" };
         allowedWarnings(warnings);
     }
 }

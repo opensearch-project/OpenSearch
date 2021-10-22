@@ -89,13 +89,11 @@ class BulkPrimaryExecutionContext {
     private BulkItemResponse executionResult;
     private int retryCounter;
 
-
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
         this.primary = primary;
         advance();
     }
-
 
     private int findNextNonAborted(int startIndex) {
         final int length = request.items().length;
@@ -111,10 +109,10 @@ class BulkPrimaryExecutionContext {
 
     /** move to the next item to execute */
     private void advance() {
-        assert currentItemState == ItemProcessingState.COMPLETED || currentIndex == -1 :
-            "moving to next but current item wasn't completed (state: " + currentItemState + ")";
+        assert currentItemState == ItemProcessingState.COMPLETED
+            || currentIndex == -1 : "moving to next but current item wasn't completed (state: " + currentItemState + ")";
         currentItemState = ItemProcessingState.INITIAL;
-        currentIndex =  findNextNonAborted(currentIndex + 1);
+        currentIndex = findNextNonAborted(currentIndex + 1);
         retryCounter = 0;
         requestToExecute = null;
         executionResult = null;
@@ -178,7 +176,6 @@ class BulkPrimaryExecutionContext {
     public boolean hasMoreOperationsToExecute() {
         return currentIndex < request.items().length;
     }
-
 
     /** returns the name of the index the current request used */
     public String getConcreteIndex() {
@@ -249,10 +246,13 @@ class BulkPrimaryExecutionContext {
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
         currentItemState = ItemProcessingState.EXECUTED;
         final DocWriteRequest docWriteRequest = getCurrentItem().request();
-        executionResult = new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
+        executionResult = new BulkItemResponse(
+            getCurrentItem().id(),
+            docWriteRequest.opType(),
             // Make sure to use getCurrentItem().index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
-            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause));
+            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause)
+        );
         markAsCompleted(executionResult);
     }
 
@@ -266,12 +266,26 @@ class BulkPrimaryExecutionContext {
                 final DocWriteResponse response;
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
-                    response = new IndexResponse(primary.shardId(), requestToExecute.type(), requestToExecute.id(),
-                        result.getSeqNo(), result.getTerm(), indexResult.getVersion(), indexResult.isCreated());
+                    response = new IndexResponse(
+                        primary.shardId(),
+                        requestToExecute.type(),
+                        requestToExecute.id(),
+                        result.getSeqNo(),
+                        result.getTerm(),
+                        indexResult.getVersion(),
+                        indexResult.isCreated()
+                    );
                 } else if (result.getOperationType() == Engine.Operation.TYPE.DELETE) {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;
-                    response = new DeleteResponse(primary.shardId(), requestToExecute.type(), requestToExecute.id(),
-                        deleteResult.getSeqNo(), result.getTerm(), deleteResult.getVersion(), deleteResult.isFound());
+                    response = new DeleteResponse(
+                        primary.shardId(),
+                        requestToExecute.type(),
+                        requestToExecute.id(),
+                        deleteResult.getSeqNo(),
+                        result.getTerm(),
+                        deleteResult.getVersion(),
+                        deleteResult.isFound()
+                    );
 
                 } else {
                     throw new AssertionError("unknown result type :" + result.getResultType());
@@ -282,12 +296,21 @@ class BulkPrimaryExecutionContext {
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
                 break;
             case FAILURE:
-                executionResult = new BulkItemResponse(current.id(), docWriteRequest.opType(),
+                executionResult = new BulkItemResponse(
+                    current.id(),
+                    docWriteRequest.opType(),
                     // Make sure to use request.index() here, if you
                     // use docWriteRequest.index() it will use the
                     // concrete index instead of an alias if used!
-                    new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(),
-                        result.getFailure(), result.getSeqNo(), result.getTerm()));
+                    new BulkItemResponse.Failure(
+                        request.index(),
+                        docWriteRequest.type(),
+                        docWriteRequest.id(),
+                        result.getFailure(),
+                        result.getSeqNo(),
+                        result.getTerm()
+                    )
+                );
                 break;
             default:
                 throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());
@@ -301,7 +324,7 @@ class BulkPrimaryExecutionContext {
         assert executionResult != null && translatedResponse.getItemId() == executionResult.getItemId();
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
-        if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent())  {
+        if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent()) {
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
         getCurrentItem().setPrimaryResponse(translatedResponse);
@@ -312,13 +335,17 @@ class BulkPrimaryExecutionContext {
     /** builds the bulk shard response to return to the user */
     public BulkShardResponse buildShardResponse() {
         assert hasMoreOperationsToExecute() == false;
-        return new BulkShardResponse(request.shardId(),
-            Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new));
+        return new BulkShardResponse(
+            request.shardId(),
+            Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new)
+        );
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {
-        assert Arrays.asList(expectedCurrentState).contains(currentItemState):
-            "expected current state [" + currentItemState + "] to be one of " + Arrays.toString(expectedCurrentState);
+        assert Arrays.asList(expectedCurrentState).contains(currentItemState) : "expected current state ["
+            + currentItemState
+            + "] to be one of "
+            + Arrays.toString(expectedCurrentState);
         assert currentIndex >= 0 : currentIndex;
         assert retryCounter >= 0 : retryCounter;
         switch (currentItemState) {

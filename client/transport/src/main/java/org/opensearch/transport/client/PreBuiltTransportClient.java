@@ -62,7 +62,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @deprecated {@link TransportClient} is deprecated in favour of the High Level REST client.
  */
-@SuppressWarnings({"unchecked","varargs"})
+@SuppressWarnings({ "unchecked", "varargs" })
 @Deprecated
 public class PreBuiltTransportClient extends TransportClient {
 
@@ -98,14 +98,9 @@ public class PreBuiltTransportClient extends TransportClient {
         }
     }
 
-    private static final Collection<Class<? extends Plugin>> PRE_INSTALLED_PLUGINS =
-        Collections.unmodifiableList(
-            Arrays.asList(
-                Netty4Plugin.class,
-                ReindexPlugin.class,
-                PercolatorPlugin.class,
-                MustachePlugin.class,
-                ParentJoinPlugin.class));
+    private static final Collection<Class<? extends Plugin>> PRE_INSTALLED_PLUGINS = Collections.unmodifiableList(
+        Arrays.asList(Netty4Plugin.class, ReindexPlugin.class, PercolatorPlugin.class, MustachePlugin.class, ParentJoinPlugin.class)
+    );
 
     /**
      * Creates a new transport client with pre-installed plugins.
@@ -138,7 +133,8 @@ public class PreBuiltTransportClient extends TransportClient {
     public PreBuiltTransportClient(
         Settings settings,
         Collection<Class<? extends Plugin>> plugins,
-        HostFailureListener hostFailureListener) {
+        HostFailureListener hostFailureListener
+    ) {
         super(settings, Settings.EMPTY, addPlugins(plugins, PRE_INSTALLED_PLUGINS), hostFailureListener);
     }
 

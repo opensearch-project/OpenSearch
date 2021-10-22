@@ -120,32 +120,22 @@ public class Response {
      * format (with quotes and leading space). Start/end of line characters and
      * atomic groups are used to prevent backtracking.
      */
-    private static final Pattern WARNING_HEADER_DATE_PATTERN = Pattern.compile(
-            "^ " + // start of line, leading space
-            // quoted RFC 1123 date format
-            "\"" + // opening quote
-            "(?>Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // day of week, atomic group to prevent backtracking
-            "\\d{2} " + // 2-digit day
-            "(?>Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month, atomic group to prevent backtracking
-            "\\d{4} " + // 4-digit year
-            "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
-            "GMT" + // GMT
-            "\"$"); // closing quote (optional, since an older version can still send a warn-date), end of line
+    private static final Pattern WARNING_HEADER_DATE_PATTERN = Pattern.compile("^ " + // start of line, leading space
+    // quoted RFC 1123 date format
+        "\"" + // opening quote
+        "(?>Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // day of week, atomic group to prevent backtracking
+        "\\d{2} " + // 2-digit day
+        "(?>Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month, atomic group to prevent backtracking
+        "\\d{4} " + // 4-digit year
+        "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+        "GMT" + // GMT
+        "\"$"); // closing quote (optional, since an older version can still send a warn-date), end of line
 
     /**
      * Length of RFC 1123 format (with quotes and leading space), used in
      * matchWarningHeaderPatternByPrefix(String).
      */
-    private static final int WARNING_HEADER_DATE_LENGTH = 0
-            + 1
-            + 1
-            + 3 + 1 + 1
-            + 2 + 1
-            + 3 + 1
-            + 4 + 1
-            + 2 + 1 + 2 + 1 + 2 + 1
-            + 3
-            + 1;
+    private static final int WARNING_HEADER_DATE_LENGTH = 0 + 1 + 1 + 3 + 1 + 1 + 2 + 1 + 3 + 1 + 4 + 1 + 2 + 1 + 2 + 1 + 2 + 1 + 3 + 1;
 
     /**
      * Tests if a string matches the RFC 7234 specification for warning headers.
@@ -215,10 +205,6 @@ public class Response {
 
     @Override
     public String toString() {
-        return "Response{" +
-                "requestLine=" + requestLine +
-                ", host=" + host +
-                ", response=" + response.getStatusLine() +
-                '}';
+        return "Response{" + "requestLine=" + requestLine + ", host=" + host + ", response=" + response.getStatusLine() + '}';
     }
 }

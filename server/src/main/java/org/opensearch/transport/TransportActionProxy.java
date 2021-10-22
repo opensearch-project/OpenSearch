@@ -57,8 +57,11 @@ public final class TransportActionProxy {
         private final String action;
         private final Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction;
 
-        ProxyRequestHandler(TransportService service, String action, Function<TransportRequest,
-                Writeable.Reader<? extends TransportResponse>> responseFunction) {
+        ProxyRequestHandler(
+            TransportService service,
+            String action,
+            Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
+        ) {
             this.service = service;
             this.action = action;
             this.responseFunction = responseFunction;
@@ -68,8 +71,12 @@ public final class TransportActionProxy {
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             DiscoveryNode targetNode = request.targetNode;
             TransportRequest wrappedRequest = request.wrapped;
-            service.sendRequest(targetNode, action, wrappedRequest,
-                    new ProxyResponseHandler<>(channel, responseFunction.apply(wrappedRequest)));
+            service.sendRequest(
+                targetNode,
+                action,
+                wrappedRequest,
+                new ProxyResponseHandler<>(channel, responseFunction.apply(wrappedRequest))
+            );
         }
     }
 
@@ -139,31 +146,45 @@ public final class TransportActionProxy {
      * Registers a proxy request handler that allows to forward requests for the given action to another node. To be used when the
      * response type changes based on the upcoming request (quite rare)
      */
-    public static void registerProxyActionWithDynamicResponseType(TransportService service, String action,
-                                                                  Function<TransportRequest,
-                                                                      Writeable.Reader<? extends TransportResponse>> responseFunction) {
+    public static void registerProxyActionWithDynamicResponseType(
+        TransportService service,
+        String action,
+        Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
+    ) {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
-        service.registerRequestHandler(getProxyAction(action), ThreadPool.Names.SAME, true, false,
-            in -> new ProxyRequest<>(in, requestHandler::newRequest), new ProxyRequestHandler<>(service, action, responseFunction));
+        service.registerRequestHandler(
+            getProxyAction(action),
+            ThreadPool.Names.SAME,
+            true,
+            false,
+            in -> new ProxyRequest<>(in, requestHandler::newRequest),
+            new ProxyRequestHandler<>(service, action, responseFunction)
+        );
     }
 
     /**
      * Registers a proxy request handler that allows to forward requests for the given action to another node. To be used when the
      * response type is always the same (most of the cases).
      */
-    public static void registerProxyAction(TransportService service, String action,
-                                           Writeable.Reader<? extends TransportResponse> reader) {
+    public static void registerProxyAction(TransportService service, String action, Writeable.Reader<? extends TransportResponse> reader) {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
-        service.registerRequestHandler(getProxyAction(action), ThreadPool.Names.SAME, true, false,
-            in -> new ProxyRequest<>(in, requestHandler::newRequest), new ProxyRequestHandler<>(service, action, request -> reader));
+        service.registerRequestHandler(
+            getProxyAction(action),
+            ThreadPool.Names.SAME,
+            true,
+            false,
+            in -> new ProxyRequest<>(in, requestHandler::newRequest),
+            new ProxyRequestHandler<>(service, action, request -> reader)
+        );
     }
 
     private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";
+
     /**
      * Returns the corresponding proxy action for the given action
      */
     public static String getProxyAction(String action) {
-        return  PROXY_ACTION_PREFIX + action;
+        return PROXY_ACTION_PREFIX + action;
     }
 
     /**
@@ -178,7 +199,7 @@ public final class TransportActionProxy {
      */
     public static TransportRequest unwrapRequest(TransportRequest request) {
         if (request instanceof ProxyRequest) {
-            return ((ProxyRequest)request).wrapped;
+            return ((ProxyRequest) request).wrapped;
         }
         return request;
     }

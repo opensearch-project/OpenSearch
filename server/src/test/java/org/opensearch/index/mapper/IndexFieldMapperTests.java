@@ -55,29 +55,31 @@ public class IndexFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testDefaultDisabledIndexMapper() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
+        DocumentMapper docMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "value")
-                        .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(
+            new SourceToParse(
+                "test",
+                "type",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
+                XContentType.JSON
+            )
+        );
 
         assertThat(doc.rootDoc().get("_index"), nullValue());
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
 
     public void testIndexNotConfigurable() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_index").endObject()
-                .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_index").endObject().endObject().endObject()
+        );
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> parser.parse("type", new CompressedXContent(mapping)));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
         assertEquals("_index is not configurable", e.getMessage());
     }
 

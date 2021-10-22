@@ -40,8 +40,7 @@ import org.opensearch.client.OpenSearchClient;
 /**
  * Builder for close index request
  */
-public class CloseIndexRequestBuilder
-    extends AcknowledgedRequestBuilder<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
+public class CloseIndexRequestBuilder extends AcknowledgedRequestBuilder<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
 
     public CloseIndexRequestBuilder(OpenSearchClient client, CloseIndexAction action) {
         super(client, action, new CloseIndexRequest());

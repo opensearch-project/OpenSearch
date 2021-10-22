@@ -37,5 +37,4 @@ import org.opensearch.common.io.stream.VersionedNamedWriteable;
 /**
  * Diff that also support {@link VersionedNamedWriteable} interface
  */
-public interface NamedDiffable<T> extends Diffable<T>, VersionedNamedWriteable {
-}
+public interface NamedDiffable<T> extends Diffable<T>, VersionedNamedWriteable {}

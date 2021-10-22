@@ -82,8 +82,12 @@ public abstract class PersistentTasksDecidersTestCase extends OpenSearchTestCase
                 };
             }
         };
-        persistentTasksClusterService = new PersistentTasksClusterService(clusterService.getSettings(), registry, clusterService,
-            threadPool);
+        persistentTasksClusterService = new PersistentTasksClusterService(
+            clusterService.getSettings(),
+            registry,
+            clusterService,
+            threadPool
+        );
     }
 
     @AfterClass
@@ -119,9 +123,7 @@ public abstract class PersistentTasksDecidersTestCase extends OpenSearchTestCase
             tasks.addTask("_task_" + i, "test", null, new PersistentTasksCustomMetadata.Assignment(null, "initialized"));
         }
 
-        Metadata metadata = Metadata.builder()
-            .putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build())
-            .build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build()).build();
 
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).build();
     }
@@ -137,9 +139,11 @@ public abstract class PersistentTasksDecidersTestCase extends OpenSearchTestCase
     }
 
     /** Asserts that the cluster state contains nbTasks tasks that verify the given predicate **/
-    protected static void assertPersistentTasks(final long nbTasks,
-                                              final ClusterState clusterState,
-                                              final Predicate<PersistentTasksCustomMetadata.PersistentTask> predicate) {
+    protected static void assertPersistentTasks(
+        final long nbTasks,
+        final ClusterState clusterState,
+        final Predicate<PersistentTasksCustomMetadata.PersistentTask> predicate
+    ) {
         PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertNotNull("Persistent tasks must be not null", tasks);
         assertEquals(nbTasks, tasks.tasks().stream().filter(predicate).count());

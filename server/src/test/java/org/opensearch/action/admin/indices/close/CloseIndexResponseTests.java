@@ -94,8 +94,10 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
             if (expectedIndexResult.hasFailures() == false) {
                 assertThat(actualIndexResult.getException(), nullValue());
                 if (actualIndexResult.getShards() != null) {
-                    assertThat(Arrays.stream(actualIndexResult.getShards())
-                        .allMatch(shardResult -> shardResult.hasFailures() == false), is(true));
+                    assertThat(
+                        Arrays.stream(actualIndexResult.getShards()).allMatch(shardResult -> shardResult.hasFailures() == false),
+                        is(true)
+                    );
                 }
             }
 
@@ -155,31 +157,37 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
 
         Index index = new Index("test", "uuid");
         IndexResult indexResult = new CloseIndexResponse.IndexResult(index);
-        CloseIndexResponse closeIndexResponse = new CloseIndexResponse(true, true,
-                Collections.singletonList(indexResult));
-        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":true,\"indices\":{\"test\":{\"closed\":true}}}",
-                Strings.toString(closeIndexResponse));
+        CloseIndexResponse closeIndexResponse = new CloseIndexResponse(true, true, Collections.singletonList(indexResult));
+        assertEquals(
+            "{\"acknowledged\":true,\"shards_acknowledged\":true,\"indices\":{\"test\":{\"closed\":true}}}",
+            Strings.toString(closeIndexResponse)
+        );
 
         CloseIndexResponse.ShardResult[] shards = new CloseIndexResponse.ShardResult[1];
-        shards[0] = new CloseIndexResponse.ShardResult(0, new CloseIndexResponse.ShardResult.Failure[] {
-                new CloseIndexResponse.ShardResult.Failure("test", 0, new ActionNotFoundTransportException("test"), "nodeId") });
+        shards[0] = new CloseIndexResponse.ShardResult(
+            0,
+            new CloseIndexResponse.ShardResult.Failure[] {
+                new CloseIndexResponse.ShardResult.Failure("test", 0, new ActionNotFoundTransportException("test"), "nodeId") }
+        );
         indexResult = new CloseIndexResponse.IndexResult(index, shards);
-        closeIndexResponse = new CloseIndexResponse(true, true,
-                Collections.singletonList(indexResult));
-        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":true,"
+        closeIndexResponse = new CloseIndexResponse(true, true, Collections.singletonList(indexResult));
+        assertEquals(
+            "{\"acknowledged\":true,\"shards_acknowledged\":true,"
                 + "\"indices\":{\"test\":{\"closed\":false,\"failedShards\":{\"0\":{"
                 + "\"failures\":[{\"node\":\"nodeId\",\"shard\":0,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
                 + "\"reason\":{\"type\":\"action_not_found_transport_exception\","
                 + "\"reason\":\"No handler for action [test]\"}}]}}}}}",
-                Strings.toString(closeIndexResponse));
+            Strings.toString(closeIndexResponse)
+        );
     }
 
     public void testBwcSerialization() throws Exception {
         {
             final CloseIndexResponse response = randomResponse();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(randomVersionBetween(
-                    random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0)));
+                out.setVersion(
+                    randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0))
+                );
                 response.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
@@ -195,8 +203,9 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                 response.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(randomVersionBetween(
-                        random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0)));
+                    in.setVersion(
+                        randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0))
+                    );
                     final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
                     assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
                 }
@@ -267,6 +276,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         return randomFrom(
             new IndexNotFoundException(index),
             new ActionNotFoundTransportException("test"),
-            new NoShardAvailableActionException(new ShardId(index, id)));
+            new NoShardAvailableActionException(new ShardId(index, id))
+        );
     }
 }

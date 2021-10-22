@@ -46,7 +46,6 @@ import java.util.concurrent.ConcurrentMap;
 
 public class RecoveryRequestTrackerTests extends OpenSearchTestCase {
 
-
     private TestThreadPool threadPool;
 
     @Override

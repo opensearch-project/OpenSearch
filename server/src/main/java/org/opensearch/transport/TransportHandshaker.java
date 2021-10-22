@@ -73,15 +73,16 @@ final class TransportHandshaker {
         numHandshakes.inc();
         final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, version, listener);
         pendingHandshakes.put(requestId, handler);
-        channel.addCloseListener(ActionListener.wrap(
-            () -> handler.handleLocalException(new TransportException("handshake failed because connection reset"))));
+        channel.addCloseListener(
+            ActionListener.wrap(() -> handler.handleLocalException(new TransportException("handshake failed because connection reset")))
+        );
         boolean success = false;
         try {
             // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
             // we also have no payload on the request but the response will contain the actual version of the node we talk
             // to as the payload.
             Version minCompatVersion = version.minimumCompatibilityVersion();
-            if(version.onOrAfter(Version.V_1_0_0) && version.before(Version.V_2_0_0)) {
+            if (version.onOrAfter(Version.V_1_0_0) && version.before(Version.V_2_0_0)) {
                 // the minCompatibleVersion for OpenSearch 1.x is sent as 6.7.99 instead of 6.8.0
                 // as this helps in (indirectly) identifying the remote node version during handle HandshakeRequest itself
                 // and then send appropriate version (7.10.2/ OpenSearch 1.x version) in response.
@@ -99,7 +100,8 @@ final class TransportHandshaker {
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
                 timeout,
-                ThreadPool.Names.GENERIC);
+                ThreadPool.Names.GENERIC
+            );
             success = true;
         } catch (Exception e) {
             handler.handleLocalException(new ConnectTransportException(node, "failure to send " + HANDSHAKE_ACTION_NAME, e));
@@ -116,15 +118,21 @@ final class TransportHandshaker {
         HandshakeRequest handshakeRequest = new HandshakeRequest(stream);
         final int nextByte = stream.read();
         if (nextByte != -1) {
-            throw new IllegalStateException("Handshake request not fully read for requestId [" + requestId + "], action ["
-                + TransportHandshaker.HANDSHAKE_ACTION_NAME + "], available [" + stream.available() + "]; resetting");
+            throw new IllegalStateException(
+                "Handshake request not fully read for requestId ["
+                    + requestId
+                    + "], action ["
+                    + TransportHandshaker.HANDSHAKE_ACTION_NAME
+                    + "], available ["
+                    + stream.available()
+                    + "]; resetting"
+            );
         }
         // 1. if remote node is 7.x, then StreamInput version would be 6.8.0
         // 2. if remote node is 6.8 then it would be 5.6.0
         // 3. if remote node is OpenSearch 1.x then it would be 6.7.99
-        if((this.version.onOrAfter(Version.V_1_0_0) && this.version.before(Version.V_2_0_0)) &&
-            (stream.getVersion().equals(LegacyESVersion.V_6_8_0)
-                || stream.getVersion().equals(Version.fromId(5060099)))) {
+        if ((this.version.onOrAfter(Version.V_1_0_0) && this.version.before(Version.V_2_0_0))
+            && (stream.getVersion().equals(LegacyESVersion.V_6_8_0) || stream.getVersion().equals(Version.fromId(5060099)))) {
             channel.sendResponse(new HandshakeResponse(LegacyESVersion.V_7_10_2));
         } else {
             channel.sendResponse(new HandshakeResponse(this.version));
@@ -166,8 +174,15 @@ final class TransportHandshaker {
             if (isDone.compareAndSet(false, true)) {
                 Version version = response.responseVersion;
                 if (currentVersion.isCompatible(version) == false) {
-                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
-                        + "] minimal compatible version is: [" + currentVersion.minimumCompatibilityVersion() + "]"));
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "Received message from unsupported version: ["
+                                + version
+                                + "] minimal compatible version is: ["
+                                + currentVersion.minimumCompatibilityVersion()
+                                + "]"
+                        )
+                    );
                 } else {
                     listener.onResponse(version);
                 }

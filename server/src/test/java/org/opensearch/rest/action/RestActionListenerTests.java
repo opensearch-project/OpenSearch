@@ -28,13 +28,14 @@ public class RestActionListenerTests extends OpenSearchTestCase {
     public void testExceptionInByteRestResponse() throws Exception {
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true, 1);
         RestActionListener listener = new RestActionListener(channel) {
-            @Override protected void processResponse(Object o) {
+            @Override
+            protected void processResponse(Object o) {
                 fail("call to processResponse is not expected");
             }
         };
 
         // TODO: it will be better to mock BytesRestResponse() and throw exception from it's ctor, but the current version of
-        //  mockito does not support mocking static methods and ctor.
+        // mockito does not support mocking static methods and ctor.
         listener.onFailure(new OpenSearchException("mock status() call") {
             @Override
             public RestStatus status() {

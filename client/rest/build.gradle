@@ -53,6 +53,7 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
   testImplementation "org.objenesis:objenesis:${versions.objenesis}"
+  testImplementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
 }
 
 tasks.withType(CheckForbiddenApis).configureEach {

@@ -59,28 +59,33 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
     }
 
     public void testIncludeTypeName() throws IOException {
-        XContentBuilder typedContent = XContentFactory.jsonBuilder().startObject()
-                .startObject("mappings")
-                    .startObject("my_doc")
-                        .startObject("properties")
-                            .startObject("field1").field("type", "keyword").endObject()
-                            .startObject("field2").field("type", "text").endObject()
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .startObject("aliases")
-                    .startObject("read_alias").endObject()
-                .endObject()
+        XContentBuilder typedContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("mappings")
+            .startObject("my_doc")
+            .startObject("properties")
+            .startObject("field1")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("field2")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("aliases")
+            .startObject("read_alias")
+            .endObject()
+            .endObject()
             .endObject();
 
         Map<String, String> params = new HashMap<>();
         params.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withMethod(RestRequest.Method.PUT)
-                .withParams(params)
-                .withPath("/_template/_some_template")
-                .withContent(BytesReference.bytes(typedContent), XContentType.JSON)
-                .build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
+            .withParams(params)
+            .withPath("/_template/_some_template")
+            .withContent(BytesReference.bytes(typedContent), XContentType.JSON)
+            .build();
         action.prepareRequest(request, mock(NodeClient.class));
         assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }

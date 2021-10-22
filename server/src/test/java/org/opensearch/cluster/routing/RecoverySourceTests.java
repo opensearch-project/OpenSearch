@@ -32,10 +32,8 @@
 
 package org.opensearch.cluster.routing;
 
-import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.routing.RecoverySource;
 
 import java.io.IOException;
 

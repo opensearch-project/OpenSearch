@@ -118,38 +118,37 @@ public class QueryShardContextTests extends OpenSearchTestCase {
 
     public void testToQueryFails() {
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
-        Exception exc = expectThrows(Exception.class,
-            () -> context.toQuery(new AbstractQueryBuilder() {
-                @Override
-                public String getWriteableName() {
-                    return null;
-                }
+        Exception exc = expectThrows(Exception.class, () -> context.toQuery(new AbstractQueryBuilder() {
+            @Override
+            public String getWriteableName() {
+                return null;
+            }
 
-                @Override
-                protected void doWriteTo(StreamOutput out) throws IOException {
+            @Override
+            protected void doWriteTo(StreamOutput out) throws IOException {
 
-                }
+            }
 
-                @Override
-                protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            @Override
+            protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
-                }
+            }
 
-                @Override
-                protected Query doToQuery(QueryShardContext context) throws IOException {
-                    throw new RuntimeException("boom");
-                }
+            @Override
+            protected Query doToQuery(QueryShardContext context) throws IOException {
+                throw new RuntimeException("boom");
+            }
 
-                @Override
-                protected boolean doEquals(AbstractQueryBuilder other) {
-                    return false;
-                }
+            @Override
+            protected boolean doEquals(AbstractQueryBuilder other) {
+                return false;
+            }
 
-                @Override
-                protected int doHashCode() {
-                    return 0;
-                }
-            }));
+            @Override
+            protected int doHashCode() {
+                return 0;
+            }
+        }));
         assertThat(exc.getMessage(), equalTo("failed to create query: boom"));
     }
 
@@ -160,9 +159,10 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         IndexFieldMapper mapper = new IndexFieldMapper();
 
         IndexFieldData<?> forField = context.getForField(mapper.fieldType());
-        String expected = clusterAlias == null ? context.getIndexSettings().getIndexMetadata().getIndex().getName()
+        String expected = clusterAlias == null
+            ? context.getIndexSettings().getIndexMetadata().getIndex().getName()
             : clusterAlias + ":" + context.getIndexSettings().getIndex().getName();
-        assertEquals(expected, ((AbstractLeafOrdinalsFieldData)forField.load(null)).getOrdinalsValues().lookupOrd(0).utf8ToString());
+        assertEquals(expected, ((AbstractLeafOrdinalsFieldData) forField.load(null)).getOrdinalsValues().lookupOrd(0).utf8ToString());
     }
 
     public void testGetFullyQualifiedIndex() {
@@ -180,15 +180,28 @@ public class QueryShardContextTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put("index.sort.field", "sort_field")
             .build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("index")
-            .settings(settings)
-            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         QueryShardContext context = new QueryShardContext(
-            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null,
-            null, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> 0L, null, null, () -> true, null);
+            0,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            NamedXContentRegistry.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null
+        );
 
         assertTrue(context.indexSortedOnField("sort_field"));
         assertFalse(context.indexSortedOnField("second_sort_field"));
@@ -196,17 +209,21 @@ public class QueryShardContextTests extends OpenSearchTestCase {
     }
 
     public void testFielddataLookupSelfReference() {
-        QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
-                //simulate a runtime field that depends on itself e.g. field: doc['field']
+        QueryShardContext queryShardContext = createQueryShardContext(
+            "uuid",
+            null,
+            (field, leafLookup, docId) -> {
+                // simulate a runtime field that depends on itself e.g. field: doc['field']
                 return leafLookup.doc().get(field).toString();
-            });
+            }
+        );
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("field", queryShardContext));
         assertEquals("Cyclic dependency detected while resolving runtime fields: field -> field", iae.getMessage());
     }
 
     public void testFielddataLookupLooseLoop() {
         QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
-            //simulate a runtime field cycle: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['1']
+            // simulate a runtime field cycle: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['1']
             if (field.equals("4")) {
                 return leafLookup.doc().get("1").toString();
             }
@@ -218,7 +235,7 @@ public class QueryShardContextTests extends OpenSearchTestCase {
 
     public void testFielddataLookupTerminatesInLoop() {
         QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
-            //simulate a runtime field cycle: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['4']
+            // simulate a runtime field cycle: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['4']
             if (field.equals("4")) {
                 return leafLookup.doc().get("4").toString();
             }
@@ -244,8 +261,10 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         List<String> values = collect("field1", queryShardContext, new TermQuery(new Term("indexed_field", "first")));
         assertEquals(Collections.singletonList("field1_0"), values);
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("field1", queryShardContext));
-        assertEquals("Cyclic dependency detected while resolving runtime fields: field1 -> field2 -> field3 -> field4 -> field1",
-            iae.getMessage());
+        assertEquals(
+            "Cyclic dependency detected while resolving runtime fields: field1 -> field2 -> field3 -> field4 -> field1",
+            iae.getMessage()
+        );
     }
 
     public void testFielddataLookupBeyondMaxDepth() {
@@ -296,19 +315,25 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         return createQueryShardContext(indexUuid, clusterAlias, null);
     }
 
-    private static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias,
-        TriFunction<String, LeafSearchLookup, Integer, String> runtimeDocValues) {
+    private static QueryShardContext createQueryShardContext(
+        String indexUuid,
+        String clusterAlias,
+        TriFunction<String, LeafSearchLookup, Integer, String> runtimeDocValues
+    ) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
-        indexMetadataBuilder.settings(Settings.builder().put("index.version.created", Version.CURRENT)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 1)
-            .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
+        indexMetadataBuilder.settings(
+            Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)
+                .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
         );
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
             Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
-            Collections.emptyMap(), Collections.emptyMap()
+            Collections.emptyMap(),
+            Collections.emptyMap()
         );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
@@ -316,16 +341,30 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         if (runtimeDocValues != null) {
             when(mapperService.fieldType(any())).thenAnswer(fieldTypeInv -> {
-                String fieldName = (String)fieldTypeInv.getArguments()[0];
+                String fieldName = (String) fieldTypeInv.getArguments()[0];
                 return mockFieldType(fieldName, (leafSearchLookup, docId) -> runtimeDocValues.apply(fieldName, leafSearchLookup, docId));
             });
         }
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
-            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-                (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
-                mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
+            0,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
+            mapperService,
+            null,
+            null,
+            NamedXContentRegistry.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> nowInMillis,
+            clusterAlias,
+            null,
+            () -> true,
+            null
+        );
     }
 
     private static MappedFieldType mockFieldType(String fieldName, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
@@ -403,7 +442,7 @@ public class QueryShardContextTests extends OpenSearchTestCase {
                             @Override
                             public void collect(int doc) throws IOException {
                                 ScriptDocValues<?> scriptDocValues;
-                                if(randomBoolean()) {
+                                if (randomBoolean()) {
                                     LeafDocLookup leafDocLookup = queryShardContext.lookup().doc().getLeafDocLookup(context);
                                     leafDocLookup.setDocument(doc);
                                     scriptDocValues = leafDocLookup.get(field);

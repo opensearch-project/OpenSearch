@@ -61,7 +61,8 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
             PercentileRanksAggregationBuilder.NAME,
             PercentileRanksAggregationBuilder::new,
             PercentilesConfig.TDigest::new,
-            VALUES_FIELD);
+            VALUES_FIELD
+        );
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
@@ -84,9 +85,11 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
         super(in);
     }
 
-    private PercentileRanksAggregationBuilder(PercentileRanksAggregationBuilder clone,
-                                              AggregatorFactories.Builder factoriesBuilder,
-                                              Map<String, Object> metadata) {
+    private PercentileRanksAggregationBuilder(
+        PercentileRanksAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -108,12 +111,23 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig config,
-                                                                     AggregatorFactory parent,
-                                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, queryShardContext,
-                    parent, subFactoriesBuilder, metadata);
+    protected ValuesSourceAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        return new PercentileRanksAggregatorFactory(
+            name,
+            config,
+            values,
+            configOrDefault(),
+            keyed,
+            queryShardContext,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 
     @Override

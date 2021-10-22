@@ -92,8 +92,14 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final boolean retriesSupported;
     private volatile boolean isCancelled = false;
 
-    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
-                                       DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
+    public RemoteRecoveryTargetHandler(
+        long recoveryId,
+        ShardId shardId,
+        TransportService transportService,
+        DiscoveryNode targetNode,
+        RecoverySettings recoverySettings,
+        Consumer<Long> onSourceThrottle
+    ) {
         this.transportService = transportService;
         this.threadPool = transportService.getThreadPool();
         this.recoveryId = recoveryId;
@@ -102,13 +108,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         this.recoverySettings = recoverySettings;
         this.onSourceThrottle = onSourceThrottle;
         this.translogOpsRequestOptions = TransportRequestOptions.builder()
-                .withType(TransportRequestOptions.Type.RECOVERY)
-                .withTimeout(recoverySettings.internalActionLongTimeout())
-                .build();
+            .withType(TransportRequestOptions.Type.RECOVERY)
+            .withTimeout(recoverySettings.internalActionLongTimeout())
+            .build();
         this.fileChunkRequestOptions = TransportRequestOptions.builder()
-                .withType(TransportRequestOptions.Type.RECOVERY)
-                .withTimeout(recoverySettings.internalActionTimeout())
-                .build();
+            .withType(TransportRequestOptions.Type.RECOVERY)
+            .withTimeout(recoverySettings.internalActionTimeout())
+            .build();
         this.retriesSupported = targetNode.getVersion().onOrAfter(LegacyESVersion.V_7_9_0);
     }
 
@@ -120,10 +126,15 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
         final String action = PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG;
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
-        final RecoveryPrepareForTranslogOperationsRequest request =
-            new RecoveryPrepareForTranslogOperationsRequest(recoveryId, requestSeqNo, shardId, totalTranslogOps);
-        final TransportRequestOptions options =
-            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build();
+        final RecoveryPrepareForTranslogOperationsRequest request = new RecoveryPrepareForTranslogOperationsRequest(
+            recoveryId,
+            requestSeqNo,
+            shardId,
+            totalTranslogOps
+        );
+        final TransportRequestOptions options = TransportRequestOptions.builder()
+            .withTimeout(recoverySettings.internalActionTimeout())
+            .build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
         executeRetryableAction(action, request, options, responseListener, reader);
@@ -133,10 +144,16 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, final ActionListener<Void> listener) {
         final String action = PeerRecoveryTargetService.Actions.FINALIZE;
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
-        final RecoveryFinalizeRecoveryRequest request =
-            new RecoveryFinalizeRecoveryRequest(recoveryId, requestSeqNo, shardId, globalCheckpoint, trimAboveSeqNo);
-        final TransportRequestOptions options =
-            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build();
+        final RecoveryFinalizeRecoveryRequest request = new RecoveryFinalizeRecoveryRequest(
+            recoveryId,
+            requestSeqNo,
+            shardId,
+            globalCheckpoint,
+            trimAboveSeqNo
+        );
+        final TransportRequestOptions options = TransportRequestOptions.builder()
+            .withTimeout(recoverySettings.internalActionLongTimeout())
+            .build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
         executeRetryableAction(action, request, options, responseListener, reader);
@@ -145,70 +162,105 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     @Override
     public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
         transportService.submitRequest(
-                targetNode,
-                PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
-                new RecoveryHandoffPrimaryContextRequest(recoveryId, shardId, primaryContext),
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+            targetNode,
+            PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
+            new RecoveryHandoffPrimaryContextRequest(recoveryId, shardId, primaryContext),
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME
+        ).txGet();
     }
 
     @Override
     public void indexTranslogOperations(
-            final List<Translog.Operation> operations,
-            final int totalTranslogOps,
-            final long maxSeenAutoIdTimestampOnPrimary,
-            final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
-            final RetentionLeases retentionLeases,
-            final long mappingVersionOnPrimary,
-            final ActionListener<Long> listener) {
+        final List<Translog.Operation> operations,
+        final int totalTranslogOps,
+        final long maxSeenAutoIdTimestampOnPrimary,
+        final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
+        final RetentionLeases retentionLeases,
+        final long mappingVersionOnPrimary,
+        final ActionListener<Long> listener
+    ) {
         final String action = PeerRecoveryTargetService.Actions.TRANSLOG_OPS;
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final RecoveryTranslogOperationsRequest request = new RecoveryTranslogOperationsRequest(
-                recoveryId,
-                requestSeqNo,
-                shardId,
-                operations,
-                totalTranslogOps,
-                maxSeenAutoIdTimestampOnPrimary,
-                maxSeqNoOfDeletesOrUpdatesOnPrimary,
-                retentionLeases,
-                mappingVersionOnPrimary);
+            recoveryId,
+            requestSeqNo,
+            shardId,
+            operations,
+            totalTranslogOps,
+            maxSeenAutoIdTimestampOnPrimary,
+            maxSeqNoOfDeletesOrUpdatesOnPrimary,
+            retentionLeases,
+            mappingVersionOnPrimary
+        );
         final Writeable.Reader<RecoveryTranslogOperationsResponse> reader = RecoveryTranslogOperationsResponse::new;
         final ActionListener<RecoveryTranslogOperationsResponse> responseListener = ActionListener.map(listener, r -> r.localCheckpoint);
         executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
     }
 
     @Override
-    public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
-                                List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
+    public void receiveFileInfo(
+        List<String> phase1FileNames,
+        List<Long> phase1FileSizes,
+        List<String> phase1ExistingFileNames,
+        List<Long> phase1ExistingFileSizes,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    ) {
         final String action = PeerRecoveryTargetService.Actions.FILES_INFO;
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
-        RecoveryFilesInfoRequest request = new RecoveryFilesInfoRequest(recoveryId, requestSeqNo, shardId, phase1FileNames, phase1FileSizes,
-            phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
-        final TransportRequestOptions options =
-            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build();
+        RecoveryFilesInfoRequest request = new RecoveryFilesInfoRequest(
+            recoveryId,
+            requestSeqNo,
+            shardId,
+            phase1FileNames,
+            phase1FileSizes,
+            phase1ExistingFileNames,
+            phase1ExistingFileSizes,
+            totalTranslogOps
+        );
+        final TransportRequestOptions options = TransportRequestOptions.builder()
+            .withTimeout(recoverySettings.internalActionTimeout())
+            .build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
         executeRetryableAction(action, request, options, responseListener, reader);
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata,
-                           ActionListener<Void> listener) {
+    public void cleanFiles(
+        int totalTranslogOps,
+        long globalCheckpoint,
+        Store.MetadataSnapshot sourceMetadata,
+        ActionListener<Void> listener
+    ) {
         final String action = PeerRecoveryTargetService.Actions.CLEAN_FILES;
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
-        final RecoveryCleanFilesRequest request =
-            new RecoveryCleanFilesRequest(recoveryId, requestSeqNo, shardId, sourceMetadata, totalTranslogOps, globalCheckpoint);
-        final TransportRequestOptions options =
-            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build();
+        final RecoveryCleanFilesRequest request = new RecoveryCleanFilesRequest(
+            recoveryId,
+            requestSeqNo,
+            shardId,
+            sourceMetadata,
+            totalTranslogOps,
+            globalCheckpoint
+        );
+        final TransportRequestOptions options = TransportRequestOptions.builder()
+            .withTimeout(recoverySettings.internalActionTimeout())
+            .build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
         executeRetryableAction(action, request, options, responseListener, reader);
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content,
-                               boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
+    public void writeFileChunk(
+        StoreFileMetadata fileMetadata,
+        long position,
+        BytesReference content,
+        boolean lastChunk,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    ) {
         // Pause using the rate limiter, if desired, to throttle the recovery
         final long throttleTimeInNanos;
         // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
@@ -238,7 +290,16 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
          * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
          */
         final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
-            recoveryId, requestSeqNo, shardId, fileMetadata, position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
+            recoveryId,
+            requestSeqNo,
+            shardId,
+            fileMetadata,
+            position,
+            content,
+            lastChunk,
+            totalTranslogOps,
+            throttleTimeInNanos
+        );
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         executeRetryableAction(action, request, fileChunkRequestOptions, ActionListener.map(listener, r -> null), reader);
     }
@@ -259,9 +320,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         });
     }
 
-    private <T extends TransportResponse> void executeRetryableAction(String action, RecoveryTransportRequest request,
-                                                                      TransportRequestOptions options, ActionListener<T> actionListener,
-                                                                      Writeable.Reader<T> reader) {
+    private <T extends TransportResponse> void executeRetryableAction(
+        String action,
+        RecoveryTransportRequest request,
+        TransportRequestOptions options,
+        ActionListener<T> actionListener,
+        Writeable.Reader<T> reader
+    ) {
         final Object key = new Object();
         final ActionListener<T> removeListener = ActionListener.runBefore(actionListener, () -> onGoingRetryableActions.remove(key));
         final TimeValue initialDelay = TimeValue.timeValueMillis(200);
@@ -270,8 +335,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public void tryAction(ActionListener<T> listener) {
-                transportService.sendRequest(targetNode, action, request, options,
-                    new ActionListenerResponseHandler<>(listener, reader, ThreadPool.Names.GENERIC));
+                transportService.sendRequest(
+                    targetNode,
+                    action,
+                    request,
+                    options,
+                    new ActionListenerResponseHandler<>(listener, reader, ThreadPool.Names.GENERIC)
+                );
             }
 
             @Override
@@ -294,8 +364,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             return cause instanceof ConnectTransportException;
         } else if (e instanceof RemoteTransportException) {
             final Throwable cause = ExceptionsHelper.unwrapCause(e);
-            return cause instanceof CircuitBreakingException ||
-                cause instanceof OpenSearchRejectedExecutionException;
+            return cause instanceof CircuitBreakingException || cause instanceof OpenSearchRejectedExecutionException;
         }
         return false;
     }

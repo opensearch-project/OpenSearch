@@ -48,10 +48,12 @@ public interface SuccessfullyProcessed {
      * Count of documents updated.
      */
     long getUpdated();
+
     /**
      * Count of documents created.
      */
     long getCreated();
+
     /**
      * Count of successful delete operations.
      */

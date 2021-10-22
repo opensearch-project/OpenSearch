@@ -32,13 +32,11 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.coordination.ElectionSchedulerFactory;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -62,15 +60,24 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
         return TimeValue.timeValueMillis(randomLongBetween(0, 10000));
     }
 
-    private void assertElectionSchedule(final DeterministicTaskQueue deterministicTaskQueue,
-                                        final ElectionSchedulerFactory electionSchedulerFactory,
-                                        final long initialTimeout, final long backOffTime, final long maxTimeout, final long duration) {
+    private void assertElectionSchedule(
+        final DeterministicTaskQueue deterministicTaskQueue,
+        final ElectionSchedulerFactory electionSchedulerFactory,
+        final long initialTimeout,
+        final long backOffTime,
+        final long maxTimeout,
+        final long duration
+    ) {
 
         final TimeValue initialGracePeriod = randomGracePeriod();
         final AtomicBoolean electionStarted = new AtomicBoolean();
 
-        try (Releasable ignored = electionSchedulerFactory.startElectionScheduler(initialGracePeriod,
-            () -> assertTrue(electionStarted.compareAndSet(false, true)))) {
+        try (
+            Releasable ignored = electionSchedulerFactory.startElectionScheduler(
+                initialGracePeriod,
+                () -> assertTrue(electionStarted.compareAndSet(false, true))
+            )
+        ) {
 
             long lastElectionFinishTime = deterministicTaskQueue.getCurrentTimeMillis();
             int electionCount = 0;
@@ -137,8 +144,10 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
         }
 
         if (ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() < initialTimeoutMillis || randomBoolean()) {
-            settingsBuilder.put(ELECTION_MAX_TIMEOUT_SETTING.getKey(),
-                randomLongBetween(Math.max(200, initialTimeoutMillis), 180000) + "ms");
+            settingsBuilder.put(
+                ELECTION_MAX_TIMEOUT_SETTING.getKey(),
+                randomLongBetween(Math.max(200, initialTimeoutMillis), 180000) + "ms"
+            );
         }
 
         final long electionDurationMillis;
@@ -156,8 +165,11 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
         final long duration = ELECTION_DURATION_SETTING.get(settings).millis();
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
-        final ElectionSchedulerFactory electionSchedulerFactory
-            = new ElectionSchedulerFactory(settings, random(), deterministicTaskQueue.getThreadPool());
+        final ElectionSchedulerFactory electionSchedulerFactory = new ElectionSchedulerFactory(
+            settings,
+            random(),
+            deterministicTaskQueue.getThreadPool()
+        );
 
         assertElectionSchedule(deterministicTaskQueue, electionSchedulerFactory, initialTimeout, backOffTime, maxTimeout, duration);
 
@@ -175,8 +187,10 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
         {
             final Settings settings = Settings.builder().put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), "10001ms").build();
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_INITIAL_TIMEOUT_SETTING.get(settings));
-            assertThat(e.getMessage(),
-                is("failed to parse value [10001ms] for setting [cluster.election.initial_timeout], must be <= [10s]"));
+            assertThat(
+                e.getMessage(),
+                is("failed to parse value [10001ms] for setting [cluster.election.initial_timeout], must be <= [10s]")
+            );
         }
 
         {
@@ -188,8 +202,10 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
         {
             final Settings settings = Settings.builder().put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), "60001ms").build();
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_BACK_OFF_TIME_SETTING.get(settings));
-            assertThat(e.getMessage(),
-                is("failed to parse value [60001ms] for setting [cluster.election.back_off_time], must be <= [60s]"));
+            assertThat(
+                e.getMessage(),
+                is("failed to parse value [60001ms] for setting [cluster.election.back_off_time], must be <= [60s]")
+            );
         }
 
         {
@@ -231,18 +247,26 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
                 .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), maxTimeoutMillis + "ms")
                 .build();
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new ElectionSchedulerFactory(settings, random(), null));
-            assertThat(e.getMessage(), equalTo("[cluster.election.max_timeout] is ["
-                + TimeValue.timeValueMillis(maxTimeoutMillis)
-                + "], but must be at least [cluster.election.initial_timeout] which is ["
-                + TimeValue.timeValueMillis(initialTimeoutMillis) + "]"));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new ElectionSchedulerFactory(settings, random(), null)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "[cluster.election.max_timeout] is ["
+                        + TimeValue.timeValueMillis(maxTimeoutMillis)
+                        + "], but must be at least [cluster.election.initial_timeout] which is ["
+                        + TimeValue.timeValueMillis(initialTimeoutMillis)
+                        + "]"
+                )
+            );
         }
     }
 
     public void testRandomPositiveLongLessThan() {
-        for (long input : new long[]{0, 1, -1, Long.MIN_VALUE, Long.MAX_VALUE, randomLong()}) {
-            for (long upperBound : new long[]{1, 2, 3, 100, Long.MAX_VALUE}) {
+        for (long input : new long[] { 0, 1, -1, Long.MIN_VALUE, Long.MAX_VALUE, randomLong() }) {
+            for (long upperBound : new long[] { 1, 2, 3, 100, Long.MAX_VALUE }) {
                 long l = toPositiveLongAtMost(input, upperBound);
                 assertThat(l, greaterThan(0L));
                 assertThat(l, lessThanOrEqualTo(upperBound));

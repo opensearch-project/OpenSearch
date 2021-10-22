@@ -32,6 +32,7 @@
 
 package org.opensearch.monitor.jvm;
 
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -85,16 +86,29 @@ public class JvmStats implements Writeable, ToXContentFragment {
             try {
                 MemoryUsage usage = memoryPoolMXBean.getUsage();
                 MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
+                MemoryUsage collectionUsage = memoryPoolMXBean.getCollectionUsage();
+                // For some pools, the collection usage may not be supported and the method returns null.
+                if (collectionUsage == null) {
+                    collectionUsage = new MemoryUsage(0, 0, 0, 0);
+                }
                 String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), null);
                 if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
                     continue;
                 }
-                pools.add(new MemoryPool(name,
+                pools.add(
+                    new MemoryPool(
+                        name,
                         usage.getUsed() < 0 ? 0 : usage.getUsed(),
                         usage.getMax() < 0 ? 0 : usage.getMax(),
                         peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
-                        peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
-                ));
+                        peakUsage.getMax() < 0 ? 0 : peakUsage.getMax(),
+                        new MemoryPoolGcStats(
+                            collectionUsage.getUsed() < 0 ? 0 : collectionUsage.getUsed(),
+                            collectionUsage.getMax() < 0 ? 0 : collectionUsage.getMax()
+                        )
+                    )
+                );
+
             } catch (final Exception ignored) {
 
             }
@@ -106,8 +120,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         GarbageCollector[] collectors = new GarbageCollector[gcMxBeans.size()];
         for (int i = 0; i < collectors.length; i++) {
             GarbageCollectorMXBean gcMxBean = gcMxBeans.get(i);
-            collectors[i] = new GarbageCollector(GcNames.getByGcName(gcMxBean.getName(), gcMxBean.getName()),
-                    gcMxBean.getCollectionCount(), gcMxBean.getCollectionTime());
+            collectors[i] = new GarbageCollector(
+                GcNames.getByGcName(gcMxBean.getName(), gcMxBean.getName()),
+                gcMxBean.getCollectionCount(),
+                gcMxBean.getCollectionTime()
+            );
         }
         GarbageCollectors garbageCollectors = new GarbageCollectors(collectors);
         List<BufferPool> bufferPoolsList = Collections.emptyList();
@@ -115,18 +132,29 @@ public class JvmStats implements Writeable, ToXContentFragment {
             List<BufferPoolMXBean> bufferPools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class);
             bufferPoolsList = new ArrayList<>(bufferPools.size());
             for (BufferPoolMXBean bufferPool : bufferPools) {
-                bufferPoolsList.add(new BufferPool(bufferPool.getName(), bufferPool.getCount(),
-                        bufferPool.getTotalCapacity(), bufferPool.getMemoryUsed()));
+                bufferPoolsList.add(
+                    new BufferPool(bufferPool.getName(), bufferPool.getCount(), bufferPool.getTotalCapacity(), bufferPool.getMemoryUsed())
+                );
             }
         } catch (Exception e) {
             // buffer pools are not available
         }
 
-        Classes classes = new Classes(classLoadingMXBean.getLoadedClassCount(), classLoadingMXBean.getTotalLoadedClassCount(),
-                classLoadingMXBean.getUnloadedClassCount());
+        Classes classes = new Classes(
+            classLoadingMXBean.getLoadedClassCount(),
+            classLoadingMXBean.getTotalLoadedClassCount(),
+            classLoadingMXBean.getUnloadedClassCount()
+        );
 
-        return new JvmStats(System.currentTimeMillis(), runtimeMXBean.getUptime(), mem, threads,
-                garbageCollectors, bufferPoolsList, classes);
+        return new JvmStats(
+            System.currentTimeMillis(),
+            runtimeMXBean.getUptime(),
+            mem,
+            threads,
+            garbageCollectors,
+            bufferPoolsList,
+            classes
+        );
     }
 
     private final long timestamp;
@@ -137,8 +165,15 @@ public class JvmStats implements Writeable, ToXContentFragment {
     private final List<BufferPool> bufferPools;
     private final Classes classes;
 
-    public JvmStats(long timestamp, long uptime, Mem mem, Threads threads, GarbageCollectors gc,
-                    List<BufferPool> bufferPools, Classes classes) {
+    public JvmStats(
+        long timestamp,
+        long uptime,
+        Mem mem,
+        Threads threads,
+        GarbageCollectors gc,
+        List<BufferPool> bufferPools,
+        Classes classes
+    ) {
         this.timestamp = timestamp;
         this.uptime = uptime;
         this.mem = mem;
@@ -223,6 +258,12 @@ public class JvmStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.PEAK_USED_IN_BYTES, Fields.PEAK_USED, new ByteSizeValue(pool.peakUsed));
             builder.humanReadableField(Fields.PEAK_MAX_IN_BYTES, Fields.PEAK_MAX, new ByteSizeValue(pool.peakMax));
 
+            builder.startObject(Fields.LAST_GC_STATS);
+            builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, new ByteSizeValue(pool.getLastGcStats().used));
+            builder.humanReadableField(Fields.MAX_IN_BYTES, Fields.MAX, new ByteSizeValue(pool.getLastGcStats().max));
+            builder.field(Fields.USAGE_PERCENT, pool.getLastGcStats().getUsagePercent());
+            builder.endObject();
+
             builder.endObject();
         }
         builder.endObject();
@@ -253,8 +294,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
                 builder.startObject(bufferPool.getName());
                 builder.field(Fields.COUNT, bufferPool.getCount());
                 builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, new ByteSizeValue(bufferPool.used));
-                builder.humanReadableField(Fields.TOTAL_CAPACITY_IN_BYTES, Fields.TOTAL_CAPACITY,
-                    new ByteSizeValue(bufferPool.totalCapacity));
+                builder.humanReadableField(
+                    Fields.TOTAL_CAPACITY_IN_BYTES,
+                    Fields.TOTAL_CAPACITY,
+                    new ByteSizeValue(bufferPool.totalCapacity)
+                );
                 builder.endObject();
             }
             builder.endObject();
@@ -299,6 +343,8 @@ public class JvmStats implements Writeable, ToXContentFragment {
         static final String PEAK_USED_IN_BYTES = "peak_used_in_bytes";
         static final String PEAK_MAX = "peak_max";
         static final String PEAK_MAX_IN_BYTES = "peak_max_in_bytes";
+        static final String USAGE_PERCENT = "usage_percent";
+        static final String LAST_GC_STATS = "last_gc_stats";
 
         static final String THREADS = "threads";
         static final String COUNT = "count";
@@ -415,6 +461,48 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Stores the memory usage after the Java virtual machine
+     * most recently expended effort in recycling unused objects
+     * in particular memory pool.
+     */
+    public static class MemoryPoolGcStats implements Writeable {
+
+        private final long used;
+        private final long max;
+
+        public MemoryPoolGcStats(long used, long max) {
+            this.used = used;
+            this.max = max;
+        }
+
+        public MemoryPoolGcStats(StreamInput in) throws IOException {
+            used = in.readVLong();
+            max = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(used);
+            out.writeVLong(max);
+        }
+
+        public ByteSizeValue getUsed() {
+            return new ByteSizeValue(used);
+        }
+
+        public ByteSizeValue getMax() {
+            return new ByteSizeValue(max);
+        }
+
+        public short getUsagePercent() {
+            if (max == 0) {
+                return -1;
+            }
+            return (short) (used * 100 / max);
+        }
+    }
+
     public static class MemoryPool implements Writeable {
 
         private final String name;
@@ -422,13 +510,15 @@ public class JvmStats implements Writeable, ToXContentFragment {
         private final long max;
         private final long peakUsed;
         private final long peakMax;
+        private final MemoryPoolGcStats lastGcStats;
 
-        public MemoryPool(String name, long used, long max, long peakUsed, long peakMax) {
+        public MemoryPool(String name, long used, long max, long peakUsed, long peakMax, MemoryPoolGcStats lastGcStats) {
             this.name = name;
             this.used = used;
             this.max = max;
             this.peakUsed = peakUsed;
             this.peakMax = peakMax;
+            this.lastGcStats = lastGcStats;
         }
 
         public MemoryPool(StreamInput in) throws IOException {
@@ -437,6 +527,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
             max = in.readVLong();
             peakUsed = in.readVLong();
             peakMax = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+                lastGcStats = new MemoryPoolGcStats(in);
+            } else {
+                lastGcStats = new MemoryPoolGcStats(0, 0);
+            }
         }
 
         @Override
@@ -446,6 +541,9 @@ public class JvmStats implements Writeable, ToXContentFragment {
             out.writeVLong(max);
             out.writeVLong(peakUsed);
             out.writeVLong(peakMax);
+            if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+                lastGcStats.writeTo(out);
+            }
         }
 
         public String getName() {
@@ -466,6 +564,13 @@ public class JvmStats implements Writeable, ToXContentFragment {
 
         public ByteSizeValue getPeakMax() {
             return new ByteSizeValue(peakMax);
+        }
+
+        /**
+         * Returns the heap usage after last garbage collection cycle
+         */
+        public MemoryPoolGcStats getLastGcStats() {
+            return lastGcStats;
         }
     }
 

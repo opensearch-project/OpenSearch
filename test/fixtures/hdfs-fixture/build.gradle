@@ -33,5 +33,5 @@ apply plugin: 'opensearch.java'
 group = 'hdfs'
 
 dependencies {
-  api "org.apache.hadoop:hadoop-minicluster:2.10.1"
+  api "org.apache.hadoop:hadoop-minicluster:3.3.1"
 }

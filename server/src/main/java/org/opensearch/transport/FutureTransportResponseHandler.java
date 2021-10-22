@@ -40,12 +40,10 @@ import org.opensearch.threadpool.ThreadPool;
 public abstract class FutureTransportResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
     @Override
-    public void handleResponse(T response) {
-    }
+    public void handleResponse(T response) {}
 
     @Override
-    public void handleException(TransportException exp) {
-    }
+    public void handleException(TransportException exp) {}
 
     @Override
     public String executor() {

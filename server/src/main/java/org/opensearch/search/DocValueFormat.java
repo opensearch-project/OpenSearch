@@ -115,8 +115,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public Long format(long value) {
@@ -174,14 +173,13 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(BytesRef value) {
             return Base64.getEncoder()
-                    .withoutPadding()
-                    .encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
+                .withoutPadding()
+                .encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
         }
 
         @Override
@@ -228,7 +226,7 @@ public interface DocValueFormat extends NamedWriteable {
             }
             final boolean isJoda;
             if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-                //if stream is from 7.7 Node it will have a flag indicating if format is joda
+                // if stream is from 7.7 Node it will have a flag indicating if format is joda
                 isJoda = in.readBoolean();
             } else {
                 /*
@@ -262,8 +260,8 @@ public interface DocValueFormat extends NamedWriteable {
                 out.writeVInt(resolution.ordinal());
             }
             if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-                //in order not to loose information if the formatter is a joda we send a flag
-                out.writeBoolean(formatter instanceof JodaDateFormatter);//todo pg consider refactor to isJoda method..
+                // in order not to loose information if the formatter is a joda we send a flag
+                out.writeBoolean(formatter instanceof JodaDateFormatter);// todo pg consider refactor to isJoda method..
             }
         }
 
@@ -305,8 +303,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(long value) {
@@ -327,8 +324,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(long value) {
@@ -349,8 +345,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public Boolean format(long value) {
@@ -365,10 +360,10 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
             switch (value) {
-            case "false":
-                return 0;
-            case "true":
-                return 1;
+                case "false":
+                    return 0;
+                case "true":
+                    return 1;
             }
             throw new IllegalArgumentException("Cannot parse boolean [" + value + "], expected either [true] or [false]");
         }
@@ -387,8 +382,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(BytesRef value) {
@@ -523,8 +517,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String toString() {

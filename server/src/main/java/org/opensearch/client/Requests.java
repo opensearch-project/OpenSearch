@@ -176,6 +176,7 @@ public class Requests {
     public static IndicesShardStoresRequest indicesShardStoresRequest(String... indices) {
         return new IndicesShardStoresRequest(indices);
     }
+
     /**
      * Creates an indices exists request.
      *
@@ -504,7 +505,6 @@ public class Requests {
     public static VerifyRepositoryRequest verifyRepositoryRequest(String name) {
         return new VerifyRepositoryRequest(name);
     }
-
 
     /**
      * Creates new snapshot

@@ -61,9 +61,16 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
     private final Queue<Runnable> current = ConcurrentCollections.newQueue();
     private final ScheduledExecutorService timer;
 
-    public PrioritizedOpenSearchThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-                                                   ThreadFactory threadFactory, ThreadContext contextHolder,
-                                                   ScheduledExecutorService timer) {
+    public PrioritizedOpenSearchThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        ScheduledExecutorService timer
+    ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<>(), threadFactory, contextHolder);
         this.timer = timer;
     }
@@ -93,8 +100,10 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
         long oldestCreationDateInNanos = now;
         for (Runnable queuedRunnable : getQueue()) {
             if (queuedRunnable instanceof PrioritizedRunnable) {
-                oldestCreationDateInNanos = Math.min(oldestCreationDateInNanos,
-                        ((PrioritizedRunnable) queuedRunnable).getCreationDateInNanos());
+                oldestCreationDateInNanos = Math.min(
+                    oldestCreationDateInNanos,
+                    ((PrioritizedRunnable) queuedRunnable).getCreationDateInNanos()
+                );
             }
         }
 
@@ -186,7 +195,7 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
         if (!(callable instanceof PrioritizedCallable)) {
             callable = PrioritizedCallable.wrap(callable, Priority.NORMAL);
         }
-        return new PrioritizedFutureTask<>((PrioritizedCallable)callable, insertionOrder.incrementAndGet());
+        return new PrioritizedFutureTask<>((PrioritizedCallable) callable, insertionOrder.incrementAndGet());
     }
 
     public static class Pending {
@@ -222,7 +231,7 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
         public void run() {
             synchronized (this) {
                 // make the task as stared. This is needed for synchronization with the timeout handling
-                // see  #scheduleTimeout()
+                // see #scheduleTimeout()
                 started = true;
                 FutureUtils.cancel(timeoutFuture);
             }

@@ -31,7 +31,6 @@
 
 package org.opensearch.index.shard;
 
-
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.PathUtils;
@@ -143,7 +142,7 @@ public class NewPathForShardTests extends OpenSearchTestCase {
 
         @Override
         public long getTotalSpace() throws IOException {
-            return usableSpace*3;
+            return usableSpace * 3;
         }
 
         @Override
@@ -153,7 +152,7 @@ public class NewPathForShardTests extends OpenSearchTestCase {
 
         @Override
         public long getUnallocatedSpace() throws IOException {
-            return usableSpace*2;
+            return usableSpace * 2;
         }
 
         @Override
@@ -185,12 +184,12 @@ public class NewPathForShardTests extends OpenSearchTestCase {
         Path path = PathUtils.get(createTempDir().toString());
 
         // Use 2 data paths:
-        String[] paths = new String[] {path.resolve("a").toString(),
-                                       path.resolve("b").toString()};
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            .build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
@@ -205,7 +204,7 @@ public class NewPathForShardTests extends OpenSearchTestCase {
         bFileStore.usableSpace = 1000;
 
         ShardId shardId = new ShardId("index", "_na_", 0);
-        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path, Integer>emptyMap());
         assertTrue(result.getDataPath().toString().contains(aPathPart));
 
         // Test the reverse: b has lots of free space, but a has little, so new shard should go to b:
@@ -213,14 +212,14 @@ public class NewPathForShardTests extends OpenSearchTestCase {
         bFileStore.usableSpace = 100000;
 
         shardId = new ShardId("index", "_na_", 0);
-        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path, Integer>emptyMap());
         assertTrue(result.getDataPath().toString().contains(bPathPart));
 
         // Now a and be have equal usable space; we allocate two shards to the node, and each should go to different paths:
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 100000;
 
-        Map<Path,Integer> dataPathToShardCount = new HashMap<>();
+        Map<Path, Integer> dataPathToShardCount = new HashMap<>();
         ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
         createFakeShard(result1);
         dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
@@ -240,12 +239,12 @@ public class NewPathForShardTests extends OpenSearchTestCase {
         Path path = PathUtils.get(createTempDir().toString());
 
         // Use 2 data paths:
-        String[] paths = new String[] {path.resolve("a").toString(),
-                                       path.resolve("b").toString()};
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            .build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
@@ -260,21 +259,23 @@ public class NewPathForShardTests extends OpenSearchTestCase {
         bFileStore.usableSpace = 10000;
 
         ShardId shardId = new ShardId("index", "uid1", 0);
-        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path, Integer>emptyMap());
         createFakeShard(result);
         // First shard should go to a
         assertThat(result.getDataPath().toString(), containsString(aPathPart));
 
         shardId = new ShardId("index", "uid1", 1);
-        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path, Integer>emptyMap());
         createFakeShard(result);
         // Second shard should go to b
         assertThat(result.getDataPath().toString(), containsString(bPathPart));
 
-        Map<Path,Integer> dataPathToShardCount = new HashMap<>();
+        Map<Path, Integer> dataPathToShardCount = new HashMap<>();
         shardId = new ShardId("index2", "uid2", 0);
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index2",
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+            "index2",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build()
+        );
         ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
         createFakeShard(result1);
         dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
@@ -297,12 +298,12 @@ public class NewPathForShardTests extends OpenSearchTestCase {
         Path path = PathUtils.get(createTempDir().toString());
 
         // Use 2 data paths:
-        String[] paths = new String[] {path.resolve("a").toString(),
-                                       path.resolve("b").toString()};
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            .build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         aFileStore.usableSpace = 100000;
@@ -322,12 +323,12 @@ public class NewPathForShardTests extends OpenSearchTestCase {
         Path path = PathUtils.get(createTempDir().toString());
 
         // Use 2 data paths:
-        String[] paths = new String[] {path.resolve("a").toString(),
-                                       path.resolve("b").toString()};
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            .build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
@@ -365,8 +366,10 @@ public class NewPathForShardTests extends OpenSearchTestCase {
         dataPathToShardCount.compute(NodeEnvironment.shardStatePathToDataPath(result.getDataPath()), (k, v) -> v == null ? 1 : v + 1);
 
         shardId = new ShardId("index2", "uid2", 0);
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index2",
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+            "index2",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build()
+        );
         ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
         createFakeShard(result1);
         dataPathToShardCount.compute(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), (k, v) -> v == null ? 1 : v + 1);

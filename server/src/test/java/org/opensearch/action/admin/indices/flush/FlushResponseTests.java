@@ -35,15 +35,18 @@ package org.opensearch.action.admin.indices.flush;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractBroadcastResponseTestCase;
-import org.opensearch.action.admin.indices.flush.FlushResponse;
 
 import java.util.List;
 
 public class FlushResponseTests extends AbstractBroadcastResponseTestCase<FlushResponse> {
 
     @Override
-    protected FlushResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                               List<DefaultShardOperationFailedException> failures) {
+    protected FlushResponse createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    ) {
         return new FlushResponse(totalShards, successfulShards, failedShards, failures);
     }
 

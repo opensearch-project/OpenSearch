@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.client.RequestOptions;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.DocWriteRequest;
@@ -104,7 +103,9 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             // Testing deletion
             String docId = "id";
             IndexResponse indexResponse = highLevelClient().index(
-                    new IndexRequest("index").id(docId).source(Collections.singletonMap("foo", "bar")), RequestOptions.DEFAULT);
+                new IndexRequest("index").id(docId).source(Collections.singletonMap("foo", "bar")),
+                RequestOptions.DEFAULT
+            );
             assertThat(indexResponse.getSeqNo(), greaterThanOrEqualTo(0L));
             DeleteRequest deleteRequest = new DeleteRequest("index", docId);
             if (randomBoolean()) {
@@ -131,23 +132,35 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             // Testing version conflict
             String docId = "version_conflict";
             highLevelClient().index(
-                    new IndexRequest("index").id( docId).source(Collections.singletonMap("foo", "bar")), RequestOptions.DEFAULT);
+                new IndexRequest("index").id(docId).source(Collections.singletonMap("foo", "bar")),
+                RequestOptions.DEFAULT
+            );
             DeleteRequest deleteRequest = new DeleteRequest("index", docId).setIfSeqNo(2).setIfPrimaryTerm(2);
-            OpenSearchException exception = expectThrows(OpenSearchException.class,
-                () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
+            OpenSearchException exception = expectThrows(
+                OpenSearchException.class,
+                () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync)
+            );
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[" + docId + "]: " +
-                "version conflict, required seqNo [2], primary term [2]. current document has seqNo [3] and primary term [1]]",
-                exception.getMessage());
+            assertEquals(
+                "OpenSearch exception [type=version_conflict_engine_exception, reason=["
+                    + docId
+                    + "]: "
+                    + "version conflict, required seqNo [2], primary term [2]. current document has seqNo [3] and primary term [1]]",
+                exception.getMessage()
+            );
             assertEquals("index", exception.getMetadata("opensearch.index").get(0));
         }
         {
             // Testing version type
             String docId = "version_type";
             highLevelClient().index(
-                    new IndexRequest("index").id(docId).source(Collections.singletonMap("foo", "bar"))
-                .versionType(VersionType.EXTERNAL).version(12), RequestOptions.DEFAULT);
-            DeleteRequest deleteRequest = new DeleteRequest("index",  docId).versionType(VersionType.EXTERNAL).version(13);
+                new IndexRequest("index").id(docId)
+                    .source(Collections.singletonMap("foo", "bar"))
+                    .versionType(VersionType.EXTERNAL)
+                    .version(12),
+                RequestOptions.DEFAULT
+            );
+            DeleteRequest deleteRequest = new DeleteRequest("index", docId).versionType(VersionType.EXTERNAL).version(13);
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
             assertEquals("_doc", deleteResponse.getType());
@@ -158,23 +171,33 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             // Testing version type with a wrong version
             String docId = "wrong_version";
             highLevelClient().index(
-                    new IndexRequest("index").id(docId).source(Collections.singletonMap("foo", "bar"))
-                .versionType(VersionType.EXTERNAL).version(12), RequestOptions.DEFAULT);
+                new IndexRequest("index").id(docId)
+                    .source(Collections.singletonMap("foo", "bar"))
+                    .versionType(VersionType.EXTERNAL)
+                    .version(12),
+                RequestOptions.DEFAULT
+            );
             OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> {
-                DeleteRequest deleteRequest = new DeleteRequest("index",  docId).versionType(VersionType.EXTERNAL).version(10);
+                DeleteRequest deleteRequest = new DeleteRequest("index", docId).versionType(VersionType.EXTERNAL).version(10);
                 execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             });
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[" +
-                docId + "]: version conflict, current version [12] is higher or equal to the one provided [10]]", exception.getMessage());
+            assertEquals(
+                "OpenSearch exception [type=version_conflict_engine_exception, reason=["
+                    + docId
+                    + "]: version conflict, current version [12] is higher or equal to the one provided [10]]",
+                exception.getMessage()
+            );
             assertEquals("index", exception.getMetadata("opensearch.index").get(0));
         }
         {
             // Testing routing
             String docId = "routing";
-            highLevelClient().index(new IndexRequest("index").id(docId).source(Collections.singletonMap("foo", "bar")).routing("foo"),
-                    RequestOptions.DEFAULT);
-            DeleteRequest deleteRequest = new DeleteRequest("index",  docId).routing("foo");
+            highLevelClient().index(
+                new IndexRequest("index").id(docId).source(Collections.singletonMap("foo", "bar")).routing("foo"),
+                RequestOptions.DEFAULT
+            );
+            DeleteRequest deleteRequest = new DeleteRequest("index", docId).routing("foo");
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
             assertEquals("_doc", deleteResponse.getType());
@@ -187,17 +210,20 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         String docId = "id";
         IndexRequest indexRequest = new IndexRequest("index", "type", docId);
         indexRequest.source(Collections.singletonMap("foo", "bar"));
-        execute(indexRequest,
+        execute(
+            indexRequest,
             highLevelClient()::index,
             highLevelClient()::indexAsync,
             expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
-        DeleteResponse deleteResponse = execute(deleteRequest,
+        DeleteResponse deleteResponse = execute(
+            deleteRequest,
             highLevelClient()::delete,
             highLevelClient()::deleteAsync,
-            expectWarnings(RestDeleteAction.TYPES_DEPRECATION_MESSAGE));
+            expectWarnings(RestDeleteAction.TYPES_DEPRECATION_MESSAGE)
+        );
 
         assertEquals("index", deleteResponse.getIndex());
         assertEquals("type", deleteResponse.getType());
@@ -276,20 +302,16 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         final String noSourceIndex = "no_source";
         {
             // Prepare
-            Settings settings = Settings.builder()
-                .put("number_of_shards", 1)
-                .put("number_of_replicas", 0)
-                .build();
+            Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
             String mapping = "\"_source\": {\"enabled\": false}";
             createIndex(noSourceIndex, settings, mapping);
             assertEquals(
                 RestStatus.OK,
                 highLevelClient().bulk(
-                    new BulkRequest()
-                        .add(new IndexRequest(noSourceIndex).id("1")
-                            .source(Collections.singletonMap("foo", 1), XContentType.JSON))
-                        .add(new IndexRequest(noSourceIndex).id("2")
-                            .source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                    new BulkRequest().add(
+                        new IndexRequest(noSourceIndex).id("1").source(Collections.singletonMap("foo", 1), XContentType.JSON)
+                    )
+                        .add(new IndexRequest(noSourceIndex).id("2").source(Collections.singletonMap("foo", 2), XContentType.JSON))
                         .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()
@@ -309,8 +331,10 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
     public void testGet() throws IOException {
         {
             GetRequest getRequest = new GetRequest("index", "id");
-            OpenSearchException exception = expectThrows(OpenSearchException.class,
-                    () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
+            OpenSearchException exception = expectThrows(
+                OpenSearchException.class,
+                () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync)
+            );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertEquals("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("opensearch.index").get(0));
@@ -322,11 +346,17 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
             GetRequest getRequest = new GetRequest("index", "id").version(2);
-            OpenSearchException exception = expectThrows(OpenSearchException.class,
-                    () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
+            OpenSearchException exception = expectThrows(
+                OpenSearchException.class,
+                () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync)
+            );
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("OpenSearch exception [type=version_conflict_engine_exception, " + "reason=[id]: " +
-                    "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
+            assertEquals(
+                "OpenSearch exception [type=version_conflict_engine_exception, "
+                    + "reason=[id]: "
+                    + "version conflict, current version [1] is different than the one provided [2]]",
+                exception.getMessage()
+            );
             assertEquals("index", exception.getMetadata("opensearch.index").get(0));
         }
         {
@@ -369,9 +399,9 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         {
             GetRequest getRequest = new GetRequest("index", "id");
             if (randomBoolean()) {
-                getRequest.fetchSourceContext(new FetchSourceContext(true, new String[]{"field1"}, Strings.EMPTY_ARRAY));
+                getRequest.fetchSourceContext(new FetchSourceContext(true, new String[] { "field1" }, Strings.EMPTY_ARRAY));
             } else {
-                getRequest.fetchSourceContext(new FetchSourceContext(true, Strings.EMPTY_ARRAY, new String[]{"field2"}));
+                getRequest.fetchSourceContext(new FetchSourceContext(true, Strings.EMPTY_ARRAY, new String[] { "field2" }));
             }
             GetResponse getResponse = execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync);
             assertEquals("index", getResponse.getIndex());
@@ -391,17 +421,20 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         IndexRequest indexRequest = new IndexRequest("index", "type", "id");
         indexRequest.source(document, XContentType.JSON);
         indexRequest.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        execute(indexRequest,
+        execute(
+            indexRequest,
             highLevelClient()::index,
             highLevelClient()::indexAsync,
             expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         GetRequest getRequest = new GetRequest("index", "type", "id");
-        GetResponse getResponse = execute(getRequest,
+        GetResponse getResponse = execute(
+            getRequest,
             highLevelClient()::get,
             highLevelClient()::getAsync,
-            expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+            expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE)
+        );
 
         assertEquals("index", getResponse.getIndex());
         assertEquals("type", getResponse.getType());
@@ -426,16 +459,20 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals("id1", response.getResponses()[0].getFailure().getId());
             assertNull(response.getResponses()[0].getFailure().getType());
             assertEquals("index", response.getResponses()[0].getFailure().getIndex());
-            assertEquals("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]",
-                    response.getResponses()[0].getFailure().getFailure().getMessage());
+            assertEquals(
+                "OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]",
+                response.getResponses()[0].getFailure().getFailure().getMessage()
+            );
 
             assertTrue(response.getResponses()[1].isFailed());
             assertNull(response.getResponses()[1].getResponse());
             assertEquals("id2", response.getResponses()[1].getId());
             assertNull(response.getResponses()[1].getType());
             assertEquals("index", response.getResponses()[1].getIndex());
-            assertEquals("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]",
-                    response.getResponses()[1].getFailure().getFailure().getMessage());
+            assertEquals(
+                "OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]",
+                response.getResponses()[1].getFailure().getFailure().getMessage()
+            );
         }
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
@@ -472,20 +509,20 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
     public void testMultiGetWithTypes() throws IOException {
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        bulk.add(new IndexRequest("index", "type", "id1")
-            .source("{\"field\":\"value1\"}", XContentType.JSON));
-        bulk.add(new IndexRequest("index", "type", "id2")
-            .source("{\"field\":\"value2\"}", XContentType.JSON));
+        bulk.add(new IndexRequest("index", "type", "id1").source("{\"field\":\"value1\"}", XContentType.JSON));
+        bulk.add(new IndexRequest("index", "type", "id2").source("{\"field\":\"value2\"}", XContentType.JSON));
 
         highLevelClient().bulk(bulk, expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.add("index", "id1");
         multiGetRequest.add("index", "type", "id2");
 
-        MultiGetResponse response = execute(multiGetRequest,
+        MultiGetResponse response = execute(
+            multiGetRequest,
             highLevelClient()::mget,
             highLevelClient()::mgetAsync,
-            expectWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE));
+            expectWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE)
+        );
         assertEquals(2, response.getResponses().length);
 
         GetResponse firstResponse = response.getResponses()[0].getResponse();
@@ -502,8 +539,10 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
     public void testGetSource() throws IOException {
         {
             GetSourceRequest getRequest = new GetSourceRequest("index", "id");
-            OpenSearchException exception = expectThrows(OpenSearchException.class,
-                () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
+            OpenSearchException exception = expectThrows(
+                OpenSearchException.class,
+                () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync)
+            );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertEquals("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("opensearch.index").get(0));
@@ -523,11 +562,15 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
         {
             GetSourceRequest getRequest = new GetSourceRequest("index", "does_not_exist");
-            OpenSearchException exception = expectThrows(OpenSearchException.class,
-                () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
+            OpenSearchException exception = expectThrows(
+                OpenSearchException.class,
+                () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync)
+            );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("OpenSearch exception [type=resource_not_found_exception, " +
-                "reason=Document not found [index]/[_doc]/[does_not_exist]]", exception.getMessage());
+            assertEquals(
+                "OpenSearch exception [type=resource_not_found_exception, " + "reason=Document not found [index]/[_doc]/[does_not_exist]]",
+                exception.getMessage()
+            );
         }
         {
             GetSourceRequest getRequest = new GetSourceRequest("index", "id");
@@ -540,7 +583,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
         {
             GetSourceRequest getRequest = new GetSourceRequest("index", "id");
-            getRequest.fetchSourceContext(new FetchSourceContext(true, new String[]{"field1"}, Strings.EMPTY_ARRAY));
+            getRequest.fetchSourceContext(new FetchSourceContext(true, new String[] { "field1" }, Strings.EMPTY_ARRAY));
             GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
             Map<String, Object> expectedResponse = new HashMap<>();
             expectedResponse.put("field1", "value1");
@@ -548,7 +591,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
         {
             GetSourceRequest getRequest = new GetSourceRequest("index", "id");
-            getRequest.fetchSourceContext(new FetchSourceContext(true, Strings.EMPTY_ARRAY, new String[]{"field1"}));
+            getRequest.fetchSourceContext(new FetchSourceContext(true, Strings.EMPTY_ARRAY, new String[] { "field1" }));
             GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
             Map<String, Object> expectedResponse = new HashMap<>();
             expectedResponse.put("field2", "value2");
@@ -557,10 +600,15 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         {
             GetSourceRequest getRequest = new GetSourceRequest("index", "id");
             getRequest.fetchSourceContext(new FetchSourceContext(false));
-            OpenSearchException exception = expectThrows(OpenSearchException.class,
-                () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
-            assertEquals("OpenSearch exception [type=action_request_validation_exception, " +
-                "reason=Validation Failed: 1: fetching source can not be disabled;]", exception.getMessage());
+            OpenSearchException exception = expectThrows(
+                OpenSearchException.class,
+                () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync)
+            );
+            assertEquals(
+                "OpenSearch exception [type=action_request_validation_exception, "
+                    + "reason=Validation Failed: 1: fetching source can not be disabled;]",
+                exception.getMessage()
+            );
         }
     }
 
@@ -616,9 +664,11 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 execute(wrongRequest, highLevelClient()::index, highLevelClient()::indexAsync);
             });
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[id]: " +
-                         "version conflict, required seqNo [1], primary term [5]. current document has seqNo [2] and primary term [1]]",
-                exception.getMessage());
+            assertEquals(
+                "OpenSearch exception [type=version_conflict_engine_exception, reason=[id]: "
+                    + "version conflict, required seqNo [1], primary term [5]. current document has seqNo [2] and primary term [1]]",
+                exception.getMessage()
+            );
             assertEquals("index", exception.getMetadata("opensearch.index").get(0));
         }
         {
@@ -631,8 +681,10 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             });
 
             assertEquals(RestStatus.BAD_REQUEST, exception.status());
-            assertEquals("OpenSearch exception [type=illegal_argument_exception, " +
-                         "reason=pipeline with id [missing] does not exist]", exception.getMessage());
+            assertEquals(
+                "OpenSearch exception [type=illegal_argument_exception, " + "reason=pipeline with id [missing] does not exist]",
+                exception.getMessage()
+            );
         }
         {
             IndexRequest indexRequest = new IndexRequest("index").id("external_version_type");
@@ -658,13 +710,17 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals("_doc", indexResponse.getType());
             assertEquals("with_create_op_type", indexResponse.getId());
 
-            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> {
-                execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
-            });
+            OpenSearchStatusException exception = expectThrows(
+                OpenSearchStatusException.class,
+                () -> { execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync); }
+            );
 
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[with_create_op_type]: " +
-                         "version conflict, document already exists (current version [1])]", exception.getMessage());
+            assertEquals(
+                "OpenSearch exception [type=version_conflict_engine_exception, reason=[with_create_op_type]: "
+                    + "version conflict, document already exists (current version [1])]",
+                exception.getMessage()
+            );
         }
     }
 
@@ -681,7 +737,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(RestStatus.CREATED, indexResponse.status());
         assertEquals("index", indexResponse.getIndex());
         assertEquals("some_type", indexResponse.getType());
-        assertEquals("some_id",indexResponse.getId());
+        assertEquals("some_id", indexResponse.getId());
     }
 
     public void testUpdate() throws IOException {
@@ -689,18 +745,21 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             UpdateRequest updateRequest = new UpdateRequest("index", "does_not_exist");
             updateRequest.doc(singletonMap("field", "value"), randomFrom(XContentType.values()));
 
-            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () ->
-                    execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync));
+            OpenSearchStatusException exception = expectThrows(
+                OpenSearchStatusException.class,
+                () -> execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync)
+            );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("OpenSearch exception [type=document_missing_exception, reason=[_doc][does_not_exist]: document missing]",
-                    exception.getMessage());
+            assertEquals(
+                "OpenSearch exception [type=document_missing_exception, reason=[_doc][does_not_exist]: document missing]",
+                exception.getMessage()
+            );
         }
         {
-            IndexRequest indexRequest = new IndexRequest("index").id( "id");
+            IndexRequest indexRequest = new IndexRequest("index").id("id");
             indexRequest.source(singletonMap("field", "value"));
             IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(RestStatus.CREATED, indexResponse.status());
-
 
             long lastUpdateSeqNo;
             long lastUpdatePrimaryTerm;
@@ -726,9 +785,11 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                     updateRequest.setIfSeqNo(lastUpdateSeqNo + (randomBoolean() ? 0 : 1));
                     updateRequest.setIfPrimaryTerm(lastUpdatePrimaryTerm + 1);
                 }
-                OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () ->
-                    execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync));
-                assertEquals(exception.toString(),RestStatus.CONFLICT, exception.status());
+                OpenSearchStatusException exception = expectThrows(
+                    OpenSearchStatusException.class,
+                    () -> execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync)
+                );
+                assertEquals(exception.toString(), RestStatus.CONFLICT, exception.status());
                 assertThat(exception.getMessage(), containsString("OpenSearch exception [type=version_conflict_engine_exception"));
             }
             {
@@ -860,15 +921,18 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 updateRequest.upsert(new IndexRequest().source(Collections.singletonMap("field", "upsert"), XContentType.YAML));
                 execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
             });
-            assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
-                    exception.getMessage());
+            assertEquals(
+                "Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
+                exception.getMessage()
+            );
         }
     }
 
     public void testUpdateWithTypes() throws IOException {
         IndexRequest indexRequest = new IndexRequest("index", "type", "id");
         indexRequest.source(singletonMap("field", "value"));
-        IndexResponse indexResponse = execute(indexRequest,
+        IndexResponse indexResponse = execute(
+            indexRequest,
             highLevelClient()::index,
             highLevelClient()::indexAsync,
             expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
@@ -876,10 +940,12 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
 
         UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
         updateRequest.doc(singletonMap("field", "updated"), randomFrom(XContentType.values()));
-        UpdateResponse updateResponse = execute(updateRequest,
+        UpdateResponse updateResponse = execute(
+            updateRequest,
             highLevelClient()::update,
             highLevelClient()::updateAsync,
-            expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
+            expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE)
+        );
 
         assertEquals(RestStatus.OK, updateResponse.status());
         assertEquals(indexResponse.getVersion() + 1, updateResponse.getVersion());
@@ -900,16 +966,18 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
             if (opType == DocWriteRequest.OpType.DELETE) {
                 if (erroneous == false) {
-                    assertEquals(RestStatus.CREATED,
-                            highLevelClient().index(
-                                    new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status());
+                    assertEquals(
+                        RestStatus.CREATED,
+                        highLevelClient().index(new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status()
+                    );
                 }
                 DeleteRequest deleteRequest = new DeleteRequest("index", id);
                 bulkRequest.add(deleteRequest);
 
             } else {
-                BytesReference source = BytesReference.bytes(XContentBuilder.builder(xContentType.xContent())
-                        .startObject().field("id", i).endObject());
+                BytesReference source = BytesReference.bytes(
+                    XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject()
+                );
                 if (opType == DocWriteRequest.OpType.INDEX) {
                     IndexRequest indexRequest = new IndexRequest("index").id(id).source(source, xContentType);
                     if (erroneous) {
@@ -926,12 +994,12 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                     bulkRequest.add(createRequest);
 
                 } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                    UpdateRequest updateRequest = new UpdateRequest("index", id)
-                            .doc(new IndexRequest().source(source, xContentType));
+                    UpdateRequest updateRequest = new UpdateRequest("index", id).doc(new IndexRequest().source(source, xContentType));
                     if (erroneous == false) {
-                        assertEquals(RestStatus.CREATED,
-                                highLevelClient().index(
-                                        new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status());
+                        assertEquals(
+                            RestStatus.CREATED,
+                            highLevelClient().index(new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status()
+                        );
                     }
                     bulkRequest.add(updateRequest);
                 }
@@ -974,13 +1042,12 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             }
         };
 
-        try (BulkProcessor processor = BulkProcessor.builder(
-                (request, bulkListener) -> highLevelClient().bulkAsync(request,
-                        RequestOptions.DEFAULT, bulkListener), listener)
-                .setConcurrentRequests(0)
-                .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
-                .setBulkActions(nbItems + 1)
-                .build()) {
+        try (
+            BulkProcessor processor = BulkProcessor.builder(
+                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+                listener
+            ).setConcurrentRequests(0).setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB)).setBulkActions(nbItems + 1).build()
+        ) {
             for (int i = 0; i < nbItems; i++) {
                 String id = String.valueOf(i);
                 boolean erroneous = randomBoolean();
@@ -989,9 +1056,10 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
                 if (opType == DocWriteRequest.OpType.DELETE) {
                     if (erroneous == false) {
-                        assertEquals(RestStatus.CREATED,
-                                highLevelClient().index(
-                                        new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status());
+                        assertEquals(
+                            RestStatus.CREATED,
+                            highLevelClient().index(new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status()
+                        );
                     }
                     DeleteRequest deleteRequest = new DeleteRequest("index", id);
                     processor.add(deleteRequest);
@@ -1013,12 +1081,13 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                         processor.add(createRequest);
 
                     } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                        UpdateRequest updateRequest = new UpdateRequest("index", id)
-                                .doc(new IndexRequest().source(xContentType, "id", i));
+                        UpdateRequest updateRequest = new UpdateRequest("index", id).doc(new IndexRequest().source(xContentType, "id", i));
                         if (erroneous == false) {
-                            assertEquals(RestStatus.CREATED,
-                                    highLevelClient().index(
-                                            new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT).status());
+                            assertEquals(
+                                RestStatus.CREATED,
+                                highLevelClient().index(new IndexRequest("index").id(id).source("field", -1), RequestOptions.DEFAULT)
+                                    .status()
+                            );
                         }
                         processor.add(updateRequest);
                     }
@@ -1027,7 +1096,6 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertNull(responseRef.get());
             assertNull(requestRef.get());
         }
-
 
         BulkResponse bulkResponse = responseRef.get();
         BulkRequest bulkRequest = requestRef.get();
@@ -1065,8 +1133,8 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
 
     public void testUrlEncode() throws IOException {
         String indexPattern = "<logstash-{now/M}>";
-        String expectedIndex = "logstash-" +
-                DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
+        String expectedIndex = "logstash-"
+            + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
         {
             IndexRequest indexRequest = new IndexRequest(indexPattern).id("id#1");
             indexRequest.source("field", "value");
@@ -1106,7 +1174,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
     }
 
     public void testParamsEncode() throws IOException {
-        //parameters are encoded by the low-level client but let's test that everything works the same when we use the high-level one
+        // parameters are encoded by the low-level client but let's test that everything works the same when we use the high-level one
         String routing = "routing/中文value#1?";
         {
             IndexRequest indexRequest = new IndexRequest("index").id("id");
@@ -1151,20 +1219,16 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         final String sourceIndex = "index1";
         {
             // prepare : index docs
-            Settings settings = Settings.builder()
-                .put("number_of_shards", 1)
-                .put("number_of_replicas", 0)
-                .build();
+            Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
             String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}}";
             createIndex(sourceIndex, settings, mappings);
             assertEquals(
                 RestStatus.OK,
                 highLevelClient().bulk(
-                    new BulkRequest()
-                        .add(new IndexRequest(sourceIndex).id("1")
-                            .source(Collections.singletonMap("field", "value1"), XContentType.JSON))
-                        .add(new IndexRequest(sourceIndex).id("2")
-                            .source(Collections.singletonMap("field", "value2"), XContentType.JSON))
+                    new BulkRequest().add(
+                        new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("field", "value1"), XContentType.JSON)
+                    )
+                        .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("field", "value2"), XContentType.JSON))
                         .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()
@@ -1178,11 +1242,19 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
 
             TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
             TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term(
-                "value1", 1, null, null, null, Collections.singletonList(expectedToken));
-            TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats =
-                new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
-            TermVectorsResponse.TermVector expectedTV =
-                new TermVectorsResponse.TermVector("field", expectedFieldStats, Collections.singletonList(expectedTerm));
+                "value1",
+                1,
+                null,
+                null,
+                null,
+                Collections.singletonList(expectedToken)
+            );
+            TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats = new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
+            TermVectorsResponse.TermVector expectedTV = new TermVectorsResponse.TermVector(
+                "field",
+                expectedFieldStats,
+                Collections.singletonList(expectedTerm)
+            );
             List<TermVectorsResponse.TermVector> expectedTVlist = Collections.singletonList(expectedTV);
 
             assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
@@ -1200,11 +1272,19 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
 
             TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
             TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term(
-                "valuex", 1, null, null, null, Collections.singletonList(expectedToken));
-            TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats =
-                new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
-            TermVectorsResponse.TermVector expectedTV =
-                new TermVectorsResponse.TermVector("field", expectedFieldStats, Collections.singletonList(expectedTerm));
+                "valuex",
+                1,
+                null,
+                null,
+                null,
+                Collections.singletonList(expectedToken)
+            );
+            TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats = new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
+            TermVectorsResponse.TermVector expectedTV = new TermVectorsResponse.TermVector(
+                "field",
+                expectedFieldStats,
+                Collections.singletonList(expectedTerm)
+            );
             List<TermVectorsResponse.TermVector> expectedTVlist = Collections.singletonList(expectedTV);
 
             assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
@@ -1217,8 +1297,10 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
     public void testTermvectorsWithNonExistentIndex() {
         TermVectorsRequest request = new TermVectorsRequest("non-existent", "non-existent");
 
-        OpenSearchException exception = expectThrows(OpenSearchException.class,
-            () -> execute(request, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync));
+        OpenSearchException exception = expectThrows(
+            OpenSearchException.class,
+            () -> execute(request, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync)
+        );
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 
@@ -1227,10 +1309,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         final String sourceIndex = "index1";
         {
             // prepare : index docs
-            Settings settings = Settings.builder()
-                .put("number_of_shards", 1)
-                .put("number_of_replicas", 0)
-                .build();
+            Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
             String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}, \"field2\":{\"type\":\"text\"}}";
             createIndex(sourceIndex, settings, mappings);
             final Map<String, String> doc1 = new HashMap<>();
@@ -1242,8 +1321,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(
                 RestStatus.OK,
                 highLevelClient().bulk(
-                    new BulkRequest()
-                        .add(new IndexRequest(sourceIndex).id("1").source(doc1, XContentType.JSON))
+                    new BulkRequest().add(new IndexRequest(sourceIndex).id("1").source(doc1, XContentType.JSON))
                         .add(new IndexRequest(sourceIndex).id("2").source(doc2, XContentType.JSON))
                         .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
@@ -1252,16 +1330,19 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
         {
             // test _mtermvectors where MultiTermVectorsRequest is constructed with ids and a template
-            String[] expectedIds = {"1", "2"};
+            String[] expectedIds = { "1", "2" };
             TermVectorsRequest tvRequestTemplate = new TermVectorsRequest(sourceIndex, "fake_id");
             tvRequestTemplate.setFields("field");
             MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest(expectedIds, tvRequestTemplate);
 
-            MultiTermVectorsResponse mtvResponse =
-                execute(mtvRequest, highLevelClient()::mtermvectors, highLevelClient()::mtermvectorsAsync);
+            MultiTermVectorsResponse mtvResponse = execute(
+                mtvRequest,
+                highLevelClient()::mtermvectors,
+                highLevelClient()::mtermvectorsAsync
+            );
 
             List<String> ids = new ArrayList<>();
-            for (TermVectorsResponse tvResponse: mtvResponse.getTermVectorsResponses()) {
+            for (TermVectorsResponse tvResponse : mtvResponse.getTermVectorsResponses()) {
                 assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
                 assertTrue(tvResponse.getFound());
                 ids.add(tvResponse.getId());
@@ -1281,9 +1362,12 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             TermVectorsRequest tvRequest2 = new TermVectorsRequest(sourceIndex, docBuilder);
             mtvRequest.add(tvRequest2);
 
-            MultiTermVectorsResponse mtvResponse =
-                execute(mtvRequest, highLevelClient()::mtermvectors, highLevelClient()::mtermvectorsAsync);
-            for (TermVectorsResponse tvResponse: mtvResponse.getTermVectorsResponses()) {
+            MultiTermVectorsResponse mtvResponse = execute(
+                mtvRequest,
+                highLevelClient()::mtermvectors,
+                highLevelClient()::mtermvectorsAsync
+            );
+            for (TermVectorsResponse tvResponse : mtvResponse.getTermVectorsResponses()) {
                 assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
                 assertTrue(tvResponse.getFound());
             }
@@ -1304,8 +1388,11 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             tvRequest3.setFields("field", "field2");
             mtvRequest.add(tvRequest3);
 
-            MultiTermVectorsResponse mtvResponse =
-                execute(mtvRequest, highLevelClient()::mtermvectors, highLevelClient()::mtermvectorsAsync);
+            MultiTermVectorsResponse mtvResponse = execute(
+                mtvRequest,
+                highLevelClient()::mtermvectors,
+                highLevelClient()::mtermvectorsAsync
+            );
             final List<String> expectedFields = new ArrayList<>();
             expectedFields.add("field");
             expectedFields.add("field2");
@@ -1322,7 +1409,8 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 assertEquals(expectedRespFields.get(i).size(), tvResponse.getTermVectorsList().size());
                 assertEquals(
                     expectedRespFields.get(i),
-                    tvResponse.getTermVectorsList().stream().map(tv -> tv.getFieldName()).collect(Collectors.toList()));
+                    tvResponse.getTermVectorsList().stream().map(tv -> tv.getFieldName()).collect(Collectors.toList())
+                );
             }
         }
     }

@@ -38,7 +38,6 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
-import org.opensearch.index.mapper.FieldTypeTestCase;
 
 public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
@@ -48,10 +47,12 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         Query expected = new PrefixQuery(new Term("_routing", new BytesRef("foo*")));
         assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_QSC));
 
-        OpenSearchException ee = expectThrows(OpenSearchException.class,
-                () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
-                "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
+        OpenSearchException ee = expectThrows(OpenSearchException.class, () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals(
+            "[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. "
+                + "For optimised prefix queries on text fields please enable [index_prefixes].",
+            ee.getMessage()
+        );
     }
 
     public void testRegexpQuery() {
@@ -60,10 +61,11 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         Query expected = new RegexpQuery(new Term("_routing", new BytesRef("foo?")));
         assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_QSC));
 
-        OpenSearchException ee = expectThrows(OpenSearchException.class,
-                () -> ft.regexpQuery("foo?", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
-                ee.getMessage());
+        OpenSearchException ee = expectThrows(
+            OpenSearchException.class,
+            () -> ft.regexpQuery("foo?", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE)
+        );
+        assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testWildcardQuery() {
@@ -72,9 +74,10 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         Query expected = new WildcardQuery(new Term("_routing", new BytesRef("foo*")));
         assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_QSC));
 
-        OpenSearchException ee = expectThrows(OpenSearchException.class,
-                () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
-                ee.getMessage());
+        OpenSearchException ee = expectThrows(
+            OpenSearchException.class,
+            () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE)
+        );
+        assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 }

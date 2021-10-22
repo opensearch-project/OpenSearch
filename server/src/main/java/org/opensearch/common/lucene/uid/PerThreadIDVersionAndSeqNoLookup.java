@@ -52,7 +52,6 @@ import java.io.IOException;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-
 /** Utility class to do efficient primary-key (only 1 doc contains the
  *  given term) lookups by segment, re-using the enums.  This class is
  *  not thread safe, so it is the caller's job to create and use one
@@ -90,8 +89,14 @@ final class PerThreadIDVersionAndSeqNoLookup {
             // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
             final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
             if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
-                throw new IllegalArgumentException("reader does not have _uid terms but not a no-op segment; " +
-                    "_soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
+                throw new IllegalArgumentException(
+                    "reader does not have _uid terms but not a no-op segment; "
+                        + "_soft_deletes ["
+                        + softDeletesDV
+                        + "], _tombstone ["
+                        + tombstoneDV
+                        + "]"
+                );
             }
             termsEnum = null;
         } else {
@@ -111,10 +116,11 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * using the same cache key. Otherwise we'd have to disable caching
      * entirely for these readers.
      */
-    public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context)
-        throws IOException {
-        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
-            "context's reader is not the same as the reader class was initialized on.";
+    public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context) throws IOException {
+        assert context.reader()
+            .getCoreCacheHelper()
+            .getKey()
+            .equals(readerKey) : "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, context);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
@@ -168,8 +174,10 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
     /** Return null if id is not found. */
     DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
-        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
-            "context's reader is not the same as the reader class was initialized on.";
+        assert context.reader()
+            .getCoreCacheHelper()
+            .getKey()
+            .equals(readerKey) : "context's reader is not the same as the reader class was initialized on.";
         final int docID = getDocID(id, context);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final long seqNo = readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID);

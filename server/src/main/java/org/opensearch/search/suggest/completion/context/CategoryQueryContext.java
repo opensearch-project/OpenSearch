@@ -110,8 +110,12 @@ public final class CategoryQueryContext implements ToXContentObject {
 
     private static final ObjectParser<Builder, Void> CATEGORY_PARSER = new ObjectParser<>(NAME);
     static {
-        CATEGORY_PARSER.declareField(Builder::setCategory, XContentParser::text, new ParseField(CONTEXT_VALUE),
-                ObjectParser.ValueType.VALUE);
+        CATEGORY_PARSER.declareField(
+            Builder::setCategory,
+            XContentParser::text,
+            new ParseField(CONTEXT_VALUE),
+            ObjectParser.ValueType.VALUE
+        );
         CATEGORY_PARSER.declareInt(Builder::setBoost, new ParseField(CONTEXT_BOOST));
         CATEGORY_PARSER.declareBoolean(Builder::setPrefix, new ParseField(CONTEXT_PREFIX));
     }
@@ -122,15 +126,16 @@ public final class CategoryQueryContext implements ToXContentObject {
         if (token == XContentParser.Token.START_OBJECT) {
             try {
                 CATEGORY_PARSER.parse(parser, builder, null);
-            } catch(XContentParseException e) {
+            } catch (XContentParseException e) {
                 throw new XContentParseException("category context must be a string, number or boolean");
             }
-        } else if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.VALUE_BOOLEAN
-                || token == XContentParser.Token.VALUE_NUMBER) {
-            builder.setCategory(parser.text());
-        } else {
-            throw new XContentParseException("category context must be an object, string, number or boolean");
-        }
+        } else if (token == XContentParser.Token.VALUE_STRING
+            || token == XContentParser.Token.VALUE_BOOLEAN
+            || token == XContentParser.Token.VALUE_NUMBER) {
+                builder.setCategory(parser.text());
+            } else {
+                throw new XContentParseException("category context must be an object, string, number or boolean");
+            }
         return builder.build();
     }
 
@@ -149,8 +154,7 @@ public final class CategoryQueryContext implements ToXContentObject {
         private boolean isPrefix = false;
         private int boost = 1;
 
-        public Builder() {
-        }
+        public Builder() {}
 
         /**
          * Sets the category of the category.

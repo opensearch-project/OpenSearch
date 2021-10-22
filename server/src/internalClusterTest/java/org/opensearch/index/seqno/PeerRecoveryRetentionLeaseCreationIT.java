@@ -68,13 +68,22 @@ public class PeerRecoveryRetentionLeaseCreationIT extends OpenSearchIntegTestCas
         final String dataNode = internalCluster().startDataOnlyNode();
         final Path[] nodeDataPaths = internalCluster().getInstance(NodeEnvironment.class, dataNode).nodeDataPaths();
 
-        assertAcked(prepareCreate("index").setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexMetadata.SETTING_VERSION_CREATED,
-                // simulate a version which supports soft deletes (v6.5.0-and-later) with which this node is compatible
-                VersionUtils.randomVersionBetween(random(),
-                    Version.max(Version.CURRENT.minimumIndexCompatibilityVersion(), LegacyESVersion.V_6_5_0), Version.CURRENT))));
+        assertAcked(
+            prepareCreate("index").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(
+                        IndexMetadata.SETTING_VERSION_CREATED,
+                        // simulate a version which supports soft deletes (v6.5.0-and-later) with which this node is compatible
+                        VersionUtils.randomVersionBetween(
+                            random(),
+                            Version.max(Version.CURRENT.minimumIndexCompatibilityVersion(), LegacyESVersion.V_6_5_0),
+                            Version.CURRENT
+                        )
+                    )
+            )
+        );
         ensureGreen("index");
 
         // Change the node ID so that the persisted retention lease no longer applies.
@@ -91,12 +100,17 @@ public class PeerRecoveryRetentionLeaseCreationIT extends OpenSearchIntegTestCas
         });
 
         ensureGreen("index");
-        assertThat(client().admin().cluster().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId(),
-            equalTo(newNodeId));
+        assertThat(
+            client().admin().cluster().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId(),
+            equalTo(newNodeId)
+        );
         final RetentionLeases retentionLeases = client().admin().indices().prepareStats("index").get().getShards()[0]
-            .getRetentionLeaseStats().retentionLeases();
-        assertTrue("expected lease for [" + newNodeId + "] in " + retentionLeases,
-            retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(newNodeId)));
+            .getRetentionLeaseStats()
+            .retentionLeases();
+        assertTrue(
+            "expected lease for [" + newNodeId + "] in " + retentionLeases,
+            retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(newNodeId))
+        );
     }
 
 }

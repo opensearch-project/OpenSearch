@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.client.RequestOptions;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -72,23 +71,15 @@ public class ReindexIT extends OpenSearchRestHighLevelClientTestCase {
         final String destinationIndex = "dest";
         {
             // Prepare
-            Settings settings = Settings.builder()
-                .put("number_of_shards", 1)
-                .put("number_of_replicas", 0)
-                .build();
+            Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
             createIndex(sourceIndex, settings);
             createIndex(destinationIndex, settings);
-            BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+            BulkRequest bulkRequest = new BulkRequest().add(
+                new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON)
+            )
                 .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            assertEquals(
-                RestStatus.OK,
-                highLevelClient().bulk(
-                    bulkRequest,
-                    RequestOptions.DEFAULT
-                ).status()
-            );
+            assertEquals(RestStatus.OK, highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status());
         }
         {
             // reindex one document with id 1 from source to destination
@@ -118,23 +109,15 @@ public class ReindexIT extends OpenSearchRestHighLevelClientTestCase {
         final String destinationIndex = "dest2";
         {
             // Prepare
-            Settings settings = Settings.builder()
-                .put("number_of_shards", 1)
-                .put("number_of_replicas", 0)
-                .build();
+            Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
             createIndex(sourceIndex, settings);
             createIndex(destinationIndex, settings);
-            BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+            BulkRequest bulkRequest = new BulkRequest().add(
+                new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON)
+            )
                 .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            assertEquals(
-                RestStatus.OK,
-                highLevelClient().bulk(
-                    bulkRequest,
-                    RequestOptions.DEFAULT
-                ).status()
-            );
+            assertEquals(RestStatus.OK, highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status());
         }
         {
             // tag::submit-reindex-task
@@ -157,14 +140,12 @@ public class ReindexIT extends OpenSearchRestHighLevelClientTestCase {
         final String sourceIndex = "testreindexconflict_source";
         final String destIndex = "testreindexconflict_dest";
 
-        final Settings settings = Settings.builder()
-            .put("number_of_shards", 1)
-            .put("number_of_replicas", 0)
-            .build();
+        final Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
         createIndex(sourceIndex, settings);
         createIndex(destIndex, settings);
-        final BulkRequest bulkRequest = new BulkRequest()
-            .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+        final BulkRequest bulkRequest = new BulkRequest().add(
+            new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON)
+        )
             .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         assertThat(highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status(), equalTo(RestStatus.OK));
@@ -199,21 +180,16 @@ public class ReindexIT extends OpenSearchRestHighLevelClientTestCase {
         final String sourceIndex = "source1";
         {
             // Prepare
-            Settings settings = Settings.builder()
-                .put("number_of_shards", 1)
-                .put("number_of_replicas", 0)
-                .build();
+            Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
             createIndex(sourceIndex, settings);
             assertEquals(
                 RestStatus.OK,
                 highLevelClient().bulk(
-                    new BulkRequest()
-                        .add(new IndexRequest(sourceIndex).id("1")
-                            .source(Collections.singletonMap("foo", 1), XContentType.JSON))
-                        .add(new IndexRequest(sourceIndex).id("2")
-                            .source(Collections.singletonMap("foo", 2), XContentType.JSON))
-                        .add(new IndexRequest(sourceIndex).id("3")
-                            .source(Collections.singletonMap("foo", 3), XContentType.JSON))
+                    new BulkRequest().add(
+                        new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", 1), XContentType.JSON)
+                    )
+                        .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex).id("3").source(Collections.singletonMap("foo", 3), XContentType.JSON))
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()
@@ -225,8 +201,11 @@ public class ReindexIT extends OpenSearchRestHighLevelClientTestCase {
             deleteByQueryRequest.indices(sourceIndex);
             deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1"));
             deleteByQueryRequest.setRefresh(true);
-            BulkByScrollResponse bulkResponse =
-                execute(deleteByQueryRequest, highLevelClient()::deleteByQuery, highLevelClient()::deleteByQueryAsync);
+            BulkByScrollResponse bulkResponse = execute(
+                deleteByQueryRequest,
+                highLevelClient()::deleteByQuery,
+                highLevelClient()::deleteByQueryAsync
+            );
             assertEquals(1, bulkResponse.getTotal());
             assertEquals(1, bulkResponse.getDeleted());
             assertEquals(0, bulkResponse.getNoops());
@@ -267,23 +246,33 @@ public class ReindexIT extends OpenSearchRestHighLevelClientTestCase {
 
             TaskId taskIdToRethrottle = findTaskToRethrottle(DeleteByQueryAction.NAME, deleteByQueryRequest.getDescription());
             float requestsPerSecond = 1000f;
-            ListTasksResponse response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
-                highLevelClient()::deleteByQueryRethrottle, highLevelClient()::deleteByQueryRethrottleAsync);
+            ListTasksResponse response = execute(
+                new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
+                highLevelClient()::deleteByQueryRethrottle,
+                highLevelClient()::deleteByQueryRethrottleAsync
+            );
             assertThat(response.getTasks(), hasSize(1));
             assertEquals(taskIdToRethrottle, response.getTasks().get(0).getTaskId());
             assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
-            assertEquals(Float.toString(requestsPerSecond),
-                ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString());
+            assertEquals(
+                Float.toString(requestsPerSecond),
+                ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString()
+            );
             assertTrue(taskFinished.await(10, TimeUnit.SECONDS));
 
             // any rethrottling after the delete-by-query is done performed with the same taskId should result in a failure
-            response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
-                highLevelClient()::deleteByQueryRethrottle, highLevelClient()::deleteByQueryRethrottleAsync);
+            response = execute(
+                new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
+                highLevelClient()::deleteByQueryRethrottle,
+                highLevelClient()::deleteByQueryRethrottleAsync
+            );
             assertTrue(response.getTasks().isEmpty());
             assertFalse(response.getNodeFailures().isEmpty());
             assertEquals(1, response.getNodeFailures().size());
-            assertEquals("OpenSearch exception [type=resource_not_found_exception, reason=task [" + taskIdToRethrottle + "] is missing]",
-                response.getNodeFailures().get(0).getCause().getMessage());
+            assertEquals(
+                "OpenSearch exception [type=resource_not_found_exception, reason=task [" + taskIdToRethrottle + "] is missing]",
+                response.getNodeFailures().get(0).getCause().getMessage()
+            );
         }
     }
 
@@ -291,21 +280,16 @@ public class ReindexIT extends OpenSearchRestHighLevelClientTestCase {
         final String sourceIndex = "source456";
         {
             // Prepare
-            Settings settings = Settings.builder()
-                .put("number_of_shards", 1)
-                .put("number_of_replicas", 0)
-                .build();
+            Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
             createIndex(sourceIndex, settings);
             assertEquals(
                 RestStatus.OK,
                 highLevelClient().bulk(
-                    new BulkRequest()
-                        .add(new IndexRequest(sourceIndex).id("1")
-                            .source(Collections.singletonMap("foo", 1), XContentType.JSON))
-                        .add(new IndexRequest(sourceIndex).id("2")
-                            .source(Collections.singletonMap("foo", 2), XContentType.JSON))
-                        .add(new IndexRequest(sourceIndex).id("3")
-                            .source(Collections.singletonMap("foo", 3), XContentType.JSON))
+                    new BulkRequest().add(
+                        new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", 1), XContentType.JSON)
+                    )
+                        .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex).id("3").source(Collections.singletonMap("foo", 3), XContentType.JSON))
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()

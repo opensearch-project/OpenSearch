@@ -84,8 +84,8 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
 
     @Override
     public XShapeCollection<Point> buildS4J() {
-        //Could wrap JtsGeometry but probably slower due to conversions to/from JTS in relate()
-        //MultiPoint geometry = FACTORY.createMultiPoint(points.toArray(new Coordinate[points.size()]));
+        // Could wrap JtsGeometry but probably slower due to conversions to/from JTS in relate()
+        // MultiPoint geometry = FACTORY.createMultiPoint(points.toArray(new Coordinate[points.size()]));
         List<Point> shapes = new ArrayList<>(coordinates.size());
         for (Coordinate coord : coordinates) {
             shapes.add(SPATIAL_CONTEXT.makePoint(coord.x, coord.y));
@@ -100,8 +100,9 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
         if (coordinates.isEmpty()) {
             return MultiPoint.EMPTY;
         }
-        return new MultiPoint(coordinates.stream().map(coord -> new org.opensearch.geometry.Point(coord.x, coord.y))
-            .collect(Collectors.toList()));
+        return new MultiPoint(
+            coordinates.stream().map(coord -> new org.opensearch.geometry.Point(coord.x, coord.y)).collect(Collectors.toList())
+        );
     }
 
     @Override
@@ -112,8 +113,7 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
     @Override
     public int numDimensions() {
         if (coordinates == null || coordinates.isEmpty()) {
-            throw new IllegalStateException("unable to get number of dimensions, " +
-                "LineString has not yet been initialized");
+            throw new IllegalStateException("unable to get number of dimensions, " + "LineString has not yet been initialized");
         }
         return Double.isNaN(coordinates.get(0).z) ? 2 : 3;
     }

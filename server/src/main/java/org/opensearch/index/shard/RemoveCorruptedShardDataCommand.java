@@ -99,16 +99,11 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
     public RemoveCorruptedShardDataCommand() {
         super("Removes corrupted shard files");
 
-        folderOption = parser.acceptsAll(Arrays.asList("d", "dir"),
-            "Index directory location on disk")
-            .withRequiredArg();
+        folderOption = parser.acceptsAll(Arrays.asList("d", "dir"), "Index directory location on disk").withRequiredArg();
 
-        indexNameOption = parser.accepts("index", "Index name")
-            .withRequiredArg();
+        indexNameOption = parser.accepts("index", "Index name").withRequiredArg();
 
-        shardIdOption = parser.accepts("shard-id", "Shard id")
-            .withRequiredArg()
-            .ofType(Integer.class);
+        shardIdOption = parser.accepts("shard-id", "Shard id").withRequiredArg().ofType(Integer.class);
 
         parser.accepts(TRUNCATE_CLEAN_TRANSLOG_FLAG, "Truncate the translog even if it is not corrupt");
 
@@ -131,9 +126,14 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         return PathUtils.get(dirValue, "", "");
     }
 
-    protected void findAndProcessShardPath(OptionSet options, Environment environment, Path[] dataPaths, int nodeLockId,
-                                           ClusterState clusterState, CheckedConsumer<ShardPath, IOException> consumer)
-    throws IOException {
+    protected void findAndProcessShardPath(
+        OptionSet options,
+        Environment environment,
+        Path[] dataPaths,
+        int nodeLockId,
+        ClusterState clusterState,
+        CheckedConsumer<ShardPath, IOException> consumer
+    ) throws IOException {
         final Settings settings = environment.settings();
 
         final IndexMetadata indexMetadata;
@@ -153,7 +153,8 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
             final String shardIdFileName = path.getFileName().toString();
             final String nodeIdFileName = shardParentParent.getParent().getFileName().toString();
             final String indexUUIDFolderName = shardParent.getFileName().toString();
-            if (Files.isDirectory(path) && shardIdFileName.chars().allMatch(Character::isDigit) // SHARD-ID path element check
+            if (Files.isDirectory(path)
+                && shardIdFileName.chars().allMatch(Character::isDigit) // SHARD-ID path element check
                 && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
                 && nodeIdFileName.chars().allMatch(Character::isDigit) // NODE-ID check
                 && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString()) // `nodes` check
@@ -163,11 +164,15 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
                 toNodeId = fromNodeId + 1;
                 indexMetadata = StreamSupport.stream(clusterState.metadata().indices().values().spliterator(), false)
                     .map(imd -> imd.value)
-                    .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName)).findFirst()
+                    .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName))
+                    .findFirst()
                     .orElse(null);
             } else {
-                throw new OpenSearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
-                    + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]");
+                throw new OpenSearchException(
+                    "Unable to resolve shard id. Wrong folder structure at [ "
+                        + path.toString()
+                        + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]"
+                );
             }
         } else {
             // otherwise resolve shardPath based on the index name and shard id
@@ -185,21 +190,27 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         final ShardId shId = new ShardId(index, shardId);
 
         for (Path dataPath : dataPaths) {
-            final Path shardPathLocation = dataPath
-                .resolve(NodeEnvironment.INDICES_FOLDER)
+            final Path shardPathLocation = dataPath.resolve(NodeEnvironment.INDICES_FOLDER)
                 .resolve(index.getUUID())
                 .resolve(Integer.toString(shId.id()));
             if (Files.exists(shardPathLocation)) {
-                final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings.customDataPath(),
-                    new Path[]{shardPathLocation}, nodeLockId, dataPath);
+                final ShardPath shardPath = ShardPath.loadShardPath(
+                    logger,
+                    shId,
+                    indexSettings.customDataPath(),
+                    new Path[] { shardPathLocation },
+                    nodeLockId,
+                    dataPath
+                );
                 if (shardPath != null) {
                     consumer.accept(shardPath);
                     return;
                 }
             }
         }
-        throw new OpenSearchException("Unable to resolve shard path for index [" + indexMetadata.getIndex().getName() +
-            "] and shard id [" + shardId + "]");
+        throw new OpenSearchException(
+            "Unable to resolve shard path for index [" + indexMetadata.getIndex().getName() + "] and shard id [" + shardId + "]"
+        );
     }
 
     public static boolean isCorruptMarkerFileIsPresent(final Directory directory) throws IOException {
@@ -218,11 +229,13 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
 
     protected void dropCorruptMarkerFiles(Terminal terminal, Path path, Directory directory, boolean clean) throws IOException {
         if (clean) {
-            confirm("This shard has been marked as corrupted but no corruption can now be detected.\n"
-                + "This may indicate an intermittent hardware problem. The corruption marker can be \n"
-                + "removed, but there is a risk that data has been undetectably lost.\n\n"
-                + "Are you taking a risk of losing documents and proceed with removing a corrupted marker ?",
-                terminal);
+            confirm(
+                "This shard has been marked as corrupted but no corruption can now be detected.\n"
+                    + "This may indicate an intermittent hardware problem. The corruption marker can be \n"
+                    + "removed, but there is a risk that data has been undetectably lost.\n\n"
+                    + "Are you taking a risk of losing documents and proceed with removing a corrupted marker ?",
+                terminal
+            );
         }
         String[] files = directory.listAll();
         boolean found = false;
@@ -265,8 +278,10 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         throws IOException {
         warnAboutIndexBackup(terminal);
 
-        final ClusterState clusterState =
-            loadTermAndClusterState(createPersistedClusterStateService(environment.settings(), dataPaths), environment).v2();
+        final ClusterState clusterState = loadTermAndClusterState(
+            createPersistedClusterStateService(environment.settings(), dataPaths),
+            environment
+        ).v2();
 
         findAndProcessShardPath(options, environment, dataPaths, nodeLockId, clusterState, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();
@@ -297,8 +312,12 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
                     terminal.println("Opening Lucene index at " + indexPath);
                     terminal.println("");
                     try {
-                        indexCleanStatus = removeCorruptedLuceneSegmentsAction.getCleanStatus(indexDir,
-                            writeIndexLock, printStream, verbose);
+                        indexCleanStatus = removeCorruptedLuceneSegmentsAction.getCleanStatus(
+                            indexDir,
+                            writeIndexLock,
+                            printStream,
+                            verbose
+                        );
                     } catch (Exception e) {
                         terminal.println(e.getMessage());
                         throw e;
@@ -310,8 +329,10 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
 
                     ////////// Translog
                     if (options.has(TRUNCATE_CLEAN_TRANSLOG_FLAG)) {
-                        translogCleanStatus = Tuple.tuple(CleanStatus.OVERRIDDEN,
-                            "Translog was not analysed and will be truncated due to the --" + TRUNCATE_CLEAN_TRANSLOG_FLAG + " flag");
+                        translogCleanStatus = Tuple.tuple(
+                            CleanStatus.OVERRIDDEN,
+                            "Translog was not analysed and will be truncated due to the --" + TRUNCATE_CLEAN_TRANSLOG_FLAG + " flag"
+                        );
                     } else if (indexCleanStatus.v1() != CleanStatus.UNRECOVERABLE) {
                         // translog relies on data stored in an index commit so we have to have a recoverable index to check the translog
                         terminal.println("");
@@ -336,8 +357,13 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
                     final CleanStatus translogStatus = translogCleanStatus.v1();
 
                     if (indexStatus == CleanStatus.CLEAN && translogStatus == CleanStatus.CLEAN) {
-                        throw new OpenSearchException("Shard does not seem to be corrupted at " + shardPath.getDataPath()
-                            + " (pass --" + TRUNCATE_CLEAN_TRANSLOG_FLAG + " to truncate the translog anyway)");
+                        throw new OpenSearchException(
+                            "Shard does not seem to be corrupted at "
+                                + shardPath.getDataPath()
+                                + " (pass --"
+                                + TRUNCATE_CLEAN_TRANSLOG_FLAG
+                                + " to truncate the translog anyway)"
+                        );
                     }
 
                     if (indexStatus == CleanStatus.UNRECOVERABLE) {
@@ -352,7 +378,6 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
                         throw new OpenSearchException("Index is unrecoverable");
                     }
 
-
                     terminal.println("-----------------------------------------------------------------------");
                     if (indexStatus != CleanStatus.CLEAN) {
                         loseDataDetailsBanner(terminal, indexCleanStatus);
@@ -363,12 +388,10 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
                     terminal.println("            WARNING:              YOU MAY LOSE DATA.");
                     terminal.println("-----------------------------------------------------------------------");
 
-
                     confirm("Continue and remove corrupted data from the shard ?", terminal);
 
                     if (indexStatus != CleanStatus.CLEAN) {
-                        removeCorruptedLuceneSegmentsAction.execute(terminal, indexDir,
-                            writeIndexLock, printStream, verbose);
+                        removeCorruptedLuceneSegmentsAction.execute(terminal, indexDir, writeIndexLock, printStream, verbose);
                     }
 
                     if (translogStatus != CleanStatus.CLEAN) {
@@ -439,8 +462,11 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
 
     private void newAllocationId(ShardPath shardPath, Terminal terminal) throws IOException {
         final Path shardStatePath = shardPath.getShardStatePath();
-        final ShardStateMetadata shardStateMetadata =
-            ShardStateMetadata.FORMAT.loadLatestState(logger, namedXContentRegistry, shardStatePath);
+        final ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(
+            logger,
+            namedXContentRegistry,
+            shardStatePath
+        );
 
         if (shardStateMetadata == null) {
             throw new OpenSearchException("No shard state meta data at " + shardStatePath);
@@ -448,11 +474,13 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
 
         final AllocationId newAllocationId = AllocationId.newInitializing();
 
-        terminal.println("Changing allocation id " + shardStateMetadata.allocationId.getId()
-            + " to " + newAllocationId.getId());
+        terminal.println("Changing allocation id " + shardStateMetadata.allocationId.getId() + " to " + newAllocationId.getId());
 
-        final ShardStateMetadata newShardStateMetadata =
-            new ShardStateMetadata(shardStateMetadata.primary, shardStateMetadata.indexUUID, newAllocationId);
+        final ShardStateMetadata newShardStateMetadata = new ShardStateMetadata(
+            shardStateMetadata.primary,
+            shardStateMetadata.indexUUID,
+            newAllocationId
+        );
 
         ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, shardStatePath);
 
@@ -462,8 +490,7 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         printRerouteCommand(shardPath, terminal, true);
     }
 
-    private void printRerouteCommand(ShardPath shardPath, Terminal terminal, boolean allocateStale)
-        throws IOException {
+    private void printRerouteCommand(ShardPath shardPath, Terminal terminal, boolean allocateStale) throws IOException {
         final Path nodePath = getNodePath(shardPath);
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePath);
 
@@ -477,7 +504,8 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         final AllocationCommands commands = new AllocationCommands(
             allocateStale
                 ? new AllocateStalePrimaryAllocationCommand(index, id, nodeId, false)
-                : new AllocateEmptyPrimaryAllocationCommand(index, id, nodeId, false));
+                : new AllocateEmptyPrimaryAllocationCommand(index, id, nodeId, false)
+        );
 
         terminal.println("");
         terminal.println("POST /_cluster/reroute\n" + Strings.toString(commands, true, true));
@@ -488,8 +516,8 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
 
     private Path getNodePath(ShardPath shardPath) {
         final Path nodePath = shardPath.getDataPath().getParent().getParent().getParent();
-        if (Files.exists(nodePath) == false ||
-            Files.exists(nodePath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME)) == false) {
+        if (Files.exists(nodePath) == false
+            || Files.exists(nodePath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME)) == false) {
             throw new OpenSearchException("Unable to resolve node path for " + shardPath);
         }
         return nodePath;

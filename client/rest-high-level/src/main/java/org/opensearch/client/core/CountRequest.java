@@ -88,7 +88,8 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
      */
     public CountRequest(String[] indices, QueryBuilder query) {
         indices(indices);
-        this.query = Objects.requireNonNull(query, "query must not be null");;
+        this.query = Objects.requireNonNull(query, "query must not be null");
+        ;
     }
 
     @Override
@@ -261,14 +262,14 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
             return false;
         }
         CountRequest that = (CountRequest) o;
-        return Objects.equals(indicesOptions, that.indicesOptions) &&
-            Arrays.equals(indices, that.indices) &&
-            Arrays.equals(types, that.types) &&
-            Objects.equals(routing, that.routing) &&
-            Objects.equals(preference, that.preference) &&
-            Objects.equals(terminateAfter, that.terminateAfter) &&
-            Objects.equals(minScore, that.minScore) &&
-            Objects.equals(query, that.query);
+        return Objects.equals(indicesOptions, that.indicesOptions)
+            && Arrays.equals(indices, that.indices)
+            && Arrays.equals(types, that.types)
+            && Objects.equals(routing, that.routing)
+            && Objects.equals(preference, that.preference)
+            && Objects.equals(terminateAfter, that.terminateAfter)
+            && Objects.equals(minScore, that.minScore)
+            && Objects.equals(query, that.query);
     }
 
     @Override

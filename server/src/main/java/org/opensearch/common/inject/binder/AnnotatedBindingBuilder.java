@@ -41,8 +41,7 @@ public interface AnnotatedBindingBuilder<T> extends LinkedBindingBuilder<T> {
     /**
      * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
      */
-    LinkedBindingBuilder<T> annotatedWith(
-            Class<? extends Annotation> annotationType);
+    LinkedBindingBuilder<T> annotatedWith(Class<? extends Annotation> annotationType);
 
     /**
      * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.

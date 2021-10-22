@@ -59,6 +59,8 @@ public class VersionProperties {
             case "darwin": // fall trough
             case "mac":
                 return bundledJdkDarwin;
+            case "freebsd":
+                return bundledJdkFreeBSD;
             case "linux":
                 return bundledJdkLinux;
             case "windows":
@@ -79,6 +81,7 @@ public class VersionProperties {
     private static final String opensearch;
     private static final String lucene;
     private static final String bundledJdkDarwin;
+    private static final String bundledJdkFreeBSD;
     private static final String bundledJdkLinux;
     private static final String bundledJdkWindows;
     private static final String bundledJdkVendor;
@@ -91,6 +94,7 @@ public class VersionProperties {
         bundledJdkVendor = props.getProperty("bundled_jdk_vendor");
         final String bundledJdk = props.getProperty("bundled_jdk");
         bundledJdkDarwin = props.getProperty("bundled_jdk_darwin", bundledJdk);
+        bundledJdkFreeBSD = props.getProperty("bundled_jdk_freebsd", bundledJdk);
         bundledJdkLinux = props.getProperty("bundled_jdk_linux", bundledJdk);
         bundledJdkWindows = props.getProperty("bundled_jdk_windows", bundledJdk);
 

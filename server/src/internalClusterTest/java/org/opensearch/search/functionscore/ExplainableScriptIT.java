@@ -88,12 +88,7 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
                 }
 
                 @Override
-                public <T> T compile(
-                    String scriptName,
-                    String scriptSource,
-                    ScriptContext<T> context,
-                    Map<String, String> params
-                ) {
+                public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
                     assert context == ScoreScript.CONTEXT;
                     ScoreScript.Factory factory = (params1, lookup) -> new ScoreScript.LeafFactory() {
@@ -144,18 +139,27 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
     public void testExplainScript() throws InterruptedException, IOException, ExecutionException {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
-            indexRequests.add(client().prepareIndex("test", "type").setId(Integer.toString(i)).setSource(
-                    jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject()));
+            indexRequests.add(
+                client().prepareIndex("test", "type")
+                    .setId(Integer.toString(i))
+                    .setSource(jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject())
+            );
         }
         indexRandom(true, true, indexRequests);
         client().admin().indices().prepareRefresh().get();
         ensureYellow();
-        SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("text", "text"),
-                                        scriptFunction(
-                                            new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap())))
-                                        .boostMode(CombineFunction.REPLACE)))).actionGet();
+        SearchResponse response = client().search(
+            searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
+                .source(
+                    searchSource().explain(true)
+                        .query(
+                            functionScoreQuery(
+                                termQuery("text", "text"),
+                                scriptFunction(new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap()))
+                            ).boostMode(CombineFunction.REPLACE)
+                        )
+                )
+        ).actionGet();
 
         OpenSearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();

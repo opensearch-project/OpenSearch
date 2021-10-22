@@ -40,9 +40,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 
-
-public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse,
-    RolloverRequestBuilder> {
+public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
     public RolloverRequestBuilder(OpenSearchClient client, RolloverAction action) {
         super(client, action, new RolloverRequest());
     }
@@ -67,7 +65,7 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder addMaxIndexSizeCondition(ByteSizeValue size){
+    public RolloverRequestBuilder addMaxIndexSizeCondition(ByteSizeValue size) {
         this.request.addMaxIndexSizeCondition(size);
         return this;
     }

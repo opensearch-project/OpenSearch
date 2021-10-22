@@ -59,10 +59,7 @@ import java.util.Set;
 public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public ScriptEngine getScriptEngine(
-        Settings settings,
-        Collection<ScriptContext<?>> contexts
-    ) {
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         return new MyExpertScriptEngine();
     }
 

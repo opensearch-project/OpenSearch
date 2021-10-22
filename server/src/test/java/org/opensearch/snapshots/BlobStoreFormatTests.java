@@ -88,7 +88,7 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
                     String currentFieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token.isValue()) {
-                        if ("text" .equals(currentFieldName)) {
+                        if ("text".equals(currentFieldName)) {
                             text = parser.text();
                         } else {
                             throw new OpenSearchParseException("unexpected field [{}]", currentFieldName);

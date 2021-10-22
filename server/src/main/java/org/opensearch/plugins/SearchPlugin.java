@@ -86,6 +86,7 @@ public interface SearchPlugin {
     default List<ScoreFunctionSpec<?>> getScoreFunctions() {
         return emptyList();
     }
+
     /**
      * The new {@link SignificanceHeuristic}s defined by this plugin. {@linkplain SignificanceHeuristic}s are used by the
      * {@link SignificantTerms} aggregation to pick which terms are significant for a given query.
@@ -93,6 +94,7 @@ public interface SearchPlugin {
     default List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
         return emptyList();
     }
+
     /**
      * The new {@link MovAvgModel}s defined by this plugin. {@linkplain MovAvgModel}s are used by the {@link MovAvgPipelineAggregator} to
      * model trends in data.
@@ -100,42 +102,49 @@ public interface SearchPlugin {
     default List<SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser>> getMovingAverageModels() {
         return emptyList();
     }
+
     /**
      * The new {@link FetchSubPhase}s defined by this plugin.
      */
     default List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
         return emptyList();
     }
+
     /**
      * The new {@link SearchExtBuilder}s defined by this plugin.
      */
     default List<SearchExtSpec<?>> getSearchExts() {
         return emptyList();
     }
+
     /**
      * Get the {@link Highlighter}s defined by this plugin.
      */
     default Map<String, Highlighter> getHighlighters() {
         return emptyMap();
     }
+
     /**
      * The new {@link Suggester}s defined by this plugin.
      */
     default List<SuggesterSpec<?>> getSuggesters() {
         return emptyList();
     }
+
     /**
      * The new {@link Query}s defined by this plugin.
      */
     default List<QuerySpec<?>> getQueries() {
         return emptyList();
     }
+
     /**
      * The new {@link Aggregation}s added by this plugin.
      */
     default List<AggregationSpec> getAggregations() {
         return emptyList();
     }
+
     /**
      * Allows plugins to register new aggregations using aggregation names that are already defined
      * in Core, as long as the new aggregations target different ValuesSourceTypes
@@ -144,12 +153,14 @@ public interface SearchPlugin {
     default List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         return emptyList();
     }
+
     /**
      * The new {@link PipelineAggregator}s added by this plugin.
      */
     default List<PipelineAggregationSpec> getPipelineAggregations() {
         return emptyList();
     }
+
     /**
      * The new {@link Rescorer}s added by this plugin.
      */
@@ -203,10 +214,11 @@ public interface SearchPlugin {
          *        that takes a {@link StreamInput}
          */
         public SuggesterSpec(
-                ParseField name,
-                Writeable.Reader<T> builderReader,
-                CheckedFunction<XContentParser, T, IOException> builderParser,
-                Writeable.Reader<? extends Suggest.Suggestion> suggestionReader) {
+            ParseField name,
+            Writeable.Reader<T> builderReader,
+            CheckedFunction<XContentParser, T, IOException> builderParser,
+            Writeable.Reader<? extends Suggest.Suggestion> suggestionReader
+        ) {
 
             super(name, builderReader, builderParser);
             setSuggestionReader(suggestionReader);
@@ -224,10 +236,11 @@ public interface SearchPlugin {
          *        that takes a {@link StreamInput}
          */
         public SuggesterSpec(
-                String name,
-                Writeable.Reader<T> builderReader,
-                CheckedFunction<XContentParser, T, IOException> builderParser,
-                Writeable.Reader<? extends Suggest.Suggestion> suggestionReader) {
+            String name,
+            Writeable.Reader<T> builderReader,
+            CheckedFunction<XContentParser, T, IOException> builderParser,
+            Writeable.Reader<? extends Suggest.Suggestion> suggestionReader
+        ) {
 
             super(name, builderReader, builderParser);
             setSuggestionReader(suggestionReader);
@@ -294,8 +307,11 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          */
-        public <T extends AggregationBuilder> AggregationSpec(ParseField name, Writeable.Reader<T> reader,
-                ContextParser<String, T> parser) {
+        public <T extends AggregationBuilder> AggregationSpec(
+            ParseField name,
+            Writeable.Reader<T> reader,
+            ContextParser<String, T> parser
+        ) {
             super(name, reader, parser);
         }
 
@@ -387,8 +403,9 @@ public interface SearchPlugin {
     /**
      * Specification for a {@link PipelineAggregator}.
      */
-    class PipelineAggregationSpec extends SearchExtensionSpec<PipelineAggregationBuilder,
-            ContextParser<String, ? extends PipelineAggregationBuilder>> {
+    class PipelineAggregationSpec extends SearchExtensionSpec<
+        PipelineAggregationBuilder,
+        ContextParser<String, ? extends PipelineAggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
         /**
          * Read the aggregator from a stream.
@@ -407,9 +424,11 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser reads the aggregation builder from XContent
          */
-        public PipelineAggregationSpec(ParseField name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                ContextParser<String, ? extends PipelineAggregationBuilder> parser) {
+        public PipelineAggregationSpec(
+            ParseField name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+        ) {
             super(name, builderReader, parser);
             this.aggregatorReader = null;
         }
@@ -424,9 +443,11 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser reads the aggregation builder from XContent
          */
-        public PipelineAggregationSpec(String name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                ContextParser<String, ? extends PipelineAggregationBuilder> parser) {
+        public PipelineAggregationSpec(
+            String name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+        ) {
             super(name, builderReader, parser);
             this.aggregatorReader = null;
         }
@@ -445,10 +466,12 @@ public interface SearchPlugin {
          *             pipelines implemented after 7.8.0
          */
         @Deprecated
-        public PipelineAggregationSpec(ParseField name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-                ContextParser<String, ? extends PipelineAggregationBuilder> parser) {
+        public PipelineAggregationSpec(
+            ParseField name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
+            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+        ) {
             super(name, builderReader, parser);
             this.aggregatorReader = aggregatorReader;
         }
@@ -467,10 +490,12 @@ public interface SearchPlugin {
          *             implemented after 7.8.0
          */
         @Deprecated
-        public PipelineAggregationSpec(String name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-                ContextParser<String, ? extends PipelineAggregationBuilder> parser) {
+        public PipelineAggregationSpec(
+            String name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
+            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+        ) {
             super(name, builderReader, parser);
             this.aggregatorReader = aggregatorReader;
         }
@@ -488,10 +513,12 @@ public interface SearchPlugin {
          * @deprecated prefer the ctor that takes a {@link ContextParser}
          */
         @Deprecated
-        public PipelineAggregationSpec(ParseField name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-                PipelineAggregator.Parser parser) {
+        public PipelineAggregationSpec(
+            ParseField name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
+            PipelineAggregator.Parser parser
+        ) {
             super(name, builderReader, (p, n) -> parser.parse(n, p));
             this.aggregatorReader = aggregatorReader;
         }
@@ -508,10 +535,12 @@ public interface SearchPlugin {
          * @deprecated prefer the ctor that takes a {@link ContextParser}
          */
         @Deprecated
-        public PipelineAggregationSpec(String name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-                PipelineAggregator.Parser parser) {
+        public PipelineAggregationSpec(
+            String name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
+            PipelineAggregator.Parser parser
+        ) {
             super(name, builderReader, (p, n) -> parser.parse(n, p));
             this.aggregatorReader = aggregatorReader;
         }
@@ -554,8 +583,11 @@ public interface SearchPlugin {
      * parsed in a search request (within the ext element).
      */
     class SearchExtSpec<T extends SearchExtBuilder> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
-        public SearchExtSpec(ParseField name, Writeable.Reader<? extends T> reader,
-                CheckedFunction<XContentParser, T, IOException> parser) {
+        public SearchExtSpec(
+            ParseField name,
+            Writeable.Reader<? extends T> reader,
+            CheckedFunction<XContentParser, T, IOException> parser
+        ) {
             super(name, reader, parser);
         }
 
@@ -565,8 +597,7 @@ public interface SearchPlugin {
     }
 
     class RescorerSpec<T extends RescorerBuilder<T>> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
-        public RescorerSpec(ParseField name, Writeable.Reader<? extends T> reader,
-                CheckedFunction<XContentParser, T, IOException> parser) {
+        public RescorerSpec(ParseField name, Writeable.Reader<? extends T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
 

@@ -34,6 +34,7 @@ package org.opensearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -46,33 +47,36 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class IndexingPressure {
 
-    public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
-        Setting.memorySizeSetting("indexing_pressure.memory.limit", "10%", Setting.Property.NodeScope);
+    public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES = Setting.memorySizeSetting(
+        "indexing_pressure.memory.limit",
+        "10%",
+        Setting.Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
-    private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong currentCoordinatingBytes = new AtomicLong(0);
-    private final AtomicLong currentPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong currentReplicaBytes = new AtomicLong(0);
+    protected final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong currentCoordinatingBytes = new AtomicLong(0);
+    protected final AtomicLong currentPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong currentReplicaBytes = new AtomicLong(0);
 
-    private final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
-    private final AtomicLong totalPrimaryBytes = new AtomicLong(0);
-    private final AtomicLong totalReplicaBytes = new AtomicLong(0);
+    protected final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
+    protected final AtomicLong totalPrimaryBytes = new AtomicLong(0);
+    protected final AtomicLong totalReplicaBytes = new AtomicLong(0);
 
-    private final AtomicLong coordinatingRejections = new AtomicLong(0);
-    private final AtomicLong primaryRejections = new AtomicLong(0);
-    private final AtomicLong replicaRejections = new AtomicLong(0);
+    protected final AtomicLong coordinatingRejections = new AtomicLong(0);
+    protected final AtomicLong primaryRejections = new AtomicLong(0);
+    protected final AtomicLong replicaRejections = new AtomicLong(0);
 
-    private final long primaryAndCoordinatingLimits;
-    private final long replicaLimits;
+    protected final long primaryAndCoordinatingLimits;
+    protected final long replicaLimits;
 
+    @Inject
     public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
     }
-
 
     private static Releasable wrapReleasable(Releasable releasable) {
         final AtomicBoolean called = new AtomicBoolean();
@@ -95,12 +99,25 @@ public class IndexingPressure {
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.coordinatingRejections.getAndIncrement();
-            throw new OpenSearchRejectedExecutionException("rejected execution of coordinating operation [" +
-                "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
-                "replica_bytes=" + replicaWriteBytes + ", " +
-                "all_bytes=" + totalBytesWithoutOperation + ", " +
-                "coordinating_operation_bytes=" + bytes + ", " +
-                "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
+            throw new OpenSearchRejectedExecutionException(
+                "rejected execution of coordinating operation ["
+                    + "coordinating_and_primary_bytes="
+                    + bytesWithoutOperation
+                    + ", "
+                    + "replica_bytes="
+                    + replicaWriteBytes
+                    + ", "
+                    + "all_bytes="
+                    + totalBytesWithoutOperation
+                    + ", "
+                    + "coordinating_operation_bytes="
+                    + bytes
+                    + ", "
+                    + "max_coordinating_and_primary_bytes="
+                    + primaryAndCoordinatingLimits
+                    + "]",
+                false
+            );
         }
         currentCoordinatingBytes.getAndAdd(bytes);
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
@@ -126,12 +143,25 @@ public class IndexingPressure {
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.primaryRejections.getAndIncrement();
-            throw new OpenSearchRejectedExecutionException("rejected execution of primary operation [" +
-                "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
-                "replica_bytes=" + replicaWriteBytes + ", " +
-                "all_bytes=" + totalBytesWithoutOperation + ", " +
-                "primary_operation_bytes=" + bytes + ", " +
-                "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
+            throw new OpenSearchRejectedExecutionException(
+                "rejected execution of primary operation ["
+                    + "coordinating_and_primary_bytes="
+                    + bytesWithoutOperation
+                    + ", "
+                    + "replica_bytes="
+                    + replicaWriteBytes
+                    + ", "
+                    + "all_bytes="
+                    + totalBytesWithoutOperation
+                    + ", "
+                    + "primary_operation_bytes="
+                    + bytes
+                    + ", "
+                    + "max_coordinating_and_primary_bytes="
+                    + primaryAndCoordinatingLimits
+                    + "]",
+                false
+            );
         }
         currentPrimaryBytes.getAndAdd(bytes);
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
@@ -148,10 +178,19 @@ public class IndexingPressure {
             long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
             this.currentReplicaBytes.getAndAdd(-bytes);
             this.replicaRejections.getAndIncrement();
-            throw new OpenSearchRejectedExecutionException("rejected execution of replica operation [" +
-                "replica_bytes=" + replicaBytesWithoutOperation + ", " +
-                "replica_operation_bytes=" + bytes + ", " +
-                "max_replica_bytes=" + replicaLimits + "]", false);
+            throw new OpenSearchRejectedExecutionException(
+                "rejected execution of replica operation ["
+                    + "replica_bytes="
+                    + replicaBytesWithoutOperation
+                    + ", "
+                    + "replica_operation_bytes="
+                    + bytes
+                    + ", "
+                    + "max_replica_bytes="
+                    + replicaLimits
+                    + "]",
+                false
+            );
         }
         totalReplicaBytes.getAndAdd(bytes);
         return wrapReleasable(() -> this.currentReplicaBytes.getAndAdd(-bytes));
@@ -174,9 +213,19 @@ public class IndexingPressure {
     }
 
     public IndexingPressureStats stats() {
-        return new IndexingPressureStats(totalCombinedCoordinatingAndPrimaryBytes.get(), totalCoordinatingBytes.get(),
-            totalPrimaryBytes.get(), totalReplicaBytes.get(), currentCombinedCoordinatingAndPrimaryBytes.get(),
-            currentCoordinatingBytes.get(), currentPrimaryBytes.get(), currentReplicaBytes.get(), coordinatingRejections.get(),
-            primaryRejections.get(), replicaRejections.get(), primaryAndCoordinatingLimits);
+        return new IndexingPressureStats(
+            totalCombinedCoordinatingAndPrimaryBytes.get(),
+            totalCoordinatingBytes.get(),
+            totalPrimaryBytes.get(),
+            totalReplicaBytes.get(),
+            currentCombinedCoordinatingAndPrimaryBytes.get(),
+            currentCoordinatingBytes.get(),
+            currentPrimaryBytes.get(),
+            currentReplicaBytes.get(),
+            coordinatingRejections.get(),
+            primaryRejections.get(),
+            replicaRejections.get(),
+            primaryAndCoordinatingLimits
+        );
     }
 }

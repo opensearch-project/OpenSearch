@@ -197,7 +197,7 @@ public class OsProbe {
                 final String procLoadAvg = readProcLoadavg();
                 assert procLoadAvg.matches("(\\d+\\.\\d+\\s+){3}\\d+/\\d+\\s+\\d+");
                 final String[] fields = procLoadAvg.split("\\s+");
-                return new double[]{Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2])};
+                return new double[] { Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2]) };
             } catch (final IOException e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("error reading /proc/loadavg", e);
@@ -211,7 +211,7 @@ public class OsProbe {
             }
             try {
                 final double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
-                return new double[]{oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1};
+                return new double[] { oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1 };
             } catch (IllegalAccessException | InvocationTargetException e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("error reading one minute load average from operating system", e);
@@ -571,7 +571,8 @@ public class OsProbe {
                     cpuStat,
                     memoryControlGroup,
                     cgroupMemoryLimitInBytes,
-                    cgroupMemoryUsageInBytes);
+                    cgroupMemoryUsageInBytes
+                );
             }
         } catch (final IOException e) {
             logger.debug("error reading control group stats", e);
@@ -595,13 +596,14 @@ public class OsProbe {
 
     OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
         return new OsInfo(
-                refreshInterval,
-                Runtime.getRuntime().availableProcessors(),
-                allocatedProcessors,
-                Constants.OS_NAME,
-                getPrettyName(),
-                Constants.OS_ARCH,
-                Constants.OS_VERSION);
+            refreshInterval,
+            Runtime.getRuntime().availableProcessors(),
+            allocatedProcessors,
+            Constants.OS_NAME,
+            getPrettyName(),
+            Constants.OS_ARCH,
+            Constants.OS_VERSION
+        );
     }
 
     private String getPrettyName() throws IOException {
@@ -613,11 +615,13 @@ public class OsProbe {
              * wrapped in single- or double-quotes.
              */
             final List<String> etcOsReleaseLines = readOsRelease();
-            final List<String> prettyNameLines =
-                    etcOsReleaseLines.stream().filter(line -> line.startsWith("PRETTY_NAME")).collect(Collectors.toList());
+            final List<String> prettyNameLines = etcOsReleaseLines.stream()
+                .filter(line -> line.startsWith("PRETTY_NAME"))
+                .collect(Collectors.toList());
             assert prettyNameLines.size() <= 1 : prettyNameLines;
-            final Optional<String> maybePrettyNameLine =
-                    prettyNameLines.size() == 1 ? Optional.of(prettyNameLines.get(0)) : Optional.empty();
+            final Optional<String> maybePrettyNameLine = prettyNameLines.size() == 1
+                ? Optional.of(prettyNameLines.get(0))
+                : Optional.empty();
             if (maybePrettyNameLine.isPresent()) {
                 // we trim since some OS contain trailing space, for example, Oracle Linux Server 6.9 has a trailing space after the quote
                 final String trimmedPrettyNameLine = maybePrettyNameLine.get().trim();

@@ -180,7 +180,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         this.repositories = in.readList(RepositoryMetadata::new);
     }
 
-    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws  IOException {
+    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(Custom.class, TYPE, in);
     }
 
@@ -229,8 +229,11 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                             }
                             pendingGeneration = parser.longValue();
                         } else {
-                            throw new OpenSearchParseException("failed to parse repository [{}], unknown field [{}]",
-                                name, currentFieldName);
+                            throw new OpenSearchParseException(
+                                "failed to parse repository [{}], unknown field [{}]",
+                                name,
+                                currentFieldName
+                            );
                         }
                     } else {
                         throw new OpenSearchParseException("failed to parse repository [{}]", name);

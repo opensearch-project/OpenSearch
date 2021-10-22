@@ -49,6 +49,7 @@ tasks.named("dependencyLicenses").configure {
 test {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
+  jvmArgs += [ "-Djava.security.egd=file:/dev/urandom" ]
 }
 
 /*

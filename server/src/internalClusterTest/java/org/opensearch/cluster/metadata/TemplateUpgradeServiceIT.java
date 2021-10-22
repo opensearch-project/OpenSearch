@@ -71,8 +71,12 @@ public class TemplateUpgradeServiceIT extends OpenSearchIntegTestCase {
 
     public static final class TestPlugin extends Plugin {
         // This setting is used to simulate cluster state updates
-        static final Setting<Integer> UPDATE_TEMPLATE_DUMMY_SETTING =
-            Setting.intSetting("tests.update_template_count", 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
+        static final Setting<Integer> UPDATE_TEMPLATE_DUMMY_SETTING = Setting.intSetting(
+            "tests.update_template_count",
+            0,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
         private static final Logger logger = LogManager.getLogger(TestPlugin.class);
 
         protected final Settings settings;
@@ -82,27 +86,51 @@ public class TemplateUpgradeServiceIT extends OpenSearchIntegTestCase {
         }
 
         @Override
-        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                                   NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                                   IndexNameExpressionResolver expressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
-                logger.debug("the template dummy setting was updated to {}", integer);
-            });
-            return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry,
-                environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier);
+        public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver expressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    UPDATE_TEMPLATE_DUMMY_SETTING,
+                    integer -> { logger.debug("the template dummy setting was updated to {}", integer); }
+                );
+            return super.createComponents(
+                client,
+                clusterService,
+                threadPool,
+                resourceWatcherService,
+                scriptService,
+                xContentRegistry,
+                environment,
+                nodeEnvironment,
+                namedWriteableRegistry,
+                expressionResolver,
+                repositoriesServiceSupplier
+            );
         }
 
         @Override
         public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
             return templates -> {
-                templates.put("test_added_template", IndexTemplateMetadata.builder("test_added_template")
-                    .patterns(Collections.singletonList("*")).build());
+                templates.put(
+                    "test_added_template",
+                    IndexTemplateMetadata.builder("test_added_template").patterns(Collections.singletonList("*")).build()
+                );
                 templates.remove("test_removed_template");
-                templates.put("test_changed_template", IndexTemplateMetadata.builder("test_changed_template").order(10)
-                    .patterns(Collections.singletonList("*")).build());
+                templates.put(
+                    "test_changed_template",
+                    IndexTemplateMetadata.builder("test_changed_template").order(10).patterns(Collections.singletonList("*")).build()
+                );
                 return templates;
             };
         }
@@ -113,26 +141,49 @@ public class TemplateUpgradeServiceIT extends OpenSearchIntegTestCase {
         }
     }
 
-
     public void testTemplateUpdate() throws Exception {
         assertTemplates();
 
         // Change some templates
-        assertAcked(client().admin().indices().preparePutTemplate("test_dummy_template").setOrder(0)
-            .setPatterns(Collections.singletonList("*")).get());
-        assertAcked(client().admin().indices().preparePutTemplate("test_changed_template").setOrder(0)
-            .setPatterns(Collections.singletonList("*")).get());
-        assertAcked(client().admin().indices().preparePutTemplate("test_removed_template").setOrder(1)
-            .setPatterns(Collections.singletonList("*")).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutTemplate("test_dummy_template")
+                .setOrder(0)
+                .setPatterns(Collections.singletonList("*"))
+                .get()
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutTemplate("test_changed_template")
+                .setOrder(0)
+                .setPatterns(Collections.singletonList("*"))
+                .get()
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutTemplate("test_removed_template")
+                .setOrder(1)
+                .setPatterns(Collections.singletonList("*"))
+                .get()
+        );
 
         AtomicInteger updateCount = new AtomicInteger();
         // Wait for the templates to be updated back to normal
         assertBusy(() -> {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
-            ).get());
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
+                    )
+                    .get()
+            );
             List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(3));
             boolean addedFound = false;
@@ -177,9 +228,15 @@ public class TemplateUpgradeServiceIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
-            ).get());
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
+                    )
+                    .get()
+            );
 
             List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(2));

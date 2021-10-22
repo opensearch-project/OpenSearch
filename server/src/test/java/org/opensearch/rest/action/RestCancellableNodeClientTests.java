@@ -107,7 +107,7 @@ public class RestCancellableNodeClientTests extends OpenSearchTestCase {
             for (Future<?> future : futures) {
                 future.get();
             }
-            //no channels get closed in this test, hence we expect as many channels as we created in the map
+            // no channels get closed in this test, hence we expect as many channels as we created in the map
             assertEquals(initialHttpChannels + numChannels, RestCancellableNodeClient.getNumChannels());
             assertEquals(0, RestCancellableNodeClient.getNumTasks());
             assertEquals(totalSearches, testClient.searchRequests.get());
@@ -158,13 +158,13 @@ public class RestCancellableNodeClientTests extends OpenSearchTestCase {
             int totalSearches = 0;
             for (int i = 0; i < numChannels; i++) {
                 TestHttpChannel channel = new TestHttpChannel();
-                //no need to wait here, there will be no close listener registered, nothing to wait for.
+                // no need to wait here, there will be no close listener registered, nothing to wait for.
                 channel.close();
                 int numTasks = randomIntBetween(1, 5);
                 totalSearches += numTasks;
                 RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
                 for (int j = 0; j < numTasks; j++) {
-                    //here the channel will be first registered, then straight-away removed from the map as the close listener is invoked
+                    // here the channel will be first registered, then straight-away removed from the map as the close listener is invoked
                     client.execute(SearchAction.INSTANCE, new SearchRequest(), null);
                 }
             }
@@ -186,10 +186,12 @@ public class RestCancellableNodeClientTests extends OpenSearchTestCase {
         }
 
         @Override
-        public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(ActionType<Response> action,
-                                                                                                    Request request,
-                                                                                                    ActionListener<Response> listener) {
-            switch(action.name()) {
+        public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            switch (action.name()) {
                 case CancelTasksAction.NAME:
                     CancelTasksRequest cancelTasksRequest = (CancelTasksRequest) request;
                     assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTaskId()));
@@ -197,7 +199,7 @@ public class RestCancellableNodeClientTests extends OpenSearchTestCase {
                     if (randomBoolean()) {
                         listener.onResponse(null);
                     } else {
-                        //test that cancel tasks is best effort, failure received are not propagated
+                        // test that cancel tasks is best effort, failure received are not propagated
                         listener.onFailure(new IllegalStateException());
                     }
 
@@ -207,7 +209,7 @@ public class RestCancellableNodeClientTests extends OpenSearchTestCase {
                     Task searchTask = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
                     if (timeout == false) {
                         if (rarely()) {
-                            //make sure that search is sometimes also called from the same thread before the task is returned
+                            // make sure that search is sometimes also called from the same thread before the task is returned
                             listener.onResponse(null);
                         } else {
                             threadPool().generic().submit(() -> listener.onResponse(null));
@@ -232,8 +234,7 @@ public class RestCancellableNodeClientTests extends OpenSearchTestCase {
         private final CountDownLatch closeLatch = new CountDownLatch(1);
 
         @Override
-        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        }
+        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {}
 
         @Override
         public InetSocketAddress getLocalAddress() {
@@ -276,7 +277,7 @@ public class RestCancellableNodeClientTests extends OpenSearchTestCase {
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
-            //if the channel is already closed, the listener gets notified immediately, from the same thread.
+            // if the channel is already closed, the listener gets notified immediately, from the same thread.
             if (open.get() == false) {
                 listener.onResponse(null);
             } else {

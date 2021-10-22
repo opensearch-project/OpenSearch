@@ -56,7 +56,7 @@ public enum PreBuiltAnalyzers {
         }
     },
 
-    DEFAULT(CachingStrategy.OPENSEARCH){
+    DEFAULT(CachingStrategy.OPENSEARCH) {
         @Override
         protected Analyzer create(Version version) {
             // by calling get analyzer we are ensuring reuse of the same STANDARD analyzer for DEFAULT!
@@ -108,7 +108,7 @@ public enum PreBuiltAnalyzers {
         }
     };
 
-    protected abstract  Analyzer create(Version version);
+    protected abstract Analyzer create(Version version);
 
     protected final PreBuiltCacheFactory.PreBuiltCache<Analyzer> cache;
 

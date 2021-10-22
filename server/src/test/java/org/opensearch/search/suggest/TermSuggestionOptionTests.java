@@ -91,8 +91,7 @@ public class TermSuggestionOptionTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
         Option option = new Option(new Text("someText"), 100, 1.3f);
         BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
-        assertEquals("{\"text\":\"someText\",\"score\":1.3,\"freq\":100}"
-                   , xContent.utf8ToString());
+        assertEquals("{\"text\":\"someText\",\"score\":1.3,\"freq\":100}", xContent.utf8ToString());
     }
 
 }

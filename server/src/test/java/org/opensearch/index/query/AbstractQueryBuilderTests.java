@@ -75,30 +75,30 @@ public class AbstractQueryBuilderTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             parser.nextToken();
             parser.nextToken(); // don't start with START_OBJECT to provoke exception
-            ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
+            ParsingException exception = expectThrows(ParsingException.class, () -> parseInnerQueryBuilder(parser));
             assertEquals("[_na] query malformed, must start with start_object", exception.getMessage());
         }
 
         source = "{}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->  parseInnerQueryBuilder(parser));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> parseInnerQueryBuilder(parser));
             assertEquals("query malformed, empty clause found at [1:2]", exception.getMessage());
         }
 
         source = "{ \"foo\" : \"bar\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
+            ParsingException exception = expectThrows(ParsingException.class, () -> parseInnerQueryBuilder(parser));
             assertEquals("[foo] query malformed, no start_object after query name", exception.getMessage());
         }
 
         source = "{ \"boool\" : {} }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
+            ParsingException exception = expectThrows(ParsingException.class, () -> parseInnerQueryBuilder(parser));
             assertEquals("unknown query [boool] did you mean [bool]?", exception.getMessage());
         }
         source = "{ \"match_\" : {} }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
+            ParsingException exception = expectThrows(ParsingException.class, () -> parseInnerQueryBuilder(parser));
             assertEquals("unknown query [match_] did you mean any of [match, match_all, match_none]?", exception.getMessage());
         }
     }
