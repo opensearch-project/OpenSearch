@@ -52,6 +52,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
@@ -70,6 +71,7 @@ public final class EngineConfig {
     private final ShardId shardId;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
+    private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
@@ -145,9 +147,6 @@ public final class EngineConfig {
 
     private final TranslogConfig translogConfig;
 
-    /**
-     * Creates a new {@link org.opensearch.index.engine.EngineConfig}
-     */
     public EngineConfig(
         ShardId shardId,
         ThreadPool threadPool,
@@ -162,6 +161,61 @@ public final class EngineConfig {
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
         TranslogConfig translogConfig,
+        TimeValue flushMergesAfter,
+        List<ReferenceManager.RefreshListener> externalRefreshListener,
+        List<ReferenceManager.RefreshListener> internalRefreshListener,
+        Sort indexSort,
+        CircuitBreakerService circuitBreakerService,
+        LongSupplier globalCheckpointSupplier,
+        Supplier<RetentionLeases> retentionLeasesSupplier,
+        LongSupplier primaryTermSupplier,
+        TombstoneDocSupplier tombstoneDocSupplier
+    ) {
+        this(
+            shardId,
+            threadPool,
+            indexSettings,
+            warmer,
+            store,
+            mergePolicy,
+            analyzer,
+            similarity,
+            codecService,
+            eventListener,
+            queryCache,
+            queryCachingPolicy,
+            translogConfig,
+            null,
+            flushMergesAfter,
+            externalRefreshListener,
+            internalRefreshListener,
+            indexSort,
+            circuitBreakerService,
+            globalCheckpointSupplier,
+            retentionLeasesSupplier,
+            primaryTermSupplier,
+            tombstoneDocSupplier
+        );
+    }
+
+    /**
+     * Creates a new {@link org.opensearch.index.engine.EngineConfig}
+     */
+    EngineConfig(
+        ShardId shardId,
+        ThreadPool threadPool,
+        IndexSettings indexSettings,
+        Engine.Warmer warmer,
+        Store store,
+        MergePolicy mergePolicy,
+        Analyzer analyzer,
+        Similarity similarity,
+        CodecService codecService,
+        Engine.EventListener eventListener,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        TranslogConfig translogConfig,
+        TranslogDeletionPolicyFactory translogDeletionPolicyFactory,
         TimeValue flushMergesAfter,
         List<ReferenceManager.RefreshListener> externalRefreshListener,
         List<ReferenceManager.RefreshListener> internalRefreshListener,
@@ -200,6 +254,7 @@ public final class EngineConfig {
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
+        this.translogDeletionPolicyFactory = translogDeletionPolicyFactory;
         this.flushMergesAfter = flushMergesAfter;
         this.externalRefreshListener = externalRefreshListener;
         this.internalRefreshListener = internalRefreshListener;
@@ -422,5 +477,9 @@ public final class EngineConfig {
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {
         return tombstoneDocSupplier;
+    }
+
+    public TranslogDeletionPolicyFactory getCustomTranslogDeletionPolicyFactory() {
+        return translogDeletionPolicyFactory;
     }
 }

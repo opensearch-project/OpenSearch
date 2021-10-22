@@ -148,6 +148,8 @@ import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
@@ -3791,6 +3793,52 @@ public class InternalEngineTests extends EngineTestCase {
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
         assertVisibleCount(engine, numDocs, true);
+    }
+
+    public void testEngineCreationWithCustomTranslogDeletePolicy() throws IOException {
+        class CustomTranslogDeletionPolicy extends TranslogDeletionPolicy {
+            public CustomTranslogDeletionPolicy(IndexSettings indexSettings, Supplier<RetentionLeases> retentionLeasesSupplier) {
+                super(
+                    indexSettings.getTranslogRetentionSize().getBytes(),
+                    indexSettings.getTranslogRetentionAge().getMillis(),
+                    indexSettings.getTranslogRetentionTotalFiles()
+                );
+            }
+        }
+        TranslogDeletionPolicyFactory translogDeletionPolicyFactory = CustomTranslogDeletionPolicy::new;
+
+        try (Store store = createStore()) {
+            EngineConfig config = engine.config();
+
+            EngineConfig configWithCustomTranslogDeletionPolicyFactory = new EngineConfig(
+                config.getShardId(),
+                config.getThreadPool(),
+                config.getIndexSettings(),
+                config.getWarmer(),
+                store,
+                config.getMergePolicy(),
+                config.getAnalyzer(),
+                config.getSimilarity(),
+                new CodecService(null, logger),
+                config.getEventListener(),
+                config.getQueryCache(),
+                config.getQueryCachingPolicy(),
+                config.getTranslogConfig(),
+                translogDeletionPolicyFactory,
+                config.getFlushMergesAfter(),
+                config.getExternalRefreshListener(),
+                config.getInternalRefreshListener(),
+                config.getIndexSort(),
+                config.getCircuitBreakerService(),
+                config.getGlobalCheckpointSupplier(),
+                config.retentionLeasesSupplier(),
+                config.getPrimaryTermSupplier(),
+                config.getTombstoneDocSupplier()
+            );
+            try (InternalEngine engine = createEngine(configWithCustomTranslogDeletionPolicyFactory)) {
+                assertTrue(engine.getTranslog().getDeletionPolicy() instanceof CustomTranslogDeletionPolicy);
+            }
+        }
     }
 
     public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {
