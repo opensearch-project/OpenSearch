@@ -3,6 +3,9 @@
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
       - [JDK 11](#jdk-11)
+      - [JDK 8 and 17](#jdk-8-and-17)
+      - [Runtime JDK](#runtime-jdk)
+      - [Windows](#windows)
       - [Docker](#docker)
     - [Run Tests](#run-tests)
     - [Run OpenSearch](#run-opensearch)
@@ -31,6 +34,15 @@
       - [testImplementation](#testimplementation)
   - [Misc](#misc)
     - [git-secrets](#git-secrets)
+      - [Installation](#installation)
+      - [Configuration](#configuration)
+  - [Components](#components)
+    - [Build libraries & interfaces](#build-libraries--interfaces)
+    - [Clients & Libraries](#clients--libraries)
+    - [Plugins](#plugins-1)
+    - [Indexing & search](#indexing--search)
+    - [Aggregations](#aggregations)
+    - [Distributed Framework](#distributed-framework)
   - [Submitting Changes](#submitting-changes)
 
 # Developer Guide
@@ -49,13 +61,25 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 OpenSearch builds using Java 11 at a minimum. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`.
 
+Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
+
+#### JDK 8 and 17
+
+To run the full suite of tests, download and install [JDK 8](https://adoptium.net/releases.html?variant=openjdk8) and [17](https://adoptium.net/releases.html?variant=openjdk17) and set `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
+
+#### Runtime JDK
+
 By default, the test tasks use bundled JDK runtime, configured in `buildSrc/version.properties` and set to JDK 17 (LTS). Other kind of test tasks (integration, cluster, ... ) use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8 as the runtime, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
 
-To run the full suite of tests you will also need `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
+#### Windows
+
+On Windows, set `_JAVA_OPTIONS: -Xmx4096M`. You may also need to set `LongPathsEnabled=0x1` under `Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem`.
 
 #### Docker
 
-[Docker](https://docs.docker.com/install/) is required for building some OpenSearch artifacts and executing certain test suites.
+Download and install [Docker](https://docs.docker.com/install/), required for building OpenSearch artifacts, and executing certain test suites.
+
+On Windows, uncheck support for Hyper-V during installation, run `"C:\Program Files\Docker\Docker\DockerCli.exe" -SwitchDaemon` to fix the ` In the default daemon configuration on Windows, the docker client must be run with elevated privileges to connect.` error, run Docker Desktop once, review and accept license agreement, and ensure that the Docker daemon is running.
 
 ### Run Tests
 
