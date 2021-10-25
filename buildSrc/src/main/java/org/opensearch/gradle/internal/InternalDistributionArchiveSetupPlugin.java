@@ -34,18 +34,22 @@ package org.opensearch.gradle.internal;
 
 import org.opensearch.gradle.EmptyDirTask;
 import org.opensearch.gradle.tar.SymbolicLinkPreservingTar;
+import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.AbstractCopyTask;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Compression;
 import org.gradle.api.tasks.bundling.Zip;
-
+import org.gradle.internal.os.OperatingSystem;
 import java.io.File;
 
 import static org.opensearch.gradle.util.Util.capitalize;
@@ -66,6 +70,7 @@ import static org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORM
  * 4. Having per-distribution sub-projects means we can build them in parallel.
  */
 public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
+    private static final Logger LOGGER = Logging.getLogger(InternalDistributionArchiveSetupPlugin.class);
 
     public static final String DEFAULT_CONFIGURATION_NAME = "default";
     public static final String EXTRACTED_CONFIGURATION_NAME = "extracted";
@@ -80,16 +85,39 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         configureTarDefaults(project);
     }
 
+    private Action<Task> configure(String name) {
+        return (Task task) -> task.onlyIf(s -> {
+            if (OperatingSystem.current().isWindows()) {
+                // On Windows, include only Windows distributions and integTestZip
+                final String nameLowerCased = name.toLowerCase();
+                final boolean skip = !(nameLowerCased.contains("windows") || nameLowerCased.contains("integtest"));
+
+                if (skip) {
+                    LOGGER.info("Skipping task " + name + " since it does not match current OS platform");
+                }
+
+                return !skip;
+            } else {
+                return true;
+            }
+        });
+    }
+
     private void registerAndConfigureDistributionArchivesExtension(Project project) {
         container = project.container(DistributionArchive.class, name -> {
             var subProjectDir = archiveToSubprojectName(name);
             var copyDistributionTaskName = "build" + capitalize(name.substring(0, name.length() - 3));
             TaskContainer tasks = project.getTasks();
             var explodedDist = tasks.register(copyDistributionTaskName, Sync.class, sync -> sync.into(subProjectDir + "/build/install/"));
+            explodedDist.configure(configure(name));
             var archiveTaskName = "build" + capitalize(name);
-            return name.endsWith("Tar")
-                ? new DistributionArchive(tasks.register(archiveTaskName, SymbolicLinkPreservingTar.class), explodedDist, name)
-                : new DistributionArchive(tasks.register(archiveTaskName, Zip.class), explodedDist, name);
+
+            var archiveTask = name.endsWith("Tar")
+                ? tasks.register(archiveTaskName, SymbolicLinkPreservingTar.class)
+                : tasks.register(archiveTaskName, Zip.class);
+            archiveTask.configure(configure(name));
+
+            return new DistributionArchive(archiveTask, explodedDist, name);
         });
         // Each defined distribution archive is linked to a subproject.
         // A distribution archive definition not matching a sub project will result in build failure.
