@@ -154,14 +154,13 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
     }
 
-    public void testHiddenFiles() throws IOException {
+    public void testHiddenDirectories() throws IOException {
         final Path home = createTempDir();
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final Path hidden = home.resolve("plugins").resolve(".hidden");
         Files.createDirectories(hidden);
         @SuppressWarnings("unchecked")
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-
         final String expected = "Could not load plugin descriptor for plugin directory [.hidden]";
         assertThat(e, hasToString(containsString(expected)));
     }

@@ -432,8 +432,15 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private static Set<Bundle> findBundles(final Path directory, String type) throws IOException {
         final Set<Bundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
-            final Bundle bundle = readPluginBundle(bundles, plugin, type);
-            bundles.add(bundle);
+            final String pluginFileName = plugin.getFileName().toString();
+            final boolean isHiddenFile = !pluginFileName.isEmpty()
+                && pluginFileName.charAt(0) == '.'
+                && !pluginFileName.equals(".DS_Store")
+                && !Files.isDirectory(plugin);
+            if (!isHiddenFile) {
+                final Bundle bundle = readPluginBundle(bundles, plugin, type);
+                bundles.add(bundle);
+            }
         }
 
         return bundles;
