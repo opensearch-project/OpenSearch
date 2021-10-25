@@ -167,9 +167,9 @@ public class XContentFactory {
         }
         // Should we throw a failure here? Smile idea is to use it in bytes....
         if (length > 2
-                && first == SmileConstants.HEADER_BYTE_1
-                && content.charAt(1) == SmileConstants.HEADER_BYTE_2
-                && content.charAt(2) == SmileConstants.HEADER_BYTE_3) {
+            && first == SmileConstants.HEADER_BYTE_1
+            && content.charAt(1) == SmileConstants.HEADER_BYTE_2
+            && content.charAt(2) == SmileConstants.HEADER_BYTE_3) {
             return XContentType.SMILE;
         }
         if (length > 2 && first == '-' && content.charAt(1) == '-' && content.charAt(2) == '-') {
@@ -311,9 +311,9 @@ public class XContentFactory {
             return XContentType.JSON;
         }
         if (length > 2
-                && first == SmileConstants.HEADER_BYTE_1
-                && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2
-                && bytes[offset + 2] == SmileConstants.HEADER_BYTE_3) {
+            && first == SmileConstants.HEADER_BYTE_1
+            && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2
+            && bytes[offset + 2] == SmileConstants.HEADER_BYTE_3) {
             return XContentType.SMILE;
         }
         if (length > 2 && first == '-' && bytes[offset + 1] == '-' && bytes[offset + 2] == '-') {
