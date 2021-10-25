@@ -50,7 +50,7 @@ public class ListTests extends OpenSearchTestCase {
     }
 
     public void testStringListOfOne() {
-        final String[] strings = {"foo"};
+        final String[] strings = { "foo" };
         final java.util.List<String> stringsList = List.of(strings);
         assertThat(stringsList.size(), equalTo(strings.length));
         assertTrue(stringsList.containsAll(Arrays.asList(strings)));
@@ -58,7 +58,7 @@ public class ListTests extends OpenSearchTestCase {
     }
 
     public void testStringListOfTwo() {
-        final String[] strings = {"foo", "bar"};
+        final String[] strings = { "foo", "bar" };
         final java.util.List<String> stringsList = List.of(strings);
         assertThat(stringsList.size(), equalTo(strings.length));
         assertTrue(stringsList.containsAll(Arrays.asList(strings)));
@@ -66,7 +66,7 @@ public class ListTests extends OpenSearchTestCase {
     }
 
     public void testStringListOfN() {
-        final String[] strings = {"foo", "bar", "baz"};
+        final String[] strings = { "foo", "bar", "baz" };
         final java.util.List<String> stringsList = List.of(strings);
         assertThat(stringsList.size(), equalTo(strings.length));
         assertTrue(stringsList.containsAll(Arrays.asList(strings)));

@@ -98,7 +98,7 @@ public final class PathUtils {
         for (Path root : roots) {
             Path normalizedRoot = root.normalize();
             Path normalizedPath = normalizedRoot.resolve(path).normalize();
-            if(normalizedPath.startsWith(normalizedRoot)) {
+            if (normalizedPath.startsWith(normalizedRoot)) {
                 return normalizedPath;
             }
         }

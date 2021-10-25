@@ -94,7 +94,7 @@ public class JarHell {
         output.accept("java.class.path: " + System.getProperty("java.class.path"));
         output.accept("sun.boot.class.path: " + System.getProperty("sun.boot.class.path"));
         if (loader instanceof URLClassLoader) {
-            output.accept("classloader urls: " + Arrays.toString(((URLClassLoader)loader).getURLs()));
+            output.accept("classloader urls: " + Arrays.toString(((URLClassLoader) loader).getURLs()));
         }
         checkJarHell(parseClassPath(), output);
     }
@@ -104,7 +104,7 @@ public class JarHell {
      * @return array of URLs
      * @throws IllegalStateException if the classpath contains empty elements
      */
-    public static Set<URL> parseClassPath()  {
+    public static Set<URL> parseClassPath() {
         return parseClassPath(System.getProperty("java.class.path"));
     }
 
@@ -124,13 +124,17 @@ public class JarHell {
             // Technically empty classpath element behaves like CWD.
             // So below is the "correct" code, however in practice with ES, this is usually just a misconfiguration,
             // from old shell scripts left behind or something:
-            //   if (element.isEmpty()) {
-            //      element = System.getProperty("user.dir");
-            //   }
+            // if (element.isEmpty()) {
+            // element = System.getProperty("user.dir");
+            // }
             // Instead we just throw an exception, and keep it clean.
             if (element.isEmpty()) {
-                throw new IllegalStateException("Classpath should not contain empty elements! (outdated shell script from a previous" +
-                    " version?) classpath='" + classPath + "'");
+                throw new IllegalStateException(
+                    "Classpath should not contain empty elements! (outdated shell script from a previous"
+                        + " version?) classpath='"
+                        + classPath
+                        + "'"
+                );
             }
             // we should be able to just Paths.get() each element, but unfortunately this is not the
             // whole story on how classpath parsing works: if you want to know, start at sun.misc.Launcher,
@@ -147,15 +151,16 @@ public class JarHell {
             }
             // now just parse as ordinary file
             try {
-                if (element .equals("/")) {
+                if (element.equals("/")) {
                     // Eclipse adds this to the classpath when running unit tests...
                     continue;
                 }
                 URL url = PathUtils.get(element).toUri().toURL();
                 // junit4.childvm.count
                 if (urlElements.add(url) == false && element.endsWith(".jar")) {
-                    throw new IllegalStateException("jar hell!" + System.lineSeparator() +
-                        "duplicate jar [" + element + "] on classpath: " + classPath);
+                    throw new IllegalStateException(
+                        "jar hell!" + System.lineSeparator() + "duplicate jar [" + element + "] on classpath: " + classPath
+                    );
                 }
             } catch (MalformedURLException e) {
                 // should not happen, as we use the filesystem API
@@ -178,7 +183,7 @@ public class JarHell {
         // a "list" at all. So just exclude any elements underneath the java home
         String javaHome = System.getProperty("java.home");
         output.accept("java.home: " + javaHome);
-        final Map<String,Path> clazzes = new HashMap<>(32768);
+        final Map<String, Path> clazzes = new HashMap<>(32768);
         Set<Path> seenJars = new HashSet<>();
         for (final URL url : urls) {
             final Path path = PathUtils.get(url.toURI());
@@ -189,8 +194,7 @@ public class JarHell {
             }
             if (path.toString().endsWith(".jar")) {
                 if (!seenJars.add(path)) {
-                    throw new IllegalStateException("jar hell!" + System.lineSeparator() +
-                                                    "duplicate jar on classpath: " + path);
+                    throw new IllegalStateException("jar hell!" + System.lineSeparator() + "duplicate jar on classpath: " + path);
                 }
                 output.accept("examining jar: " + path);
                 try (JarFile file = new JarFile(path.toString())) {
@@ -248,12 +252,12 @@ public class JarHell {
     public static void checkVersionFormat(String targetVersion) {
         if (!JavaVersion.isValid(targetVersion)) {
             throw new IllegalStateException(
-                    String.format(
-                            Locale.ROOT,
-                            "version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have " +
-                                "leading zeros but was %s",
-                            targetVersion
-                    )
+                String.format(
+                    Locale.ROOT,
+                    "version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have "
+                        + "leading zeros but was %s",
+                    targetVersion
+                )
             );
         }
     }
@@ -266,13 +270,13 @@ public class JarHell {
         JavaVersion version = JavaVersion.parse(targetVersion);
         if (JavaVersion.current().compareTo(version) < 0) {
             throw new IllegalStateException(
-                    String.format(
-                            Locale.ROOT,
-                            "%s requires Java %s:, your system: %s",
-                            resource,
-                            targetVersion,
-                            JavaVersion.current().toString()
-                    )
+                String.format(
+                    Locale.ROOT,
+                    "%s requires Java %s:, your system: %s",
+                    resource,
+                    targetVersion,
+                    JavaVersion.current().toString()
+                )
             );
         }
     }
@@ -291,14 +295,29 @@ public class JarHell {
                 // throw a better exception in this ridiculous case.
                 // unfortunately the zip file format allows this buggy possibility
                 // UweSays: It can, but should be considered as bug :-)
-                throw new IllegalStateException("jar hell!" + System.lineSeparator() +
-                        "class: " + clazz + System.lineSeparator() +
-                        "exists multiple times in jar: " + jarpath + " !!!!!!!!!");
+                throw new IllegalStateException(
+                    "jar hell!"
+                        + System.lineSeparator()
+                        + "class: "
+                        + clazz
+                        + System.lineSeparator()
+                        + "exists multiple times in jar: "
+                        + jarpath
+                        + " !!!!!!!!!"
+                );
             } else {
-                throw new IllegalStateException("jar hell!" + System.lineSeparator() +
-                        "class: " + clazz + System.lineSeparator() +
-                        "jar1: " + previous + System.lineSeparator() +
-                        "jar2: " + jarpath);
+                throw new IllegalStateException(
+                    "jar hell!"
+                        + System.lineSeparator()
+                        + "class: "
+                        + clazz
+                        + System.lineSeparator()
+                        + "jar1: "
+                        + previous
+                        + System.lineSeparator()
+                        + "jar2: "
+                        + jarpath
+                );
             }
         }
     }

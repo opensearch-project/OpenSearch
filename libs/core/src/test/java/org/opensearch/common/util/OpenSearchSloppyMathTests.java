@@ -46,8 +46,8 @@ public class OpenSearchSloppyMathTests extends OpenSearchTestCase {
 
     public void testAtan() {
         assertTrue(Double.isNaN(atan(Double.NaN)));
-        assertEquals(-Math.PI/2, atan(Double.NEGATIVE_INFINITY), ATAN_DELTA);
-        assertEquals(Math.PI/2, atan(Double.POSITIVE_INFINITY), ATAN_DELTA);
+        assertEquals(-Math.PI / 2, atan(Double.NEGATIVE_INFINITY), ATAN_DELTA);
+        assertEquals(Math.PI / 2, atan(Double.POSITIVE_INFINITY), ATAN_DELTA);
         for (int i = 0; i < 10000; i++) {
             assertEquals(StrictMath.atan(i), atan(i), ATAN_DELTA);
             assertEquals(StrictMath.atan(-i), atan(-i), ATAN_DELTA);
