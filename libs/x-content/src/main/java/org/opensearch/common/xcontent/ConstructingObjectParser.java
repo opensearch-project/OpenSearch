@@ -86,8 +86,10 @@ import java.util.function.Function;
  * Note: if optional constructor arguments aren't specified then the number of allocations is always the worst case.
  * </p>
  */
-public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> implements
-    BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value>{
+public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context>
+    implements
+        BiFunction<XContentParser, Context, Value>,
+        ContextParser<Context, Value> {
 
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
@@ -175,7 +177,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         try {
             return parse(parser, context);
         } catch (IOException e) {
-            throw new XContentParseException(parser.getTokenLocation(), "[" + objectParser.getName()  + "] failed to parse object", e);
+            throw new XContentParseException(parser.getTokenLocation(), "[" + objectParser.getName() + "] failed to parse object", e);
         }
     }
 
@@ -238,8 +240,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     @Override
-    public <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
-                                                ParseField parseField) {
+    public <T> void declareNamedObject(
+        BiConsumer<Value, T> consumer,
+        NamedObjectParser<T, Context> namedObjectParser,
+        ParseField parseField
+    ) {
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
         }
@@ -267,8 +272,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     @Override
-    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
-            ParseField parseField) {
+    public <T> void declareNamedObjects(
+        BiConsumer<Value, List<T>> consumer,
+        NamedObjectParser<T, Context> namedObjectParser,
+        ParseField parseField
+    ) {
 
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
@@ -297,8 +305,12 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     @Override
-    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
-            Consumer<Value> orderedModeCallback, ParseField parseField) {
+    public <T> void declareNamedObjects(
+        BiConsumer<Value, List<T>> consumer,
+        NamedObjectParser<T, Context> namedObjectParser,
+        Consumer<Value> orderedModeCallback,
+        ParseField parseField
+    ) {
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
         }
@@ -321,12 +333,20 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              * or expensive lookups whenever the constructor args come in.
              */
             int position = addConstructorArg(consumer, parseField);
-            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, v), namedObjectParser,
-                    wrapOrderedModeCallBack(orderedModeCallback), parseField);
+            objectParser.declareNamedObjects(
+                (target, v) -> target.constructorArg(position, v),
+                namedObjectParser,
+                wrapOrderedModeCallBack(orderedModeCallback),
+                parseField
+            );
         } else {
             numberOfFields += 1;
-            objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser,
-                    wrapOrderedModeCallBack(orderedModeCallback), parseField);
+            objectParser.declareNamedObjects(
+                queueingConsumer(consumer, parseField),
+                namedObjectParser,
+                wrapOrderedModeCallBack(orderedModeCallback),
+                parseField
+            );
         }
     }
 
@@ -406,8 +426,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
                 try {
                     consumer.accept(targetObject, v);
                 } catch (Exception e) {
-                    throw new XContentParseException(location,
-                            "[" + objectParser.getName() + "] failed to parse field [" + parseField.getPreferredName() + "]", e);
+                    throw new XContentParseException(
+                        location,
+                        "[" + objectParser.getName() + "] failed to parse field [" + parseField.getPreferredName() + "]",
+                        e
+                    );
                 }
             });
         };
@@ -479,9 +502,9 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
          * should have just applied the consumer immediately.
          */
         private void queue(Consumer<Value> queueMe) {
-            assert targetObject == null: "Don't queue after the targetObject has been built! Just apply the consumer directly.";
+            assert targetObject == null : "Don't queue after the targetObject has been built! Just apply the consumer directly.";
             if (queuedFields == null) {
-                @SuppressWarnings({"unchecked", "rawtypes"})
+                @SuppressWarnings({ "unchecked", "rawtypes" })
                 Consumer<Value>[] queuedFields = new Consumer[numberOfFields];
                 this.queuedFields = queuedFields;
             }
@@ -521,9 +544,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              * use of ConstructingObjectParser. You should be using ObjectParser instead. Since this is more of a programmer error and the
              * parser ought to still work we just assert this.
              */
-            assert false == constructorArgInfos.isEmpty() : "[" + objectParser.getName() + "] must configure at least one constructor "
-                        + "argument. If it doesn't have any it should use ObjectParser instead of ConstructingObjectParser. This is a bug "
-                        + "in the parser declaration.";
+            assert false == constructorArgInfos.isEmpty() : "["
+                + objectParser.getName()
+                + "] must configure at least one constructor "
+                + "argument. If it doesn't have any it should use ObjectParser instead of ConstructingObjectParser. This is a bug "
+                + "in the parser declaration.";
             // All missing constructor arguments were optional. Just build the target and return it.
             buildTarget();
             return targetObject;
@@ -540,11 +565,17 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
                     queuedFields[queuedFieldsCount].accept(targetObject);
                 }
             } catch (XContentParseException e) {
-                throw new XContentParseException(e.getLocation(),
-                    "failed to build [" + objectParser.getName() + "] after last required field arrived", e);
+                throw new XContentParseException(
+                    e.getLocation(),
+                    "failed to build [" + objectParser.getName() + "] after last required field arrived",
+                    e
+                );
             } catch (Exception e) {
-                throw new XContentParseException(null,
-                        "Failed to build [" + objectParser.getName() + "] after last required field arrived", e);
+                throw new XContentParseException(
+                    null,
+                    "Failed to build [" + objectParser.getName() + "] after last required field arrived",
+                    e
+                );
             }
         }
     }

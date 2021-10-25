@@ -77,7 +77,8 @@ public class MatcherWatchdogTests extends OpenSearchTestCase {
             watchdog.register(matcher);
             verify(matcher, timeout(9999).atLeastOnce()).interrupt();
             interrupted.set(true);
-            while (run.get()) {} // wait here so that the size of the registry can be asserted
+            while (run.get()) {
+            } // wait here so that the size of the registry can be asserted
             watchdog.unregister(matcher);
         });
         thread.start();
@@ -86,16 +87,18 @@ public class MatcherWatchdogTests extends OpenSearchTestCase {
             assertThat(registry.size(), is(1));
         });
         run.set(false);
-        assertBusy(() -> {
-            assertThat(registry.size(), is(0));
-        });
+        assertBusy(() -> { assertThat(registry.size(), is(0)); });
     }
 
     public void testIdleIfNothingRegistered() throws Exception {
         long interval = 1L;
         ScheduledExecutorService threadPool = mock(ScheduledExecutorService.class);
-        MatcherWatchdog watchdog = MatcherWatchdog.newInstance(interval, Long.MAX_VALUE, System::currentTimeMillis,
-            (delay, command) -> threadPool.schedule(command, delay, TimeUnit.MILLISECONDS));
+        MatcherWatchdog watchdog = MatcherWatchdog.newInstance(
+            interval,
+            Long.MAX_VALUE,
+            System::currentTimeMillis,
+            (delay, command) -> threadPool.schedule(command, delay, TimeUnit.MILLISECONDS)
+        );
         // Periodic action is not scheduled because no thread is registered
         verifyZeroInteractions(threadPool);
         CompletableFuture<Runnable> commandFuture = new CompletableFuture<>();
@@ -103,9 +106,7 @@ public class MatcherWatchdogTests extends OpenSearchTestCase {
         doAnswer(invocationOnMock -> {
             commandFuture.complete((Runnable) invocationOnMock.getArguments()[0]);
             return null;
-        }).when(threadPool).schedule(
-            any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS)
-        );
+        }).when(threadPool).schedule(any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS));
         Matcher matcher = mock(Matcher.class);
         watchdog.register(matcher);
         // Registering the first thread should have caused the command to get scheduled again
