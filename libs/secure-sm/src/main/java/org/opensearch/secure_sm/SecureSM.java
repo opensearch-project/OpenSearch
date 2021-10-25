@@ -106,10 +106,10 @@ public class SecureSM extends SecurityManager {
      *    <li><code>org.eclipse.internal.junit.runner.</code></li>
      *    <li><code>com.intellij.rt.execution.junit.</code></li>
      * </ul>
-     * 
-     * For testing purposes, the security manager grants network permissions "connect, accept" 
+     *
+     * For testing purposes, the security manager grants network permissions "connect, accept"
      * to following classes, granted they only access local network interfaces.
-     * 
+     *
      *  <ul>
      *    <li><code>sun.net.httpserver.ServerImpl</code></li>
      *    <li><code>java.net.ServerSocket"</code></li>
@@ -121,31 +121,26 @@ public class SecureSM extends SecurityManager {
     public static SecureSM createTestSecureSM(final Set<String> trustedHosts) {
         return new SecureSM(TEST_RUNNER_PACKAGES) {
             // Trust these callers inside the test suite only
-            final String[] TRUSTED_CALLERS = new String[] {
-                "sun.net.httpserver.ServerImpl",
-                "java.net.ServerSocket",
-                "java.net.Socket"
-            };
-            
+            final String[] TRUSTED_CALLERS = new String[] { "sun.net.httpserver.ServerImpl", "java.net.ServerSocket", "java.net.Socket" };
+
             @Override
             public void checkConnect(String host, int port) {
-                // Allow to connect from selected trusted classes to local addresses only 
+                // Allow to connect from selected trusted classes to local addresses only
                 if (!hasTrustedCallerChain() || !trustedHosts.contains(host)) {
                     super.checkConnect(host, port);
                 }
             }
-            
+
             @Override
             public void checkAccept(String host, int port) {
-                // Allow to accept connections from selected trusted classes to local addresses only 
+                // Allow to accept connections from selected trusted classes to local addresses only
                 if (!hasTrustedCallerChain() || !trustedHosts.contains(host)) {
                     super.checkAccept(host, port);
                 }
             }
-            
+
             private boolean hasTrustedCallerChain() {
-                return Arrays
-                    .stream(getClassContext())
+                return Arrays.stream(getClassContext())
                     .anyMatch(c -> Arrays.stream(TRUSTED_CALLERS).anyMatch(t -> c.getName().startsWith(t)));
             }
         };
@@ -161,8 +156,7 @@ public class SecureSM extends SecurityManager {
         // intellij test runner (before IDEA version 2019.3)
         "com\\.intellij\\.rt\\.execution\\.junit\\..*",
         // intellij test runner (since IDEA version 2019.3)
-        "com\\.intellij\\.rt\\.junit\\..*"
-    };
+        "com\\.intellij\\.rt\\.junit\\..*" };
 
     // java.security.debug support
     private static final boolean DEBUG = AccessController.doPrivileged(new PrivilegedAction<Boolean>() {
@@ -270,15 +264,12 @@ public class SecureSM extends SecurityManager {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {
-                final String systemClassName = System.class.getName(),
-                        runtimeClassName = Runtime.class.getName();
+                final String systemClassName = System.class.getName(), runtimeClassName = Runtime.class.getName();
                 String exitMethodHit = null;
                 for (final StackTraceElement se : Thread.currentThread().getStackTrace()) {
                     final String className = se.getClassName(), methodName = se.getMethodName();
-                    if (
-                        ("exit".equals(methodName) || "halt".equals(methodName)) &&
-                        (systemClassName.equals(className) || runtimeClassName.equals(className))
-                    ) {
+                    if (("exit".equals(methodName) || "halt".equals(methodName))
+                        && (systemClassName.equals(className) || runtimeClassName.equals(className))) {
                         exitMethodHit = className + '#' + methodName + '(' + status + ')';
                         continue;
                     }

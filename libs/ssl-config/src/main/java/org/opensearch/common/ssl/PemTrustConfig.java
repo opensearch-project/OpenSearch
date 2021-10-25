@@ -95,11 +95,15 @@ public final class PemTrustConfig implements SslTrustConfig {
         try {
             return PemUtils.readCertificates(this.certificateAuthorities);
         } catch (FileNotFoundException | NoSuchFileException e) {
-            throw new SslConfigException("cannot configure trust using PEM certificates [" + caPathsAsString()
-                + "] because one or more files do not exist", e);
+            throw new SslConfigException(
+                "cannot configure trust using PEM certificates [" + caPathsAsString() + "] because one or more files do not exist",
+                e
+            );
         } catch (IOException e) {
-            throw new SslConfigException("cannot configure trust using PEM certificates [" + caPathsAsString()
-                + "] because one or more files cannot be read", e);
+            throw new SslConfigException(
+                "cannot configure trust using PEM certificates [" + caPathsAsString() + "] because one or more files cannot be read",
+                e
+            );
         }
     }
 
@@ -126,10 +130,7 @@ public final class PemTrustConfig implements SslTrustConfig {
     }
 
     private String caPathsAsString() {
-        return certificateAuthorities.stream()
-            .map(Path::toAbsolutePath)
-            .map(Object::toString)
-            .collect(Collectors.joining(","));
+        return certificateAuthorities.stream().map(Path::toAbsolutePath).map(Object::toString).collect(Collectors.joining(","));
     }
 
 }

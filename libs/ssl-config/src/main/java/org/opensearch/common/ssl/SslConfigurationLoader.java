@@ -86,8 +86,10 @@ import static org.opensearch.common.ssl.SslConfigurationKeys.VERIFICATION_MODE;
 public abstract class SslConfigurationLoader {
 
     static final List<String> DEFAULT_PROTOCOLS = Collections.unmodifiableList(
-        ORDERED_PROTOCOL_ALGORITHM_MAP.containsKey("TLSv1.3") ?
-            Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1"));
+        ORDERED_PROTOCOL_ALGORITHM_MAP.containsKey("TLSv1.3")
+            ? Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1")
+            : Arrays.asList("TLSv1.2", "TLSv1.1")
+    );
     static final List<String> DEFAULT_CIPHERS = loadDefaultCiphers();
     private static final char[] EMPTY_PASSWORD = new char[0];
 
@@ -235,8 +237,9 @@ public abstract class SslConfigurationLoader {
         final Path trustStorePath = resolveSetting(TRUSTSTORE_PATH, basePath::resolve, null);
 
         if (certificateAuthorities != null && trustStorePath != null) {
-            throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE_AUTHORITIES + "] and [" +
-                settingPrefix + TRUSTSTORE_PATH + "]");
+            throw new SslConfigException(
+                "cannot specify both [" + settingPrefix + CERTIFICATE_AUTHORITIES + "] and [" + settingPrefix + TRUSTSTORE_PATH + "]"
+            );
         }
         if (verificationMode.isCertificateVerificationEnabled() == false) {
             return TrustEverythingConfig.TRUST_EVERYTHING;
@@ -259,18 +262,21 @@ public abstract class SslConfigurationLoader {
         final Path keyStorePath = resolveSetting(KEYSTORE_PATH, basePath::resolve, null);
 
         if (certificatePath != null && keyStorePath != null) {
-            throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE + "] and [" +
-                settingPrefix + KEYSTORE_PATH + "]");
+            throw new SslConfigException(
+                "cannot specify both [" + settingPrefix + CERTIFICATE + "] and [" + settingPrefix + KEYSTORE_PATH + "]"
+            );
         }
 
         if (certificatePath != null || keyPath != null) {
             if (keyPath == null) {
-                throw new SslConfigException("cannot specify [" + settingPrefix + CERTIFICATE + "] without also setting [" +
-                    settingPrefix + KEY + "]");
+                throw new SslConfigException(
+                    "cannot specify [" + settingPrefix + CERTIFICATE + "] without also setting [" + settingPrefix + KEY + "]"
+                );
             }
             if (certificatePath == null) {
-                throw new SslConfigException("cannot specify [" + settingPrefix + KEYSTORE_PATH + "] without also setting [" +
-                    settingPrefix + CERTIFICATE + "]");
+                throw new SslConfigException(
+                    "cannot specify [" + settingPrefix + KEYSTORE_PATH + "] without also setting [" + settingPrefix + CERTIFICATE + "]"
+                );
             }
             final char[] password = resolvePasswordSetting(KEY_SECURE_PASSPHRASE, KEY_LEGACY_PASSPHRASE);
             return new PemKeyConfig(certificatePath, keyPath, password);
@@ -301,8 +307,9 @@ public abstract class SslConfigurationLoader {
             }
         } else {
             if (legacyPassword != null) {
-                throw new SslConfigException("cannot specify both [" + settingPrefix + secureSettingKey + "] and ["
-                    + settingPrefix + legacySettingKey + "]");
+                throw new SslConfigException(
+                    "cannot specify both [" + settingPrefix + secureSettingKey + "] and [" + settingPrefix + legacySettingKey + "]"
+                );
             } else {
                 return securePassword;
             }
@@ -365,8 +372,14 @@ public abstract class SslConfigurationLoader {
         }
         if (useGCM) {  // PFS, AEAD, hardware support
             if (has256BitAES) {
-                ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
-                    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
+                ciphers.addAll(
+                    Arrays.asList(
+                        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+                        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+                        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+                        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+                    )
+                );
             } else {
                 ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
             }
@@ -374,13 +387,27 @@ public abstract class SslConfigurationLoader {
 
         // PFS, hardware support
         if (has256BitAES) {
-            ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",  "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
-                "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
-                "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
-                "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"));
+            ciphers.addAll(
+                Arrays.asList(
+                    "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+                    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+                    "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+                    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+                    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+                    "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"
+                )
+            );
         } else {
-            ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
-                "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"));
+            ciphers.addAll(
+                Arrays.asList(
+                    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+                    "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"
+                )
+            );
         }
 
         // AEAD, hardware support
@@ -394,8 +421,14 @@ public abstract class SslConfigurationLoader {
 
         // hardware support
         if (has256BitAES) {
-            ciphers.addAll(Arrays.asList("TLS_RSA_WITH_AES_256_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA256",
-                "TLS_RSA_WITH_AES_256_CBC_SHA", "TLS_RSA_WITH_AES_128_CBC_SHA"));
+            ciphers.addAll(
+                Arrays.asList(
+                    "TLS_RSA_WITH_AES_256_CBC_SHA256",
+                    "TLS_RSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_RSA_WITH_AES_256_CBC_SHA",
+                    "TLS_RSA_WITH_AES_128_CBC_SHA"
+                )
+            );
         } else {
             ciphers.addAll(Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA"));
         }
