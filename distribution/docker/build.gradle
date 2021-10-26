@@ -16,6 +16,8 @@ import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.docker.DockerBuildTask
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.testfixtures.TestFixturesPlugin
+import org.gradle.internal.os.OperatingSystem
+
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.test.fixtures'
 apply plugin: 'opensearch.internal-distribution-download'
@@ -183,7 +185,7 @@ void addBuildDockerImage(Architecture architecture, DockerBase base) {
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
           tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
-    onlyIf { Architecture.current() == architecture }
+    onlyIf { Architecture.current() == architecture && !OperatingSystem.current().isWindows() }
     TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, base, "DockerContext"))
     dependsOn(copyContextTask)
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
@@ -246,7 +248,7 @@ subprojects { Project subProject ->
         "opensearch:test"
 
       dependsOn(parent.path + ":" + buildTaskName)
-      onlyIf { Architecture.current() == architecture }
+      onlyIf { Architecture.current() == architecture && !OperatingSystem.current().isWindows()}
     }
 
     artifacts.add('default', file(tarFile)) {

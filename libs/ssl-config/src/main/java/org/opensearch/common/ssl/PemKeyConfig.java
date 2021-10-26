@@ -101,7 +101,7 @@ public final class PemKeyConfig implements SslKeyConfig {
         } catch (FileNotFoundException | NoSuchFileException e) {
             throw new SslConfigException("the configured ssl certificate file [" + certificate.toAbsolutePath() + "] does not exist", e);
         } catch (IOException e) {
-            throw new SslConfigException("the configured ssl certificate file [" + certificate .toAbsolutePath()+ "] cannot be read", e);
+            throw new SslConfigException("the configured ssl certificate file [" + certificate.toAbsolutePath() + "] cannot be read", e);
         } catch (GeneralSecurityException e) {
             throw new SslConfigException("cannot load ssl certificate from [" + certificate.toAbsolutePath() + "]", e);
         }
@@ -121,9 +121,9 @@ public final class PemKeyConfig implements SslKeyConfig {
             return false;
         }
         final PemKeyConfig that = (PemKeyConfig) o;
-        return Objects.equals(this.certificate, that.certificate) &&
-            Objects.equals(this.key, that.key) &&
-            Arrays.equals(this.keyPassword, that.keyPassword);
+        return Objects.equals(this.certificate, that.certificate)
+            && Objects.equals(this.key, that.key)
+            && Arrays.equals(this.keyPassword, that.keyPassword);
     }
 
     @Override

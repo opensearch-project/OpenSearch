@@ -56,4 +56,3 @@ public interface SslTrustConfig {
     X509ExtendedTrustManager createTrustManager();
 
 }
-

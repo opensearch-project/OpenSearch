@@ -75,8 +75,16 @@ final class StoreTrustConfig implements SslTrustConfig {
             checkTrustStore(store);
             return KeyStoreUtil.createTrustManager(store, algorithm);
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException("cannot create trust manager for path=[" + (path == null ? null : path.toAbsolutePath())
-                + "] type=[" + type + "] password=[" + (password.length == 0 ? "<empty>" : "<non-empty>") + "]", e);
+            throw new SslConfigException(
+                "cannot create trust manager for path=["
+                    + (path == null ? null : path.toAbsolutePath())
+                    + "] type=["
+                    + type
+                    + "] password=["
+                    + (password.length == 0 ? "<empty>" : "<non-empty>")
+                    + "]",
+                e
+            );
         }
     }
 

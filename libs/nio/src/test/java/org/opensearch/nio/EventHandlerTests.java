@@ -234,7 +234,6 @@ public class EventHandlerTests extends OpenSearchTestCase {
         NioSocketChannel channel = mock(NioSocketChannel.class);
         when(channel.getContext()).thenReturn(context);
 
-
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, key.interestOps());
         handler.postHandling(context);
         assertEquals(SelectionKey.OP_READ, key.interestOps());
@@ -254,9 +253,12 @@ public class EventHandlerTests extends OpenSearchTestCase {
 
     private class DoNotRegisterSocketContext extends BytesChannelContext {
 
-
-        DoNotRegisterSocketContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                                   NioChannelHandler handler) {
+        DoNotRegisterSocketContext(
+            NioSocketChannel channel,
+            NioSelector selector,
+            Consumer<Exception> exceptionHandler,
+            NioChannelHandler handler
+        ) {
             super(channel, selector, getSocketConfig(), exceptionHandler, handler, InboundChannelBuffer.allocatingInstance());
         }
 
@@ -269,7 +271,6 @@ public class EventHandlerTests extends OpenSearchTestCase {
     }
 
     private class DoNotRegisterServerContext extends ServerChannelContext {
-
 
         @SuppressWarnings("unchecked")
         DoNotRegisterServerContext(NioServerSocketChannel channel, NioSelector selector, Consumer<NioSocketChannel> acceptor) {
@@ -289,7 +290,17 @@ public class EventHandlerTests extends OpenSearchTestCase {
     }
 
     private static Config.Socket getSocketConfig() {
-        return new Config.Socket(randomBoolean(), randomBoolean(), -1, -1, -1, randomBoolean(), -1, -1, mock(InetSocketAddress.class),
-            randomBoolean());
+        return new Config.Socket(
+            randomBoolean(),
+            randomBoolean(),
+            -1,
+            -1,
+            -1,
+            randomBoolean(),
+            -1,
+            -1,
+            mock(InetSocketAddress.class),
+            randomBoolean()
+        );
     }
 }

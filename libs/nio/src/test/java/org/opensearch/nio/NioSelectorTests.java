@@ -72,7 +72,7 @@ public class NioSelectorTests extends OpenSearchTestCase {
     private SocketChannelContext channelContext;
     private ServerChannelContext serverChannelContext;
     private BiConsumer<Void, Exception> listener;
-    private ByteBuffer[] buffers = {ByteBuffer.allocate(1)};
+    private ByteBuffer[] buffers = { ByteBuffer.allocate(1) };
     private Selector rawSelector;
 
     @Before
@@ -107,7 +107,7 @@ public class NioSelectorTests extends OpenSearchTestCase {
         }).when(eventHandler).handleTask(any());
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testQueueChannelForClosed() throws IOException {
         NioChannel channel = mock(NioChannel.class);
         ChannelContext context = mock(ChannelContext.class);
@@ -121,7 +121,7 @@ public class NioSelectorTests extends OpenSearchTestCase {
         verify(eventHandler).handleClose(context);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCloseException() throws IOException, InterruptedException {
         IOException ioException = new IOException();
         NioChannel channel = mock(NioChannel.class);
@@ -152,9 +152,7 @@ public class NioSelectorTests extends OpenSearchTestCase {
     public void testTaskExceptionsAreHandled() {
         RuntimeException taskException = new RuntimeException();
         long nanoTime = System.nanoTime() - 1;
-        Runnable task = () -> {
-            throw taskException;
-        };
+        Runnable task = () -> { throw taskException; };
         selector.getTaskScheduler().scheduleAtRelativeTime(task, nanoTime);
 
         doAnswer((a) -> {
@@ -168,8 +166,7 @@ public class NioSelectorTests extends OpenSearchTestCase {
 
     public void testDefaultSelectorTimeoutIsUsedIfNoTaskSooner() throws IOException {
         long delay = new TimeValue(15, TimeUnit.MINUTES).nanos();
-        selector.getTaskScheduler().scheduleAtRelativeTime(() -> {
-        }, System.nanoTime() + delay);
+        selector.getTaskScheduler().scheduleAtRelativeTime(() -> {}, System.nanoTime() + delay);
 
         selector.singleLoop();
         verify(rawSelector).select(300);
@@ -181,8 +178,7 @@ public class NioSelectorTests extends OpenSearchTestCase {
         assertBusy(() -> {
             ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
             long delay = new TimeValue(50, TimeUnit.MILLISECONDS).nanos();
-            selector.getTaskScheduler().scheduleAtRelativeTime(() -> {
-            }, System.nanoTime() + delay);
+            selector.getTaskScheduler().scheduleAtRelativeTime(() -> {}, System.nanoTime() + delay);
             selector.singleLoop();
             verify(rawSelector).select(captor.capture());
             assertTrue(captor.getValue() > 0);
