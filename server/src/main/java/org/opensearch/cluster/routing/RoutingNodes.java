@@ -1284,12 +1284,23 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             queue.add(entry.getValue().copyShards().iterator());
         }
         return new Iterator<ShardRouting>() {
+            private Queue<ShardRouting> replicaShards = new ArrayDeque<>();
+            private Queue<Iterator<ShardRouting>> replicaIterators = new ArrayDeque<>();
             public boolean hasNext() {
                 while (!queue.isEmpty()) {
                     if (queue.peek().hasNext()) {
                         return true;
                     }
                     queue.poll();
+                }
+                if (!replicaShards.isEmpty()) {
+                    return true;
+                }
+                while (!replicaIterators.isEmpty()) {
+                    if (replicaIterators.peek().hasNext()) {
+                        return true;
+                    }
+                    replicaIterators.poll();
                 }
                 return false;
             }
@@ -1298,10 +1309,25 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
-                Iterator<ShardRouting> iter = queue.poll();
-                ShardRouting result = iter.next();
-                queue.offer(iter);
-                return result;
+                while (!queue.isEmpty()) {
+                    Iterator<ShardRouting> iter = queue.poll();
+                    if (iter.hasNext()) {
+                        ShardRouting result = iter.next();
+                        if (result.primary()) {
+                            queue.offer(iter);
+                            return result;
+                        }
+                        replicaShards.offer(result);
+                        replicaIterators.offer(iter);
+                    }
+                }
+                if (!replicaShards.isEmpty()) {
+                    return replicaShards.poll();
+                }
+                Iterator<ShardRouting> replicaIterator = replicaIterators.poll();
+                ShardRouting replicaShard = replicaIterator.next();
+                replicaIterators.offer(replicaIterator);
+                return replicaShard;
             }
 
             public void remove() {
