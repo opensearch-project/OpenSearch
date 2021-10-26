@@ -83,8 +83,7 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params)
-            throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("hit", (ToXContent) searchHit);
         builder.field("rating", rating.isPresent() ? rating.getAsInt() : null);
@@ -94,14 +93,20 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
 
     private static final ParseField HIT_FIELD = new ParseField("hit");
     private static final ParseField RATING_FIELD = new ParseField("rating");
-    private static final ConstructingObjectParser<RatedSearchHit, Void> PARSER = new ConstructingObjectParser<>("rated_hit", true,
-            a -> new RatedSearchHit((SearchHit) a[0], (OptionalInt) a[1]));
+    private static final ConstructingObjectParser<RatedSearchHit, Void> PARSER = new ConstructingObjectParser<>(
+        "rated_hit",
+        true,
+        a -> new RatedSearchHit((SearchHit) a[0], (OptionalInt) a[1])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> SearchHit.fromXContent(p), HIT_FIELD);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? OptionalInt.empty() : OptionalInt.of(p.intValue()),
-                RATING_FIELD, ValueType.INT_OR_NULL);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? OptionalInt.empty() : OptionalInt.of(p.intValue()),
+            RATING_FIELD,
+            ValueType.INT_OR_NULL
+        );
     }
 
     public static RatedSearchHit parse(XContentParser parser) throws IOException {
@@ -117,8 +122,7 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
             return false;
         }
         RatedSearchHit other = (RatedSearchHit) obj;
-        return Objects.equals(rating, other.rating)
-                && Objects.equals(searchHit, other.searchHit);
+        return Objects.equals(rating, other.rating) && Objects.equals(searchHit, other.searchHit);
     }
 
     @Override

@@ -84,11 +84,14 @@ public class RankEvalSpecTests extends OpenSearchTestCase {
     }
 
     static RankEvalSpec createTestItem() {
-        Supplier<EvaluationMetric> metric = randomFrom(Arrays.asList(
+        Supplier<EvaluationMetric> metric = randomFrom(
+            Arrays.asList(
                 () -> PrecisionAtKTests.createTestItem(),
                 () -> RecallAtKTests.createTestItem(),
                 () -> MeanReciprocalRankTests.createTestItem(),
-                () -> DiscountedCumulativeGainTests.createTestItem()));
+                () -> DiscountedCumulativeGainTests.createTestItem()
+            )
+        );
 
         List<RatedRequest> ratedRequests = null;
         Collection<ScriptWithId> templates = null;
@@ -111,12 +114,19 @@ public class RankEvalSpecTests extends OpenSearchTestCase {
 
             Map<String, Object> templateParams = new HashMap<>();
             templateParams.put("key", "value");
-            RatedRequest ratedRequest = new RatedRequest("id", Arrays.asList(RatedDocumentTests.createRatedDocument()), templateParams,
-                    "templateId");
+            RatedRequest ratedRequest = new RatedRequest(
+                "id",
+                Arrays.asList(RatedDocumentTests.createRatedDocument()),
+                templateParams,
+                "templateId"
+            );
             ratedRequests = Arrays.asList(ratedRequest);
         } else {
-            RatedRequest ratedRequest = new RatedRequest("id", Arrays.asList(RatedDocumentTests.createRatedDocument()),
-                    new SearchSourceBuilder());
+            RatedRequest ratedRequest = new RatedRequest(
+                "id",
+                Arrays.asList(RatedDocumentTests.createRatedDocument()),
+                new SearchSourceBuilder()
+            );
             ratedRequests = Arrays.asList(ratedRequest);
         }
         RankEvalSpec spec = new RankEvalSpec(ratedRequests, metric.get(), templates);
@@ -165,7 +175,8 @@ public class RankEvalSpecTests extends OpenSearchTestCase {
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, PrecisionAtK.NAME, PrecisionAtK::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, RecallAtK.NAME, RecallAtK::new));
         namedWriteables.add(
-                new NamedWriteableRegistry.Entry(EvaluationMetric.class, DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
+            new NamedWriteableRegistry.Entry(EvaluationMetric.class, DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new)
+        );
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, MeanReciprocalRank.NAME, MeanReciprocalRank::new));
         return OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(namedWriteables), RankEvalSpec::new);
     }
@@ -181,22 +192,22 @@ public class RankEvalSpecTests extends OpenSearchTestCase {
 
         int mutate = randomIntBetween(0, 2);
         switch (mutate) {
-        case 0:
-            RatedRequest request = RatedRequestsTests.createTestItem(true);
-            ratedRequests.add(request);
-            break;
-        case 1:
-            if (metric instanceof PrecisionAtK) {
-                metric = new DiscountedCumulativeGain();
-            } else {
-                metric = new PrecisionAtK();
-            }
-            break;
-        case 2:
-            templates.put("mutation", new Script(ScriptType.INLINE, "mustache", randomAlphaOfLength(10), new HashMap<>()));
-            break;
-        default:
-            throw new IllegalStateException("Requested to modify more than available parameters.");
+            case 0:
+                RatedRequest request = RatedRequestsTests.createTestItem(true);
+                ratedRequests.add(request);
+                break;
+            case 1:
+                if (metric instanceof PrecisionAtK) {
+                    metric = new DiscountedCumulativeGain();
+                } else {
+                    metric = new PrecisionAtK();
+                }
+                break;
+            case 2:
+                templates.put("mutation", new Script(ScriptType.INLINE, "mustache", randomAlphaOfLength(10), new HashMap<>()));
+                break;
+            default:
+                throw new IllegalStateException("Requested to modify more than available parameters.");
         }
 
         List<ScriptWithId> scripts = new ArrayList<>();

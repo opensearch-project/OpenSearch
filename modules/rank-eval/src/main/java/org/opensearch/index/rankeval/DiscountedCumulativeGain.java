@@ -130,15 +130,13 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         return this.unknownDocRating;
     }
 
-
     @Override
     public OptionalInt forcedSearchSize() {
         return OptionalInt.of(k);
     }
 
     @Override
-    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
-            List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
         List<Integer> ratingsInSearchHits = new ArrayList<>(ratedHits.size());
         int unratedResults = 0;
@@ -159,8 +157,7 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         double idcg = 0;
 
         if (normalize) {
-            List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed()
-                    .collect(Collectors.toList());
+            List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed().collect(Collectors.toList());
             Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
             idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
             if (idcg != 0) {
@@ -190,13 +187,19 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
     private static final ParseField K_FIELD = new ParseField("k");
     private static final ParseField NORMALIZE_FIELD = new ParseField("normalize");
     private static final ParseField UNKNOWN_DOC_RATING_FIELD = new ParseField("unknown_doc_rating");
-    private static final ConstructingObjectParser<DiscountedCumulativeGain, Void> PARSER = new ConstructingObjectParser<>("dcg", false,
-            args -> {
-                Boolean normalized = (Boolean) args[0];
-                Integer optK = (Integer) args[2];
-                return new DiscountedCumulativeGain(normalized == null ? false : normalized, (Integer) args[1],
-                        optK == null ? DEFAULT_K : optK);
-            });
+    private static final ConstructingObjectParser<DiscountedCumulativeGain, Void> PARSER = new ConstructingObjectParser<>(
+        "dcg",
+        false,
+        args -> {
+            Boolean normalized = (Boolean) args[0];
+            Integer optK = (Integer) args[2];
+            return new DiscountedCumulativeGain(
+                normalized == null ? false : normalized,
+                (Integer) args[1],
+                optK == null ? DEFAULT_K : optK
+            );
+        }
+    );
 
     static {
         PARSER.declareBoolean(optionalConstructorArg(), NORMALIZE_FIELD);
@@ -232,8 +235,8 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         }
         DiscountedCumulativeGain other = (DiscountedCumulativeGain) obj;
         return Objects.equals(normalize, other.normalize)
-                && Objects.equals(unknownDocRating, other.unknownDocRating)
-                && Objects.equals(k, other.k);
+            && Objects.equals(unknownDocRating, other.unknownDocRating)
+            && Objects.equals(k, other.k);
     }
 
     @Override
@@ -264,8 +267,7 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         }
 
         @Override
-        public
-        String getMetricName() {
+        public String getMetricName() {
             return NAME;
         }
 
@@ -280,9 +282,11 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
             return builder;
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
-            return new Detail((Double) args[0], (Double) args[1] != null ? (Double) args[1] : 0.0d, (Integer) args[2]);
-        });
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> { return new Detail((Double) args[0], (Double) args[1] != null ? (Double) args[1] : 0.0d, (Integer) args[2]); }
+        );
 
         static {
             PARSER.declareDouble(constructorArg(), DCG_FIELD);
@@ -343,9 +347,9 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
                 return false;
             }
             DiscountedCumulativeGain.Detail other = (DiscountedCumulativeGain.Detail) obj;
-            return Double.compare(this.dcg, other.dcg) == 0 &&
-                   Double.compare(this.idcg, other.idcg) == 0 &&
-                   this.unratedDocs == other.unratedDocs;
+            return Double.compare(this.dcg, other.dcg) == 0
+                && Double.compare(this.idcg, other.idcg) == 0
+                && this.unratedDocs == other.unratedDocs;
         }
 
         @Override
@@ -354,4 +358,3 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         }
     }
 }
-

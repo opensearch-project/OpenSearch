@@ -65,8 +65,10 @@ public class RatedDocument implements Writeable, ToXContentObject {
     static final ParseField DOC_ID_FIELD = new ParseField("_id");
     static final ParseField INDEX_FIELD = new ParseField("_index");
 
-    private static final ConstructingObjectParser<RatedDocument, Void> PARSER = new ConstructingObjectParser<>("rated_document",
-            a -> new RatedDocument((String) a[0], (String) a[1], (Integer) a[2]));
+    private static final ConstructingObjectParser<RatedDocument, Void> PARSER = new ConstructingObjectParser<>(
+        "rated_document",
+        a -> new RatedDocument((String) a[0], (String) a[1], (Integer) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);

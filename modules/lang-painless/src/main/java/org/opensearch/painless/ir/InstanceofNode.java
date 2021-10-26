@@ -85,8 +85,10 @@ public class InstanceofNode extends UnaryNode {
             methodWriter.push(true);
         } else if (getChildNode().getExpressionType().isPrimitive()) {
             methodWriter.writePop(MethodWriter.getType(getExpressionType()).getSize());
-            methodWriter.push(PainlessLookupUtility.typeToBoxedType(instanceType).isAssignableFrom(
-                    PainlessLookupUtility.typeToBoxedType(getChildNode().getExpressionType())));
+            methodWriter.push(
+                PainlessLookupUtility.typeToBoxedType(instanceType)
+                    .isAssignableFrom(PainlessLookupUtility.typeToBoxedType(getChildNode().getExpressionType()))
+            );
         } else {
             methodWriter.instanceOf(MethodWriter.getType(PainlessLookupUtility.typeToBoxedType(instanceType)));
         }

@@ -64,14 +64,11 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  */
 public final class ScriptProcessor extends AbstractProcessor {
 
-    private static final DeprecationLogger deprecationLogger =
-            DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of(
-            "_type", value -> {
-                deprecationLogger.deprecate("script_processor",
-                        "[types removal] Looking up doc types [_type] in scripts is deprecated.");
-                return value;
-            });
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of("_type", value -> {
+        deprecationLogger.deprecate("script_processor", "[types removal] Looking up doc types [_type] in scripts is deprecated.");
+        return value;
+    });
 
     public static final String TYPE = "script";
 
@@ -87,8 +84,13 @@ public final class ScriptProcessor extends AbstractProcessor {
      * @param precompiledIngestScript The {@link Script} precompiled
      * @param scriptService The {@link ScriptService} used to execute the script.
      */
-    ScriptProcessor(String tag, String description, Script script, @Nullable IngestScript precompiledIngestScript,
-                    ScriptService scriptService) {
+    ScriptProcessor(
+        String tag,
+        String description,
+        Script script,
+        @Nullable IngestScript precompiledIngestScript,
+        ScriptService scriptService
+    ) {
         super(tag, description);
         this.script = script;
         this.precompiledIngestScript = precompiledIngestScript;
@@ -135,12 +137,18 @@ public final class ScriptProcessor extends AbstractProcessor {
         }
 
         @Override
-        public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                      String description, Map<String, Object> config) throws Exception {
-            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
-                 InputStream stream = BytesReference.bytes(builder).streamInput();
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, stream)) {
+        public ScriptProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
+            try (
+                XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
+                InputStream stream = BytesReference.bytes(builder).streamInput();
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+            ) {
                 Script script = Script.parse(parser);
 
                 Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);

@@ -75,13 +75,24 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        return new Netty4Transport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
-            PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService(),
-            new SharedGroupFactory(settings)) {
+        return new Netty4Transport(
+            settings,
+            version,
+            threadPool,
+            new NetworkService(Collections.emptyList()),
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            namedWriteableRegistry,
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(settings)
+        ) {
 
             @Override
-            public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
-                                         ActionListener<Version> listener) {
+            public void executeHandshake(
+                DiscoveryNode node,
+                TcpChannel channel,
+                ConnectionProfile profile,
+                ActionListener<Version> listener
+            ) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
@@ -93,8 +104,15 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
 
     public void testConnectException() throws UnknownHostException {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
-                    emptyMap(), emptySet(),Version.CURRENT));
+            serviceA.connectToNode(
+                new DiscoveryNode(
+                    "C",
+                    new TransportAddress(InetAddress.getByName("localhost"), 9876),
+                    emptyMap(),
+                    emptySet(),
+                    Version.CURRENT
+                )
+            );
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_exception"));
@@ -103,11 +121,14 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     }
 
     public void testDefaultKeepAliveSettings() throws IOException {
-        assumeTrue("setting default keepalive options not supported on this platform",
-            (IOUtils.LINUX || IOUtils.MAC_OS_X) &&
-                JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0);
-        try (MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
-            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)) {
+        assumeTrue(
+            "setting default keepalive options not supported on this platform",
+            (IOUtils.LINUX || IOUtils.MAC_OS_X) && JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0
+        );
+        try (
+            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)
+        ) {
             serviceC.start();
             serviceC.acceptIncomingRequests();
             serviceD.start();
