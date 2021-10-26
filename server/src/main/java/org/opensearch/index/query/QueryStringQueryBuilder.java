@@ -658,7 +658,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         String quoteAnalyzer = null;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        int maxDeterminizedStates = QueryStringQueryBuilder.DEFAULT_DETERMINIZE_WORK_LIMIT;
+        int determinizeWorkLimit = QueryStringQueryBuilder.DEFAULT_DETERMINIZE_WORK_LIMIT;
         boolean enablePositionIncrements = QueryStringQueryBuilder.DEFAULT_ENABLE_POSITION_INCREMENTS;
         boolean escape = QueryStringQueryBuilder.DEFAULT_ESCAPE;
         int fuzzyPrefixLength = QueryStringQueryBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;
@@ -710,7 +710,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 } else if (ALLOW_LEADING_WILDCARD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     allowLeadingWildcard = parser.booleanValue();
                 } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    maxDeterminizedStates = parser.intValue();
+                    determinizeWorkLimit = parser.intValue();
                 } else if (ENABLE_POSITION_INCREMENTS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     enablePositionIncrements = parser.booleanValue();
                 } else if (ESCAPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -742,7 +742,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 } else if (LENIENT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     lenient = parser.booleanValue();
                 } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    maxDeterminizedStates = parser.intValue();
+                    determinizeWorkLimit = parser.intValue();
                 } else if (TIME_ZONE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         timeZone = parser.text();
@@ -784,7 +784,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.analyzer(analyzer);
         queryStringQuery.quoteAnalyzer(quoteAnalyzer);
         queryStringQuery.allowLeadingWildcard(allowLeadingWildcard);
-        queryStringQuery.maxDeterminizedStates(maxDeterminizedStates);
+        queryStringQuery.maxDeterminizedStates(determinizeWorkLimit);
         queryStringQuery.enablePositionIncrements(enablePositionIncrements);
         queryStringQuery.escape(escape);
         queryStringQuery.fuzzyPrefixLength(fuzzyPrefixLength);
