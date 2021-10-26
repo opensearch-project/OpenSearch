@@ -108,10 +108,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
 
-        Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            nodesToShards.put(cursor.value.getId(), new LinkedHashMap<>()); // LinkedHashMap to preserve order
+            String nodeId = cursor.value.getId();
+            this.nodesToShards.put(cursor.value.getId(), new RoutingNode(nodeId, clusterState.nodes().get(nodeId)));
         }
 
         // fill in the inverse of node -> shards allocated
@@ -125,27 +125,19 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     // by the ShardId, as this is common for primary and replicas.
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
-                        Map<ShardId, ShardRouting> entries = nodesToShards.computeIfAbsent(
-                            shard.currentNodeId(),
-                            k -> new LinkedHashMap<>()
-                        ); // LinkedHashMap to preserve order
-                        ShardRouting previousValue = entries.put(shard.shardId(), shard);
-                        if (previousValue != null) {
-                            throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
-                        }
+                        RoutingNode routingNode = this.nodesToShards.computeIfAbsent(shard.currentNodeId(),
+                            k -> new RoutingNode(shard.currentNodeId(), clusterState.nodes().get(shard.currentNodeId())));
+                        routingNode.add(shard);
                         assignedShardsAdd(shard);
                         if (shard.relocating()) {
                             relocatingShards++;
-                            // LinkedHashMap to preserve order.
                             // Add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
-                            entries = nodesToShards.computeIfAbsent(shard.relocatingNodeId(), k -> new LinkedHashMap<>());
+                            routingNode = nodesToShards.computeIfAbsent(shard.relocatingNodeId(),
+                                k -> new RoutingNode(shard.relocatingNodeId(), clusterState.nodes().get(shard.relocatingNodeId())));
                             ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
                             addInitialRecovery(targetShardRouting, indexShard.primary);
-                            previousValue = entries.put(targetShardRouting.shardId(), targetShardRouting);
-                            if (previousValue != null) {
-                                throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
-                            }
+                            routingNode.add(targetShardRouting);
                             assignedShardsAdd(targetShardRouting);
                         } else if (shard.initializing()) {
                             if (shard.primary()) {
@@ -159,10 +151,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     }
                 }
             }
-        }
-        for (Map.Entry<String, LinkedHashMap<ShardId, ShardRouting>> entry : nodesToShards.entrySet()) {
-            String nodeId = entry.getKey();
-            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, clusterState.nodes().get(nodeId), entry.getValue()));
         }
     }
 
