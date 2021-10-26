@@ -56,7 +56,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -125,16 +124,20 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     // by the ShardId, as this is common for primary and replicas.
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
-                        RoutingNode routingNode = this.nodesToShards.computeIfAbsent(shard.currentNodeId(),
-                            k -> new RoutingNode(shard.currentNodeId(), clusterState.nodes().get(shard.currentNodeId())));
+                        RoutingNode routingNode = this.nodesToShards.computeIfAbsent(
+                            shard.currentNodeId(),
+                            k -> new RoutingNode(shard.currentNodeId(), clusterState.nodes().get(shard.currentNodeId()))
+                        );
                         routingNode.add(shard);
                         assignedShardsAdd(shard);
                         if (shard.relocating()) {
                             relocatingShards++;
                             // Add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
-                            routingNode = nodesToShards.computeIfAbsent(shard.relocatingNodeId(),
-                                k -> new RoutingNode(shard.relocatingNodeId(), clusterState.nodes().get(shard.relocatingNodeId())));
+                            routingNode = nodesToShards.computeIfAbsent(
+                                shard.relocatingNodeId(),
+                                k -> new RoutingNode(shard.relocatingNodeId(), clusterState.nodes().get(shard.relocatingNodeId()))
+                            );
                             ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
                             addInitialRecovery(targetShardRouting, indexShard.primary);
                             routingNode.add(targetShardRouting);
@@ -1286,6 +1289,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return new Iterator<ShardRouting>() {
             private Queue<ShardRouting> replicaShards = new ArrayDeque<>();
             private Queue<Iterator<ShardRouting>> replicaIterators = new ArrayDeque<>();
+
             public boolean hasNext() {
                 while (!queue.isEmpty()) {
                     if (queue.peek().hasNext()) {

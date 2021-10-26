@@ -57,14 +57,16 @@ import java.util.stream.StreamSupport;
 public class RoutingNode implements Iterable<ShardRouting> {
 
     static class BucketedShards implements Iterable<ShardRouting> {
-        private static Map<Boolean, Integer> map = new HashMap<Boolean, Integer>() {{
-            put(true, 0);
-            put(false, 1);
-        }};
+        private static Map<Boolean, Integer> map = new HashMap<Boolean, Integer>() {
+            {
+                put(true, 0);
+                put(false, 1);
+            }
+        };
 
         private final LinkedHashMap<ShardId, ShardRouting>[] shards; // LinkedHashMap to preserve order
 
-        BucketedShards (LinkedHashMap<ShardId, ShardRouting> primaryShards, LinkedHashMap<ShardId, ShardRouting> replicaShards) {
+        BucketedShards(LinkedHashMap<ShardId, ShardRouting> primaryShards, LinkedHashMap<ShardId, ShardRouting> replicaShards) {
             this.shards = new LinkedHashMap[2];
             this.shards[0] = primaryShards;
             this.shards[1] = replicaShards;
@@ -162,14 +164,15 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
             ShardRouting previousValue;
             if (shardRouting.primary()) {
-	        previousValue = primaryShards.put(shardRouting.shardId(), shardRouting);
+                previousValue = primaryShards.put(shardRouting.shardId(), shardRouting);
             } else {
-	        previousValue = replicaShards.put(shardRouting.shardId(), shardRouting);
+                previousValue = replicaShards.put(shardRouting.shardId(), shardRouting);
             }
 
             if (previousValue != null) {
-	        throw new IllegalArgumentException("Cannot have two different shards with same shard id " + shardRouting.shardId() +
-	            " on same node ");
+                throw new IllegalArgumentException(
+                    "Cannot have two different shards with same shard id " + shardRouting.shardId() + " on same node "
+                );
             }
         }
 
@@ -430,23 +433,20 @@ public class RoutingNode implements Iterable<ShardRouting> {
     private boolean invariant() {
 
         // initializingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsInitializing = StreamSupport
-            .stream(shards.spliterator(), false)
+        Collection<ShardRouting> shardRoutingsInitializing = StreamSupport.stream(shards.spliterator(), false)
             .filter(ShardRouting::initializing)
             .collect(Collectors.toList());
         assert initializingShards.size() == shardRoutingsInitializing.size();
         assert initializingShards.containsAll(shardRoutingsInitializing);
 
         // relocatingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsRelocating = StreamSupport
-            .stream(shards.spliterator(), false)
+        Collection<ShardRouting> shardRoutingsRelocating = StreamSupport.stream(shards.spliterator(), false)
             .filter(ShardRouting::relocating)
             .collect(Collectors.toList());
         assert relocatingShards.size() == shardRoutingsRelocating.size();
         assert relocatingShards.containsAll(shardRoutingsRelocating);
 
-        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex = StreamSupport
-            .stream(shards.spliterator(), false)
+        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex = StreamSupport.stream(shards.spliterator(), false)
             .collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
         assert shardRoutingsByIndex.equals(shardsByIndex);
 
