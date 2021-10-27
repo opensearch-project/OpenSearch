@@ -65,7 +65,7 @@ Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk1
 
 #### JDK 8 and 17
 
-To run the full suite of tests, download and install [JDK 8](https://adoptium.net/releases.html?variant=openjdk8) and [17](https://adoptium.net/releases.html?variant=openjdk17) and set `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
+To run the full suite of tests, download and install [JDK 8](https://adoptium.net/releases.html?variant=openjdk8) and [17](https://adoptium.net/releases.html?variant=openjdk17) and set `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA17_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
 
 #### Runtime JDK
 
