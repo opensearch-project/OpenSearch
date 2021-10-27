@@ -365,7 +365,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (Files.exists(rootPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
                 for (Path plugin : stream) {
-                    if (FileSystemUtils.isDesktopServicesStore(plugin) || plugin.getFileName().toString().startsWith(".removing-")) {
+                    if (FileSystemUtils.isDesktopServicesStore(plugin)
+                        || plugin.getFileName().toString().startsWith(".removing-")
+                        || plugin.getFileName().toString().startsWith(".")
+                            && !Files.isDirectory(plugin)
+                            && !plugin.getFileName().toString().equals(".DS_Store")) {
+                        logger.warn(
+                            "WARNING: Non-plugin file located in the plugins folder with the following name: " + plugin.getFileName()
+                        );
                         continue;
                     }
                     if (seen.add(plugin.getFileName().toString()) == false) {
@@ -432,15 +439,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private static Set<Bundle> findBundles(final Path directory, String type) throws IOException {
         final Set<Bundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
-            final String pluginFileName = plugin.getFileName().toString();
-            final boolean isHiddenFile = !pluginFileName.isEmpty()
-                && pluginFileName.charAt(0) == '.'
-                && !pluginFileName.equals(".DS_Store")
-                && !Files.isDirectory(plugin);
-            if (!isHiddenFile) {
-                final Bundle bundle = readPluginBundle(bundles, plugin, type);
-                bundles.add(bundle);
-            }
+            final Bundle bundle = readPluginBundle(bundles, plugin, type);
+            bundles.add(bundle);
         }
 
         return bundles;

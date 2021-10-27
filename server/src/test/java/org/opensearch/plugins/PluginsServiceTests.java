@@ -768,6 +768,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         final Path plugins = createTempDir();
 
         final Path fake = plugins.resolve("fake");
+        Path testFile = plugins.resolve(".test");
+        Files.createFile(testFile);
 
         PluginTestUtil.writePluginProperties(
             fake,
