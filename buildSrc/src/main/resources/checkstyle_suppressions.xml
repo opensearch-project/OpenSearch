@@ -25,6 +25,8 @@
   <suppress files="plugins[/\\]examples" checks="." />
   <!-- Excludes checkstyle run on libs module -->
   <suppress files="libs" checks="." />
+  <!-- Excludes checkstyle run on modules module -->
+  <suppress files="modules" checks="." />
 
   <!--
     Truly temporary suppressions suppression of snippets included in

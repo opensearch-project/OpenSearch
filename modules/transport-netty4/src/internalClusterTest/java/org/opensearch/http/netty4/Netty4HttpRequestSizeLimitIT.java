@@ -124,8 +124,7 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
 
         List<Tuple<String, CharSequence>> requestUris = new ArrayList<>();
         for (int i = 0; i < 1500; i++) {
-            requestUris.add(Tuple.tuple("/_cluster/settings",
-                "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }"));
+            requestUris.add(Tuple.tuple("/_cluster/settings", "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }"));
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
@@ -149,8 +148,11 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
 
     private void assertAllInExpectedStatus(Collection<FullHttpResponse> responses, HttpResponseStatus expectedStatus) {
         long countUnexpectedStatus = responses.stream().filter(r -> r.status().equals(expectedStatus) == false).count();
-        assertThat("Expected all requests with status [" + expectedStatus + "] but [" + countUnexpectedStatus +
-            "] requests had a different one", countUnexpectedStatus, equalTo(0L));
+        assertThat(
+            "Expected all requests with status [" + expectedStatus + "] but [" + countUnexpectedStatus + "] requests had a different one",
+            countUnexpectedStatus,
+            equalTo(0L)
+        );
     }
 
 }

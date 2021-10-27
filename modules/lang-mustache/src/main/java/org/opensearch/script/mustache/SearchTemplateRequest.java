@@ -99,13 +99,13 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchTemplateRequest request1 = (SearchTemplateRequest) o;
-        return simulate == request1.simulate &&
-            explain == request1.explain &&
-            profile == request1.profile &&
-            Objects.equals(request, request1.request) &&
-            scriptType == request1.scriptType &&
-            Objects.equals(script, request1.script) &&
-            Objects.equals(scriptParams, request1.scriptParams);
+        return simulate == request1.simulate
+            && explain == request1.explain
+            && profile == request1.profile
+            && Objects.equals(request, request1.request)
+            && scriptType == request1.scriptType
+            && Objects.equals(script, request1.script)
+            && Objects.equals(scriptParams, request1.scriptParams);
     }
 
     @Override
@@ -196,9 +196,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
     static {
         PARSER = new ObjectParser<>("search_template");
-        PARSER.declareField((parser, request, s) ->
-                request.setScriptParams(parser.map())
-            , PARAMS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((parser, request, s) -> request.setScriptParams(parser.map()), PARAMS_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareString((request, s) -> {
             request.setScriptType(ScriptType.STORED);
             request.setScript(s);
@@ -208,7 +206,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         PARSER.declareField((parser, request, value) -> {
             request.setScriptType(ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                //convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
+                // convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                     request.setScript(Strings.toString(builder.copyCurrentStructure(parser)));
                 } catch (IOException e) {

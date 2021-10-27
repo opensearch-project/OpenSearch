@@ -109,8 +109,9 @@ public class BooleanNode extends BinaryNode {
             methodWriter.push(false);
             methodWriter.mark(end);
         } else {
-            throw new IllegalStateException("unexpected boolean operation [" + operation + "] " +
-                    "for type [" + getExpressionCanonicalTypeName() + "]");
+            throw new IllegalStateException(
+                "unexpected boolean operation [" + operation + "] " + "for type [" + getExpressionCanonicalTypeName() + "]"
+            );
         }
     }
 }

@@ -65,10 +65,9 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable {
-    public static final Setting<Long> CACHE_SIZE =
-        Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
+    public static final Setting<Long> CACHE_SIZE = Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
 
-    static String[] DEFAULT_DATABASE_FILENAMES = new String[]{"GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"};
+    static String[] DEFAULT_DATABASE_FILENAMES = new String[] { "GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb" };
 
     private Map<String, DatabaseReaderLazyLoader> databaseReaders;
 
@@ -143,17 +142,15 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
     }
 
     private static DatabaseReaderLazyLoader createLoader(Path databasePath, boolean loadDatabaseOnHeap) {
-        return new DatabaseReaderLazyLoader(
-                databasePath,
-                () -> {
-                    DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
-                    if (loadDatabaseOnHeap) {
-                        builder.fileMode(Reader.FileMode.MEMORY);
-                    } else {
-                        builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
-                    }
-                    return builder.build();
-                });
+        return new DatabaseReaderLazyLoader(databasePath, () -> {
+            DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
+            if (loadDatabaseOnHeap) {
+                builder.fileMode(Reader.FileMode.MEMORY);
+            } else {
+                builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
+            }
+            return builder.build();
+        });
     }
 
     private static void assertDatabaseExistence(final Path path, final boolean exists) throws IOException {
@@ -186,7 +183,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
     static class GeoIpCache {
         private final Cache<CacheKey<?>, AbstractResponse> cache;
 
-        //package private for testing
+        // package private for testing
         GeoIpCache(long maxSize) {
             if (maxSize < 0) {
                 throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
@@ -194,12 +191,15 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
             this.cache = CacheBuilder.<CacheKey<?>, AbstractResponse>builder().setMaximumWeight(maxSize).build();
         }
 
-        <T extends AbstractResponse> T putIfAbsent(InetAddress ip, Class<T> responseType,
-                                                   Function<InetAddress, AbstractResponse> retrieveFunction) {
+        <T extends AbstractResponse> T putIfAbsent(
+            InetAddress ip,
+            Class<T> responseType,
+            Function<InetAddress, AbstractResponse> retrieveFunction
+        ) {
 
-            //can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
+            // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
             CacheKey<T> cacheKey = new CacheKey<>(ip, responseType);
-            //intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
+            // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             AbstractResponse response = cache.get(cacheKey);
             if (response == null) {
                 response = retrieveFunction.apply(ip);
@@ -208,19 +208,19 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
             return responseType.cast(response);
         }
 
-        //only useful for testing
+        // only useful for testing
         <T extends AbstractResponse> T get(InetAddress ip, Class<T> responseType) {
             CacheKey<T> cacheKey = new CacheKey<>(ip, responseType);
             return responseType.cast(cache.get(cacheKey));
         }
 
-         /**
-         * The key to use for the cache. Since this cache can span multiple geoip processors that all use different databases, the response
-         * type is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
-         * IP may be in both with different values and we need to cache both. The response type scopes the IP to the correct database
-         * provides a means to safely cast the return objects.
-         * @param <T> The AbstractResponse type used to scope the key and cast the result.
-         */
+        /**
+        * The key to use for the cache. Since this cache can span multiple geoip processors that all use different databases, the response
+        * type is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
+        * IP may be in both with different values and we need to cache both. The response type scopes the IP to the correct database
+        * provides a means to safely cast the return objects.
+        * @param <T> The AbstractResponse type used to scope the key and cast the result.
+        */
         private static class CacheKey<T extends AbstractResponse> {
 
             private final InetAddress ip;
@@ -231,17 +231,16 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
                 this.responseType = responseType;
             }
 
-            //generated
+            // generated
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 CacheKey<?> cacheKey = (CacheKey<?>) o;
-                return Objects.equals(ip, cacheKey.ip) &&
-                    Objects.equals(responseType, cacheKey.responseType);
+                return Objects.equals(ip, cacheKey.ip) && Objects.equals(responseType, cacheKey.responseType);
             }
 
-            //generated
+            // generated
             @Override
             public int hashCode() {
                 return Objects.hash(ip, responseType);

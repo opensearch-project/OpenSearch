@@ -63,7 +63,7 @@ public class SplitProcessorFactoryTests extends OpenSearchTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(OpenSearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
     }
@@ -75,7 +75,7 @@ public class SplitProcessorFactoryTests extends OpenSearchTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(OpenSearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[separator] required property is missing"));
         }
     }

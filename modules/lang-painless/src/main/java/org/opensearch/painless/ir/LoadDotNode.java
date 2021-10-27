@@ -77,11 +77,17 @@ public class LoadDotNode extends ExpressionNode {
         methodWriter.writeDebugInfo(getLocation());
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            methodWriter.getStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
+            methodWriter.getStatic(
+                Type.getType(field.javaField.getDeclaringClass()),
+                field.javaField.getName(),
+                MethodWriter.getType(field.typeParameter)
+            );
         } else {
-            methodWriter.getField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
+            methodWriter.getField(
+                Type.getType(field.javaField.getDeclaringClass()),
+                field.javaField.getName(),
+                MethodWriter.getType(field.typeParameter)
+            );
         }
     }
 }

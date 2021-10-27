@@ -53,7 +53,7 @@ public class ForEachProcessorFactoryTests extends OpenSearchTestCase {
     private final Consumer<Runnable> genericExecutor = Runnable::run;
 
     public void testCreate() throws Exception {
-        Processor processor = new TestProcessor(ingestDocument -> { });
+        Processor processor = new TestProcessor(ingestDocument -> {});
         Map<String, Processor.Factory> registry = new HashMap<>();
         registry.put("_name", (r, t, description, c) -> processor);
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
@@ -69,7 +69,7 @@ public class ForEachProcessorFactoryTests extends OpenSearchTestCase {
     }
 
     public void testSetIgnoreMissing() throws Exception {
-        Processor processor = new TestProcessor(ingestDocument -> { });
+        Processor processor = new TestProcessor(ingestDocument -> {});
         Map<String, Processor.Factory> registry = new HashMap<>();
         registry.put("_name", (r, t, description, c) -> processor);
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
@@ -86,7 +86,7 @@ public class ForEachProcessorFactoryTests extends OpenSearchTestCase {
     }
 
     public void testCreateWithTooManyProcessorTypes() throws Exception {
-        Processor processor = new TestProcessor(ingestDocument -> { });
+        Processor processor = new TestProcessor(ingestDocument -> {});
         Map<String, Processor.Factory> registry = new HashMap<>();
         registry.put("_first", (r, t, description, c) -> processor);
         registry.put("_second", (r, t, description, c) -> processor);
@@ -107,13 +107,15 @@ public class ForEachProcessorFactoryTests extends OpenSearchTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
-        Exception expectedException = expectThrows(OpenSearchParseException.class,
-            () -> forEachFactory.create(Collections.emptyMap(), null, null, config));
+        Exception expectedException = expectThrows(
+            OpenSearchParseException.class,
+            () -> forEachFactory.create(Collections.emptyMap(), null, null, config)
+        );
         assertThat(expectedException.getMessage(), equalTo("No processor type exists with name [_name]"));
     }
 
     public void testCreateWithMissingField() throws Exception {
-        Processor processor = new TestProcessor(ingestDocument -> { });
+        Processor processor = new TestProcessor(ingestDocument -> {});
         Map<String, Processor.Factory> registry = new HashMap<>();
         registry.put("_name", (r, t, description, c) -> processor);
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);

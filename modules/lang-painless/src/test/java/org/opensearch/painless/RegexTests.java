@@ -49,9 +49,7 @@ public class RegexTests extends ScriptTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        Settings settings = Settings.builder()
-                .put(CompilerSettings.REGEX_ENABLED.getKey(), true)
-                .build();
+        Settings settings = Settings.builder().put(CompilerSettings.REGEX_ENABLED.getKey(), true).build();
         SCRIPT_ENGINE = new PainlessScriptEngine(settings, newDefaultContexts());
     }
 
@@ -104,19 +102,19 @@ public class RegexTests extends ScriptTestCase {
         assertEquals(true, exec("return !/foo/.matcher('bar').matches()"));
     }
 
-    public void testInTernaryCondition()  {
+    public void testInTernaryCondition() {
         assertEquals(true, exec("return /foo/.matcher('foo').matches() ? true : false"));
         assertEquals(1, exec("def i = 0; i += /foo/.matcher('foo').matches() ? 1 : 1; return i"));
         assertEquals(true, exec("return 'foo' ==~ /foo/ ? true : false"));
         assertEquals(1, exec("def i = 0; i += 'foo' ==~ /foo/ ? 1 : 1; return i"));
     }
 
-    public void testInTernaryTrueArm()  {
+    public void testInTernaryTrueArm() {
         assertEquals(true, exec("def i = true; return i ? /foo/.matcher('foo').matches() : false"));
         assertEquals(true, exec("def i = true; return i ? 'foo' ==~ /foo/ : false"));
     }
 
-    public void testInTernaryFalseArm()  {
+    public void testInTernaryFalseArm() {
         assertEquals(true, exec("def i = false; return i ? false : 'foo' ==~ /foo/"));
     }
 
@@ -176,7 +174,7 @@ public class RegexTests extends ScriptTestCase {
 
     // Make sure some methods on Pattern are whitelisted
     public void testSplit() {
-        assertArrayEquals(new String[] {"cat", "dog"}, (String[]) exec("/,/.split('cat,dog')"));
+        assertArrayEquals(new String[] { "cat", "dog" }, (String[]) exec("/,/.split('cat,dog')"));
     }
 
     public void testSplitAsStream() {
@@ -226,8 +224,10 @@ public class RegexTests extends ScriptTestCase {
 
     public void testReplaceAllMatchesCharSequence() {
         CharSequence charSequence = CharBuffer.wrap("the quick brown fox");
-        assertEquals("thE qUIck brOwn fOx",
-                exec("params.a.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true));
+        assertEquals(
+            "thE qUIck brOwn fOx",
+            exec("params.a.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true)
+        );
     }
 
     public void testReplaceAllNoMatchString() {
@@ -236,26 +236,33 @@ public class RegexTests extends ScriptTestCase {
 
     public void testReplaceAllNoMatchCharSequence() {
         CharSequence charSequence = CharBuffer.wrap("i am cat");
-        assertEquals("i am cat",
-                exec("params.a.replaceAll(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true));
+        assertEquals(
+            "i am cat",
+            exec("params.a.replaceAll(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true)
+        );
     }
 
     public void testReplaceAllQuoteReplacement() {
-        assertEquals("th/E q/U/Ick br/Own f/Ox",
-                exec("'the quick brown fox'.replaceAll(/[aeiou]/, m -> '/' + m.group().toUpperCase(Locale.ROOT))"));
-        assertEquals("th$E q$U$Ick br$Own f$Ox",
-                exec("'the quick brown fox'.replaceAll(/[aeiou]/, m -> '$' + m.group().toUpperCase(Locale.ROOT))"));
+        assertEquals(
+            "th/E q/U/Ick br/Own f/Ox",
+            exec("'the quick brown fox'.replaceAll(/[aeiou]/, m -> '/' + m.group().toUpperCase(Locale.ROOT))")
+        );
+        assertEquals(
+            "th$E q$U$Ick br$Own f$Ox",
+            exec("'the quick brown fox'.replaceAll(/[aeiou]/, m -> '$' + m.group().toUpperCase(Locale.ROOT))")
+        );
     }
 
     public void testReplaceFirstMatchesString() {
-        assertEquals("thE quick brown fox",
-                exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"));
+        assertEquals("thE quick brown fox", exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"));
     }
 
     public void testReplaceFirstMatchesCharSequence() {
         CharSequence charSequence = CharBuffer.wrap("the quick brown fox");
-        assertEquals("thE quick brown fox",
-                exec("params.a.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true));
+        assertEquals(
+            "thE quick brown fox",
+            exec("params.a.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true)
+        );
     }
 
     public void testReplaceFirstNoMatchString() {
@@ -264,21 +271,25 @@ public class RegexTests extends ScriptTestCase {
 
     public void testReplaceFirstNoMatchCharSequence() {
         CharSequence charSequence = CharBuffer.wrap("i am cat");
-        assertEquals("i am cat",
-                exec("params.a.replaceFirst(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true));
+        assertEquals(
+            "i am cat",
+            exec("params.a.replaceFirst(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true)
+        );
     }
 
     public void testReplaceFirstQuoteReplacement() {
-        assertEquals("th/E quick brown fox",
-                exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> '/' + m.group().toUpperCase(Locale.ROOT))"));
-        assertEquals("th$E quick brown fox",
-                exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> '$' + m.group().toUpperCase(Locale.ROOT))"));
+        assertEquals(
+            "th/E quick brown fox",
+            exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> '/' + m.group().toUpperCase(Locale.ROOT))")
+        );
+        assertEquals(
+            "th$E quick brown fox",
+            exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> '$' + m.group().toUpperCase(Locale.ROOT))")
+        );
     }
 
     public void testCantUsePatternCompile() {
-        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("Pattern.compile('aa')");
-        });
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> { exec("Pattern.compile('aa')"); });
         assertTrue(e.getMessage().contains("[java.util.regex.Pattern, compile/1]"));
     }
 
@@ -289,15 +300,11 @@ public class RegexTests extends ScriptTestCase {
         assertEquals("invalid regular expression: could not compile regex constant [\\ujjjj] with flags []", e.getCause().getMessage());
 
         // And make sure the location of the error points to the offset inside the pattern
-        assertScriptStack(e,
-                "/\\ujjjj/",
-                "   ^---- HERE");
+        assertScriptStack(e, "/\\ujjjj/", "   ^---- HERE");
     }
 
     public void testRegexAgainstNumber() {
-        ClassCastException e = expectScriptThrows(ClassCastException.class, () -> {
-            exec("12 ==~ /cat/");
-        });
+        ClassCastException e = expectScriptThrows(ClassCastException.class, () -> { exec("12 ==~ /cat/"); });
         assertEquals("Cannot cast from [int] to [java.lang.String].", e.getMessage());
     }
 
@@ -314,34 +321,38 @@ public class RegexTests extends ScriptTestCase {
     private final String splitCharSequence = "'0-abc-1-def-X-abc-2-def-Y-abc-3-def-Z-abc'";
 
     public void testRegexInjectUnlimited_Matcher() {
-        String[] scripts = new String[]{pattern + ".matcher(" + charSequence + ").matches()",
-            "Matcher m = " + pattern + ".matcher(" + charSequence + "); m.matches()"};
+        String[] scripts = new String[] {
+            pattern + ".matcher(" + charSequence + ").matches()",
+            "Matcher m = " + pattern + ".matcher(" + charSequence + "); m.matches()" };
         for (String script : scripts) {
             assertEquals(Boolean.TRUE, exec(script));
         }
     }
 
     public void testRegexInjectUnlimited_SplitLimit() {
-        String[] scripts = new String[]{pattern + ".split(" + splitCharSequence + ", 2)",
-            "Pattern p = " + pattern + "; p.split(" + splitCharSequence + ", 2)"};
+        String[] scripts = new String[] {
+            pattern + ".split(" + splitCharSequence + ", 2)",
+            "Pattern p = " + pattern + "; p.split(" + splitCharSequence + ", 2)" };
         for (String script : scripts) {
-            assertArrayEquals(new String[]{"0-", "-X-abc-2-def-Y-abc-3-def-Z-abc"}, (String[])exec(script));
+            assertArrayEquals(new String[] { "0-", "-X-abc-2-def-Y-abc-3-def-Z-abc" }, (String[]) exec(script));
         }
     }
 
     public void testRegexInjectUnlimited_Split() {
-        String[] scripts = new String[]{pattern + ".split(" + splitCharSequence + ")",
-            "Pattern p = " + pattern + "; p.split(" + splitCharSequence + ")"};
+        String[] scripts = new String[] {
+            pattern + ".split(" + splitCharSequence + ")",
+            "Pattern p = " + pattern + "; p.split(" + splitCharSequence + ")" };
         for (String script : scripts) {
-            assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[])exec(script));
+            assertArrayEquals(new String[] { "0-", "-X-", "-Y-", "-Z-abc" }, (String[]) exec(script));
         }
     }
 
     public void testRegexInjectUnlimited_SplitAsStream() {
-        String[] scripts = new String[]{pattern + ".splitAsStream(" + splitCharSequence + ").toArray(String[]::new)",
-            "Pattern p = " + pattern + "; p.splitAsStream(" + splitCharSequence + ").toArray(String[]::new)"};
+        String[] scripts = new String[] {
+            pattern + ".splitAsStream(" + splitCharSequence + ").toArray(String[]::new)",
+            "Pattern p = " + pattern + "; p.splitAsStream(" + splitCharSequence + ").toArray(String[]::new)" };
         for (String script : scripts) {
-            assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[]) exec(script));
+            assertArrayEquals(new String[] { "0-", "-X-", "-Y-", "-Z-abc" }, (String[]) exec(script));
         }
     }
 }

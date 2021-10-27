@@ -47,6 +47,6 @@ public class PainlessError extends Error {
      * @param message The error message.
      */
     public PainlessError(final String message) {
-       super(message);
+        super(message);
     }
 }

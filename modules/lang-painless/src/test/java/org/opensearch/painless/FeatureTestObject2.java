@@ -34,10 +34,14 @@ package org.opensearch.painless;
 
 /** Currently just a dummy class for testing a few features not yet exposed by whitelist! */
 public class FeatureTestObject2 {
-    public FeatureTestObject2() {super();}
+    public FeatureTestObject2() {
+        super();
+    }
+
     public static int staticNumberArgument(int injected, int userArgument) {
         return injected * userArgument;
     }
+
     public static int staticNumberArgument2(int userArgument1, int userArgument2) {
         return userArgument1 * userArgument2;
     }
