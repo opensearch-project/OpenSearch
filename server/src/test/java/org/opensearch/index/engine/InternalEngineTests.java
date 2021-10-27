@@ -3823,7 +3823,12 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getEventListener(),
                 config.getQueryCache(),
                 config.getQueryCachingPolicy(),
-                config.getTranslogConfig(),
+                new TranslogConfig(
+                    config.getTranslogConfig().getShardId(),
+                    createTempDir("other-translog"),
+                    config.getTranslogConfig().getIndexSettings(),
+                    config.getTranslogConfig().getBigArrays()
+                ),
                 translogDeletionPolicyFactory,
                 config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(),
