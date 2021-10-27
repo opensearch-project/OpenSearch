@@ -99,6 +99,8 @@ public class NewObjectNode extends ArgumentsNode {
         }
 
         methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+            Type.getType(constructor.javaConstructor.getDeclaringClass()),
+            Method.getMethod(constructor.javaConstructor)
+        );
     }
 }

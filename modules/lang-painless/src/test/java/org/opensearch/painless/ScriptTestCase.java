@@ -83,7 +83,7 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
      */
     public static final void assertBytecodeExists(String script, String bytecode) {
         final String asm = Debugger.toString(script);
-        assertTrue("bytecode not found, got: \n" + asm , asm.contains(bytecode));
+        assertTrue("bytecode not found, got: \n" + asm, asm.contains(bytecode));
     }
 
     /**
@@ -92,7 +92,7 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
      */
     public static final void assertBytecodeHasPattern(String script, String pattern) {
         final String asm = Debugger.toString(script);
-        assertTrue("bytecode not found, got: \n" + asm , asm.matches(pattern));
+        assertTrue("bytecode not found, got: \n" + asm, asm.matches(pattern));
     }
 
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
@@ -101,8 +101,11 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
     }
 
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
-    public static final <T extends Throwable> T expectScriptThrows(Class<T> expectedType, boolean shouldHaveScriptStack,
-            ThrowingRunnable runnable) {
+    public static final <T extends Throwable> T expectScriptThrows(
+        Class<T> expectedType,
+        boolean shouldHaveScriptStack,
+        ThrowingRunnable runnable
+    ) {
         try {
             runnable.run();
         } catch (Throwable e) {
@@ -130,8 +133,9 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
                 assertion.initCause(e);
                 throw assertion;
             }
-            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected "
-                                                                      + expectedType.getSimpleName());
+            AssertionFailedError assertion = new AssertionFailedError(
+                "Unexpected exception type, expected " + expectedType.getSimpleName()
+            );
             assertion.initCause(e);
             throw assertion;
         }
@@ -166,13 +170,13 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
     public final Object exec(String script, Map<String, Object> vars, boolean picky) {
-        Map<String,String> compilerSettings = new HashMap<>();
+        Map<String, String> compilerSettings = new HashMap<>();
         compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
         return exec(script, vars, compilerSettings, picky);
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
-    public final Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, boolean picky) {
+    public final Object exec(String script, Map<String, Object> vars, Map<String, String> compileParams, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
             CompilerSettings pickySettings = new CompilerSettings();

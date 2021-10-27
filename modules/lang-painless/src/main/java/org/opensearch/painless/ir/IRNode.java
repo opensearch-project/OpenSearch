@@ -51,6 +51,7 @@ public abstract class IRNode {
     /* ---- end node data, begin visitor ---- */
 
     public abstract <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
+
     public abstract <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
 
     /* ---- end visitor ---- */

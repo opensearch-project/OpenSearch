@@ -82,9 +82,14 @@ public final class JsonProcessor extends AbstractProcessor {
 
     public static Object apply(Object fieldValue) {
         BytesReference bytesRef = fieldValue == null ? new BytesArray("null") : new BytesArray(fieldValue.toString());
-        try (InputStream stream = bytesRef.streamInput();
-             XContentParser parser = JsonXContent.jsonXContent
-                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+        try (
+            InputStream stream = bytesRef.streamInput();
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                stream
+            )
+        ) {
             XContentParser.Token token = parser.nextToken();
             Object value = null;
             if (token == XContentParser.Token.VALUE_NULL) {
@@ -112,8 +117,8 @@ public final class JsonProcessor extends AbstractProcessor {
         Object value = apply(ctx.get(fieldName));
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) value;
-                ctx.putAll(map);
+            Map<String, Object> map = (Map<String, Object>) value;
+            ctx.putAll(map);
         } else {
             throw new IllegalArgumentException("cannot add non-map fields to root of document");
         }
@@ -122,7 +127,7 @@ public final class JsonProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         if (addToRoot) {
-           apply(document.getSourceAndMetadata(), field);
+            apply(document.getSourceAndMetadata(), field);
         } else {
             document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class)));
         }
@@ -136,15 +141,23 @@ public final class JsonProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public JsonProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    String description, Map<String, Object> config) throws Exception {
+        public JsonProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
 
             if (addToRoot && targetField != null) {
-                throw newConfigurationException(TYPE, processorTag, "target_field",
-                    "Cannot set a target field while also setting `add_to_root` to true");
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "target_field",
+                    "Cannot set a target field while also setting `add_to_root` to true"
+                );
             }
 
             if (targetField == null) {
@@ -155,4 +168,3 @@ public final class JsonProcessor extends AbstractProcessor {
         }
     }
 }
-

@@ -76,10 +76,12 @@ public class PainlessExecuteApiTests extends OpenSearchSingleNodeTestCase {
         response = innerShardOperation(request, scriptService, null);
         assertThat(response.getResult(), equalTo("0.1"));
 
-        Exception e = expectThrows(ScriptException.class,
-            () -> {
-            Request r = new Request(new Script(ScriptType.INLINE,
-                "painless", "params.count / params.total + doc['constant']", params), null, null);
+        Exception e = expectThrows(ScriptException.class, () -> {
+            Request r = new Request(
+                new Script(ScriptType.INLINE, "painless", "params.count / params.total + doc['constant']", params),
+                null,
+                null
+            );
             innerShardOperation(r, scriptService, null);
         });
         assertThat(e.getCause().getMessage(), equalTo("cannot resolve symbol [doc]"));
@@ -97,15 +99,21 @@ public class PainlessExecuteApiTests extends OpenSearchSingleNodeTestCase {
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 3}"), null);
         contextSetup.setXContentType(XContentType.JSON);
-        request = new Request(new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max",
-            singletonMap("max", 3)), "filter", contextSetup);
+        request = new Request(
+            new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max", singletonMap("max", 3)),
+            "filter",
+            contextSetup
+        );
         response = innerShardOperation(request, scriptService, indexService);
         assertThat(response.getResult(), equalTo(true));
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 2}"), null);
         contextSetup.setXContentType(XContentType.JSON);
-        request = new Request(new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max",
-            singletonMap("max", 3)), "filter", contextSetup);
+        request = new Request(
+            new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max", singletonMap("max", 3)),
+            "filter",
+            contextSetup
+        );
         response = innerShardOperation(request, scriptService, indexService);
         assertThat(response.getResult(), equalTo(false));
     }
@@ -114,12 +122,22 @@ public class PainlessExecuteApiTests extends OpenSearchSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
-            new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"), new MatchQueryBuilder("text", "fox"));
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
+            "index",
+            new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"),
+            new MatchQueryBuilder("text", "fox")
+        );
         contextSetup.setXContentType(XContentType.JSON);
-        Request request = new Request(new Script(ScriptType.INLINE, "painless",
-            "Math.round((_score + (doc['rank'].value / params.max_rank)) * 100.0) / 100.0", singletonMap("max_rank", 5.0)), "score",
-            contextSetup);
+        Request request = new Request(
+            new Script(
+                ScriptType.INLINE,
+                "painless",
+                "Math.round((_score + (doc['rank'].value / params.max_rank)) * 100.0) / 100.0",
+                singletonMap("max_rank", 5.0)
+            ),
+            "score",
+            contextSetup
+        );
         Response response = innerShardOperation(request, scriptService, indexService);
         assertThat(response.getResult(), equalTo(0.93D));
     }

@@ -38,8 +38,7 @@ import org.opensearch.client.OpenSearchClient;
 
 public class RankEvalRequestBuilder extends ActionRequestBuilder<RankEvalRequest, RankEvalResponse> {
 
-    public RankEvalRequestBuilder(OpenSearchClient client, ActionType<RankEvalResponse> action,
-                                  RankEvalRequest request) {
+    public RankEvalRequestBuilder(OpenSearchClient client, ActionType<RankEvalResponse> action, RankEvalRequest request) {
         super(client, action, request);
     }
 

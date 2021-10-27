@@ -78,14 +78,17 @@ public class ReindexFromOldRemoteIT extends OpenSearchRestTestCase {
                             + "    \"index\": \"test\",\n"
                             + "    \"size\": 1,\n"
                             + "    \"remote\": {\n"
-                            + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
+                            + "      \"host\": \"http://127.0.0.1:"
+                            + oldEsPort
+                            + "\"\n"
                             + "    }\n"
                             + "  },\n"
                             + "  \"dest\": {\n"
                             + "    \"index\": \"test\",\n"
                             + "    \"version_type\": \"external\"\n"
                             + "  }\n"
-                            + "}");
+                            + "}"
+                    );
                 } else {
                     // Reindex using the default internal version_type
                     reindex.setJsonEntity(
@@ -94,13 +97,16 @@ public class ReindexFromOldRemoteIT extends OpenSearchRestTestCase {
                             + "    \"index\": \"test\",\n"
                             + "    \"size\": 1,\n"
                             + "    \"remote\": {\n"
-                            + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
+                            + "      \"host\": \"http://127.0.0.1:"
+                            + oldEsPort
+                            + "\"\n"
                             + "    }\n"
                             + "  },\n"
                             + "  \"dest\": {\n"
                             + "    \"index\": \"test\"\n"
                             + "  }\n"
-                            + "}");
+                            + "}"
+                    );
                 }
                 reindex.addParameter("refresh", "true");
                 reindex.addParameter("pretty", "true");

@@ -71,17 +71,27 @@ public class URLRepository extends BlobStoreRepository {
 
     public static final String TYPE = "url";
 
-    public static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING =
-        Setting.listSetting("repositories.url.supported_protocols", Arrays.asList("http", "https", "ftp", "file", "jar"),
-            Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING = Setting.listSetting(
+        "repositories.url.supported_protocols",
+        Arrays.asList("http", "https", "ftp", "file", "jar"),
+        Function.identity(),
+        Property.NodeScope
+    );
 
-    public static final Setting<List<URIPattern>> ALLOWED_URLS_SETTING =
-        Setting.listSetting("repositories.url.allowed_urls", Collections.emptyList(), URIPattern::new, Property.NodeScope);
+    public static final Setting<List<URIPattern>> ALLOWED_URLS_SETTING = Setting.listSetting(
+        "repositories.url.allowed_urls",
+        Collections.emptyList(),
+        URIPattern::new,
+        Property.NodeScope
+    );
 
     public static final Setting<URL> URL_SETTING = new Setting<>("url", "http:", URLRepository::parseURL, Property.NodeScope);
-    public static final Setting<URL> REPOSITORIES_URL_SETTING =
-        new Setting<>("repositories.url.url", (s) -> s.get("repositories.uri.url", "http:"), URLRepository::parseURL,
-            Property.NodeScope);
+    public static final Setting<URL> REPOSITORIES_URL_SETTING = new Setting<>(
+        "repositories.url.url",
+        (s) -> s.get("repositories.uri.url", "http:"),
+        URLRepository::parseURL,
+        Property.NodeScope
+    );
 
     private final List<String> supportedProtocols;
 
@@ -96,20 +106,25 @@ public class URLRepository extends BlobStoreRepository {
     /**
      * Constructs a read-only URL-based repository
      */
-    public URLRepository(RepositoryMetadata metadata, Environment environment,
-                         NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
-                         RecoverySettings recoverySettings) {
+    public URLRepository(
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings
+    ) {
         super(metadata, false, namedXContentRegistry, clusterService, recoverySettings);
 
-        if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) ==  false) {
+        if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) == false) {
             throw new RepositoryException(metadata.name(), "missing url");
         }
         this.environment = environment;
         supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(environment.settings());
-        urlWhiteList = ALLOWED_URLS_SETTING.get(environment.settings()).toArray(new URIPattern[]{});
+        urlWhiteList = ALLOWED_URLS_SETTING.get(environment.settings()).toArray(new URIPattern[] {});
         basePath = BlobPath.cleanPath();
         url = URL_SETTING.exists(metadata.settings())
-            ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(environment.settings());
+            ? URL_SETTING.get(metadata.settings())
+            : REPOSITORIES_URL_SETTING.get(environment.settings());
     }
 
     @Override
@@ -157,10 +172,12 @@ public class URLRepository extends BlobStoreRepository {
                 // We didn't match white list - try to resolve against path.repo
                 URL normalizedUrl = environment.resolveRepoURL(url);
                 if (normalizedUrl == null) {
-                    String logMessage = "The specified url [{}] doesn't start with any repository paths specified by the " +
-                        "path.repo setting or by {} setting: [{}] ";
+                    String logMessage = "The specified url [{}] doesn't start with any repository paths specified by the "
+                        + "path.repo setting or by {} setting: [{}] ";
                     logger.warn(logMessage, url, ALLOWED_URLS_SETTING.getKey(), environment.repoFiles());
-                    String exceptionMessage = "file url [" + url + "] doesn't match any of the locations specified by path.repo or "
+                    String exceptionMessage = "file url ["
+                        + url
+                        + "] doesn't match any of the locations specified by path.repo or "
                         + ALLOWED_URLS_SETTING.getKey();
                     throw new RepositoryException(getMetadata().name(), exceptionMessage);
                 }

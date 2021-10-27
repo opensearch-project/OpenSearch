@@ -62,10 +62,9 @@ public final class PainlessField {
             return false;
         }
 
-        PainlessField that = (PainlessField)object;
+        PainlessField that = (PainlessField) object;
 
-        return Objects.equals(javaField, that.javaField) &&
-                Objects.equals(typeParameter, that.typeParameter);
+        return Objects.equals(javaField, that.javaField) && Objects.equals(typeParameter, that.typeParameter);
     }
 
     @Override

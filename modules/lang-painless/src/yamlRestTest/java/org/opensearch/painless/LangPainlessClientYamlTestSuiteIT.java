@@ -49,4 +49,3 @@ public class LangPainlessClientYamlTestSuiteIT extends OpenSearchClientYamlSuite
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-
