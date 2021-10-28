@@ -212,6 +212,8 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .put("dropifflagged", Void.class)
         // LUCENE-9575: recognize arbitrary patterns that include punctuation
         .put("patterntyping", Void.class)
+        .put("telugustem", Void.class)
+        .put("telugunormalization", Void.class)
         .immutableMap();
 
     static final Map<String,Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String,Class<?>>()
