@@ -32,7 +32,6 @@
 
 package org.opensearch.painless;
 
-
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
@@ -130,12 +129,19 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice
         return Collections.singletonList(painlessScriptEngine.get());
@@ -148,11 +154,11 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        loader.loadExtensions(PainlessExtension.class).stream()
+        loader.loadExtensions(PainlessExtension.class)
+            .stream()
             .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
             .forEach(entry -> {
-                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(),
-                    c -> new ArrayList<>(Whitelist.BASE_WHITELISTS));
+                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(), c -> new ArrayList<>(Whitelist.BASE_WHITELISTS));
                 existing.addAll(entry.getValue());
             });
     }
@@ -171,10 +177,15 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new PainlessExecuteAction.RestAction());
         handlers.add(new PainlessContextAction.RestAction());

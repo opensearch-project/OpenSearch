@@ -45,12 +45,12 @@ import java.util.stream.Stream;
 public interface WhitelistAnnotationParser {
 
     Map<String, WhitelistAnnotationParser> BASE_ANNOTATION_PARSERS = Collections.unmodifiableMap(
-            Stream.of(
-                    new AbstractMap.SimpleEntry<>(NoImportAnnotation.NAME, NoImportAnnotationParser.INSTANCE),
-                    new AbstractMap.SimpleEntry<>(DeprecatedAnnotation.NAME, DeprecatedAnnotationParser.INSTANCE),
-                    new AbstractMap.SimpleEntry<>(NonDeterministicAnnotation.NAME, NonDeterministicAnnotationParser.INSTANCE),
-                    new AbstractMap.SimpleEntry<>(InjectConstantAnnotation.NAME, InjectConstantAnnotationParser.INSTANCE)
-            ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+        Stream.of(
+            new AbstractMap.SimpleEntry<>(NoImportAnnotation.NAME, NoImportAnnotationParser.INSTANCE),
+            new AbstractMap.SimpleEntry<>(DeprecatedAnnotation.NAME, DeprecatedAnnotationParser.INSTANCE),
+            new AbstractMap.SimpleEntry<>(NonDeterministicAnnotation.NAME, NonDeterministicAnnotationParser.INSTANCE),
+            new AbstractMap.SimpleEntry<>(InjectConstantAnnotation.NAME, InjectConstantAnnotationParser.INSTANCE)
+        ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 
     Object parse(Map<String, String> arguments);

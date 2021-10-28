@@ -54,5 +54,7 @@ public class EstonianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Esto
     }
 
     @Override
-    public EstonianAnalyzer get() { return this.analyzer; }
+    public EstonianAnalyzer get() {
+        return this.analyzer;
+    }
 }

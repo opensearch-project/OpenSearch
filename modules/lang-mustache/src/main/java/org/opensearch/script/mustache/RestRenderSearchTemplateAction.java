@@ -51,11 +51,14 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_render/template"),
-            new Route(POST, "/_render/template"),
-            new Route(GET, "/_render/template/{id}"),
-            new Route(POST, "/_render/template/{id}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_render/template"),
+                new Route(POST, "/_render/template"),
+                new Route(GET, "/_render/template/{id}"),
+                new Route(POST, "/_render/template/{id}")
+            )
+        );
     }
 
     @Override

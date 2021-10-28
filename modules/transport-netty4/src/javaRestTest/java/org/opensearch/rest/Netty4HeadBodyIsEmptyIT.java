@@ -88,18 +88,38 @@ public class Netty4HeadBodyIsEmptyIT extends OpenSearchRestTestCase {
 
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("/test/_mapping/_doc", emptyMap(), OK.getStatus(), greaterThan(0),
-                "Type exists requests are deprecated, as types have been deprecated.");
-        headTestCase("/test/_mapping/_doc", singletonMap("pretty", "true"), OK.getStatus(), greaterThan(0),
-                "Type exists requests are deprecated, as types have been deprecated.");
+        headTestCase(
+            "/test/_mapping/_doc",
+            emptyMap(),
+            OK.getStatus(),
+            greaterThan(0),
+            "Type exists requests are deprecated, as types have been deprecated."
+        );
+        headTestCase(
+            "/test/_mapping/_doc",
+            singletonMap("pretty", "true"),
+            OK.getStatus(),
+            greaterThan(0),
+            "Type exists requests are deprecated, as types have been deprecated."
+        );
     }
 
     public void testTypeDoesNotExist() throws IOException {
         createTestDoc();
-        headTestCase("/test/_mapping/does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0),
-                "Type exists requests are deprecated, as types have been deprecated.");
-        headTestCase("/text/_mapping/test,does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0),
-                "Type exists requests are deprecated, as types have been deprecated.");
+        headTestCase(
+            "/test/_mapping/does-not-exist",
+            emptyMap(),
+            NOT_FOUND.getStatus(),
+            greaterThan(0),
+            "Type exists requests are deprecated, as types have been deprecated."
+        );
+        headTestCase(
+            "/text/_mapping/test,does-not-exist",
+            emptyMap(),
+            NOT_FOUND.getStatus(),
+            greaterThan(0),
+            "Type exists requests are deprecated, as types have been deprecated."
+        );
     }
 
     public void testAliasExists() throws IOException {
@@ -201,11 +221,12 @@ public class Netty4HeadBodyIsEmptyIT extends OpenSearchRestTestCase {
     }
 
     private void headTestCase(
-            final String url,
-            final Map<String, String> params,
-            final int expectedStatusCode,
-            final Matcher<Integer> matcher,
-            final String... expectedWarnings) throws IOException {
+        final String url,
+        final Map<String, String> params,
+        final int expectedStatusCode,
+        final Matcher<Integer> matcher,
+        final String... expectedWarnings
+    ) throws IOException {
         Request request = new Request("HEAD", url);
         for (Map.Entry<String, String> param : params.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());

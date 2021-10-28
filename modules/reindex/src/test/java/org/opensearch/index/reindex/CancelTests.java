@@ -98,8 +98,12 @@ public class CancelTests extends ReindexTestCase {
     /**
      * Executes the cancellation test
      */
-    private void testCancel(String action, AbstractBulkByScrollRequestBuilder<?, ?> builder, CancelAssertion assertion,
-                            Matcher<String> taskDescriptionMatcher) throws Exception {
+    private void testCancel(
+        String action,
+        AbstractBulkByScrollRequestBuilder<?, ?> builder,
+        CancelAssertion assertion,
+        Matcher<String> taskDescriptionMatcher
+    ) throws Exception {
         createIndex(INDEX);
 
         // Total number of documents created for this test (~10 per primary shard per slice)
@@ -107,9 +111,14 @@ public class CancelTests extends ReindexTestCase {
         ALLOWED_OPERATIONS.release(numDocs);
 
         logger.debug("setting up [{}] docs", numDocs);
-        indexRandom(true, false, true, IntStream.range(0, numDocs)
+        indexRandom(
+            true,
+            false,
+            true,
+            IntStream.range(0, numDocs)
                 .mapToObj(i -> client().prepareIndex(INDEX, TYPE, String.valueOf(i)).setSource("n", i))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList())
+        );
 
         // Checks that the all documents have been indexed and correctly counted
         assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), numDocs);
@@ -135,7 +144,9 @@ public class CancelTests extends ReindexTestCase {
         logger.debug("waiting for updates to be blocked");
         assertBusy(
             () -> assertTrue("updates blocked", ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0),
-            1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavily loaded machines this can take a while
+            1,
+            TimeUnit.MINUTES
+        ); // 10 seconds is usually fine but on heavily loaded machines this can take a while
 
         // Status should show the task running
         TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());
@@ -160,11 +171,15 @@ public class CancelTests extends ReindexTestCase {
 
         if (builder.request().getSlices() > 1) {
             boolean foundCancelled = false;
-            ListTasksResponse sliceList = client().admin().cluster().prepareListTasks().setParentTaskId(mainTask.getTaskId())
-                    .setDetailed(true).get();
+            ListTasksResponse sliceList = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setParentTaskId(mainTask.getTaskId())
+                .setDetailed(true)
+                .get();
             sliceList.rethrowFailures("Fetch slice tasks");
             logger.debug("finding at least one canceled child among {}", sliceList.getTasks());
-            for (TaskInfo slice: sliceList.getTasks()) {
+            for (TaskInfo slice : sliceList.getTasks()) {
                 BulkByScrollTask.Status sliceStatus = (BulkByScrollTask.Status) slice.getStatus();
                 if (sliceStatus.getReasonCancelled() == null) continue;
                 assertEquals(CancelTasksRequest.DEFAULT_REASON, sliceStatus.getReasonCancelled());
@@ -194,8 +209,13 @@ public class CancelTests extends ReindexTestCase {
             if (ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof TaskCancelledException).isPresent()) {
                 return; // the scroll request was cancelled
             }
-            String tasks = client().admin().cluster().prepareListTasks().setParentTaskId(mainTask.getTaskId())
-                        .setDetailed(true).get().toString();
+            String tasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setParentTaskId(mainTask.getTaskId())
+                .setDetailed(true)
+                .get()
+                .toString();
             throw new RuntimeException("Exception while waiting for the response. Running tasks: " + tasks, e);
         }
         assertThat(response.getReasonCancelled(), equalTo("by user request"));
@@ -236,12 +256,14 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryCancel() throws Exception {
-        BytesReference pipeline = new BytesArray("{\n" +
-                "  \"description\" : \"sets processed to true\",\n" +
-                "  \"processors\" : [ {\n" +
-                "      \"test\" : {}\n" +
-                "  } ]\n" +
-                "}");
+        BytesReference pipeline = new BytesArray(
+            "{\n"
+                + "  \"description\" : \"sets processed to true\",\n"
+                + "  \"processors\" : [ {\n"
+                + "      \"test\" : {}\n"
+                + "  } ]\n"
+                + "}"
+        );
         assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX), (response, total, modified) -> {
@@ -253,48 +275,64 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryCancel() throws Exception {
-        testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).filter(QueryBuilders.matchAllQuery()),
+        testCancel(
+            DeleteByQueryAction.NAME,
+            deleteByQuery().source(INDEX).filter(QueryBuilders.matchAllQuery()),
             (response, total, modified) -> {
                 assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")));
                 assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);
-        }, equalTo("delete-by-query [" + INDEX + "]"));
+            },
+            equalTo("delete-by-query [" + INDEX + "]")
+        );
     }
 
     public void testReindexCancelWithWorkers() throws Exception {
-        testCancel(ReindexAction.NAME,
-                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest", TYPE).setSlices(5),
-                (response, total, modified) -> {
-                    assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
-                    refresh("dest");
-                    assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
-                },
-                equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
+        testCancel(
+            ReindexAction.NAME,
+            reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest", TYPE).setSlices(5),
+            (response, total, modified) -> {
+                assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
+                refresh("dest");
+                assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
+            },
+            equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]")
+        );
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {
-        BytesReference pipeline = new BytesArray("{\n" +
-                "  \"description\" : \"sets processed to true\",\n" +
-                "  \"processors\" : [ {\n" +
-                "      \"test\" : {}\n" +
-                "  } ]\n" +
-                "}");
+        BytesReference pipeline = new BytesArray(
+            "{\n"
+                + "  \"description\" : \"sets processed to true\",\n"
+                + "  \"processors\" : [ {\n"
+                + "      \"test\" : {}\n"
+                + "  } ]\n"
+                + "}"
+        );
         assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
-        testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX).setSlices(5),
-                (response, total, modified) -> {
-                    assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
-                    assertHitCount(client().prepareSearch(INDEX).setSize(0).setQuery(termQuery("processed", true)).get(), modified);
-                }, equalTo("update-by-query [" + INDEX + "]"));
+        testCancel(
+            UpdateByQueryAction.NAME,
+            updateByQuery().setPipeline("set-processed").source(INDEX).setSlices(5),
+            (response, total, modified) -> {
+                assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
+                assertHitCount(client().prepareSearch(INDEX).setSize(0).setQuery(termQuery("processed", true)).get(), modified);
+            },
+            equalTo("update-by-query [" + INDEX + "]")
+        );
 
         assertAcked(client().admin().cluster().deletePipeline(new DeletePipelineRequest("set-processed")).get());
     }
 
     public void testDeleteByQueryCancelWithWorkers() throws Exception {
-        testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).filter(QueryBuilders.matchAllQuery()).setSlices(5),
+        testCancel(
+            DeleteByQueryAction.NAME,
+            deleteByQuery().source(INDEX).filter(QueryBuilders.matchAllQuery()).setSlices(5),
             (response, total, modified) -> {
                 assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                 assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);
-        }, equalTo("delete-by-query [" + INDEX + "]"));
+            },
+            equalTo("delete-by-query [" + INDEX + "]")
+        );
     }
 
     /**

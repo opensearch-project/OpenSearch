@@ -108,8 +108,10 @@ public class ScriptProcessorFactoryTests extends OpenSearchTestCase {
         configMap.put("source", "bar");
         configMap.put("lang", "mockscript");
 
-        XContentParseException exception = expectThrows(XContentParseException.class,
-            () -> factory.create(null, randomAlphaOfLength(10), null, configMap));
+        XContentParseException exception = expectThrows(
+            XContentParseException.class,
+            () -> factory.create(null, randomAlphaOfLength(10), null, configMap)
+        );
         assertThat(exception.getMessage(), containsString("[script] failed to parse field [source]"));
     }
 
@@ -117,8 +119,10 @@ public class ScriptProcessorFactoryTests extends OpenSearchTestCase {
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("lang", "mockscript");
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> factory.create(null, randomAlphaOfLength(10), null, configMap));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.create(null, randomAlphaOfLength(10), null, configMap)
+        );
 
         assertThat(exception.getMessage(), is("must specify either [source] for an inline script or [id] for a stored script"));
     }
@@ -138,33 +142,40 @@ public class ScriptProcessorFactoryTests extends OpenSearchTestCase {
     public void testFactoryInvalidateWithInvalidCompiledScript() throws Exception {
         String randomType = randomFrom("source", "id");
         ScriptService mockedScriptService = mock(ScriptService.class);
-        ScriptException thrownException = new ScriptException("compile-time exception", new RuntimeException(),
-            Collections.emptyList(), "script", "mockscript");
+        ScriptException thrownException = new ScriptException(
+            "compile-time exception",
+            new RuntimeException(),
+            Collections.emptyList(),
+            "script",
+            "mockscript"
+        );
         when(mockedScriptService.compile(any(), any())).thenThrow(thrownException);
         factory = new ScriptProcessor.Factory(mockedScriptService);
 
         Map<String, Object> configMap = new HashMap<>();
         configMap.put(randomType, "my_script");
 
-        OpenSearchException exception = expectThrows(OpenSearchException.class,
-            () -> factory.create(null, randomAlphaOfLength(10), null, configMap));
+        OpenSearchException exception = expectThrows(
+            OpenSearchException.class,
+            () -> factory.create(null, randomAlphaOfLength(10), null, configMap)
+        );
 
         assertThat(exception.getMessage(), is("compile-time exception"));
     }
 
     public void testInlineIsCompiled() throws Exception {
         String scriptName = "foo";
-        ScriptService scriptService = new ScriptService(Settings.builder().build(),
+        ScriptService scriptService = new ScriptService(
+            Settings.builder().build(),
             Collections.singletonMap(
-                Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(
-                    Script.DEFAULT_SCRIPT_LANG,
-                    Collections.singletonMap(scriptName, ctx -> {
-                        ctx.put("foo", "bar");
-                        return null;
-                    }),
-                    Collections.emptyMap()
-                )
-            ), new HashMap<>(ScriptModule.CORE_CONTEXTS));
+                Script.DEFAULT_SCRIPT_LANG,
+                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
+                    ctx.put("foo", "bar");
+                    return null;
+                }), Collections.emptyMap())
+            ),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
         factory = new ScriptProcessor.Factory(scriptService);
 
         Map<String, Object> configMap = new HashMap<>();

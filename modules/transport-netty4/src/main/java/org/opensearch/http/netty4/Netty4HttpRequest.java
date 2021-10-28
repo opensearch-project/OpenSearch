@@ -68,22 +68,44 @@ public class Netty4HttpRequest implements HttpRequest {
     private final boolean pooled;
 
     Netty4HttpRequest(FullHttpRequest request) {
-        this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
-            Netty4Utils.toBytesReference(request.content()));
+        this(
+            request,
+            new HttpHeadersMap(request.headers()),
+            new AtomicBoolean(false),
+            true,
+            Netty4Utils.toBytesReference(request.content())
+        );
     }
 
     Netty4HttpRequest(FullHttpRequest request, Exception inboundException) {
-        this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
-            Netty4Utils.toBytesReference(request.content()), inboundException);
+        this(
+            request,
+            new HttpHeadersMap(request.headers()),
+            new AtomicBoolean(false),
+            true,
+            Netty4Utils.toBytesReference(request.content()),
+            inboundException
+        );
     }
 
-    private Netty4HttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
-                              BytesReference content) {
+    private Netty4HttpRequest(
+        FullHttpRequest request,
+        HttpHeadersMap headers,
+        AtomicBoolean released,
+        boolean pooled,
+        BytesReference content
+    ) {
         this(request, headers, released, pooled, content, null);
     }
 
-    private Netty4HttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
-                              BytesReference content, Exception inboundException) {
+    private Netty4HttpRequest(
+        FullHttpRequest request,
+        HttpHeadersMap headers,
+        AtomicBoolean released,
+        boolean pooled,
+        BytesReference content,
+        Exception inboundException
+    ) {
         this.request = request;
         this.headers = headers;
         this.content = content;
@@ -95,17 +117,13 @@ public class Netty4HttpRequest implements HttpRequest {
     @Override
     public RestRequest.Method method() {
         HttpMethod httpMethod = request.method();
-        if (httpMethod == HttpMethod.GET)
-            return RestRequest.Method.GET;
+        if (httpMethod == HttpMethod.GET) return RestRequest.Method.GET;
 
-        if (httpMethod == HttpMethod.POST)
-            return RestRequest.Method.POST;
+        if (httpMethod == HttpMethod.POST) return RestRequest.Method.POST;
 
-        if (httpMethod == HttpMethod.PUT)
-            return RestRequest.Method.PUT;
+        if (httpMethod == HttpMethod.PUT) return RestRequest.Method.PUT;
 
-        if (httpMethod == HttpMethod.DELETE)
-            return RestRequest.Method.DELETE;
+        if (httpMethod == HttpMethod.DELETE) return RestRequest.Method.DELETE;
 
         if (httpMethod == HttpMethod.HEAD) {
             return RestRequest.Method.HEAD;
@@ -157,9 +175,19 @@ public class Netty4HttpRequest implements HttpRequest {
         try {
             final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
             return new Netty4HttpRequest(
-                new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(), copiedContent, request.headers(),
-                    request.trailingHeaders()),
-                headers, new AtomicBoolean(false), false, Netty4Utils.toBytesReference(copiedContent));
+                new DefaultFullHttpRequest(
+                    request.protocolVersion(),
+                    request.method(),
+                    request.uri(),
+                    copiedContent,
+                    request.headers(),
+                    request.trailingHeaders()
+                ),
+                headers,
+                new AtomicBoolean(false),
+                false,
+                Netty4Utils.toBytesReference(copiedContent)
+            );
         } finally {
             release();
         }
@@ -201,10 +229,15 @@ public class Netty4HttpRequest implements HttpRequest {
         HttpHeaders trailingHeaders = new DefaultHttpHeaders();
         trailingHeaders.add(request.trailingHeaders());
         trailingHeaders.remove(header);
-        FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
-            request.content(), headersWithoutContentTypeHeader, trailingHeaders);
-        return new Netty4HttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), released,
-            pooled, content);
+        FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(
+            request.protocolVersion(),
+            request.method(),
+            request.uri(),
+            request.content(),
+            headersWithoutContentTypeHeader,
+            trailingHeaders
+        );
+        return new Netty4HttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), released, pooled, content);
     }
 
     @Override
@@ -294,7 +327,9 @@ public class Netty4HttpRequest implements HttpRequest {
 
         @Override
         public Set<Entry<String, List<String>>> entrySet() {
-            return httpHeaders.names().stream().map(k -> new AbstractMap.SimpleImmutableEntry<>(k, httpHeaders.getAll(k)))
+            return httpHeaders.names()
+                .stream()
+                .map(k -> new AbstractMap.SimpleImmutableEntry<>(k, httpHeaders.getAll(k)))
                 .collect(Collectors.toSet());
         }
     }

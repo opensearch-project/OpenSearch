@@ -109,8 +109,12 @@ public class DeclarationNode extends StatementNode {
         if (expressionNode == null) {
             Class<?> sort = variable.getType();
 
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                    sort == short.class || sort == char.class || sort == int.class) {
+            if (sort == void.class
+                || sort == boolean.class
+                || sort == byte.class
+                || sort == short.class
+                || sort == char.class
+                || sort == int.class) {
                 methodWriter.push(0);
             } else if (sort == long.class) {
                 methodWriter.push(0L);

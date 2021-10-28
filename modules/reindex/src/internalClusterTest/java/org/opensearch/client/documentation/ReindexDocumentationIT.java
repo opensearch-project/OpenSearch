@@ -302,9 +302,14 @@ public class ReindexDocumentationIT extends OpenSearchIntegTestCase {
         final int numDocs = randomIntBetween(10, 100);
         ALLOWED_OPERATIONS.release(numDocs);
 
-        indexRandom(true, false, true, IntStream.range(0, numDocs)
-            .mapToObj(i -> client().prepareIndex(INDEX_NAME, "_doc", Integer.toString(i)).setSource("n", Integer.toString(i)))
-            .collect(Collectors.toList()));
+        indexRandom(
+            true,
+            false,
+            true,
+            IntStream.range(0, numDocs)
+                .mapToObj(i -> client().prepareIndex(INDEX_NAME, "_doc", Integer.toString(i)).setSource("n", Integer.toString(i)))
+                .collect(Collectors.toList())
+        );
 
         // Checks that the all documents have been indexed and correctly counted
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numDocs);
@@ -323,12 +328,10 @@ public class ReindexDocumentationIT extends OpenSearchIntegTestCase {
         builder.execute();
 
         // 10 seconds is usually fine but on heavily loaded machines this can take a while
-        assertBusy(
-            () -> {
-                assertTrue("Expected some queued threads", ALLOWED_OPERATIONS.hasQueuedThreads());
-                assertEquals("Expected that no permits are available", 0, ALLOWED_OPERATIONS.availablePermits());
-            },
-            1, TimeUnit.MINUTES);
+        assertBusy(() -> {
+            assertTrue("Expected some queued threads", ALLOWED_OPERATIONS.hasQueuedThreads());
+            assertEquals("Expected that no permits are available", 0, ALLOWED_OPERATIONS.availablePermits());
+        }, 1, TimeUnit.MINUTES);
         return builder;
     }
 
