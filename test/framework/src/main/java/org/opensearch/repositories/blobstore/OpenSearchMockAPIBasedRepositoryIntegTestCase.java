@@ -81,7 +81,7 @@ import static org.hamcrest.Matchers.hasSize;
  */
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
 // The tests in here do a lot of state updates and other writes to disk and are slowed down too much by WindowsFS
-@LuceneTestCase.SuppressFileSystems(value = {"WindowsFS", "ExtrasFS"})
+@LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
 public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends OpenSearchBlobStoreRepositoryIntegTestCase {
 
     /**
@@ -129,15 +129,18 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
     @After
     public void tearDownHttpServer() {
         if (handlers != null) {
-            for(Map.Entry<String, HttpHandler> handler : handlers.entrySet()) {
+            for (Map.Entry<String, HttpHandler> handler : handlers.entrySet()) {
                 httpServer.removeContext(handler.getKey());
                 HttpHandler h = handler.getValue();
                 while (h instanceof DelegatingHttpHandler) {
                     h = ((DelegatingHttpHandler) h).getDelegate();
                 }
                 if (h instanceof BlobStoreHttpHandler) {
-                    List<String> blobs = ((BlobStoreHttpHandler) h).blobs().keySet().stream()
-                        .filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
+                    List<String> blobs = ((BlobStoreHttpHandler) h).blobs()
+                        .keySet()
+                        .stream()
+                        .filter(blob -> blob.contains("index") == false)
+                        .collect(Collectors.toList());
                     assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
                 }
             }
@@ -154,10 +157,10 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
     public void testSnapshotWithLargeSegmentFiles() throws Exception {
         final String repository = createRepository(randomName());
         final String index = "index-no-merges";
-        createIndex(index, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        createIndex(
+            index,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
 
         final long nbDocs = randomLongBetween(10_000L, 20_000L);
         try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
@@ -170,8 +173,9 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
         assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repository, snapshot)
-            .setWaitForCompletion(true).setIndices(index));
+        assertSuccessfulSnapshot(
+            client().admin().cluster().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
 
         assertAcked(client().admin().indices().prepareDelete(index));
 
@@ -185,10 +189,10 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
     public void testRequestStats() throws Exception {
         final String repository = createRepository(randomName());
         final String index = "index-no-merges";
-        createIndex(index, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        createIndex(
+            index,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
 
         final long nbDocs = randomLongBetween(10_000L, 20_000L);
         try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
@@ -201,8 +205,9 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
         assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repository, snapshot)
-            .setWaitForCompletion(true).setIndices(index));
+        assertSuccessfulSnapshot(
+            client().admin().cluster().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
 
         assertAcked(client().admin().indices().prepareDelete(index));
 
@@ -213,26 +218,21 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
 
         final RepositoryStats repositoryStats = StreamSupport.stream(
-            internalCluster().getInstances(RepositoriesService.class).spliterator(), false)
-            .map(repositoriesService -> {
-                try {
-                    return repositoriesService.repository(repository);
-                } catch (RepositoryMissingException e) {
-                    return null;
-                }
-            })
-            .filter(Objects::nonNull)
-            .map(Repository::stats)
-            .reduce(RepositoryStats::merge)
-            .get();
+            internalCluster().getInstances(RepositoriesService.class).spliterator(),
+            false
+        ).map(repositoriesService -> {
+            try {
+                return repositoriesService.repository(repository);
+            } catch (RepositoryMissingException e) {
+                return null;
+            }
+        }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
         Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
 
         final Map<String, Long> mockCalls = getMockRequestCounts();
 
-        String assertionErrorMsg = String.format("SDK sent [%s] calls and handler measured [%s] calls",
-            sdkRequestCounts,
-            mockCalls);
+        String assertionErrorMsg = String.format("SDK sent [%s] calls and handler measured [%s] calls", sdkRequestCounts, mockCalls);
 
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
@@ -258,7 +258,8 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
      * Consumes and closes the given {@link InputStream}
      */
     protected static void drainInputStream(final InputStream inputStream) throws IOException {
-        while (inputStream.read(BUFFER) >= 0) ;
+        while (inputStream.read(BUFFER) >= 0)
+            ;
     }
 
     /**
@@ -408,8 +409,15 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
             try {
                 handler.handle(exchange);
             } catch (Throwable t) {
-                logger.error(() -> new ParameterizedMessage("Exception when handling request {} {} {}",
-                    exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI()), t);
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "Exception when handling request {} {} {}",
+                        exchange.getRemoteAddress(),
+                        exchange.getRequestMethod(),
+                        exchange.getRequestURI()
+                    ),
+                    t
+                );
                 throw t;
             }
         }

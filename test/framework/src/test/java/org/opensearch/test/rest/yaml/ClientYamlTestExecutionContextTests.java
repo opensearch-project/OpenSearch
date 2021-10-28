@@ -37,8 +37,6 @@ import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
-import org.opensearch.test.rest.yaml.ClientYamlTestExecutionContext;
-import org.opensearch.test.rest.yaml.ClientYamlTestResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,20 +49,24 @@ public class ClientYamlTestExecutionContextTests extends OpenSearchTestCase {
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
         final Version version = VersionUtils.randomVersion(random());
-        final ClientYamlTestExecutionContext context =
-            new ClientYamlTestExecutionContext(null, randomBoolean()) {
-                @Override
-                ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                                                       HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
-                    headersRef.set(headers);
-                    return null;
-                }
+        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(null, randomBoolean()) {
+            @Override
+            ClientYamlTestResponse callApiInternal(
+                String apiName,
+                Map<String, String> params,
+                HttpEntity entity,
+                Map<String, String> headers,
+                NodeSelector nodeSelector
+            ) {
+                headersRef.set(headers);
+                return null;
+            }
 
-                @Override
-                public Version esVersion() {
-                    return version;
-                }
-            };
+            @Override
+            public Version esVersion() {
+                return version;
+            }
+        };
         final Map<String, String> headers = new HashMap<>();
         headers.put("foo", "$bar");
         headers.put("foo1", "baz ${c}");

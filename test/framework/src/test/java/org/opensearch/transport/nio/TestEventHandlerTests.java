@@ -83,8 +83,11 @@ public class TestEventHandlerTests extends OpenSearchTestCase {
         };
         final ThreadPool threadPool = mock(ThreadPool.class);
         doAnswer(i -> timeSupplier.getAsLong()).when(threadPool).relativeTimeInNanos();
-        TestEventHandler eventHandler =
-            new TestEventHandler(e -> {}, () -> null, new MockNioTransport.TransportThreadWatchdog(threadPool, Settings.EMPTY));
+        TestEventHandler eventHandler = new TestEventHandler(
+            e -> {},
+            () -> null,
+            new MockNioTransport.TransportThreadWatchdog(threadPool, Settings.EMPTY)
+        );
 
         ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
         SocketChannelContext socketChannelContext = mock(SocketChannelContext.class);
@@ -109,8 +112,12 @@ public class TestEventHandlerTests extends OpenSearchTestCase {
 
         for (Map.Entry<String, CheckedRunnable<Exception>> entry : tests.entrySet()) {
             String message = "*Slow execution on network thread*";
-            MockLogAppender.LoggingExpectation slowExpectation =
-                new MockLogAppender.SeenEventExpectation(entry.getKey(), MockNioTransport.class.getCanonicalName(), Level.WARN, message);
+            MockLogAppender.LoggingExpectation slowExpectation = new MockLogAppender.SeenEventExpectation(
+                entry.getKey(),
+                MockNioTransport.class.getCanonicalName(),
+                Level.WARN,
+                message
+            );
             appender.addExpectation(slowExpectation);
             entry.getValue().run();
             appender.assertAllExpectationsMatched();

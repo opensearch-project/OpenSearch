@@ -73,14 +73,27 @@ public class MockTransport extends StubbableTransport {
     private TransportMessageListener listener;
     private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
 
-    public TransportService createTransportService(Settings settings, ThreadPool threadPool, TransportInterceptor interceptor,
-                                                   Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-                                                   @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
+    public TransportService createTransportService(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders
+    ) {
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ClusterConnectionManager(settings, this));
         connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> false);
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
-        return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
-            connectionManager);
+        return new TransportService(
+            settings,
+            this,
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            taskHeaders,
+            connectionManager
+        );
     }
 
     public MockTransport() {
@@ -93,14 +106,15 @@ public class MockTransport extends StubbableTransport {
      */
     @SuppressWarnings("unchecked")
     public <Response extends TransportResponse> void handleResponse(final long requestId, final Response response) {
-        final TransportResponseHandler<Response> transportResponseHandler =
-            (TransportResponseHandler<Response>) getResponseHandlers().onResponseReceived(requestId, listener);
+        final TransportResponseHandler<Response> transportResponseHandler = (TransportResponseHandler<Response>) getResponseHandlers()
+            .onResponseReceived(requestId, listener);
         if (transportResponseHandler != null) {
             final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 response.writeTo(output);
                 deliveredResponse = transportResponseHandler.read(
-                    new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writeableRegistry()));
+                    new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writeableRegistry())
+                );
             } catch (IOException | UnsupportedOperationException e) {
                 throw new AssertionError("failed to serialize/deserialize response " + response, e);
             }
@@ -179,8 +193,7 @@ public class MockTransport extends StubbableTransport {
         };
     }
 
-    protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-    }
+    protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {}
 
     @Override
     public void setMessageListener(TransportMessageListener listener) {

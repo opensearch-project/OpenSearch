@@ -89,8 +89,9 @@ public class BootstrapForTesting {
 
     static {
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
-        Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),
-                                                               "please set ${java.io.tmpdir} in pom.xml"));
+        Path javaTmpDir = PathUtils.get(
+            Objects.requireNonNull(System.getProperty("java.io.tmpdir"), "please set ${java.io.tmpdir} in pom.xml")
+        );
         try {
             Security.ensureDirectoryExists(javaTmpDir);
         } catch (Exception e) {
@@ -98,8 +99,8 @@ public class BootstrapForTesting {
         }
 
         // just like bootstrap, initialize natives, then SM
-        final boolean memoryLock =
-                BootstrapSettings.MEMORY_LOCK_SETTING.get(Settings.EMPTY); // use the default bootstrap.memory_lock setting
+        final boolean memoryLock = BootstrapSettings.MEMORY_LOCK_SETTING.get(Settings.EMPTY); // use the default bootstrap.memory_lock
+                                                                                              // setting
         final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
         Bootstrap.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
 
@@ -149,7 +150,7 @@ public class BootstrapForTesting {
                 // read test-framework permissions
                 Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
                 // when testing server, the main opensearch code is not yet in a jar, so we need to manually add it
-                addClassCodebase(codebases,"opensearch", "org.opensearch.plugins.PluginsService");
+                addClassCodebase(codebases, "opensearch", "org.opensearch.plugins.PluginsService");
                 if (System.getProperty("tests.gradle") == null) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
                     addClassCodebase(codebases, "plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
@@ -174,7 +175,8 @@ public class BootstrapForTesting {
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.
                 // this just makes unit testing more realistic
                 for (URL url : Collections.list(
-                        BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_PROPERTIES))) {
+                    BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_PROPERTIES)
+                )) {
                     Properties properties = new Properties();
                     try (InputStream stream = FileSystemUtils.openFileURLStream(url)) {
                         properties.load(stream);
@@ -211,16 +213,18 @@ public class BootstrapForTesting {
      * like core, test-framework, etc. this way tests fail if accesscontroller blocks are missing.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Map<String,Policy> getPluginPermissions() throws Exception {
-        List<URL> pluginPolicies =
-            Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_POLICY));
+    static Map<String, Policy> getPluginPermissions() throws Exception {
+        List<URL> pluginPolicies = Collections.list(
+            BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_POLICY)
+        );
         if (pluginPolicies.isEmpty()) {
             return Collections.emptyMap();
         }
 
         // compute classpath minus obvious places, all other jars will get the permission.
         Set<URL> codebases = new HashSet<>(parseClassPathWithSymlinks());
-        Set<URL> excluded = new HashSet<>(Arrays.asList(
+        Set<URL> excluded = new HashSet<>(
+            Arrays.asList(
                 // es core
                 Bootstrap.class.getProtectionDomain().getCodeSource().getLocation(),
                 // es test framework
@@ -231,7 +235,8 @@ public class BootstrapForTesting {
                 RandomizedRunner.class.getProtectionDomain().getCodeSource().getLocation(),
                 // junit library
                 Assert.class.getProtectionDomain().getCodeSource().getLocation()
-        ));
+            )
+        );
         codebases.removeAll(excluded);
 
         // parse each policy file, with codebase substitution from the classpath
@@ -241,7 +246,7 @@ public class BootstrapForTesting {
         }
 
         // consult each policy file for those codebases
-        Map<String,Policy> map = new HashMap<>();
+        Map<String, Policy> map = new HashMap<>();
         for (URL url : codebases) {
             map.put(url.getFile(), new Policy() {
                 @Override
@@ -278,17 +283,16 @@ public class BootstrapForTesting {
         }
         return raw;
     }
-    
+
     /**
-     * Collect host addresses of all local interfaces so we could check 
+     * Collect host addresses of all local interfaces so we could check
      * if the network connection is being made only on those.
      * @return host names and addresses of all local interfaces
      */
     private static Set<String> getTrustedHosts() {
-        // 
+        //
         try {
-            return Collections
-                .list(NetworkInterface.getNetworkInterfaces())
+            return Collections.list(NetworkInterface.getNetworkInterfaces())
                 .stream()
                 .flatMap(iface -> Collections.list(iface.getInetAddresses()).stream())
                 .map(address -> NetworkAddress.format(address))

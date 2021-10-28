@@ -59,10 +59,7 @@ public class NamedFormatterTests extends OpenSearchTestCase {
         values.put("name", "world");
         values.put("second_name", "fred");
 
-        assertThat(
-            NamedFormatter.format("Hello, %(name) and %(second_name)!", values),
-            equalTo("Hello, world and fred!")
-        );
+        assertThat(NamedFormatter.format("Hello, %(name) and %(second_name)!", values), equalTo("Hello, world and fred!"));
     }
 
     public void testEscapedPatternsAreNotFormatted() {

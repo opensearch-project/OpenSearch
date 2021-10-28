@@ -78,17 +78,8 @@ def projectPathsToExclude = [
   ':plugins:store-smb',
   ':plugins:transport-nio',
   ':qa:die-with-dignity',
-  ':rest-api-spec',
-  ':test:fixtures:azure-fixture',
-  ':test:fixtures:gcs-fixture',
-  ':test:fixtures:hdfs-fixture',
-  ':test:fixtures:krb5kdc-fixture',
-  ':test:fixtures:minio-fixture',
-  ':test:fixtures:old-elasticsearch',
-  ':test:fixtures:s3-fixture',
-  ':test:framework',
-  ':test:logger-usage'
-]
+  ':rest-api-spec'
+  ]
 
 subprojects {
   plugins.withType(BuildPlugin).whenPluginAdded {

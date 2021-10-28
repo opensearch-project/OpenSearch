@@ -57,8 +57,12 @@ public abstract class ModuleTestCase extends OpenSearchTestCase {
      * Like {@link #assertInstanceBinding(Module, Class, Predicate)}, but filters the
      * classes checked by the given annotation.
      */
-    private <T> void assertInstanceBindingWithAnnotation(Module module, Class<T> to,
-            Predicate<T> tester, Class<? extends Annotation> annotation) {
+    private <T> void assertInstanceBindingWithAnnotation(
+        Module module,
+        Class<T> to,
+        Predicate<T> tester,
+        Class<? extends Annotation> annotation
+    ) {
         List<Element> elements = Elements.getElements(module);
         for (Element element : elements) {
             if (element instanceof InstanceBinding) {
@@ -69,7 +73,7 @@ public abstract class ModuleTestCase extends OpenSearchTestCase {
                         return;
                     }
                 }
-            } else  if (element instanceof ProviderInstanceBinding) {
+            } else if (element instanceof ProviderInstanceBinding) {
                 ProviderInstanceBinding<?> binding = (ProviderInstanceBinding<?>) element;
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     assertTrue(tester.test(to.cast(binding.getProviderInstance().get())));
