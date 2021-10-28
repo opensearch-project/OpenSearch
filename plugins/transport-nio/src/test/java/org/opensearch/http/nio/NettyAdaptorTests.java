@@ -57,7 +57,7 @@ public class NettyAdaptorTests extends OpenSearchTestCase {
             message.putInt(i);
         }
         message.flip();
-        ByteBuffer[] buffers = {message};
+        ByteBuffer[] buffers = { message };
         assertEquals(40, nettyAdaptor.read(buffers));
         assertEquals("0123456789", handler.result);
     }
@@ -70,7 +70,7 @@ public class NettyAdaptorTests extends OpenSearchTestCase {
             message.putInt(i);
         }
         message.flip();
-        ByteBuffer[] buffers = {message};
+        ByteBuffer[] buffers = { message };
         assertEquals(40, nettyAdaptor.read(buffers));
         assertEquals("0123456789", handler.result);
     }
@@ -82,20 +82,22 @@ public class NettyAdaptorTests extends OpenSearchTestCase {
             message.putInt(i);
         }
         message.flip();
-        ByteBuffer[] buffers = {message};
+        ByteBuffer[] buffers = { message };
         expectThrows(IllegalStateException.class, () -> nettyAdaptor.read(buffers));
     }
 
     public void testWriteInsidePipelineIsCaptured() {
         TenIntsToStringsHandler tenIntsToStringsHandler = new TenIntsToStringsHandler();
         PromiseCheckerHandler promiseCheckerHandler = new PromiseCheckerHandler();
-        NettyAdaptor nettyAdaptor = new NettyAdaptor(new CapitalizeWriteHandler(),
+        NettyAdaptor nettyAdaptor = new NettyAdaptor(
+            new CapitalizeWriteHandler(),
             promiseCheckerHandler,
             new WriteInMiddleHandler(),
-            tenIntsToStringsHandler);
+            tenIntsToStringsHandler
+        );
         byte[] bytes = "SHOULD_WRITE".getBytes(StandardCharsets.UTF_8);
         ByteBuffer message = ByteBuffer.wrap(bytes);
-        ByteBuffer[] buffers = {message};
+        ByteBuffer[] buffers = { message };
         assertNull(nettyAdaptor.pollOutboundOperation());
         nettyAdaptor.read(buffers);
         assertFalse(tenIntsToStringsHandler.wasCalled);
@@ -112,7 +114,7 @@ public class NettyAdaptorTests extends OpenSearchTestCase {
         CloseChannelHandler handler = new CloseChannelHandler();
         NettyAdaptor nettyAdaptor = new NettyAdaptor(handler);
         byte[] bytes = "SHOULD_CLOSE".getBytes(StandardCharsets.UTF_8);
-        ByteBuffer[] buffers = {ByteBuffer.wrap(bytes)};
+        ByteBuffer[] buffers = { ByteBuffer.wrap(bytes) };
         nettyAdaptor.addCloseListener((v, e) -> listenerCalled.set(true));
         assertFalse(listenerCalled.get());
         nettyAdaptor.read(buffers);

@@ -73,11 +73,13 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     public void testReadSecuredSettings() {
-        final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings())
-            .put("azure.client.azure3.endpoint_suffix", "my_endpoint_suffix").build();
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure3.endpoint_suffix", "my_endpoint_suffix")
+            .build();
 
         final Map<String, AzureStorageSettings> loadedSettings = AzureStorageSettings.load(settings);
-        assertThat(loadedSettings.keySet(), containsInAnyOrder("azure1","azure2","azure3","default"));
+        assertThat(loadedSettings.keySet(), containsInAnyOrder("azure1", "azure2", "azure3", "default"));
 
         assertThat(loadedSettings.get("azure1").getEndpointSuffix(), is(emptyString()));
         assertThat(loadedSettings.get("azure2").getEndpointSuffix(), is(emptyString()));
@@ -99,8 +101,10 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     public void testCreateClientWithEndpointSuffix() throws IOException {
-        final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings())
-            .put("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix").build();
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix")
+            .build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
             final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
@@ -236,9 +240,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     public void testNoProxy() {
-        final Settings settings = Settings.builder()
-            .setSecureSettings(buildSecureSettings())
-            .build();
+        final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings()).build();
         final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
         assertThat(mock.storageSettings.get("azure1").getProxy(), nullValue());
         assertThat(mock.storageSettings.get("azure2").getProxy(), nullValue());
@@ -373,18 +375,18 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     private static String encodeKey(final String value) {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
-    
+
     private static RequestRetryPolicy requestRetryOptions(BlobServiceClient client) {
         for (int i = 0; i < client.getHttpPipeline().getPolicyCount(); ++i) {
             final HttpPipelinePolicy policy = client.getHttpPipeline().getPolicy(i);
             if (policy instanceof RequestRetryPolicy) {
-                return (RequestRetryPolicy)policy;
+                return (RequestRetryPolicy) policy;
             }
         }
-        
+
         return null;
     }
-    
+
     /**
      * Extract the blob name from a URI like https://myservice.azure.net/container/path/to/myfile
      * It should remove the container part (first part of the path) and gives path/to/myfile

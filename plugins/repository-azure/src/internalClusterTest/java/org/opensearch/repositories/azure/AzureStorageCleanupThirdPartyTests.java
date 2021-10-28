@@ -65,7 +65,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     public static void shutdownSchedulers() {
         Schedulers.shutdownNow();
     }
-    
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(AzureRepositoryPlugin.class);
@@ -75,10 +75,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     protected Settings nodeSettings() {
         final String endpoint = System.getProperty("test.azure.endpoint_suffix");
         if (Strings.hasText(endpoint)) {
-            return Settings.builder()
-                .put(super.nodeSettings())
-                .put("azure.client.default.endpoint_suffix", endpoint)
-                .build();
+            return Settings.builder().put(super.nodeSettings()).put("azure.client.default.endpoint_suffix", endpoint).build();
         }
         return super.nodeSettings();
     }
@@ -107,12 +104,16 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository(repoName)
+        AcknowledgedResponse putRepositoryResponse = client().admin()
+            .cluster()
+            .preparePutRepository(repoName)
             .setType("azure")
-            .setSettings(Settings.builder()
-                .put("container", System.getProperty("test.azure.container"))
-                .put("base_path", System.getProperty("test.azure.base"))
-            ).get();
+            .setSettings(
+                Settings.builder()
+                    .put("container", System.getProperty("test.azure.container"))
+                    .put("base_path", System.getProperty("test.azure.base"))
+            )
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         if (Strings.hasText(System.getProperty("test.azure.sas_token"))) {
             ensureSasTokenPermissions();
@@ -129,9 +130,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(blobStore.toString());
             try {
                 SocketAccess.doPrivilegedException(() -> blobContainer.existsWithResponse(null, client.v2().get()));
-                future.onFailure(new RuntimeException(
-                    "The SAS token used in this test allowed for checking container existence. This test only supports tokens " +
-                        "that grant only the documented permission requirements for the Azure repository plugin."));
+                future.onFailure(
+                    new RuntimeException(
+                        "The SAS token used in this test allowed for checking container existence. This test only supports tokens "
+                            + "that grant only the documented permission requirements for the Azure repository plugin."
+                    )
+                );
             } catch (BlobStorageException e) {
                 if (e.getStatusCode() == HttpURLConnection.HTTP_FORBIDDEN) {
                     future.onResponse(null);

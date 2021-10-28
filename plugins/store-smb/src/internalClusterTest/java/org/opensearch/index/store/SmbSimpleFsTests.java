@@ -34,13 +34,9 @@ package org.opensearch.index.store;
 
 import org.opensearch.common.settings.Settings;
 
-
 public class SmbSimpleFsTests extends AbstractAzureFsTestCase {
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-                .put(super.indexSettings())
-                .put("index.store.type", "smb_simple_fs")
-                .build();
+        return Settings.builder().put(super.indexSettings()).put("index.store.type", "smb_simple_fs").build();
     }
 }
