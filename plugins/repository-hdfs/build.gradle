@@ -67,6 +67,7 @@ dependencies {
   api 'org.apache.htrace:htrace-core4:4.1.0-incubating'
   api "org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.1.1"
   api "org.apache.hadoop.thirdparty:hadoop-shaded-protobuf_3_7:1.1.1"
+  api 'org.apache.avro:avro:1.10.2'
   runtimeOnly 'com.google.guava:guava:30.1.1-jre'
   api 'com.google.protobuf:protobuf-java:2.5.0'
   api 'commons-logging:commons-logging:1.1.3'
@@ -82,6 +83,9 @@ dependencies {
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  api 'net.minidev:json-smart:2.4.7'
+  api 'org.apache.zookeeper:zookeeper:3.7.0'
+  api "io.netty:netty-all:${versions.netty}"
   implementation 'com.fasterxml.woodstox:woodstox-core:6.1.1'
   implementation 'org.codehaus.woodstox:stax2-api:4.2.1'
 
@@ -375,5 +379,18 @@ thirdPartyAudit {
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
+
+    'org.apache.avro.reflect.FieldAccessUnsafe',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeByteField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCachedField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCharField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCustomEncodedField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeDoubleField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeFloatField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeIntField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeLongField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField',
   )
 }
