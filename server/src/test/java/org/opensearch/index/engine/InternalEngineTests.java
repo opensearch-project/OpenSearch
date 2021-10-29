@@ -3807,38 +3807,35 @@ public class InternalEngineTests extends EngineTestCase {
         }
         TranslogDeletionPolicyFactory translogDeletionPolicyFactory = CustomTranslogDeletionPolicy::new;
 
-        try (Store store = createStore()) {
-            EngineConfig config = engine.config();
-
-            EngineConfig configWithCustomTranslogDeletionPolicyFactory = new EngineConfig(
-                config.getShardId(),
-                config.getThreadPool(),
-                config.getIndexSettings(),
-                config.getWarmer(),
-                store,
-                config.getMergePolicy(),
-                config.getAnalyzer(),
-                config.getSimilarity(),
-                new CodecService(null, logger),
-                config.getEventListener(),
-                config.getQueryCache(),
-                config.getQueryCachingPolicy(),
-                config.getTranslogConfig(),
-                translogDeletionPolicyFactory,
-                config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(),
-                config.getInternalRefreshListener(),
-                config.getIndexSort(),
-                config.getCircuitBreakerService(),
-                config.getGlobalCheckpointSupplier(),
-                config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(),
-                config.getTombstoneDocSupplier()
-            );
-            try (InternalEngine engine = createEngine(configWithCustomTranslogDeletionPolicyFactory)) {
-                assertTrue(engine.getTranslog().getDeletionPolicy() instanceof CustomTranslogDeletionPolicy);
-            }
-        }
+        EngineConfig config = engine.config();
+        EngineConfig configWithCustomTranslogDeletionPolicyFactory = new EngineConfig(
+            config.getShardId(),
+            config.getThreadPool(),
+            config.getIndexSettings(),
+            config.getWarmer(),
+            config.getStore(),
+            config.getMergePolicy(),
+            config.getAnalyzer(),
+            config.getSimilarity(),
+            new CodecService(null, logger),
+            config.getEventListener(),
+            config.getQueryCache(),
+            config.getQueryCachingPolicy(),
+            config.getTranslogConfig(),
+            translogDeletionPolicyFactory,
+            config.getFlushMergesAfter(),
+            config.getExternalRefreshListener(),
+            config.getInternalRefreshListener(),
+            config.getIndexSort(),
+            config.getCircuitBreakerService(),
+            config.getGlobalCheckpointSupplier(),
+            config.retentionLeasesSupplier(),
+            config.getPrimaryTermSupplier(),
+            config.getTombstoneDocSupplier()
+        );
+        engine.close();
+        engine = createEngine(configWithCustomTranslogDeletionPolicyFactory);
+        assertTrue(engine.getTranslog().getDeletionPolicy() instanceof CustomTranslogDeletionPolicy);
     }
 
     public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {

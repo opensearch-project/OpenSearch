@@ -754,7 +754,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             () -> queryBuilder.toQuery(createShardContext())
         );
         assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
-        assertThat(e.getMessage(), containsString("would result in more than 10000 states"));
+        assertThat(e.getMessage(), containsString("would require more than 10000 effort"));
     }
 
     /**
@@ -780,7 +780,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             () -> queryBuilder.toQuery(createShardContext())
         );
         assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
-        assertThat(e.getMessage(), containsString("would result in more than 10 states"));
+        assertThat(e.getMessage(), containsString("would require more than 10 effort"));
     }
 
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
