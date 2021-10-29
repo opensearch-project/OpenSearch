@@ -77,9 +77,8 @@ def projectPathsToExclude = [
   ':plugins:repository-s3',
   ':plugins:store-smb',
   ':plugins:transport-nio',
-  ':qa:die-with-dignity',
-  ':rest-api-spec'
-  ]
+  ':qa:die-with-dignity'
+]
 
 subprojects {
   plugins.withType(BuildPlugin).whenPluginAdded {
