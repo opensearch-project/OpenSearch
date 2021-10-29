@@ -34,7 +34,7 @@ import java.util.function.Function;
 public class PriviledgedMockMaker implements MockMaker {
     private static AccessControlContext context;
     private final ByteBuddyMockMaker delegate;
-    
+
     /**
      * Create dedicated AccessControlContext to use the Mockito protection domain (test only)
      * so to relax the security constraints for the test cases which rely on mocks. This plugin
@@ -42,23 +42,17 @@ public class PriviledgedMockMaker implements MockMaker {
      * since Mockito does not support SecurityManager out of the box. The method has to be called by
      * test framework before the SecurityManager is being set, otherwise additional permissions have
      * to be granted to the caller:
-     * 
+     *
      *     permission java.security.Permission "createAccessControlContext"
-     * 
+     *
      */
     public static void createAccessControlContext() {
         // This combiner, if bound to an access control context, will unconditionally
         // substitute the call chain protection domains with the 'mockito-core' one if it
         // is present. The security checks are relaxed intentionally to trust mocking
         // implementation if it is part of the call chain.
-        final DomainCombiner combiner = (current, assigned) -> Arrays
-            .stream(current)
-            .filter(pd -> 
-                pd
-                    .getCodeSource()
-                    .getLocation()
-                    .getFile()
-                    .contains("mockito-core") /* check mockito-core only */)
+        final DomainCombiner combiner = (current, assigned) -> Arrays.stream(current)
+            .filter(pd -> pd.getCodeSource().getLocation().getFile().contains("mockito-core") /* check mockito-core only */)
             .findAny()
             .map(pd -> new ProtectionDomain[] { pd })
             .orElse(current);
@@ -67,39 +61,31 @@ public class PriviledgedMockMaker implements MockMaker {
         final AccessControlContext wrapper = new AccessControlContext(AccessController.getContext(), combiner);
 
         // Create new access control context with dedicated combiner
-        context = AccessController.doPrivileged(
-            (PrivilegedAction<AccessControlContext>) AccessController::getContext,
-            wrapper);
+        context = AccessController.doPrivileged((PrivilegedAction<AccessControlContext>) AccessController::getContext, wrapper);
     }
 
     /**
      * Construct an instance of the priviledged mock maker using ByteBuddyMockMaker under the hood.
      */
     public PriviledgedMockMaker() {
-        delegate = AccessController.doPrivileged(
-            (PrivilegedAction<ByteBuddyMockMaker>) () -> new ByteBuddyMockMaker(), 
-            context);
+        delegate = AccessController.doPrivileged((PrivilegedAction<ByteBuddyMockMaker>) () -> new ByteBuddyMockMaker(), context);
     }
 
     @SuppressWarnings("rawtypes")
     @Override
     public <T> T createMock(MockCreationSettings<T> settings, MockHandler handler) {
-        return AccessController.doPrivileged(
-            (PrivilegedAction<T>) () -> delegate.createMock(settings, handler), 
-            context);
+        return AccessController.doPrivileged((PrivilegedAction<T>) () -> delegate.createMock(settings, handler), context);
     }
 
     @SuppressWarnings("rawtypes")
     @Override
     public <T> Optional<T> createSpy(MockCreationSettings<T> settings, MockHandler handler, T object) {
         // The ByteBuddyMockMaker does not implement createSpy and relies on Mockito's fallback
-        return AccessController.doPrivileged(
-            (PrivilegedAction<Optional<T> >) () -> {
-                T instance = delegate.createMock(settings, handler);
-                new LenientCopyTool().copyToMock(object, instance);
-                return Optional.of(instance);
-            }, 
-            context);
+        return AccessController.doPrivileged((PrivilegedAction<Optional<T>>) () -> {
+            T instance = delegate.createMock(settings, handler);
+            new LenientCopyTool().copyToMock(object, instance);
+            return Optional.of(instance);
+        }, context);
     }
 
     @SuppressWarnings("rawtypes")
@@ -111,11 +97,10 @@ public class PriviledgedMockMaker implements MockMaker {
     @SuppressWarnings("rawtypes")
     @Override
     public void resetMock(Object mock, MockHandler newHandler, MockCreationSettings settings) {
-        AccessController.doPrivileged(
-            (PrivilegedAction<Void>) () -> {
-                delegate.resetMock(mock, newHandler, settings);
-                return null;
-            }, context);
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            delegate.resetMock(mock, newHandler, settings);
+            return null;
+        }, context);
     }
 
     @Override
@@ -131,10 +116,12 @@ public class PriviledgedMockMaker implements MockMaker {
     }
 
     @Override
-    public <T> ConstructionMockControl<T> createConstructionMock(Class<T> type,
-            Function<MockedConstruction.Context, MockCreationSettings<T>> settingsFactory,
-            Function<MockedConstruction.Context, MockHandler<T>> handlerFactory,
-            MockedConstruction.MockInitializer<T> mockInitializer) {
+    public <T> ConstructionMockControl<T> createConstructionMock(
+        Class<T> type,
+        Function<MockedConstruction.Context, MockCreationSettings<T>> settingsFactory,
+        Function<MockedConstruction.Context, MockHandler<T>> handlerFactory,
+        MockedConstruction.MockInitializer<T> mockInitializer
+    ) {
         return delegate.createConstructionMock(type, settingsFactory, handlerFactory, mockInitializer);
     }
 

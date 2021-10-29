@@ -27,6 +27,8 @@
   <suppress files="libs" checks="." />
   <!-- Excludes checkstyle run on modules module -->
   <suppress files="modules" checks="." />
+  <!-- Excludes checkstyle run on test module -->
+  <suppress files="test" checks="." />
   <!-- Excludes checkstyle run on rest-api-spec module -->
   <suppress files="rest-api-spec" checks="." />
   

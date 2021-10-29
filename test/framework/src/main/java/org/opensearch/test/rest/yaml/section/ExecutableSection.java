@@ -50,7 +50,8 @@ public interface ExecutableSection {
     /**
      * Default list of {@link ExecutableSection}s available for tests.
      */
-    List<NamedXContentRegistry.Entry> DEFAULT_EXECUTABLE_CONTEXTS = unmodifiableList(Arrays.asList(
+    List<NamedXContentRegistry.Entry> DEFAULT_EXECUTABLE_CONTEXTS = unmodifiableList(
+        Arrays.asList(
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("do"), DoSection::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("set"), SetSection::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("transform_and_set"), TransformAndSetSection::parse),
@@ -62,7 +63,9 @@ public interface ExecutableSection {
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lt"), LessThanAssertion::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lte"), LessThanOrEqualToAssertion::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("contains"), ContainsAssertion::parse),
-            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("length"), LengthAssertion::parse)));
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("length"), LengthAssertion::parse)
+        )
+    );
 
     /**
      * {@link NamedXContentRegistry} that parses the default list of

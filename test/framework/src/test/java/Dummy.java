@@ -25,5 +25,4 @@
  * under the License.
  */
 
-class Dummy {
-}
+class Dummy {}

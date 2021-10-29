@@ -109,8 +109,7 @@ public class DeterministicTaskQueueTests extends OpenSearchTestCase {
     }
 
     private void advanceToRandomTime(DeterministicTaskQueue taskQueue) {
-        taskQueue.scheduleAt(randomLongBetween(1, 100), () -> {
-        });
+        taskQueue.scheduleAt(randomLongBetween(1, 100), () -> {});
         taskQueue.advanceTime();
         taskQueue.runRandomTask();
         assertFalse(taskQueue.hasRunnableTasks());
@@ -327,8 +326,11 @@ public class DeterministicTaskQueueTests extends OpenSearchTestCase {
         assertThat(taskQueue.getCurrentTimeMillis(), is(startTime + delayMillis + delayMillis1));
 
         final TimeValue cancelledDelay = TimeValue.timeValueMillis(randomLongBetween(1, 100));
-        final Scheduler.Cancellable cancelledBeforeExecution =
-            threadPool.schedule(() -> strings.add("cancelled before execution"), cancelledDelay, "");
+        final Scheduler.Cancellable cancelledBeforeExecution = threadPool.schedule(
+            () -> strings.add("cancelled before execution"),
+            cancelledDelay,
+            ""
+        );
 
         cancelledBeforeExecution.cancel();
         taskQueue.runAllTasks();
@@ -380,7 +382,10 @@ public class DeterministicTaskQueueTests extends OpenSearchTestCase {
 
         final AtomicInteger counter = new AtomicInteger(0);
         Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(
-            () -> strings.add("periodic-" + counter.getAndIncrement()), TimeValue.timeValueMillis(intervalMillis), GENERIC);
+            () -> strings.add("periodic-" + counter.getAndIncrement()),
+            TimeValue.timeValueMillis(intervalMillis),
+            GENERIC
+        );
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 

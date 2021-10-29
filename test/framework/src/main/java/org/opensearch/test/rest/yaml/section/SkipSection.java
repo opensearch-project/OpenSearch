@@ -67,8 +67,13 @@ public class SkipSection {
 
     public static SkipSection parse(XContentParser parser) throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-            throw new IllegalArgumentException("Expected [" + XContentParser.Token.START_OBJECT +
-                    ", found [" + parser.currentToken() + "], the skip section is not properly indented");
+            throw new IllegalArgumentException(
+                "Expected ["
+                    + XContentParser.Token.START_OBJECT
+                    + ", found ["
+                    + parser.currentToken()
+                    + "], the skip section is not properly indented"
+            );
         }
         String currentFieldName = null;
         XContentParser.Token token;
@@ -95,14 +100,15 @@ public class SkipSection {
                     } else {
                         features.add(f);
                     }
-                }
-                else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "field " + currentFieldName + " not supported within skip section");
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "field " + currentFieldName + " not supported within skip section"
+                    );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("features".equals(currentFieldName)) {
-                    while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         features.add(parser.text());
                     }
                 }
@@ -202,7 +208,7 @@ public class SkipSection {
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append("[").append(description).append("] skipped,");
         if (reason != null) {
-             messageBuilder.append(" reason: [").append(getReason()).append("]");
+            messageBuilder.append(" reason: [").append(getReason()).append("]");
         }
         if (features.isEmpty() == false) {
             messageBuilder.append(" unsupported features ").append(getFeatures());

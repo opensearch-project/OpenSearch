@@ -61,9 +61,8 @@ final class BlacklistedPathPatternMatcher {
             throw new IllegalArgumentException("Empty blacklist patterns are not supported");
         }
         // very simple transformation from wildcard to a proper regex
-        String finalPattern = p
-                .replaceAll("\\*", "[^/]*") // support wildcard matches (within a single path segment)
-                .replaceAll("\\\\,", ",");  // restore previously escaped ',' in paths.
+        String finalPattern = p.replaceAll("\\*", "[^/]*") // support wildcard matches (within a single path segment)
+            .replaceAll("\\\\,", ",");  // restore previously escaped ',' in paths.
 
         // suffix match
         pattern = Pattern.compile(".*" + finalPattern);

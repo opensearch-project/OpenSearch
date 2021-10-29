@@ -61,12 +61,12 @@ public final class ScoreAccessor extends Number {
 
     @Override
     public int intValue() {
-        return (int)score();
+        return (int) score();
     }
 
     @Override
     public long longValue() {
-        return (long)score();
+        return (long) score();
     }
 
     @Override
