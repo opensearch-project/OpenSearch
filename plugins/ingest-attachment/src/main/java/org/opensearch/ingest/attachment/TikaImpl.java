@@ -77,15 +77,17 @@ import java.util.Set;
 final class TikaImpl {
 
     /** Exclude some formats */
-    private static final Set<MediaType> EXCLUDES = new HashSet<>(Arrays.asList(
-        MediaType.application("vnd.ms-visio.drawing"),
-        MediaType.application("vnd.ms-visio.drawing.macroenabled.12"),
-        MediaType.application("vnd.ms-visio.stencil"),
-        MediaType.application("vnd.ms-visio.stencil.macroenabled.12"),
-        MediaType.application("vnd.ms-visio.template"),
-        MediaType.application("vnd.ms-visio.template.macroenabled.12"),
-        MediaType.application("vnd.ms-visio.drawing")
-    ));
+    private static final Set<MediaType> EXCLUDES = new HashSet<>(
+        Arrays.asList(
+            MediaType.application("vnd.ms-visio.drawing"),
+            MediaType.application("vnd.ms-visio.drawing.macroenabled.12"),
+            MediaType.application("vnd.ms-visio.stencil"),
+            MediaType.application("vnd.ms-visio.stencil.macroenabled.12"),
+            MediaType.application("vnd.ms-visio.template"),
+            MediaType.application("vnd.ms-visio.template.macroenabled.12"),
+            MediaType.application("vnd.ms-visio.drawing")
+        )
+    );
 
     /** subset of parsers for types we support */
     private static final Parser PARSERS[] = new Parser[] {
@@ -100,8 +102,7 @@ final class TikaImpl {
         new org.apache.tika.parser.odf.OpenDocumentParser(),
         new org.apache.tika.parser.iwork.IWorkPackageParser(),
         new org.apache.tika.parser.xml.DcXMLParser(),
-        new org.apache.tika.parser.epub.EpubParser(),
-    };
+        new org.apache.tika.parser.epub.EpubParser(), };
 
     /** autodetector based on this subset */
     private static final AutoDetectParser PARSER_INSTANCE = new AutoDetectParser(PARSERS);
@@ -117,8 +118,10 @@ final class TikaImpl {
         SpecialPermission.check();
 
         try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<String>)
-                () -> TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit), RESTRICTED_CONTEXT);
+            return AccessController.doPrivileged(
+                (PrivilegedExceptionAction<String>) () -> TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit),
+                RESTRICTED_CONTEXT
+            );
         } catch (PrivilegedActionException e) {
             // checked exception from tika: unbox it
             Throwable cause = e.getCause();
@@ -135,9 +138,7 @@ final class TikaImpl {
     // apply additional containment for parsers, this is intersected with the current permissions
     // its hairy, but worth it so we don't have some XML flaw reading random crap from the FS
     private static final AccessControlContext RESTRICTED_CONTEXT = new AccessControlContext(
-        new ProtectionDomain[] {
-            new ProtectionDomain(null, getRestrictedPermissions())
-        }
+        new ProtectionDomain[] { new ProtectionDomain(null, getRestrictedPermissions()) }
     );
 
     // compute some minimal permissions for parsers. they only get r/w access to the java temp directory,
@@ -155,7 +156,7 @@ final class TikaImpl {
             addReadPermissions(perms, JarHell.parseClassPath());
             // plugin jars
             if (TikaImpl.class.getClassLoader() instanceof URLClassLoader) {
-                URL[] urls = ((URLClassLoader)TikaImpl.class.getClassLoader()).getURLs();
+                URL[] urls = ((URLClassLoader) TikaImpl.class.getClassLoader()).getURLs();
                 Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
                 if (set.size() != urls.length) {
                     throw new AssertionError("duplicate jars: " + Arrays.toString(urls));
@@ -163,8 +164,13 @@ final class TikaImpl {
                 addReadPermissions(perms, set);
             }
             // jvm's java.io.tmpdir (needs read/write)
-            FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", PathUtils.get(System.getProperty("java.io.tmpdir")),
-                "read,readlink,write,delete", false);
+            FilePermissionUtils.addDirectoryPath(
+                perms,
+                "java.io.tmpdir",
+                PathUtils.get(System.getProperty("java.io.tmpdir")),
+                "read,readlink,write,delete",
+                false
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

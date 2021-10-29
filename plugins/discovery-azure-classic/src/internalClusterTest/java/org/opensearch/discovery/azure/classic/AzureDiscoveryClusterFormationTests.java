@@ -129,24 +129,31 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
             .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
             .put(Environment.PATH_LOGS_SETTING.getKey(), resolve)
             .put(TransportSettings.PORT.getKey(), 0)
             .put(Node.WRITE_PORTS_FILE_SETTING.getKey(), "true")
-            .put(AzureComputeService.Management.ENDPOINT_SETTING.getKey(), "https://" + InetAddress.getLoopbackAddress().getHostAddress() +
-                ":" + httpsServer.getAddress().getPort())
+            .put(
+                AzureComputeService.Management.ENDPOINT_SETTING.getKey(),
+                "https://" + InetAddress.getLoopbackAddress().getHostAddress() + ":" + httpsServer.getAddress().getPort()
+            )
             .put(AzureComputeService.Management.KEYSTORE_PATH_SETTING.getKey(), keyStoreFile.toAbsolutePath())
-            .put(AzureComputeService.Discovery.HOST_TYPE_SETTING.getKey(),
-                org.opensearch.discovery.azure.classic.AzureSeedHostsProvider.HostType.PUBLIC_IP.name())
+            .put(
+                AzureComputeService.Discovery.HOST_TYPE_SETTING.getKey(),
+                org.opensearch.discovery.azure.classic.AzureSeedHostsProvider.HostType.PUBLIC_IP.name()
+            )
             .put(AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING.getKey(), "keypass")
             .put(AzureComputeService.Management.KEYSTORE_TYPE_SETTING.getKey(), "jks")
             .put(AzureComputeService.Management.SERVICE_NAME_SETTING.getKey(), "myservice")
             .put(AzureComputeService.Management.SUBSCRIPTION_ID_SETTING.getKey(), "subscription")
             .put(AzureComputeService.Discovery.DEPLOYMENT_NAME_SETTING.getKey(), "mydeployment")
             .put(AzureComputeService.Discovery.ENDPOINT_NAME_SETTING.getKey(), "myendpoint")
-            .put(AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING.getKey(),
-                org.opensearch.discovery.azure.classic.AzureSeedHostsProvider.Deployment.PRODUCTION.name())
+            .put(
+                AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING.getKey(),
+                org.opensearch.discovery.azure.classic.AzureSeedHostsProvider.Deployment.PRODUCTION.name()
+            )
             .build();
     }
 
@@ -293,9 +300,9 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
         } else if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
             return "TLSv1.2";
         } else {
-            JavaVersion full =
-                AccessController.doPrivileged(
-                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+            JavaVersion full = AccessController.doPrivileged(
+                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
+            );
             if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
                 return "TLSv1.2";
             }

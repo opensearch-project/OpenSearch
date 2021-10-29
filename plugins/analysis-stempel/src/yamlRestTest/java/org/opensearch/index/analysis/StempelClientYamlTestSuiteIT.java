@@ -49,4 +49,3 @@ public class StempelClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestC
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

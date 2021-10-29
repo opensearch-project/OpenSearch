@@ -49,4 +49,3 @@ public class IcuClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase 
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

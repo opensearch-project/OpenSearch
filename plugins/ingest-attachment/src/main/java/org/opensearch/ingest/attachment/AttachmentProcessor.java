@@ -71,8 +71,16 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final boolean ignoreMissing;
     private final String indexedCharsField;
 
-    AttachmentProcessor(String tag, String description, String field, String targetField, Set<Property> properties,
-                        int indexedChars, boolean ignoreMissing, String indexedCharsField) {
+    AttachmentProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        Set<Property> properties,
+        int indexedChars,
+        boolean ignoreMissing,
+        String indexedCharsField
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -208,8 +216,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
         static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
         @Override
-        public AttachmentProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                          String description, Map<String, Object> config) throws Exception {
+        public AttachmentProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
@@ -224,16 +236,28 @@ public final class AttachmentProcessor extends AbstractProcessor {
                     try {
                         properties.add(Property.parse(fieldName));
                     } catch (Exception e) {
-                        throw newConfigurationException(TYPE, processorTag, "properties", "illegal field option [" +
-                            fieldName + "]. valid values are " + Arrays.toString(Property.values()));
+                        throw newConfigurationException(
+                            TYPE,
+                            processorTag,
+                            "properties",
+                            "illegal field option [" + fieldName + "]. valid values are " + Arrays.toString(Property.values())
+                        );
                     }
                 }
             } else {
                 properties = DEFAULT_PROPERTIES;
             }
 
-            return new AttachmentProcessor(processorTag, description, field, targetField, properties, indexedChars, ignoreMissing,
-                indexedCharsField);
+            return new AttachmentProcessor(
+                processorTag,
+                description,
+                field,
+                targetField,
+                properties,
+                indexedChars,
+                ignoreMissing,
+                indexedCharsField
+            );
         }
     }
 

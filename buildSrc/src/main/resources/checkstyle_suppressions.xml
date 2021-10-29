@@ -27,16 +27,8 @@
   <suppress files="libs" checks="." />
   <!-- Excludes checkstyle run on modules module -->
   <suppress files="modules" checks="." />
-  <!-- Excludes checkstyle run on these plugins' modules-->
-  <suppress files="plugins[/\\]mapper-annotated-text" checks="." />
-  <suppress files="plugins[/\\]mapper-murmur3" checks="." />
-  <suppress files="plugins[/\\]mapper-size" checks="." />
-  <suppress files="plugins[/\\]repository-azure" checks="." />
-  <suppress files="plugins[/\\]repository-gcs" checks="." />
-  <suppress files="plugins[/\\]repository-hdfs" checks="." />
-  <suppress files="plugins[/\\]repository-s3" checks="." />
-  <suppress files="plugins[/\\]store-smb" checks="." />
-  <suppress files="plugins[/\\]transport-nio" checks="." />
+  <!-- Excludes checkstyle run on plugins module -->
+  <suppress files="plugins" checks="." />
   <!-- Excludes checkstyle run on below qa module -->
   <suppress files="qa[/\\]die-with-dignity" checks="." />
 
