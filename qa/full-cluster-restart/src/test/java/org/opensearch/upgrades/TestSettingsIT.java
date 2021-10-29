@@ -78,7 +78,6 @@ public class TestSettingsIT extends AbstractFullClusterRestartTestCase {
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, res.getEntity().getContent())) {
                     final ClusterGetSettingsResponse clusterGetSettingsResponse = ClusterGetSettingsResponse.fromXContent(parser);
                     final Settings settings = clusterGetSettingsResponse.getPersistentSettings();
-                    
                     assertTrue(REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo").exists(settings));
                     assertTrue(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
                     assertTrue(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
