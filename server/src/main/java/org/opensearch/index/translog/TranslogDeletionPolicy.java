@@ -49,7 +49,7 @@ public abstract class TranslogDeletionPolicy {
     private final Map<Object, RuntimeException> openTranslogRef;
 
     public void assertNoOpenTranslogRefs() {
-        if (openTranslogRef.isEmpty() == false) {
+        if (openTranslogRef != null && openTranslogRef.isEmpty() == false) {
             AssertionError e = new AssertionError("not all translog generations have been released");
             openTranslogRef.values().forEach(e::addSuppressed);
             throw e;
@@ -63,16 +63,7 @@ public abstract class TranslogDeletionPolicy {
     private final Map<Long, Counter> translogRefCounts = new HashMap<>();
     private long localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
 
-    private long retentionSizeInBytes;
-
-    private long retentionAgeInMillis;
-
-    private int retentionTotalFiles;
-
-    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles) {
-        this.retentionSizeInBytes = retentionSizeInBytes;
-        this.retentionAgeInMillis = retentionAgeInMillis;
-        this.retentionTotalFiles = retentionTotalFiles;
+    public TranslogDeletionPolicy() {
         if (Assertions.ENABLED) {
             openTranslogRef = new ConcurrentHashMap<>();
         } else {
@@ -94,17 +85,11 @@ public abstract class TranslogDeletionPolicy {
         this.localCheckpointOfSafeCommit = newCheckpoint;
     }
 
-    public synchronized void setRetentionSizeInBytes(long bytes) {
-        retentionSizeInBytes = bytes;
-    }
+    public abstract void setRetentionSizeInBytes(long bytes);
 
-    public synchronized void setRetentionAgeInMillis(long ageInMillis) {
-        retentionAgeInMillis = ageInMillis;
-    }
+    public abstract void setRetentionAgeInMillis(long ageInMillis);
 
-    synchronized void setRetentionTotalFiles(int retentionTotalFiles) {
-        this.retentionTotalFiles = retentionTotalFiles;
-    }
+    protected abstract void setRetentionTotalFiles(int retentionTotalFiles);
 
     /**
      * acquires the basis generation for a new snapshot. Any translog generation above, and including, the returned generation
@@ -161,7 +146,7 @@ public abstract class TranslogDeletionPolicy {
      */
     public abstract long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException;
 
-    static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
+    public static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
         if (retentionSizeInBytes >= 0) {
             long totalSize = writer.sizeInBytes();
             long minGen = writer.getGeneration();
@@ -176,7 +161,7 @@ public abstract class TranslogDeletionPolicy {
         }
     }
 
-    static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now)
+    public static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now)
         throws IOException {
         if (maxRetentionAgeInMillis >= 0) {
             for (TranslogReader reader : readers) {
@@ -190,7 +175,7 @@ public abstract class TranslogDeletionPolicy {
         }
     }
 
-    static long getMinTranslogGenByTotalFiles(List<TranslogReader> readers, TranslogWriter writer, final int maxTotalFiles) {
+    public static long getMinTranslogGenByTotalFiles(List<TranslogReader> readers, TranslogWriter writer, final int maxTotalFiles) {
         long minGen = writer.generation;
         int totalFiles = 1; // for the current writer
         for (int i = readers.size() - 1; i >= 0 && totalFiles < maxTotalFiles; i--) {
@@ -202,6 +187,10 @@ public abstract class TranslogDeletionPolicy {
 
     protected long currentTime() {
         return System.currentTimeMillis();
+    }
+
+    protected long getMinTranslogGenRequiredByLocks() {
+        return translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
     }
 
     /**

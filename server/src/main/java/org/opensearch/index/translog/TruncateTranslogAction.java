@@ -193,7 +193,7 @@ public class TruncateTranslogAction {
             );
             long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardPath.getShardId().id());
             // We open translog to check for corruption, do not clean anything.
-            final TranslogDeletionPolicy retainAllTranslogPolicy = new TranslogDeletionPolicy(
+            final TranslogDeletionPolicy retainAllTranslogPolicy = new DefaultTranslogDeletionPolicy(
                 Long.MAX_VALUE,
                 Long.MAX_VALUE,
                 Integer.MAX_VALUE

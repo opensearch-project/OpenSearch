@@ -8,24 +8,28 @@
 
 package org.opensearch.index.translog;
 
-import org.opensearch.index.seqno.RetentionLeases;
-
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Supplier;
+
+/**
+ * Default implementation for the {@link TranslogDeletionPolicy}. Plugins can override the default behaviour
+ * via the {@link org.opensearch.plugins.EnginePlugin#getCustomTranslogDeletionPolicyFactory()}.
+ *
+ * The default policy uses total number, size in bytes and maximum age for files.
+ */
 
 public class DefaultTranslogDeletionPolicy extends TranslogDeletionPolicy {
-    public DefaultTranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles) {
-        super(retentionSizeInBytes, retentionAgeInMillis, retentionTotalFiles);
-    }
+    private long retentionSizeInBytes;
 
-    public DefaultTranslogDeletionPolicy(
-        long retentionSizeInBytes,
-        long retentionAgeInMillis,
-        int retentionTotalFiles,
-        Supplier<RetentionLeases> retentionLeasesSupplier
-    ) {
-        super(retentionSizeInBytes, retentionAgeInMillis, retentionTotalFiles, retentionLeasesSupplier);
+    private long retentionAgeInMillis;
+
+    private int retentionTotalFiles;
+
+    public DefaultTranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles) {
+        super();
+        this.retentionSizeInBytes = retentionSizeInBytes;
+        this.retentionAgeInMillis = retentionAgeInMillis;
+        this.retentionTotalFiles = retentionTotalFiles;
     }
 
     @Override
@@ -33,12 +37,6 @@ public class DefaultTranslogDeletionPolicy extends TranslogDeletionPolicy {
         long minByLocks = getMinTranslogGenRequiredByLocks();
         long minByAge = getMinTranslogGenByAge(readers, writer, retentionAgeInMillis, currentTime());
         long minBySize = getMinTranslogGenBySize(readers, writer, retentionSizeInBytes);
-        long minByRetentionLeasesAndSize = Long.MAX_VALUE;
-        if (shouldPruneTranslogByRetentionLease) {
-            // If retention size is specified, size takes precedence.
-            long minByRetentionLeases = getMinTranslogGenByRetentionLease(readers, writer, retentionLeasesSupplier);
-            minByRetentionLeasesAndSize = Math.max(minBySize, minByRetentionLeases);
-        }
         final long minByAgeAndSize;
         if (minBySize == Long.MIN_VALUE && minByAge == Long.MIN_VALUE) {
             // both size and age are disabled;
@@ -47,11 +45,21 @@ public class DefaultTranslogDeletionPolicy extends TranslogDeletionPolicy {
             minByAgeAndSize = Math.max(minByAge, minBySize);
         }
         long minByNumFiles = getMinTranslogGenByTotalFiles(readers, writer, retentionTotalFiles);
-        long minByTranslogGenSettings = Math.min(Math.max(minByAgeAndSize, minByNumFiles), minByLocks);
-        return Math.min(minByTranslogGenSettings, minByRetentionLeasesAndSize);
+        return Math.min(Math.max(minByAgeAndSize, minByNumFiles), minByLocks);
     }
 
-    private long getMinTranslogGenRequiredByLocks() {
-        return translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
+    @Override
+    public synchronized void setRetentionSizeInBytes(long bytes) {
+        retentionSizeInBytes = bytes;
+    }
+
+    @Override
+    public synchronized void setRetentionAgeInMillis(long ageInMillis) {
+        retentionAgeInMillis = ageInMillis;
+    }
+
+    @Override
+    protected synchronized void setRetentionTotalFiles(int retentionTotalFiles) {
+        this.retentionTotalFiles = retentionTotalFiles;
     }
 }

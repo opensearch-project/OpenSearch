@@ -139,11 +139,22 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
 
     private static class CustomTranslogDeletionPolicy extends TranslogDeletionPolicy {
         public CustomTranslogDeletionPolicy(IndexSettings indexSettings, Supplier<RetentionLeases> retentionLeasesSupplier) {
-            super(
-                indexSettings.getTranslogRetentionSize().getBytes(),
-                indexSettings.getTranslogRetentionAge().getMillis(),
-                indexSettings.getTranslogRetentionTotalFiles()
-            );
+            super();
+        }
+
+        @Override
+        public void setRetentionSizeInBytes(long bytes) {
+
+        }
+
+        @Override
+        public void setRetentionAgeInMillis(long ageInMillis) {
+
+        }
+
+        @Override
+        protected void setRetentionTotalFiles(int retentionTotalFiles) {
+
         }
 
         @Override
