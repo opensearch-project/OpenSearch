@@ -146,8 +146,7 @@ public class PrecisionAtKTests extends OpenSearchTestCase {
     public void testNoRatedDocs() throws Exception {
         SearchHit[] hits = new SearchHit[5];
         for (int i = 0; i < 5; i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(MapperService.SINGLE_MAPPING_NAME),
-                Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
@@ -229,8 +228,11 @@ public class PrecisionAtKTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         PrecisionAtK original = createTestItem();
-        PrecisionAtK deserialized = OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-                PrecisionAtK::new);
+        PrecisionAtK deserialized = OpenSearchTestCase.copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            PrecisionAtK::new
+        );
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
@@ -241,27 +243,39 @@ public class PrecisionAtKTests extends OpenSearchTestCase {
     }
 
     private static PrecisionAtK copy(PrecisionAtK original) {
-        return new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled(),
-                original.forcedSearchSize().getAsInt());
+        return new PrecisionAtK(
+            original.getRelevantRatingThreshold(),
+            original.getIgnoreUnlabeled(),
+            original.forcedSearchSize().getAsInt()
+        );
     }
 
     private static PrecisionAtK mutate(PrecisionAtK original) {
         PrecisionAtK pAtK;
         switch (randomIntBetween(0, 2)) {
-        case 0:
-            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(), !original.getIgnoreUnlabeled(),
-                    original.forcedSearchSize().getAsInt());
-            break;
-        case 1:
-            pAtK = new PrecisionAtK(randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
-                    original.getIgnoreUnlabeled(), original.forcedSearchSize().getAsInt());
-            break;
-        case 2:
-            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(),
-                    original.getIgnoreUnlabeled(), original.forcedSearchSize().getAsInt() + 1);
-            break;
-        default:
-            throw new IllegalStateException("The test should only allow three parameters mutated");
+            case 0:
+                pAtK = new PrecisionAtK(
+                    original.getRelevantRatingThreshold(),
+                    !original.getIgnoreUnlabeled(),
+                    original.forcedSearchSize().getAsInt()
+                );
+                break;
+            case 1:
+                pAtK = new PrecisionAtK(
+                    randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
+                    original.getIgnoreUnlabeled(),
+                    original.forcedSearchSize().getAsInt()
+                );
+                break;
+            case 2:
+                pAtK = new PrecisionAtK(
+                    original.getRelevantRatingThreshold(),
+                    original.getIgnoreUnlabeled(),
+                    original.forcedSearchSize().getAsInt() + 1
+                );
+                break;
+            default:
+                throw new IllegalStateException("The test should only allow three parameters mutated");
         }
         return pAtK;
     }

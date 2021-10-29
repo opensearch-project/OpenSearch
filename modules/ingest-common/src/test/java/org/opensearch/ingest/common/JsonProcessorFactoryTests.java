@@ -85,8 +85,10 @@ public class JsonProcessorFactoryTests extends OpenSearchTestCase {
     public void testCreateWithMissingField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
-        OpenSearchException exception = expectThrows(OpenSearchParseException.class,
-            () -> FACTORY.create(null, processorTag, null, config));
+        OpenSearchException exception = expectThrows(
+            OpenSearchParseException.class,
+            () -> FACTORY.create(null, processorTag, null, config)
+        );
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
     }
 
@@ -97,8 +99,10 @@ public class JsonProcessorFactoryTests extends OpenSearchTestCase {
         config.put("field", randomField);
         config.put("target_field", randomTargetField);
         config.put("add_to_root", true);
-        OpenSearchException exception = expectThrows(OpenSearchParseException.class,
-            () -> FACTORY.create(null, randomAlphaOfLength(10), null, config));
+        OpenSearchException exception = expectThrows(
+            OpenSearchParseException.class,
+            () -> FACTORY.create(null, randomAlphaOfLength(10), null, config)
+        );
         assertThat(exception.getMessage(), equalTo("[target_field] Cannot set a target field while also setting `add_to_root` to true"));
     }
 }

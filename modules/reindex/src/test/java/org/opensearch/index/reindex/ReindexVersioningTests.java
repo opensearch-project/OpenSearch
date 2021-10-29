@@ -38,7 +38,6 @@ import static org.opensearch.action.DocWriteRequest.OpType.CREATE;
 import static org.opensearch.index.VersionType.EXTERNAL;
 import static org.opensearch.index.VersionType.INTERNAL;
 
-
 public class ReindexVersioningTests extends ReindexTestCase {
     private static final int SOURCE_VERSION = 4;
     private static final int OLDER_VERSION = 1;
@@ -102,7 +101,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
      * Perform a reindex with EXTERNAL versioning which has "refresh" semantics.
      */
     private BulkByScrollResponse reindexExternal() {
-        ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
+        ReindexRequestBuilder reindex = reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setVersionType(EXTERNAL);
         return reindex.get();
     }
@@ -111,7 +110,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
      * Perform a reindex with INTERNAL versioning which has "overwrite" semantics.
      */
     private BulkByScrollResponse reindexInternal() {
-        ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
+        ReindexRequestBuilder reindex = reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setVersionType(INTERNAL);
         return reindex.get();
     }
@@ -120,22 +119,26 @@ public class ReindexVersioningTests extends ReindexTestCase {
      * Perform a reindex with CREATE OpType which has "create" semantics.
      */
     private BulkByScrollResponse reindexCreate() {
-        ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
+        ReindexRequestBuilder reindex = reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setOpType(CREATE);
         return reindex.get();
     }
 
     private void setupSourceAbsent() throws Exception {
-        indexRandom(true, client().prepareIndex("source", "_doc", "test").setVersionType(EXTERNAL)
-                .setVersion(SOURCE_VERSION).setSource("foo", "source"));
+        indexRandom(
+            true,
+            client().prepareIndex("source", "_doc", "test").setVersionType(EXTERNAL).setVersion(SOURCE_VERSION).setSource("foo", "source")
+        );
 
         assertEquals(SOURCE_VERSION, client().prepareGet("source", "_doc", "test").get().getVersion());
     }
 
     private void setupDest(int version) throws Exception {
         setupSourceAbsent();
-        indexRandom(true, client().prepareIndex("dest", "_doc", "test").setVersionType(EXTERNAL)
-                .setVersion(version).setSource("foo", "dest"));
+        indexRandom(
+            true,
+            client().prepareIndex("dest", "_doc", "test").setVersionType(EXTERNAL).setVersion(version).setSource("foo", "dest")
+        );
 
         assertEquals(version, client().prepareGet("dest", "_doc", "test").get().getVersion());
     }

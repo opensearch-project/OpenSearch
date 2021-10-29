@@ -96,9 +96,9 @@ public abstract class ReindexTestCase extends OpenSearchIntegTestCase {
      */
     protected int expectedSlices(int requestSlices, Collection<String> indices) {
         if (requestSlices == AbstractBulkByScrollRequest.AUTO_SLICES) {
-            int leastNumShards = Collections.min(indices.stream()
-                .map(sourceIndex -> getNumShards(sourceIndex).numPrimaries)
-                .collect(Collectors.toList()));
+            int leastNumShards = Collections.min(
+                indices.stream().map(sourceIndex -> getNumShards(sourceIndex).numPrimaries).collect(Collectors.toList())
+            );
             return Math.min(leastNumShards, BulkByScrollParallelizationHelper.AUTO_SLICE_CEILING);
         } else {
             return requestSlices;

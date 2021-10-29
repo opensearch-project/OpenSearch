@@ -78,8 +78,7 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
         this.childType = childType;
     }
 
-    protected ParentAggregationBuilder(ParentAggregationBuilder clone,
-                                         Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected ParentAggregationBuilder(ParentAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
         this.childType = clone.childType;
         this.childFilter = clone.childFilter;
@@ -115,12 +114,22 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
-        return new ParentAggregatorFactory(name, config, childFilter, parentFilter, queryShardContext, parent,
-                subFactoriesBuilder, metadata);
+    protected ValuesSourceAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
+        return new ParentAggregatorFactory(
+            name,
+            config,
+            childFilter,
+            parentFilter,
+            queryShardContext,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 
     @Override
@@ -158,8 +167,10 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
@@ -167,8 +178,10 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
         }
 
         if (childType == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "Missing [child_type] field for parent aggregation [" + aggregationName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Missing [child_type] field for parent aggregation [" + aggregationName + "]"
+            );
         }
 
         return new ParentAggregationBuilder(aggregationName, childType);

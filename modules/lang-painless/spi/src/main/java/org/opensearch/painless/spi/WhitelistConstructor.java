@@ -67,9 +67,12 @@ public final class WhitelistConstructor {
         if (painlessAnnotations.isEmpty()) {
             this.painlessAnnotations = Collections.emptyMap();
         } else {
-            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+            this.painlessAnnotations = Collections.unmodifiableMap(
+                Objects.requireNonNull(painlessAnnotations)
+                    .stream()
                     .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
         }
     }
 }

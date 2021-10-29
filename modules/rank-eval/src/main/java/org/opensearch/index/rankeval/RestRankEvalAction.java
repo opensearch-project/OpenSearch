@@ -107,11 +107,14 @@ public class RestRankEvalAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/" + ENDPOINT),
-            new Route(POST, "/" + ENDPOINT),
-            new Route(GET, "/{index}/" + ENDPOINT),
-            new Route(POST, "/{index}/" + ENDPOINT)));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/" + ENDPOINT),
+                new Route(POST, "/" + ENDPOINT),
+                new Route(GET, "/{index}/" + ENDPOINT),
+                new Route(POST, "/{index}/" + ENDPOINT)
+            )
+        );
     }
 
     @Override
@@ -120,8 +123,11 @@ public class RestRankEvalAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parseRankEvalRequest(rankEvalRequest, request, parser);
         }
-        return channel -> client.executeLocally(RankEvalAction.INSTANCE, rankEvalRequest,
-                new RestToXContentListener<RankEvalResponse>(channel));
+        return channel -> client.executeLocally(
+            RankEvalAction.INSTANCE,
+            rankEvalRequest,
+            new RestToXContentListener<RankEvalResponse>(channel)
+        );
     }
 
     private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, XContentParser parser) {

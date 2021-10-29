@@ -68,8 +68,13 @@ public class ELambda extends AExpression {
     private final List<String> parameterNames;
     private final SBlock blockNode;
 
-    public ELambda(int identifier, Location location,
-            List<String> canonicalTypeNameParameters, List<String> parameterNames, SBlock blockNode) {
+    public ELambda(
+        int identifier,
+        Location location,
+        List<String> canonicalTypeNameParameters,
+        List<String> parameterNames,
+        SBlock blockNode
+    ) {
 
         super(identifier, location);
 

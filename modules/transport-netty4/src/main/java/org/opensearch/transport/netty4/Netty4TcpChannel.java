@@ -169,9 +169,6 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public String toString() {
-        return "Netty4TcpChannel{" +
-            "localAddress=" + getLocalAddress() +
-            ", remoteAddress=" + channel.remoteAddress() +
-            '}';
+        return "Netty4TcpChannel{" + "localAddress=" + getLocalAddress() + ", remoteAddress=" + channel.remoteAddress() + '}';
     }
 }

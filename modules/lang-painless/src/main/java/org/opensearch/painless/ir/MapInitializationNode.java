@@ -129,7 +129,9 @@ public class MapInitializationNode extends ExpressionNode {
         methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
         methodWriter.dup();
         methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+            Type.getType(constructor.javaConstructor.getDeclaringClass()),
+            Method.getMethod(constructor.javaConstructor)
+        );
 
         for (int index = 0; index < getArgumentsSize(); ++index) {
             methodWriter.dup();

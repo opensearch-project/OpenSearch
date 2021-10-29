@@ -74,7 +74,9 @@ class ReindexSslConfig {
 
     static {
         Setting.Property[] defaultProperties = new Setting.Property[] { Setting.Property.NodeScope, Setting.Property.Filtered };
-        Setting.Property[] deprecatedProperties = new Setting.Property[] { Setting.Property.Deprecated, Setting.Property.NodeScope,
+        Setting.Property[] deprecatedProperties = new Setting.Property[] {
+            Setting.Property.Deprecated,
+            Setting.Property.NodeScope,
             Setting.Property.Filtered };
         for (String key : SslConfigurationKeys.getStringKeys()) {
             String settingName = "reindex.ssl." + key;

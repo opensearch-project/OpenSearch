@@ -97,5 +97,3 @@ class UniqueTokenFilter extends TokenFilter {
         previous.clear();
     }
 }
-
-
