@@ -158,7 +158,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
                 EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
                 IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
-                IndexSettings.INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING,
                 IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
                 IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
                 IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
@@ -244,6 +243,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case "index.shrink.source.name":
             case IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY:
             case IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY:
+                // we keep this setting for BWC to support indexes created in 1.1.0
+                // this can be removed in OpenSearch 3.0
+            case "index.plugins.replication.translog.retention_lease.pruning.enabled":
                 return true;
             default:
                 return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
