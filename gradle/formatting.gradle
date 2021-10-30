@@ -78,7 +78,6 @@ def projectPathsToExclude = [
   ':plugins:store-smb',
   ':plugins:transport-nio',
   ':qa:die-with-dignity',
-  ':rest-api-spec',
   ':test:fixtures:azure-fixture',
   ':test:fixtures:gcs-fixture',
   ':test:fixtures:hdfs-fixture',
