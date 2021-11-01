@@ -77,16 +77,7 @@ def projectPathsToExclude = [
   ':plugins:repository-s3',
   ':plugins:store-smb',
   ':plugins:transport-nio',
-  ':qa:die-with-dignity',
-  ':test:fixtures:azure-fixture',
-  ':test:fixtures:gcs-fixture',
-  ':test:fixtures:hdfs-fixture',
-  ':test:fixtures:krb5kdc-fixture',
-  ':test:fixtures:minio-fixture',
-  ':test:fixtures:old-elasticsearch',
-  ':test:fixtures:s3-fixture',
-  ':test:framework',
-  ':test:logger-usage'
+  ':qa:die-with-dignity'
 ]
 
 subprojects {

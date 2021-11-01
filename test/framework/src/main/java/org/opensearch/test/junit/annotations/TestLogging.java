@@ -48,7 +48,7 @@ import static java.lang.annotation.ElementType.TYPE;
  * org.opensearch.cluster.metadata:TRACE). Use the _root keyword to set the root logger level.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({PACKAGE, TYPE, METHOD})
+@Target({ PACKAGE, TYPE, METHOD })
 public @interface TestLogging {
 
     /**

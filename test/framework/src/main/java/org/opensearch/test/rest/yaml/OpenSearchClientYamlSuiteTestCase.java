@@ -170,11 +170,12 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     }
 
     protected ClientYamlTestClient initClientYamlTestClient(
-            final ClientYamlSuiteRestSpec restSpec,
-            final RestClient restClient,
-            final List<HttpHost> hosts,
-            final Version esVersion,
-            final Version masterVersion) {
+        final ClientYamlSuiteRestSpec restSpec,
+        final RestClient restClient,
+        final List<HttpHost> hosts,
+        final Version esVersion,
+        final Version masterVersion
+    ) {
         return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
     }
 
@@ -215,10 +216,11 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
                 suites.add(suite);
                 try {
                     suite.validate();
-                } catch(IllegalArgumentException e) {
+                } catch (IllegalArgumentException e) {
                     if (validationException == null) {
-                        validationException = new IllegalArgumentException("Validation errors for the following test suites:\n- "
-                            + e.getMessage());
+                        validationException = new IllegalArgumentException(
+                            "Validation errors for the following test suites:\n- " + e.getMessage()
+                        );
                     } else {
                         String previousMessage = validationException.getMessage();
                         Throwable[] suppressed = validationException.getSuppressed();
@@ -239,10 +241,10 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         List<Object[]> tests = new ArrayList<>();
         for (ClientYamlTestSuite yamlTestSuite : suites) {
             for (ClientYamlTestSection testSection : yamlTestSuite.getTestSections()) {
-                tests.add(new Object[]{ new ClientYamlTestCandidate(yamlTestSuite, testSection) });
+                tests.add(new Object[] { new ClientYamlTestCandidate(yamlTestSuite, testSection) });
             }
         }
-        //sort the candidates so they will always be in the same order before being shuffled, for repeatability
+        // sort the candidates so they will always be in the same order before being shuffled, for repeatability
         tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
         return tests;
     }
@@ -285,7 +287,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
         if (!Strings.hasLength(property)) {
-            return defaultValue == null ? Strings.EMPTY_ARRAY : new String[]{defaultValue};
+            return defaultValue == null ? Strings.EMPTY_ARRAY : new String[] { defaultValue };
         } else {
             return property.split(PATHS_SEPARATOR);
         }
@@ -305,7 +307,8 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
                         List<String> methodsList = Arrays.asList(path.getMethods());
                         if (methodsList.contains("GET") && restApi.isBodySupported()) {
                             if (!methodsList.contains("POST")) {
-                                errorMessage.append("\n- ").append(restApi.getName())
+                                errorMessage.append("\n- ")
+                                    .append(restApi.getName())
                                     .append(" supports GET with a body but doesn't support POST");
                             }
                         }
@@ -352,30 +355,38 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     }
 
     public void test() throws IOException {
-        //skip test if it matches one of the blacklist globs
+        // skip test if it matches one of the blacklist globs
         for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
             String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
-                .isSuffixMatch(testPath));
+            assumeFalse(
+                "[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted",
+                blacklistedPathMatcher.isSuffixMatch(testPath)
+            );
         }
 
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if test section is disabled
-        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        // skip test if the whole suite (yaml file) is disabled
+        assumeFalse(
+            testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+        );
+        // skip test if the whole suite (yaml file) is disabled
+        assumeFalse(
+            testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+        );
+        // skip test if test section is disabled
+        assumeFalse(
+            testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+        );
 
-        //let's check that there is something to run, otherwise there might be a problem with the test section
+        // let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
         if (useDefaultNumberOfShards == false
-                && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
+            && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
             request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
             // Because this has not yet transitioned to a composable template, it's possible that
@@ -420,9 +431,13 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             executableSection.execute(restTestExecutionContext);
         } catch (AssertionError | Exception e) {
             // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
-            logger.info("Stash dump on test failure [{}]",
-                    Strings.toString(restTestExecutionContext.stash(), true, true)
-                            .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
+            logger.info(
+                "Stash dump on test failure [{}]",
+                Strings.toString(restTestExecutionContext.stash(), true, true)
+                    .replace("\\n", "\n")
+                    .replace("\\r", "\r")
+                    .replace("\\t", "\t")
+            );
             if (e instanceof AssertionError) {
                 throw new AssertionError(errorMessage(executableSection, e), e);
             } else {
@@ -444,10 +459,12 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
      * {@link RestClientBuilder} for a client with that metadata.
      */
     protected final RestClientBuilder getClientBuilderWithSniffedHosts() throws IOException {
-        OpenSearchNodesSniffer.Scheme scheme =
-            OpenSearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
+        OpenSearchNodesSniffer.Scheme scheme = OpenSearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
         OpenSearchNodesSniffer sniffer = new OpenSearchNodesSniffer(
-                adminClient(), OpenSearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+            adminClient(),
+            OpenSearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT,
+            scheme
+        );
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;

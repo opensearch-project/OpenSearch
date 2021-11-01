@@ -80,11 +80,13 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
             }
             original.endObject();
 
-            try (XContentBuilder copy = JsonXContent.contentBuilder();
-                    XContentParser parser = createParser(original.contentType().xContent(), BytesReference.bytes(original))) {
+            try (
+                XContentBuilder copy = JsonXContent.contentBuilder();
+                XContentParser parser = createParser(original.contentType().xContent(), BytesReference.bytes(original))
+            ) {
                 parser.nextToken();
                 copy.generator().copyCurrentStructure(parser);
-                try (XContentBuilder copyShuffled = shuffleXContent(copy) ) {
+                try (XContentBuilder copyShuffled = shuffleXContent(copy)) {
                     assertToXContentEquivalent(BytesReference.bytes(original), BytesReference.bytes(copyShuffled), original.contentType());
                 }
             }
@@ -115,9 +117,10 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
                 otherBuilder.endObject();
             }
             otherBuilder.endObject();
-            AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
-                            builder.contentType()));
+            AssertionError error = expectThrows(
+                AssertionError.class,
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
+            );
             assertThat(error.getMessage(), containsString("f2: expected [value2] but not found"));
         }
         {
@@ -144,9 +147,10 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
                 otherBuilder.endObject();
             }
             otherBuilder.endObject();
-            AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
-                            builder.contentType()));
+            AssertionError error = expectThrows(
+                AssertionError.class,
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
+            );
             assertThat(error.getMessage(), containsString("f2: expected String [value2] but was String [differentValue2]"));
         }
         {
@@ -177,9 +181,10 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
             }
             otherBuilder.field("f1", "value");
             otherBuilder.endObject();
-            AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
-                            builder.contentType()));
+            AssertionError error = expectThrows(
+                AssertionError.class,
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
+            );
             assertThat(error.getMessage(), containsString("2: expected String [three] but was String [four]"));
         }
         {
@@ -207,9 +212,10 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
                 otherBuilder.endArray();
             }
             otherBuilder.endObject();
-            AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
-                            builder.contentType()));
+            AssertionError error = expectThrows(
+                AssertionError.class,
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
+            );
             assertThat(error.getMessage(), containsString("expected [1] more entries"));
         }
     }
@@ -218,20 +224,46 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
         Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
 
         indexLevelBlocks.put("test", Collections.singleton(IndexMetadata.INDEX_READ_ONLY_BLOCK));
-        assertBlocked(new BroadcastResponse(1, 0, 1, Collections.singletonList(new DefaultShardOperationFailedException("test", 0,
-            new ClusterBlockException(indexLevelBlocks)))));
+        assertBlocked(
+            new BroadcastResponse(
+                1,
+                0,
+                1,
+                Collections.singletonList(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)))
+            )
+        );
 
         indexLevelBlocks.put("test", Collections.singleton(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
-        assertBlocked(new BroadcastResponse(1, 0, 1, Collections.singletonList(new DefaultShardOperationFailedException("test", 0,
-            new ClusterBlockException(indexLevelBlocks)))));
+        assertBlocked(
+            new BroadcastResponse(
+                1,
+                0,
+                1,
+                Collections.singletonList(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)))
+            )
+        );
 
         indexLevelBlocks.put("test", new HashSet<>(Arrays.asList(IndexMetadata.INDEX_READ_BLOCK, IndexMetadata.INDEX_METADATA_BLOCK)));
-        assertBlocked(new BroadcastResponse(1, 0, 1, Collections.singletonList(new DefaultShardOperationFailedException("test", 0,
-            new ClusterBlockException(indexLevelBlocks)))));
+        assertBlocked(
+            new BroadcastResponse(
+                1,
+                0,
+                1,
+                Collections.singletonList(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)))
+            )
+        );
 
-        indexLevelBlocks.put("test",
-            new HashSet<>(Arrays.asList(IndexMetadata.INDEX_READ_ONLY_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)));
-        assertBlocked(new BroadcastResponse(1, 0, 1, Collections.singletonList(new DefaultShardOperationFailedException("test", 0,
-            new ClusterBlockException(indexLevelBlocks)))));
+        indexLevelBlocks.put(
+            "test",
+            new HashSet<>(Arrays.asList(IndexMetadata.INDEX_READ_ONLY_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+        );
+        assertBlocked(
+            new BroadcastResponse(
+                1,
+                0,
+                1,
+                Collections.singletonList(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)))
+            )
+        );
     }
 }

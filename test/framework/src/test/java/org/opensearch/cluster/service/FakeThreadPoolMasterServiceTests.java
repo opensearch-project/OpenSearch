@@ -66,8 +66,13 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
     public void testFakeMasterService() {
         List<Runnable> runnableTasks = new ArrayList<>();
         AtomicReference<ClusterState> lastClusterStateRef = new AtomicReference<>();
-        DiscoveryNode discoveryNode = new DiscoveryNode("node", OpenSearchTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "node",
+            OpenSearchTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES),
+            Version.CURRENT
+        );
         lastClusterStateRef.set(ClusterStateCreationUtils.state(discoveryNode, discoveryNode));
         long firstClusterStateVersion = lastClusterStateRef.get().version();
         AtomicReference<ActionListener<Void>> publishingCallback = new AtomicReference<>();
@@ -79,7 +84,12 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
         doAnswer(invocationOnMock -> runnableTasks.add((Runnable) invocationOnMock.getArguments()[0])).when(executorService).execute(any());
         when(mockThreadPool.generic()).thenReturn(executorService);
 
-        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService("test_node","test", mockThreadPool, runnableTasks::add);
+        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService(
+            "test_node",
+            "test",
+            mockThreadPool,
+            runnableTasks::add
+        );
         masterService.setClusterStateSupplier(lastClusterStateRef::get);
         masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             lastClusterStateRef.set(event.state());
@@ -92,7 +102,8 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).put(indexBuilder("test1"))).build();
+                    .metadata(Metadata.builder(currentState.metadata()).put(indexBuilder("test1")))
+                    .build();
             }
 
             @Override
@@ -131,7 +142,8 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).put(indexBuilder("test2"))).build();
+                    .metadata(Metadata.builder(currentState.metadata()).put(indexBuilder("test2")))
+                    .build();
             }
 
             @Override
@@ -163,7 +175,9 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {
-        return IndexMetadata.builder(index).settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        return IndexMetadata.builder(index)
+            .settings(
+                settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            );
     }
 }

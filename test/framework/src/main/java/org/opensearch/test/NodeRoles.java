@@ -63,7 +63,8 @@ public class NodeRoles {
             .put(settings)
             .putList(
                 NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                Collections.unmodifiableList(roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList())))
+                Collections.unmodifiableList(roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList()))
+            )
             .build();
     }
 
@@ -75,11 +76,12 @@ public class NodeRoles {
         final Settings.Builder builder = Settings.builder().put(settings);
         builder.putList(
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-            Collections.unmodifiableList(NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
-                .stream()
-                .filter(r -> roles.contains(r) == false)
-                .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toList())
+            Collections.unmodifiableList(
+                NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
+                    .stream()
+                    .filter(r -> roles.contains(r) == false)
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.toList())
             )
         );
         return builder.build();
@@ -93,10 +95,11 @@ public class NodeRoles {
         final Settings.Builder builder = Settings.builder().put(settings);
         builder.putList(
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-            Collections.unmodifiableList(Stream.concat(NodeRoleSettings.NODE_ROLES_SETTING.get(settings).stream(), roles.stream())
-                .map(DiscoveryNodeRole::roleName)
-                .distinct()
-                .collect(Collectors.toList())
+            Collections.unmodifiableList(
+                Stream.concat(NodeRoleSettings.NODE_ROLES_SETTING.get(settings).stream(), roles.stream())
+                    .map(DiscoveryNodeRole::roleName)
+                    .distinct()
+                    .collect(Collectors.toList())
             )
         );
         return builder.build();
