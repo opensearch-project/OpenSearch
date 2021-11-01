@@ -51,6 +51,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -238,7 +239,7 @@ public class ReadOnlyEngine extends Engine {
             throw new IllegalStateException("commit doesn't contain translog unique id");
         }
         final TranslogConfig translogConfig = config.getTranslogConfig();
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
+        final TranslogDeletionPolicy translogDeletionPolicy = new DefaultTranslogDeletionPolicy(
             config.getIndexSettings().getTranslogRetentionSize().getBytes(),
             config.getIndexSettings().getTranslogRetentionAge().getMillis(),
             config.getIndexSettings().getTranslogRetentionTotalFiles()

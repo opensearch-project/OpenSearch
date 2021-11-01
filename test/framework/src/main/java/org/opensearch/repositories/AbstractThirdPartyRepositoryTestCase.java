@@ -68,10 +68,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends OpenSearchSin
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder()
-            .put(super.nodeSettings())
-            .setSecureSettings(credentials())
-            .build();
+        return Settings.builder().put(super.nodeSettings()).setSecureSettings(credentials()).build();
     }
 
     protected abstract SecureSettings credentials();
@@ -129,24 +126,17 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends OpenSearchSin
             .setIndices("test-idx-*", "-test-idx-3")
             .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
 
-        assertThat(client().admin()
-                .cluster()
-                .prepareGetSnapshots("test-repo")
-                .setSnapshots(snapshotName)
-                .get()
-                .getSnapshots()
-                .get(0)
-                .state(),
-            equalTo(SnapshotState.SUCCESS));
+        assertThat(
+            client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots(snapshotName).get().getSnapshots().get(0).state(),
+            equalTo(SnapshotState.SUCCESS)
+        );
 
-        assertTrue(client().admin()
-                .cluster()
-                .prepareDeleteSnapshot("test-repo", snapshotName)
-                .get()
-                .isAcknowledged());
+        assertTrue(client().admin().cluster().prepareDeleteSnapshot("test-repo", snapshotName).get().isAcknowledged());
     }
 
     public void testListChildren() throws Exception {
@@ -167,8 +157,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends OpenSearchSin
         assertChildren(repo.basePath(), Collections.singleton("foo"));
         assertBlobsByPrefix(repo.basePath(), "fo", Collections.emptyMap());
         assertChildren(repo.basePath().add("foo"), Arrays.asList("nested", "nested2"));
-        assertBlobsByPrefix(repo.basePath().add("foo"), "nest",
-            Collections.singletonMap("nested-blob", new PlainBlobMetadata("nested-blob", testBlobLen)));
+        assertBlobsByPrefix(
+            repo.basePath().add("foo"),
+            "nest",
+            Collections.singletonMap("nested-blob", new PlainBlobMetadata("nested-blob", testBlobLen))
+        );
         assertChildren(repo.basePath().add("foo").add("nested"), Collections.emptyList());
         if (randomBoolean()) {
             deleteAndAssertEmpty(repo.basePath());
@@ -205,20 +198,17 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends OpenSearchSin
             .setIndices("test-idx-*", "-test-idx-3")
             .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
 
-        assertThat(client().admin()
-                .cluster()
-                .prepareGetSnapshots("test-repo")
-                .setSnapshots(snapshotName)
-                .get()
-                .getSnapshots().get(0)
-                .state(),
-            equalTo(SnapshotState.SUCCESS));
+        assertThat(
+            client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots(snapshotName).get().getSnapshots().get(0).state(),
+            equalTo(SnapshotState.SUCCESS)
+        );
 
-        final BlobStoreRepository repo =
-            (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
+        final BlobStoreRepository repo = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
         final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
 
         logger.info("--> creating a dangling index folder");
@@ -290,8 +280,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends OpenSearchSin
     private Set<String> listChildren(BlobPath path) {
         final PlainActionFuture<Set<String>> future = PlainActionFuture.newFuture();
         final BlobStoreRepository repository = getRepository();
-        repository.threadPool().generic().execute(
-            ActionRunnable.supply(future, () -> repository.blobStore().blobContainer(path).children().keySet()));
+        repository.threadPool()
+            .generic()
+            .execute(ActionRunnable.supply(future, () -> repository.blobStore().blobContainer(path).children().keySet()));
         return future.actionGet();
     }
 

@@ -33,7 +33,6 @@
 package org.opensearch.test.disruption;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.NetworkDisruption.Bridge;
 import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
 
