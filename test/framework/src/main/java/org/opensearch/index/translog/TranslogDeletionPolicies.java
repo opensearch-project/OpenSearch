@@ -38,7 +38,7 @@ import org.opensearch.index.IndexSettings;
 public class TranslogDeletionPolicies {
 
     public static TranslogDeletionPolicy createTranslogDeletionPolicy() {
-        return new TranslogDeletionPolicy(
+        return new DefaultTranslogDeletionPolicy(
             IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
             IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getDefault(Settings.EMPTY).getMillis(),
             IndexSettings.INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.getDefault(Settings.EMPTY)
@@ -46,7 +46,7 @@ public class TranslogDeletionPolicies {
     }
 
     public static TranslogDeletionPolicy createTranslogDeletionPolicy(IndexSettings indexSettings) {
-        return new TranslogDeletionPolicy(
+        return new DefaultTranslogDeletionPolicy(
             indexSettings.getTranslogRetentionSize().getBytes(),
             indexSettings.getTranslogRetentionAge().getMillis(),
             indexSettings.getTranslogRetentionTotalFiles()
