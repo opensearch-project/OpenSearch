@@ -64,8 +64,12 @@ public class OperationRouting {
     );
 
     public static final String IGNORE_AWARENESS_ATTRIBUTES = "cluster.search.ignore_awareness_attributes";
-    public static final Setting<Boolean> IGNORE_AWARENESS_ATTRIBUTES_SETTING = Setting.boolSetting(IGNORE_AWARENESS_ATTRIBUTES,
-        true, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> IGNORE_AWARENESS_ATTRIBUTES_SETTING = Setting.boolSetting(
+        IGNORE_AWARENESS_ATTRIBUTES,
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
@@ -74,8 +78,10 @@ public class OperationRouting {
         // whether to ignore awareness attributes when routing requests
         this.ignoreAwarenessAttr = clusterSettings.get(IGNORE_AWARENESS_ATTRIBUTES_SETTING);
         this.awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-            this::setAwarenessAttributes);
+        clusterSettings.addSettingsUpdateConsumer(
+            AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
+            this::setAwarenessAttributes
+        );
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
@@ -283,8 +289,12 @@ public class OperationRouting {
         }
     }
 
-    private ShardIterator shardRoutings(IndexShardRoutingTable indexShard, DiscoveryNodes nodes,
-            @Nullable ResponseCollectorService collectorService, @Nullable Map<String, Long> nodeCounts) {
+    private ShardIterator shardRoutings(
+        IndexShardRoutingTable indexShard,
+        DiscoveryNodes nodes,
+        @Nullable ResponseCollectorService collectorService,
+        @Nullable Map<String, Long> nodeCounts
+    ) {
         if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
                 return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);

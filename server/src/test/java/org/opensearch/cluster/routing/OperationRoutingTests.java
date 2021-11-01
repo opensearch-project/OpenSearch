@@ -38,12 +38,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.routing.GroupShardsIterator;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.cluster.routing.Murmur3HashFunction;
-import org.opensearch.cluster.routing.OperationRouting;
-import org.opensearch.cluster.routing.ShardIterator;
-import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -689,14 +683,14 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         // Updates cluster state by assigning shard copies on nodes
         state = updateStatetoTestARS(indexNames, numShards, numReplicas, allNodes, state);
 
-        Settings awarenessSetting = Settings.builder()
-            .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .build();
+        Settings awarenessSetting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
         TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupport");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
-        OperationRouting opRouting = new OperationRouting(awarenessSetting,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        OperationRouting opRouting = new OperationRouting(
+            awarenessSetting,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         opRouting.setUseAdaptiveReplicaSelection(true);
         assertTrue(opRouting.ignoreAwarenessAttributes());
         List<ShardRouting> searchedShards = new ArrayList<>(numShards);
@@ -704,8 +698,14 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
         Map<String, Long> outstandingRequests = new HashMap<>();
 
-        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state,
-            indexNames, null, null, collector, outstandingRequests);
+        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
+            state,
+            indexNames,
+            null,
+            null,
+            collector,
+            outstandingRequests
+        );
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
 
         // Test that the shards use a round-robin pattern when there are no stats
@@ -760,13 +760,23 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         List<String> zones = Arrays.asList("a", "a", "b");
         DiscoveryNode[] allNodes = new DiscoveryNode[4];
         int i = 0;
-        for (String zone:zones) {
-            DiscoveryNode node = new DiscoveryNode("node_" + zone + i, buildNewFakeTransportAddress(), singletonMap("zone", zone),
-                Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
+        for (String zone : zones) {
+            DiscoveryNode node = new DiscoveryNode(
+                "node_" + zone + i,
+                buildNewFakeTransportAddress(),
+                singletonMap("zone", zone),
+                Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+                Version.CURRENT
+            );
             allNodes[i++] = node;
         }
-        DiscoveryNode master = new DiscoveryNode("master", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+        DiscoveryNode master = new DiscoveryNode(
+            "master",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
         allNodes[i] = master;
         return allNodes;
     }
@@ -783,16 +793,26 @@ public class OperationRoutingTests extends OpenSearchTestCase {
     /**
      * The following setup is created to test ARS
      */
-    private ClusterState updateStatetoTestARS(String[] indices, int numberOfShards, int numberOfReplicas,
-                                              DiscoveryNode[] nodes, ClusterState state) {
+    private ClusterState updateStatetoTestARS(
+        String[] indices,
+        int numberOfShards,
+        int numberOfReplicas,
+        DiscoveryNode[] nodes,
+        ClusterState state
+    ) {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         ClusterState.Builder clusterState = ClusterState.builder(state);
 
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
-                .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+                .settings(
+                    Settings.builder()
+                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                        .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                        .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                )
                 .build();
             metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -800,13 +820,14 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 final ShardId shardId = new ShardId(index, "_na_", i);
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 // Assign all the primary shards on nodes in zone-a (node_a0 or node_a1)
-                indexShardRoutingBuilder
-                    .addShard(TestShardRouting.newShardRouting(index, i, nodes[randomInt(1)].getId(),
-                        null, true, ShardRoutingState.STARTED));
+                indexShardRoutingBuilder.addShard(
+                    TestShardRouting.newShardRouting(index, i, nodes[randomInt(1)].getId(), null, true, ShardRoutingState.STARTED)
+                );
                 for (int replica = 0; replica < numberOfReplicas; replica++) {
                     // Assign all the replicas on nodes in zone-b (node_b2)
-                    indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, nodes[2].getId(),
-                        null, false, ShardRoutingState.STARTED));
+                    indexShardRoutingBuilder.addShard(
+                        TestShardRouting.newShardRouting(index, i, nodes[2].getId(), null, false, ShardRoutingState.STARTED)
+                    );
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
             }

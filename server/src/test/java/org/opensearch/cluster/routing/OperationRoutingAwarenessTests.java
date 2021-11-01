@@ -20,23 +20,28 @@ public class OperationRoutingAwarenessTests extends OpenSearchIntegTestCase {
 
     @After
     public void cleanup() {
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull("*")));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("*")));
     }
 
     public void testToggleSearchAllocationAwareness() {
         OperationRouting routing = internalCluster().clusterService().operationRouting();
 
         // Update awareness settings
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-            .put("cluster.routing.allocation.awareness.attributes", "zone")).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone"))
+            .get();
         assertThat(routing.getAwarenessAttributes().size(), equalTo(1));
         assertThat(routing.getAwarenessAttributes().get(0), equalTo("zone"));
         assertTrue(internalCluster().clusterService().operationRouting().ignoreAwarenessAttributes());
 
         // Unset ignore awareness attributes
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-            .put(IGNORE_AWARENESS_ATTRIBUTES, false)).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(IGNORE_AWARENESS_ATTRIBUTES, false))
+            .get();
         // assert that awareness attributes hasn't changed
         assertThat(routing.getAwarenessAttributes().size(), equalTo(1));
         assertThat(routing.getAwarenessAttributes().get(0), equalTo("zone"));
@@ -44,8 +49,11 @@ public class OperationRoutingAwarenessTests extends OpenSearchIntegTestCase {
         assertFalse(internalCluster().clusterService().operationRouting().ignoreAwarenessAttributes());
 
         // Set ignore awareness attributes to true
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-            .put(IGNORE_AWARENESS_ATTRIBUTES, true)).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(IGNORE_AWARENESS_ATTRIBUTES, true))
+            .get();
         // assert that awareness attributes hasn't changed
         assertThat(routing.getAwarenessAttributes().size(), equalTo(1));
         assertThat(routing.getAwarenessAttributes().get(0), equalTo("zone"));
