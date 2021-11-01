@@ -1538,7 +1538,7 @@ public class TranslogTests extends OpenSearchTestCase {
             Translog translog = new Translog(
                 config,
                 translogUUID,
-                new TranslogDeletionPolicy(-1, -1, 0),
+                new DefaultTranslogDeletionPolicy(-1, -1, 0),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 persistedSeqNos::add
@@ -1653,7 +1653,7 @@ public class TranslogTests extends OpenSearchTestCase {
             Translog translog = new Translog(
                 config,
                 translogUUID,
-                new TranslogDeletionPolicy(-1, -1, 0),
+                new DefaultTranslogDeletionPolicy(-1, -1, 0),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 persistedSeqNos::add
@@ -2809,7 +2809,7 @@ public class TranslogTests extends OpenSearchTestCase {
         // engine blows up, after committing the above generation
         translog.close();
         TranslogConfig config = translog.getConfig();
-        final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1, 0);
+        final TranslogDeletionPolicy deletionPolicy = new DefaultTranslogDeletionPolicy(-1, -1, 0);
         deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
         translog = new Translog(
             config,
@@ -2889,7 +2889,7 @@ public class TranslogTests extends OpenSearchTestCase {
                 // expected...
             }
         }
-        final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1, 0);
+        final TranslogDeletionPolicy deletionPolicy = new DefaultTranslogDeletionPolicy(-1, -1, 0);
         deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
         try (
             Translog translog = new Translog(

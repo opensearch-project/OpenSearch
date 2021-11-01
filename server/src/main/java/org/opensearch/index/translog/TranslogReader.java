@@ -172,4 +172,12 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             throw new AlreadyClosedException(toString() + " is already closed");
         }
     }
+
+    public long getMinSeqNo() {
+        return checkpoint.minSeqNo;
+    }
+
+    public long getMaxSeqNo() {
+        return checkpoint.maxSeqNo;
+    }
 }
