@@ -33,7 +33,6 @@ package org.opensearch.test.rest.yaml.section;
 
 import org.opensearch.common.xcontent.XContentLocation;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.rest.yaml.section.MatchAssertion;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -62,8 +61,7 @@ public class MatchAssertionTests extends OpenSearchTestCase {
         XContentLocation xContentLocation = new XContentLocation(0, 0);
         MatchAssertion matchAssertion = new MatchAssertion(xContentLocation, "field", singletonMap("a", null));
         matchAssertion.doAssert(singletonMap("a", null), matchAssertion.getExpectedValue());
-        AssertionError e = expectThrows(AssertionError.class, () ->
-            matchAssertion.doAssert(emptyMap(), matchAssertion.getExpectedValue()));
+        AssertionError e = expectThrows(AssertionError.class, () -> matchAssertion.doAssert(emptyMap(), matchAssertion.getExpectedValue()));
         assertThat(e.getMessage(), containsString("expected [null] but not found"));
     }
 }
