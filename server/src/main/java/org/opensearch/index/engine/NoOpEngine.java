@@ -46,6 +46,7 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
@@ -165,7 +166,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
                 }
                 final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
                 final long localCheckpoint = Long.parseLong(commitUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(-1, -1, 0);
+                final TranslogDeletionPolicy translogDeletionPolicy = new DefaultTranslogDeletionPolicy(-1, -1, 0);
                 translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
                 try (
                     Translog translog = new Translog(

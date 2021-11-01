@@ -160,7 +160,7 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
         List<BaseTranslogReader> allGens = new ArrayList<>(readersAndWriter.v1());
         allGens.add(readersAndWriter.v2());
         try {
-            TranslogDeletionPolicy deletionPolicy = new MockDeletionPolicy(now, Long.MAX_VALUE, Long.MAX_VALUE, Integer.MAX_VALUE);
+            DefaultTranslogDeletionPolicy deletionPolicy = new MockDeletionPolicy(now, Long.MAX_VALUE, Long.MAX_VALUE, Integer.MAX_VALUE);
             int selectedReader = randomIntBetween(0, allGens.size() - 1);
             final long selectedGenerationByAge = allGens.get(selectedReader).generation;
             long maxAge = now - allGens.get(selectedReader).getLastModifiedTime();
@@ -275,7 +275,7 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
         return new Tuple<>(readers, writer);
     }
 
-    private static class MockDeletionPolicy extends TranslogDeletionPolicy {
+    private static class MockDeletionPolicy extends DefaultTranslogDeletionPolicy {
 
         long now;
 
