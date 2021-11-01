@@ -144,11 +144,11 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
-import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.IndexSettingsModule;
@@ -3796,7 +3796,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testEngineCreationWithCustomTranslogDeletePolicy() throws IOException {
-        class CustomTranslogDeletionPolicy extends TranslogDeletionPolicy {
+        class CustomTranslogDeletionPolicy extends DefaultTranslogDeletionPolicy {
             public CustomTranslogDeletionPolicy(IndexSettings indexSettings, Supplier<RetentionLeases> retentionLeasesSupplier) {
                 super(
                     indexSettings.getTranslogRetentionSize().getBytes(),
