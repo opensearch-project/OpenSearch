@@ -45,15 +45,25 @@ package org.opensearch.index.analysis.phonetic;
  * nach: Martin Wilz, Aspekte der Kodierung phonetischer Ähnlichkeiten
  * in deutschen Eigennamen, Magisterarbeit.
  * http://www.uni-koeln.de/phil-fak/phonetik/Lehre/MA-Arbeiten/magister_wilz.pdf
- * 
+ *
  * @author <a href="mailto:joergprante@gmail.com">J&ouml;rg Prante</a>
  */
 public class HaasePhonetik extends KoelnerPhonetik {
 
-    private static final String[] HAASE_VARIATIONS_PATTERNS = {"OWN", "RB", "WSK", "A$", "O$", "SCH",
-        "GLI", "EAU$", "^CH", "AUX", "EUX", "ILLE"};
-    private static final String[] HAASE_VARIATIONS_REPLACEMENTS = {"AUN", "RW", "RSK", "AR", "OW", "CH",
-        "LI", "O", "SCH", "O", "O", "I"};
+    private static final String[] HAASE_VARIATIONS_PATTERNS = {
+        "OWN",
+        "RB",
+        "WSK",
+        "A$",
+        "O$",
+        "SCH",
+        "GLI",
+        "EAU$",
+        "^CH",
+        "AUX",
+        "EUX",
+        "ILLE" };
+    private static final String[] HAASE_VARIATIONS_REPLACEMENTS = { "AUN", "RW", "RSK", "AR", "OW", "CH", "LI", "O", "SCH", "O", "O", "I" };
 
     @Override
     protected String[] getPatterns() {

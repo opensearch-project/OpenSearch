@@ -89,8 +89,16 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         private final String nullValue;
         private final int ignoreAbove;
 
-        public CollationFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                  Collator collator, String nullValue, int ignoreAbove, Map<String, String> meta) {
+        public CollationFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            Collator collator,
+            String nullValue,
+            int ignoreAbove,
+            Map<String, String> meta
+        ) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.collator = collator;
@@ -153,28 +161,41 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions, QueryShardContext context) {
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            QueryShardContext context
+        ) {
             throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method,
-            boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
-        public Query wildcardQuery(String value,
-                                   @Nullable MultiTermQuery.RewriteMethod method,
-                                   boolean caseInsensitive,
-                                   QueryShardContext context) {
+        public Query wildcardQuery(
+            String value,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            QueryShardContext context
+        ) {
             throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
-        public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method,
+            QueryShardContext context
+        ) {
             throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
@@ -185,8 +206,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void writeTo(StreamOutput out) {
-            }
+            public void writeTo(StreamOutput out) {}
 
             @Override
             public String format(BytesRef value) {
@@ -236,8 +256,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public Builder indexOptions(IndexOptions indexOptions) {
             if (indexOptions.compareTo(IndexOptions.DOCS_AND_FREQS) > 0) {
-                throw new IllegalArgumentException("The [" + CONTENT_TYPE + "] field does not support positions, got [index_options]="
-                    + indexOptionToString(indexOptions));
+                throw new IllegalArgumentException(
+                    "The [" + CONTENT_TYPE + "] field does not support positions, got [index_options]=" + indexOptionToString(indexOptions)
+                );
             }
 
             return super.indexOptions(indexOptions);
@@ -463,22 +484,47 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public ICUCollationKeywordFieldMapper build(BuilderContext context) {
             final Collator collator = buildCollator();
-            CollationFieldType ft
-                = new CollationFieldType(buildFullName(context), indexed, fieldType.stored(),
-                hasDocValues, collator, nullValue, ignoreAbove, meta);
-            return new ICUCollationKeywordFieldMapper(name, fieldType, ft,
-                multiFieldsBuilder.build(this, context), copyTo, rules, language, country, variant, strength, decomposition,
-                alternate, caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode, ignoreAbove, collator, nullValue);
+            CollationFieldType ft = new CollationFieldType(
+                buildFullName(context),
+                indexed,
+                fieldType.stored(),
+                hasDocValues,
+                collator,
+                nullValue,
+                ignoreAbove,
+                meta
+            );
+            return new ICUCollationKeywordFieldMapper(
+                name,
+                fieldType,
+                ft,
+                multiFieldsBuilder.build(this, context),
+                copyTo,
+                rules,
+                language,
+                country,
+                variant,
+                strength,
+                decomposition,
+                alternate,
+                caseLevel,
+                caseFirst,
+                numeric,
+                variableTop,
+                hiraganaQuaternaryMode,
+                ignoreAbove,
+                collator,
+                nullValue
+            );
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-            throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext(); ) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
@@ -571,12 +617,28 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final Collator collator;
     private final String nullValue;
 
-    protected ICUCollationKeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                             MultiFields multiFields, CopyTo copyTo, String rules, String language,
-                                             String country, String variant,
-                                             String strength, String decomposition, String alternate, boolean caseLevel, String caseFirst,
-                                             boolean numeric, String variableTop, boolean hiraganaQuaternaryMode,
-                                             int ignoreAbove, Collator collator, String nullValue) {
+    protected ICUCollationKeywordFieldMapper(
+        String simpleName,
+        FieldType fieldType,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        String rules,
+        String language,
+        String country,
+        String variant,
+        String strength,
+        String decomposition,
+        String alternate,
+        boolean caseLevel,
+        String caseFirst,
+        boolean numeric,
+        String variableTop,
+        boolean hiraganaQuaternaryMode,
+        int ignoreAbove,
+        Collator collator,
+        String nullValue
+    ) {
         super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert collator.isFrozen();
         this.rules = rules;

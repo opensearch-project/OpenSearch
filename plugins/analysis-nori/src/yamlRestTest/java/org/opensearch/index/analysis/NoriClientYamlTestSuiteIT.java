@@ -49,4 +49,3 @@ public class NoriClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

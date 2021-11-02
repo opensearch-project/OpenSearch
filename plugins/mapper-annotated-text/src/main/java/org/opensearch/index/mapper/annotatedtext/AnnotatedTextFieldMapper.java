@@ -90,7 +90,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
 
     private static Builder builder(FieldMapper in) {
-        return ((AnnotatedTextFieldMapper)in).builder;
+        return ((AnnotatedTextFieldMapper) in).builder;
     }
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
@@ -98,20 +98,22 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
 
         final TextParams.Analyzers analyzers;
-        final Parameter<SimilarityProvider> similarity
-            = TextParams.similarity(m -> builder(m).similarity.getValue());
+        final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
 
         final Parameter<String> indexOptions = TextParams.indexOptions(m -> builder(m).indexOptions.getValue());
         final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.getValue());
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
 
-        final Parameter<Integer> positionIncrementGap = Parameter.intParam("position_increment_gap", false,
-            m -> builder(m).positionIncrementGap.getValue(), POSITION_INCREMENT_GAP_USE_ANALYZER)
-            .setValidator(v -> {
-                if (v != POSITION_INCREMENT_GAP_USE_ANALYZER && v < 0) {
-                    throw new MapperParsingException("[positions_increment_gap] must be positive, got [" + v + "]");
-                }
-            });
+        final Parameter<Integer> positionIncrementGap = Parameter.intParam(
+            "position_increment_gap",
+            false,
+            m -> builder(m).positionIncrementGap.getValue(),
+            POSITION_INCREMENT_GAP_USE_ANALYZER
+        ).setValidator(v -> {
+            if (v != POSITION_INCREMENT_GAP_USE_ANALYZER && v < 0) {
+                throw new MapperParsingException("[positions_increment_gap] must be positive, got [" + v + "]");
+            }
+        });
 
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -123,14 +125,23 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(store, indexOptions, norms, termVectors, similarity,
-                analyzers.indexAnalyzer, analyzers.searchAnalyzer, analyzers.searchQuoteAnalyzer, positionIncrementGap,
-                boost, meta);
+            return Arrays.asList(
+                store,
+                indexOptions,
+                norms,
+                termVectors,
+                similarity,
+                analyzers.indexAnalyzer,
+                analyzers.searchAnalyzer,
+                analyzers.searchQuoteAnalyzer,
+                positionIncrementGap,
+                boost,
+                meta
+            );
         }
 
         private NamedAnalyzer wrapAnalyzer(NamedAnalyzer in, int positionIncrementGap) {
-            return new NamedAnalyzer(in.name(), AnalyzerScope.INDEX,
-                new AnnotationAnalyzerWrapper(in.analyzer()), positionIncrementGap);
+            return new NamedAnalyzer(in.name(), AnalyzerScope.INDEX, new AnnotationAnalyzerWrapper(in.analyzer()), positionIncrementGap);
         }
 
         private AnnotatedTextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
@@ -139,8 +150,9 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                 posGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
             } else {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                    throw new IllegalArgumentException("Cannot set position_increment_gap on field [" + name()
-                        + "] without positions enabled");
+                    throw new IllegalArgumentException(
+                        "Cannot set position_increment_gap on field [" + name() + "] without positions enabled"
+                    );
                 }
                 posGap = positionIncrementGap.get();
             }
@@ -148,12 +160,9 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                 fieldType,
                 similarity.get(),
                 wrapAnalyzer(analyzers.getSearchAnalyzer(), posGap),
-                wrapAnalyzer(analyzers.getSearchQuoteAnalyzer(), posGap));
-            AnnotatedTextFieldType ft = new AnnotatedTextFieldType(
-                buildFullName(context),
-                store.getValue(),
-                tsi,
-                meta.getValue());
+                wrapAnalyzer(analyzers.getSearchQuoteAnalyzer(), posGap)
+            );
+            AnnotatedTextFieldType ft = new AnnotatedTextFieldType(buildFullName(context), store.getValue(), tsi, meta.getValue());
             ft.setIndexAnalyzer(wrapAnalyzer(analyzers.getIndexAnalyzer(), posGap));
             ft.setBoost(boost.getValue());
             return ft;
@@ -162,12 +171,17 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         @Override
         public AnnotatedTextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
-            if (fieldType.indexOptions() == IndexOptions.NONE ) {
+            if (fieldType.indexOptions() == IndexOptions.NONE) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
             }
             return new AnnotatedTextFieldMapper(
-                    name, fieldType, buildFieldType(fieldType, context),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                name,
+                fieldType,
+                buildFieldType(fieldType, context),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
     }
 
@@ -183,16 +197,16 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         List<AnnotationToken> annotations;
 
         // Format is markdown-like syntax for URLs eg:
-        //   "New mayor is [John Smith](type=person&value=John%20Smith) "
+        // "New mayor is [John Smith](type=person&value=John%20Smith) "
         static Pattern markdownPattern = Pattern.compile("\\[([^]\\[]*)]\\(([^)(]*)\\)");
 
-        public static AnnotatedText parse (String textPlusMarkup) {
-            List<AnnotationToken> annotations =new ArrayList<>();
+        public static AnnotatedText parse(String textPlusMarkup) {
+            List<AnnotationToken> annotations = new ArrayList<>();
             Matcher m = markdownPattern.matcher(textPlusMarkup);
             int lastPos = 0;
             StringBuilder sb = new StringBuilder();
-            while(m.find()){
-                if(m.start() > lastPos){
+            while (m.find()) {
+                if (m.start() > lastPos) {
                     sb.append(textPlusMarkup, lastPos, m.start());
                 }
 
@@ -210,9 +224,9 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                             throw new OpenSearchParseException("key=value pairs are not supported in annotations");
                         }
                         if (kv.length == 1) {
-                            //Check "=" sign wasn't in the pair string
+                            // Check "=" sign wasn't in the pair string
                             if (kv[0].length() == pair.length()) {
-                                //untyped value
+                                // untyped value
                                 value = URLDecoder.decode(kv[0], "UTF-8");
                             }
                         }
@@ -224,7 +238,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                     }
                 }
             }
-            if(lastPos < textPlusMarkup.length()){
+            if (lastPos < textPlusMarkup.length()) {
                 sb.append(textPlusMarkup.substring(lastPos));
             }
             return new AnnotatedText(sb.toString(), textPlusMarkup, annotations);
@@ -241,19 +255,22 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
             public final int endOffset;
 
             public final String value;
+
             public AnnotationToken(int offset, int endOffset, String value) {
                 this.offset = offset;
                 this.endOffset = endOffset;
                 this.value = value;
             }
+
             @Override
             public String toString() {
-               return value +" ("+offset+" - "+endOffset+")";
+                return value + " (" + offset + " - " + endOffset + ")";
             }
 
             public boolean intersects(int start, int end) {
-                return (start <= offset && end >= offset) || (start <= endOffset && end >= endOffset)
-                        || (start >= offset && end <= endOffset);
+                return (start <= offset && end >= offset)
+                    || (start <= endOffset && end >= endOffset)
+                    || (start >= offset && end <= endOffset);
             }
 
             @Override
@@ -268,29 +285,27 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             public boolean equals(Object obj) {
-                if (this == obj)
-                    return true;
-                if (obj == null)
-                    return false;
-                if (getClass() != obj.getClass())
-                    return false;
+                if (this == obj) return true;
+                if (obj == null) return false;
+                if (getClass() != obj.getClass()) return false;
                 AnnotationToken other = (AnnotationToken) obj;
-                return Objects.equals(endOffset, other.endOffset) && Objects.equals(offset, other.offset)
-                        && Objects.equals(value, other.value);
+                return Objects.equals(endOffset, other.endOffset)
+                    && Objects.equals(offset, other.offset)
+                    && Objects.equals(value, other.value);
             }
 
         }
 
         @Override
         public String toString() {
-           StringBuilder sb = new StringBuilder();
-           sb.append(textMinusMarkup);
-           sb.append("\n");
-           annotations.forEach(a -> {
-               sb.append(a);
-               sb.append("\n");
-           });
-           return sb.toString();
+            StringBuilder sb = new StringBuilder();
+            sb.append(textMinusMarkup);
+            sb.append("\n");
+            annotations.forEach(a -> {
+                sb.append(a);
+                sb.append("\n");
+            });
+            return sb.toString();
         }
 
         public int numAnnotations() {
@@ -311,14 +326,14 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         private final Analyzer delegate;
         private AnnotatedText[] annotations;
 
-        public AnnotatedHighlighterAnalyzer(Analyzer delegate){
+        public AnnotatedHighlighterAnalyzer(Analyzer delegate) {
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
         }
 
         @Override
         public Analyzer getWrappedAnalyzer(String fieldName) {
-          return delegate;
+            return delegate;
         }
 
         public void setAnnotations(AnnotatedText[] annotations) {
@@ -344,13 +359,13 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         private final Analyzer delegate;
 
         public AnnotationAnalyzerWrapper(Analyzer delegate) {
-          super(delegate.getReuseStrategy());
-          this.delegate = delegate;
+            super(delegate.getReuseStrategy());
+            this.delegate = delegate;
         }
 
         @Override
         public Analyzer getWrappedAnalyzer(String fieldName) {
-          return delegate;
+            return delegate;
         }
 
         @Override
@@ -383,7 +398,6 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-
     public static final class AnnotationsInjector extends TokenFilter {
 
         private AnnotatedText annotatedText;
@@ -400,17 +414,17 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         private final TypeAttribute typeAtt = addAttribute(TypeAttribute.class);
 
         public AnnotationsInjector(TokenStream in) {
-          super(in);
+            super(in);
         }
 
         public void setAnnotations(AnnotatedText annotatedText) {
-          this.annotatedText = annotatedText;
-          currentAnnotationIndex = 0;
-          if(annotatedText!=null && annotatedText.numAnnotations()>0){
-              nextAnnotationForInjection = annotatedText.getAnnotation(0);
-          } else {
-              nextAnnotationForInjection = null;
-          }
+            this.annotatedText = annotatedText;
+            currentAnnotationIndex = 0;
+            if (annotatedText != null && annotatedText.numAnnotations() > 0) {
+                nextAnnotationForInjection = annotatedText.getAnnotation(0);
+            } else {
+                nextAnnotationForInjection = null;
+            }
         }
 
         @Override
@@ -423,17 +437,17 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
 
         // Abstracts if we are pulling from some pre-cached buffer of
         // text tokens or directly from the wrapped TokenStream
-        private boolean internalNextToken() throws IOException{
-            if (pendingStatePos < pendingStates.size()){
+        private boolean internalNextToken() throws IOException {
+            if (pendingStatePos < pendingStates.size()) {
                 restoreState(pendingStates.get(pendingStatePos));
-                pendingStatePos ++;
-                if(pendingStatePos >=pendingStates.size()){
-                    pendingStatePos =0;
+                pendingStatePos++;
+                if (pendingStatePos >= pendingStates.size()) {
+                    pendingStatePos = 0;
                     pendingStates.clear();
                 }
                 return true;
             }
-            if(inputExhausted) {
+            if (inputExhausted) {
                 return false;
             }
             return input.incrementToken();
@@ -458,7 +472,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                             // Buffer up all the other tokens spanned by this annotation to determine length.
                             if (input.incrementToken()) {
                                 if (textOffsetAtt.endOffset() <= nextAnnotationForInjection.endOffset
-                                        && textOffsetAtt.startOffset() < nextAnnotationForInjection.endOffset) {
+                                    && textOffsetAtt.startOffset() < nextAnnotationForInjection.endOffset) {
                                     annotationPosLen += posAtt.getPositionIncrement();
                                 }
                                 pendingStates.add(captureState());
@@ -479,7 +493,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         }
 
         private void setType() {
-            //Default annotation type - in future AnnotationTokens may contain custom type info
+            // Default annotation type - in future AnnotationTokens may contain custom type info
             typeAtt.setType("annotation");
         }
 
@@ -494,21 +508,19 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
             final AnnotatedText.AnnotationToken firstAnnotationAtThisPos = nextAnnotationForInjection;
             while (nextAnnotationForInjection != null && nextAnnotationForInjection.offset == annotationOffset) {
 
-
                 setType();
                 termAtt.resizeBuffer(nextAnnotationForInjection.value.length());
                 termAtt.copyBuffer(nextAnnotationForInjection.value.toCharArray(), 0, nextAnnotationForInjection.value.length());
 
                 if (nextAnnotationForInjection == firstAnnotationAtThisPos) {
                     posAtt.setPositionIncrement(firstSpannedTextPosInc);
-                    //Put at the head of the queue of tokens to be emitted
+                    // Put at the head of the queue of tokens to be emitted
                     pendingStates.add(0, captureState());
                 } else {
                     posAtt.setPositionIncrement(0);
-                    //Put after the head of the queue of tokens to be emitted
+                    // Put after the head of the queue of tokens to be emitted
                     pendingStates.add(1, captureState());
                 }
-
 
                 // Flag the inject annotation as null to prevent re-injection.
                 currentAnnotationIndex++;
@@ -522,7 +534,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
             internalNextToken();
         }
 
-      }
+    }
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
@@ -543,8 +555,14 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
     private final FieldType fieldType;
     private final Builder builder;
 
-    protected AnnotatedTextFieldMapper(String simpleName, FieldType fieldType, AnnotatedTextFieldType mappedFieldType,
-                                MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    protected AnnotatedTextFieldMapper(
+        String simpleName,
+        FieldType fieldType,
+        AnnotatedTextFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.tokenized();
         this.fieldType = fieldType;

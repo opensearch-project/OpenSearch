@@ -56,29 +56,7 @@ import org.opensearch.gradle.BuildPlugin
  */
 
 // Do not add new sub-projects here!
-def projectPathsToExclude = [
-  ':plugins:analysis-icu',
-  ':plugins:analysis-kuromoji',
-  ':plugins:analysis-nori',
-  ':plugins:analysis-phonetic',
-  ':plugins:analysis-smartcn',
-  ':plugins:analysis-stempel',
-  ':plugins:analysis-ukrainian',
-  ':plugins:discovery-azure-classic',
-  ':plugins:discovery-ec2',
-  ':plugins:discovery-gce',
-  ':plugins:ingest-attachment',
-  ':plugins:mapper-annotated-text',
-  ':plugins:mapper-murmur3',
-  ':plugins:mapper-size',
-  ':plugins:repository-azure',
-  ':plugins:repository-gcs',
-  ':plugins:repository-hdfs',
-  ':plugins:repository-s3',
-  ':plugins:store-smb',
-  ':plugins:transport-nio',
-  ':qa:die-with-dignity'
-]
+def projectPathsToExclude = []
 
 subprojects {
   plugins.withType(BuildPlugin).whenPluginAdded {

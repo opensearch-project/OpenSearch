@@ -49,4 +49,3 @@ public class RepositoryGcsClientYamlTestSuiteIT extends OpenSearchClientYamlSuit
         return createParameters();
     }
 }
-

@@ -87,9 +87,6 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
 
     @Override
     public String toString() {
-        return "TcpNioSocketChannel{" +
-            "localAddress=" + getLocalAddress() +
-            ", remoteAddress=" + getRemoteAddress() +
-            '}';
+        return "TcpNioSocketChannel{" + "localAddress=" + getLocalAddress() + ", remoteAddress=" + getRemoteAddress() + '}';
     }
 }
