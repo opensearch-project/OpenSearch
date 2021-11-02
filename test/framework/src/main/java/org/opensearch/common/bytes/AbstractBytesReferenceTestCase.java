@@ -659,7 +659,7 @@ public abstract class AbstractBytesReferenceTestCase extends OpenSearchTestCase 
             assertNotEquals(b1, differentLen);
 
             // test changed bytes
-            array1[offset1 + randomInt(len - 1)] += 13;
+            array1[offset1 + randomInt(len - 1)] += (byte) 13;
             assertNotEquals(b1, b2);
         }
     }

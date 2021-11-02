@@ -222,7 +222,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                                 + "]"
                         );
                     }
-                    topDocs.scoreDocs[i].score *= data.nextValue();
+                    topDocs.scoreDocs[i].score *= (float) data.nextValue();
                 }
             }
             // Sort by score descending, then docID ascending, just like lucene's QueryRescorer
