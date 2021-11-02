@@ -175,7 +175,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             compileOnly "org.locationtech.jts:jts-core:${project.versions.jts}"
             compileOnly "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
             compileOnly "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
-            compileOnly "org.elasticsearch:jna:${project.versions.jna}"
+            compileOnly "net.java.dev.jna:jna:${project.versions.jna}"
         }
     }
 
