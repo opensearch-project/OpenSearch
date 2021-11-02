@@ -6,31 +6,9 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.search.profile.query;
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
@@ -39,7 +17,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -48,7 +25,6 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -57,17 +33,25 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -77,6 +61,16 @@ public class QueryProfilerTests extends OpenSearchTestCase {
     private Directory dir;
     private IndexReader reader;
     private ContextIndexSearcher searcher;
+    private ExecutorService executor;
+
+    @ParametersFactory
+    public static Collection<Object[]> concurrency() {
+        return Arrays.asList(new Integer[] { 0 }, new Integer[] { 5 });
+    }
+
+    public QueryProfilerTests(int concurrency) {
+        this.executor = (concurrency > 0) ? Executors.newFixedThreadPool(concurrency) : null;
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -102,7 +96,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
             IndexSearcher.getDefaultQueryCache(),
             ALWAYS_CACHE_POLICY,
             true,
-            null
+            executor
         );
     }
 
@@ -116,6 +110,10 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         assertThat(cache.getTotalCount(), equalTo(cache.getMissCount()));
         assertThat(cache.getCacheSize(), equalTo(0L));
 
+        if (executor != null) {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+
         IOUtils.close(reader, dir);
         dir = null;
         reader = null;
@@ -123,7 +121,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
     }
 
     public void testBasic() throws IOException {
-        QueryProfiler profiler = new QueryProfiler(false);
+        QueryProfiler profiler = new QueryProfiler(executor != null);
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
@@ -149,7 +147,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
     }
 
     public void testNoScoring() throws IOException {
-        QueryProfiler profiler = new QueryProfiler(false);
+        QueryProfiler profiler = new QueryProfiler(executor != null);
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
@@ -175,7 +173,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
     }
 
     public void testUseIndexStats() throws IOException {
-        QueryProfiler profiler = new QueryProfiler(false);
+        QueryProfiler profiler = new QueryProfiler(executor != null);
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
@@ -189,7 +187,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
     }
 
     public void testApproximations() throws IOException {
-        QueryProfiler profiler = new QueryProfiler(false);
+        QueryProfiler profiler = new QueryProfiler(executor != null);
         searcher.setProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);
@@ -236,11 +234,6 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void visit(QueryVisitor visitor) {
-            visitor.visitLeaf(this);
-        }
-
-        @Override
         public boolean equals(Object obj) {
             return this == obj;
         }
@@ -253,7 +246,6 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new Weight(this) {
-
                 @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
                     throw new UnsupportedOperationException();
@@ -285,6 +277,11 @@ public class QueryProfilerTests extends OpenSearchTestCase {
                     return true;
                 }
             };
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
         }
     }
 

@@ -55,6 +55,10 @@ public class MinimumScoreCollector extends SimpleCollector {
         this.minimumScore = minimumScore;
     }
 
+    public Collector getCollector() {
+        return collector;
+    }
+
     @Override
     public void setScorer(Scorable scorer) throws IOException {
         if (!(scorer instanceof ScoreCachingWrappingScorer)) {
