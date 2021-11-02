@@ -121,7 +121,7 @@ public class AzureBlobStore implements BlobStore {
             if (response.getStatusCode() >= 300) {
                 return;
             }
-            
+
             final HttpMethod method = request.getHttpMethod();
             if (method.equals(HttpMethod.HEAD)) {
                 stats.headOperations.incrementAndGet();
@@ -137,7 +137,7 @@ public class AzureBlobStore implements BlobStore {
             } else if (method.equals(HttpMethod.PUT)) {
                 final String query = request.getUrl().getQuery();
                 final String queryParams = (query == null) ? "" : query;
-    
+
                 // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
                 // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
                 if (queryParams.contains("comp=block") && queryParams.contains("blockid=")) {
@@ -200,13 +200,13 @@ public class AzureBlobStore implements BlobStore {
             final BlobClient azureBlob = blobContainer.getBlobClient(blob);
             logger.trace(() -> new ParameterizedMessage("container [{}]: blob [{}] found. removing.", container, blob));
             final Response<Void> response = azureBlob.deleteWithResponse(null, null, timeout(), client.v2().get());
-            logger.trace(() -> new ParameterizedMessage("container [{}]: blob [{}] deleted status [{}].", container, 
-                blob, response.getStatusCode()));
+            logger.trace(
+                () -> new ParameterizedMessage("container [{}]: blob [{}] deleted status [{}].", container, blob, response.getStatusCode())
+            );
         });
     }
 
-    public DeleteResult deleteBlobDirectory(String path, Executor executor)
-            throws URISyntaxException, BlobStorageException, IOException {
+    public DeleteResult deleteBlobDirectory(String path, Executor executor) throws URISyntaxException, BlobStorageException, IOException {
         final Tuple<BlobServiceClient, Supplier<Context>> client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         final Collection<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
@@ -220,7 +220,7 @@ public class AzureBlobStore implements BlobStore {
             for (final BlobItem blobItem : blobContainer.listBlobs(listBlobsOptions, timeout())) {
                 // Skipping prefixes as those are not deletable and should not be there
                 assert (blobItem.isPrefix() == null || !blobItem.isPrefix()) : "Only blobs (not prefixes) are expected";
-                
+
                 outstanding.incrementAndGet();
                 executor.execute(new AbstractRunnable() {
                     @Override
@@ -228,11 +228,18 @@ public class AzureBlobStore implements BlobStore {
                         final long len = blobItem.getProperties().getContentLength();
 
                         final BlobClient azureBlob = blobContainer.getBlobClient(blobItem.getName());
-                        logger.trace(() -> new ParameterizedMessage("container [{}]: blob [{}] found. removing.", 
-                            container, blobItem.getName()));
+                        logger.trace(
+                            () -> new ParameterizedMessage("container [{}]: blob [{}] found. removing.", container, blobItem.getName())
+                        );
                         final Response<Void> response = azureBlob.deleteWithResponse(null, null, timeout(), client.v2().get());
-                        logger.trace(() -> new ParameterizedMessage("container [{}]: blob [{}] deleted status [{}].", container, 
-                            blobItem.getName(), response.getStatusCode()));
+                        logger.trace(
+                            () -> new ParameterizedMessage(
+                                "container [{}]: blob [{}] deleted status [{}].",
+                                container,
+                                blobItem.getName(),
+                                response.getStatusCode()
+                            )
+                        );
 
                         blobsDeleted.incrementAndGet();
                         if (len >= 0) {
@@ -281,8 +288,7 @@ public class AzureBlobStore implements BlobStore {
         });
     }
 
-    public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix)
-            throws URISyntaxException, BlobStorageException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix) throws URISyntaxException, BlobStorageException {
         final Map<String, BlobMetadata> blobsBuilder = new HashMap<String, BlobMetadata>();
         final Tuple<BlobServiceClient, Supplier<Context>> client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
@@ -291,17 +297,16 @@ public class AzureBlobStore implements BlobStore {
         // NOTE: this should be here: if (prefix == null) prefix = "";
         // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
-        final ListBlobsOptions listBlobsOptions = new ListBlobsOptions()
-            .setDetails(new BlobListDetails().setRetrieveMetadata(true))
+        final ListBlobsOptions listBlobsOptions = new ListBlobsOptions().setDetails(new BlobListDetails().setRetrieveMetadata(true))
             .setPrefix(keyPath + (prefix == null ? "" : prefix));
-        
+
         SocketAccess.doPrivilegedVoidException(() -> {
-            for (final BlobItem blobItem: blobContainer.listBlobsByHierarchy("/", listBlobsOptions, timeout())) {
+            for (final BlobItem blobItem : blobContainer.listBlobsByHierarchy("/", listBlobsOptions, timeout())) {
                 // Skipping over the prefixes, only look for the blobs
                 if (blobItem.isPrefix() != null && blobItem.isPrefix()) {
                     continue;
                 }
-                
+
                 final String name = getBlobName(blobItem.getName(), container, keyPath);
                 logger.trace(() -> new ParameterizedMessage("blob name [{}]", name));
 
@@ -320,13 +325,12 @@ public class AzureBlobStore implements BlobStore {
         final Tuple<BlobServiceClient, Supplier<Context>> client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         final String keyPath = path.buildAsString();
-        
-        final ListBlobsOptions listBlobsOptions = new ListBlobsOptions()
-            .setDetails(new BlobListDetails().setRetrieveMetadata(true))
+
+        final ListBlobsOptions listBlobsOptions = new ListBlobsOptions().setDetails(new BlobListDetails().setRetrieveMetadata(true))
             .setPrefix(keyPath);
 
         SocketAccess.doPrivilegedVoidException(() -> {
-            for (final BlobItem blobItem: blobContainer.listBlobsByHierarchy("/", listBlobsOptions, timeout())) {
+            for (final BlobItem blobItem : blobContainer.listBlobsByHierarchy("/", listBlobsOptions, timeout())) {
                 // Skipping over the blobs, only look for prefixes
                 if (blobItem.isPrefix() != null && blobItem.isPrefix()) {
                     // Expecting name in the form /container/keyPath.* and we want to strip off the /container/
@@ -336,17 +340,20 @@ public class AzureBlobStore implements BlobStore {
                     logger.trace(() -> new ParameterizedMessage("blob name [{}]", name));
                     blobsBuilder.add(name);
                 }
-            };
+            }
+            ;
         });
 
-        return Collections.unmodifiableMap(blobsBuilder.stream().collect(
-            Collectors.toMap(Function.identity(), name -> new AzureBlobContainer(path.add(name), this, threadPool))));
+        return Collections.unmodifiableMap(
+            blobsBuilder.stream()
+                .collect(Collectors.toMap(Function.identity(), name -> new AzureBlobContainer(path.add(name), this, threadPool)))
+        );
     }
 
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-        throws URISyntaxException, BlobStorageException, IOException {
-        assert inputStream.markSupported()
-            : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws URISyntaxException,
+        BlobStorageException, IOException {
+        assert inputStream
+            .markSupported() : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         final Tuple<BlobServiceClient, Supplier<Context>> client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
@@ -356,39 +363,42 @@ public class AzureBlobStore implements BlobStore {
             if (failIfAlreadyExists) {
                 blobRequestConditions.setIfNoneMatch(Constants.HeaderConstants.ETAG_WILDCARD);
             }
-            
+
             SocketAccess.doPrivilegedVoidException(() -> {
                 final Response<?> response = blob.uploadWithResponse(
-                    new BlobParallelUploadOptions(inputStream, blobSize)
-                        .setRequestConditions(blobRequestConditions)
-                        .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob()), 
-                    timeout(), client.v2().get());
-                logger.trace(() -> new ParameterizedMessage("upload({}, stream, {}) - status [{}]", 
-                    blobName, blobSize, response.getStatusCode()));
+                    new BlobParallelUploadOptions(inputStream, blobSize).setRequestConditions(blobRequestConditions)
+                        .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob()),
+                    timeout(),
+                    client.v2().get()
+                );
+                logger.trace(
+                    () -> new ParameterizedMessage("upload({}, stream, {}) - status [{}]", blobName, blobSize, response.getStatusCode())
+                );
             });
         } catch (final BlobStorageException se) {
-            if (failIfAlreadyExists && se.getStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
-                    BlobErrorCode.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
+            if (failIfAlreadyExists
+                && se.getStatusCode() == HttpURLConnection.HTTP_CONFLICT
+                && BlobErrorCode.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
                 throw new FileAlreadyExistsException(blobName, null, se.getMessage());
             }
             throw se;
         } catch (final RuntimeException ex) {
             // Since most of the logic is happening inside the reactive pipeline, the checked exceptions
-            // are swallowed and wrapped into runtime one (see please Exceptions.ReactiveException). 
+            // are swallowed and wrapped into runtime one (see please Exceptions.ReactiveException).
             if (ex.getCause() != null) {
                 Throwables.rethrow(ex.getCause());
             } else {
                 throw ex;
             }
-        } 
-        
+        }
+
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
     }
 
     private Tuple<BlobServiceClient, Supplier<Context>> client() {
         return service.client(clientName, metricsCollector);
     }
-    
+
     private Duration timeout() {
         return service.getBlobRequestTimeout(clientName);
     }
@@ -397,7 +407,7 @@ public class AzureBlobStore implements BlobStore {
     public Map<String, Long> stats() {
         return stats.toMap();
     }
-    
+
     /**
      * Extracts the name of the blob from path or prefixed blob name
      * @param pathOrName prefixed blob name or blob path
@@ -411,7 +421,7 @@ public class AzureBlobStore implements BlobStore {
         if (name.matches("." + container + ".")) {
             name = name.substring(1 + container.length() + 1);
         }
-        
+
         if (name.startsWith(keyPath)) {
             name = name.substring(keyPath.length());
         }
@@ -434,12 +444,20 @@ public class AzureBlobStore implements BlobStore {
         private final AtomicLong putBlockListOperations = new AtomicLong();
 
         private Map<String, Long> toMap() {
-            return org.opensearch.common.collect.Map.of("GetBlob", getOperations.get(),
-                "ListBlobs", listOperations.get(),
-                "GetBlobProperties", headOperations.get(),
-                "PutBlob", putOperations.get(),
-                "PutBlock", putBlockOperations.get(),
-                "PutBlockList", putBlockListOperations.get());
+            return org.opensearch.common.collect.Map.of(
+                "GetBlob",
+                getOperations.get(),
+                "ListBlobs",
+                listOperations.get(),
+                "GetBlobProperties",
+                headOperations.get(),
+                "PutBlob",
+                putOperations.get(),
+                "PutBlock",
+                putBlockOperations.get(),
+                "PutBlockList",
+                putBlockListOperations.get()
+            );
         }
     }
 }

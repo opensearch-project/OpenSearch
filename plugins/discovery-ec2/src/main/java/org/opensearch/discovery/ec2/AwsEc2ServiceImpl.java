@@ -53,8 +53,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
     private static final Logger logger = LogManager.getLogger(AwsEc2ServiceImpl.class);
 
-    private final AtomicReference<LazyInitializable<AmazonEc2Reference, OpenSearchException>> lazyClientReference =
-            new AtomicReference<>();
+    private final AtomicReference<LazyInitializable<AmazonEc2Reference, OpenSearchException>> lazyClientReference = new AtomicReference<>();
 
     private AmazonEC2 buildClient(Ec2ClientSettings clientSettings) {
         final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
@@ -64,7 +63,8 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
     // proxy for testing
     AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration, String endpoint) {
-        final AmazonEC2ClientBuilder builder = AmazonEC2ClientBuilder.standard().withCredentials(credentials)
+        final AmazonEC2ClientBuilder builder = AmazonEC2ClientBuilder.standard()
+            .withCredentials(credentials)
             .withClientConfiguration(configuration);
         if (Strings.hasText(endpoint)) {
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
@@ -122,8 +122,10 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     @Override
     public void refreshAndClearCache(Ec2ClientSettings clientSettings) {
         final LazyInitializable<AmazonEc2Reference, OpenSearchException> newClient = new LazyInitializable<>(
-                () -> new AmazonEc2Reference(buildClient(clientSettings)), clientReference -> clientReference.incRef(),
-                clientReference -> clientReference.decRef());
+            () -> new AmazonEc2Reference(buildClient(clientSettings)),
+            clientReference -> clientReference.incRef(),
+            clientReference -> clientReference.decRef()
+        );
         final LazyInitializable<AmazonEc2Reference, OpenSearchException> oldClient = this.lazyClientReference.getAndSet(newClient);
         if (oldClient != null) {
             oldClient.reset();
