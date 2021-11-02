@@ -52,8 +52,10 @@ public class SMBStorePlugin extends Plugin implements IndexStorePlugin {
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         final Map<String, DirectoryFactory> indexStoreFactories = new HashMap<>(2);
         indexStoreFactories.put("smb_mmap_fs", new SmbMmapFsDirectoryFactory());
-        DEPRECATION_LOGGER.deprecate(IndexModule.Type.SIMPLEFS.getSettingsKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()
-            + " is deprecated and will be removed in 2.0");
+        DEPRECATION_LOGGER.deprecate(
+            IndexModule.Type.SIMPLEFS.getSettingsKey(),
+            IndexModule.Type.SIMPLEFS.getSettingsKey() + " is deprecated and will be removed in 2.0"
+        );
         indexStoreFactories.put("smb_simple_fs", new SmbSimpleFsDirectoryFactory());
         indexStoreFactories.put("smb_nio_fs", new SmbNIOFsDirectoryFactory());
         return Collections.unmodifiableMap(indexStoreFactories);

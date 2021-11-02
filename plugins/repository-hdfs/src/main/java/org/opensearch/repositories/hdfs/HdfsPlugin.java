@@ -115,8 +115,9 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
             KerberosInfo info = SecurityUtil.getKerberosInfo(ClientNamenodeProtocolPB.class, null);
             // Make sure that the correct class loader was installed.
             if (info == null) {
-                throw new RuntimeException("Could not initialize SecurityUtil: " +
-                    "Unable to find services for [org.apache.hadoop.security.SecurityInfo]");
+                throw new RuntimeException(
+                    "Could not initialize SecurityUtil: " + "Unable to find services for [org.apache.hadoop.security.SecurityInfo]"
+                );
             }
         } finally {
             Thread.currentThread().setContextClassLoader(oldCCL);
@@ -125,9 +126,15 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, RecoverySettings recoverySettings) {
-        return Collections.singletonMap("hdfs", (metadata) -> new HdfsRepository(metadata, env, namedXContentRegistry, clusterService,
-            recoverySettings));
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings
+    ) {
+        return Collections.singletonMap(
+            "hdfs",
+            (metadata) -> new HdfsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings)
+        );
     }
 }

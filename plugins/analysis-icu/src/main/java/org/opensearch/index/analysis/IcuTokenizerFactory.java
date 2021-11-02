@@ -68,7 +68,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     public Tokenizer create() {
         if (config == null) {
             return new ICUTokenizer();
-        }else{
+        } else {
             return new ICUTokenizer(config);
         }
     }
@@ -117,14 +117,11 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
         }
     }
 
-    //parse a single RBBi rule file
+    // parse a single RBBi rule file
     private BreakIterator parseRules(String filename, Environment env) throws IOException {
 
         final Path path = env.configFile().resolve(filename);
-        String rules = Files.readAllLines(path)
-            .stream()
-            .filter((v) -> v.startsWith("#") == false)
-            .collect(Collectors.joining("\n"));
+        String rules = Files.readAllLines(path).stream().filter((v) -> v.startsWith("#") == false).collect(Collectors.joining("\n"));
 
         return new RuleBasedBreakIterator(rules.toString());
     }

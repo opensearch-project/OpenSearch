@@ -64,19 +64,26 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
-        XContentBuilder builder =
-            jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
+        XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         // check mapping again
         assertSizeMappingEnabled(index, type, true);
 
         // update some field in the mapping
-        XContentBuilder updateMappingBuilder =
-            jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "text")
-                .endObject().endObject().endObject();
-        AcknowledgedResponse putMappingResponse =
-            client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
+        XContentBuilder updateMappingBuilder = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("otherField")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject();
+        AcknowledgedResponse putMappingResponse = client().admin()
+            .indices()
+            .preparePutMapping(index)
+            .setType(type)
+            .setSource(updateMappingBuilder)
+            .get();
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
@@ -87,18 +94,24 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
-        XContentBuilder builder =
-            jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
+        XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         // check mapping again
         assertSizeMappingEnabled(index, type, true);
 
         // update some field in the mapping
-        XContentBuilder updateMappingBuilder =
-            jsonBuilder().startObject().startObject("_size").field("enabled", false).endObject().endObject();
-        AcknowledgedResponse putMappingResponse =
-            client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
+        XContentBuilder updateMappingBuilder = jsonBuilder().startObject()
+            .startObject("_size")
+            .field("enabled", false)
+            .endObject()
+            .endObject();
+        AcknowledgedResponse putMappingResponse = client().admin()
+            .indices()
+            .preparePutMapping(index)
+            .setType(type)
+            .setSource(updateMappingBuilder)
+            .get();
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
@@ -106,10 +119,13 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
     }
 
     private void assertSizeMappingEnabled(String index, String type, boolean enabled) throws IOException {
-        String errMsg = String.format(Locale.ROOT,
-            "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s/%s", index, type);
-        GetMappingsResponse getMappingsResponse =
-            client().admin().indices().prepareGetMappings(index).addTypes(type).get();
+        String errMsg = String.format(
+            Locale.ROOT,
+            "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s/%s",
+            index,
+            type
+        );
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes(type).get();
         Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).get(type).getSourceAsMap();
         assertThat(errMsg, mappingSource, hasKey("_size"));
         String sizeAsString = mappingSource.get("_size").toString();
@@ -120,8 +136,7 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
     public void testBasic() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "_size", "enabled=true"));
         final String source = "{\"f\":10}";
-        indexRandom(true,
-                client().prepareIndex("test", "type", "1").setSource(source, XContentType.JSON));
+        indexRandom(true, client().prepareIndex("test", "type", "1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "type", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
         assertEquals(source.length(), (int) getResponse.getField("_size").getValue());

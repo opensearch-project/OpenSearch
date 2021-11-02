@@ -27,11 +27,14 @@
   <suppress files="libs" checks="." />
   <!-- Excludes checkstyle run on modules module -->
   <suppress files="modules" checks="." />
+  <!-- Excludes checkstyle run on plugins module -->
+  <suppress files="plugins" checks="." />
+  <!-- Excludes checkstyle run on below qa module -->
+  <suppress files="qa[/\\]die-with-dignity" checks="." />
   <!-- Excludes checkstyle run on test module -->
   <suppress files="test" checks="." />
   <!-- Excludes checkstyle run on rest-api-spec module -->
   <suppress files="rest-api-spec" checks="." />
-  
   <!--
     Truly temporary suppressions suppression of snippets included in
     documentation that are so wide that they scroll.

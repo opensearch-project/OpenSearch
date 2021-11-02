@@ -85,7 +85,7 @@ import static java.util.Collections.emptyMap;
 
 public class AzureStorageService implements AutoCloseable {
     private final ClientLogger logger = new ClientLogger(AzureStorageService.class);
-    
+
     /**
      * Maximum blob's block size size
      */
@@ -94,8 +94,10 @@ public class AzureStorageService implements AutoCloseable {
     /**
      * Maximum allowed blob's block size in Azure blob store.
      */
-    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(BlockBlobAsyncClient.MAX_STAGE_BLOCK_BYTES_LONG, 
-        ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(
+        BlockBlobAsyncClient.MAX_STAGE_BLOCK_BYTES_LONG,
+        ByteSizeUnit.BYTES
+    );
 
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
@@ -106,25 +108,25 @@ public class AzureStorageService implements AutoCloseable {
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
         refreshAndClearCache(clientsSettings);
     }
-    
+
     /**
      * Obtains a {@code BlobServiceClient} on each invocation using the current client
-     * settings. BlobServiceClient is thread safe and and could be cached but the settings 
+     * settings. BlobServiceClient is thread safe and and could be cached but the settings
      * can change, therefore the instance might be recreated from scratch.
-     * 
+     *
      * @param clientName client name
      * @return the {@code BlobServiceClient} instance and context
      */
     public Tuple<BlobServiceClient, Supplier<Context>> client(String clientName) {
         return client(clientName, (request, response) -> {});
-        
+
     }
 
     /**
      * Obtains a {@code BlobServiceClient} on each invocation using the current client
-     * settings. BlobServiceClient is thread safe and and could be cached but the settings 
+     * settings. BlobServiceClient is thread safe and and could be cached but the settings
      * can change, therefore the instance might be recreated from scratch.
-     
+
      * @param clientName client name
      * @param statsCollector statistics collector
      * @return the {@code BlobServiceClient} instance and context
@@ -135,10 +137,10 @@ public class AzureStorageService implements AutoCloseable {
             throw new SettingsException("Unable to find client with name [" + clientName + "]");
         }
 
-        // New Azure storage clients are thread-safe and do not hold any state so could be cached, see please: 
+        // New Azure storage clients are thread-safe and do not hold any state so could be cached, see please:
         // https://github.com/Azure/azure-storage-java/blob/master/V12%20Upgrade%20Story.md#v12-the-best-of-both-worlds
         ClientState state = clients.get(azureStorageSettings);
-        
+
         if (state == null) {
             state = clients.computeIfAbsent(azureStorageSettings, key -> {
                 try {
@@ -148,48 +150,45 @@ public class AzureStorageService implements AutoCloseable {
                 }
             });
         }
-        
+
         return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
     }
 
     private ClientState buildClient(AzureStorageSettings azureStorageSettings, BiConsumer<HttpRequest, HttpResponse> statsCollector)
-                throws InvalidKeyException, URISyntaxException {
+        throws InvalidKeyException, URISyntaxException {
         final BlobServiceClientBuilder builder = createClientBuilder(azureStorageSettings);
-        
+
         final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(new NioThreadFactory());
-        final NettyAsyncHttpClientBuilder clientBuilder = new NettyAsyncHttpClientBuilder()
-            .eventLoopGroup(eventLoopGroup);
+        final NettyAsyncHttpClientBuilder clientBuilder = new NettyAsyncHttpClientBuilder().eventLoopGroup(eventLoopGroup);
 
         final Proxy proxy = azureStorageSettings.getProxy();
         if (proxy != null) {
-            final Type type = Arrays
-                .stream(Type.values())
+            final Type type = Arrays.stream(Type.values())
                 .filter(t -> t.toProxyType().equals(proxy.type()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unsupported proxy type: " + proxy.type()));
 
-            clientBuilder.proxy(new ProxyOptions(type, (InetSocketAddress)proxy.address()));
+            clientBuilder.proxy(new ProxyOptions(type, (InetSocketAddress) proxy.address()));
         }
 
         builder.httpClient(clientBuilder.build());
 
         // We define a default exponential retry policy
         return new ClientState(
-            applyLocationMode(builder, azureStorageSettings)
-                .addPolicy(new HttpStatsPolicy(statsCollector))
-                .buildClient(),
-            eventLoopGroup);
+            applyLocationMode(builder, azureStorageSettings).addPolicy(new HttpStatsPolicy(statsCollector)).buildClient(),
+            eventLoopGroup
+        );
     }
-    
+
     /**
-     * The location mode is not there in v12 APIs anymore but it is possible to mimic its semantics using 
+     * The location mode is not there in v12 APIs anymore but it is possible to mimic its semantics using
      * retry options and combination of primary / secondary endpoints. Refer to migration guide for mode details:
      * https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous
      */
     private BlobServiceClientBuilder applyLocationMode(final BlobServiceClientBuilder builder, final AzureStorageSettings settings) {
         final StorageConnectionString storageConnectionString = StorageConnectionString.create(settings.getConnectString(), logger);
         final StorageEndpoint endpoint = storageConnectionString.getBlobEndpoint();
-        
+
         if (endpoint == null || endpoint.getPrimaryUri() == null) {
             throw new IllegalArgumentException("connectionString missing required settings to derive blob service primary endpoint.");
         }
@@ -201,29 +200,25 @@ public class AzureStorageService implements AutoCloseable {
             if (endpoint.getSecondaryUri() == null) {
                 throw new IllegalArgumentException("connectionString missing required settings to derive blob service secondary endpoint.");
             }
-            
-            builder
-                .endpoint(endpoint.getSecondaryUri())
-                .retryOptions(createRetryPolicy(settings, null));
+
+            builder.endpoint(endpoint.getSecondaryUri()).retryOptions(createRetryPolicy(settings, null));
         } else if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY) {
             builder.retryOptions(createRetryPolicy(settings, endpoint.getSecondaryUri()));
         } else if (locationMode == LocationMode.SECONDARY_THEN_PRIMARY) {
             if (endpoint.getSecondaryUri() == null) {
                 throw new IllegalArgumentException("connectionString missing required settings to derive blob service secondary endpoint.");
             }
-            
-            builder
-                .endpoint(endpoint.getSecondaryUri())
-                .retryOptions(createRetryPolicy(settings, endpoint.getPrimaryUri()));
+
+            builder.endpoint(endpoint.getSecondaryUri()).retryOptions(createRetryPolicy(settings, endpoint.getPrimaryUri()));
         } else {
             throw new IllegalArgumentException("Unsupported location mode: " + locationMode);
         }
-        
+
         return builder;
     }
 
-    private static BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings) 
-            throws InvalidKeyException, URISyntaxException {
+    private static BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings) throws InvalidKeyException,
+        URISyntaxException {
         return new BlobServiceClientBuilder().connectionString(settings.getConnectString());
     }
 
@@ -239,8 +234,14 @@ public class AzureStorageService implements AutoCloseable {
     // non-static, package private for testing
     RequestRetryOptions createRetryPolicy(final AzureStorageSettings azureStorageSettings, String secondaryHost) {
         // We define a default exponential retry policy{
-        return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL, azureStorageSettings.getMaxRetries(),
-            (Integer)null, null, null, secondaryHost);
+        return new RequestRetryOptions(
+            RetryPolicyType.EXPONENTIAL,
+            azureStorageSettings.getMaxRetries(),
+            (Integer) null,
+            null,
+            null,
+            secondaryHost
+        );
     }
 
     /**
@@ -255,7 +256,7 @@ public class AzureStorageService implements AutoCloseable {
         final Map<AzureStorageSettings, ClientState> prevClients = new HashMap<>(this.clients);
         prevClients.values().forEach(this::closeInternally);
         prevClients.clear();
-        
+
         this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
         this.clients.clear();
 
@@ -274,30 +275,30 @@ public class AzureStorageService implements AutoCloseable {
         if (azureStorageSettings == null) {
             throw new SettingsException("Unable to find client with name [" + clientName + "]");
         }
-        
+
         // Set timeout option if the user sets cloud.azure.storage.timeout or
         // cloud.azure.storage.xxx.timeout (it's negative by default)
         final long timeout = azureStorageSettings.getTimeout().getMillis();
-        
+
         if (timeout > 0) {
             if (timeout > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("Timeout [" + azureStorageSettings.getTimeout() + "] exceeds 2,147,483,647ms.");
             }
-            
+
             return Duration.ofMillis(timeout);
         }
-        
+
         return null;
     }
-    
+
     ParallelTransferOptions getBlobRequestOptionsForWriteBlob() {
         return null;
     }
-    
+
     private void closeInternally(ClientState state) {
         final Future<?> shutdownFuture = state.getEventLoopGroup().shutdownGracefully(0, 5, TimeUnit.SECONDS);
         shutdownFuture.awaitUninterruptibly();
-        
+
         if (shutdownFuture.isSuccess() == false) {
             logger.warning("Error closing Netty Event Loop group", shutdownFuture.cause());
         }
@@ -309,7 +310,7 @@ public class AzureStorageService implements AutoCloseable {
      */
     private static class HttpStatsPolicy implements HttpPipelinePolicy {
         private final BiConsumer<HttpRequest, HttpResponse> statsCollector;
-        
+
         HttpStatsPolicy(final BiConsumer<HttpRequest, HttpResponse> statsCollector) {
             this.statsCollector = statsCollector;
         }
@@ -317,9 +318,7 @@ public class AzureStorageService implements AutoCloseable {
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext httpPipelineCallContext, HttpPipelineNextPolicy httpPipelineNextPolicy) {
             final HttpRequest request = httpPipelineCallContext.getHttpRequest();
-            return httpPipelineNextPolicy
-                .process()
-                .doOnNext(response -> statsCollector.accept(request, response));
+            return httpPipelineNextPolicy.process().doOnNext(response -> statsCollector.accept(request, response));
         }
 
         @Override
@@ -328,7 +327,7 @@ public class AzureStorageService implements AutoCloseable {
             return HttpPipelinePosition.PER_RETRY;
         }
     }
-    
+
     /**
      * Helper class to hold the state of the cached clients and associated event groups to support
      * graceful shutdown logic.
@@ -336,21 +335,21 @@ public class AzureStorageService implements AutoCloseable {
     private static class ClientState {
         private final BlobServiceClient client;
         private final EventLoopGroup eventLoopGroup;
-        
+
         ClientState(final BlobServiceClient client, final EventLoopGroup eventLoopGroup) {
             this.client = client;
             this.eventLoopGroup = eventLoopGroup;
         }
-        
+
         public BlobServiceClient getClient() {
             return client;
         }
-        
+
         public EventLoopGroup getEventLoopGroup() {
             return eventLoopGroup;
         }
     }
-    
+
     /**
      * The NIO thread factory which is aware of the SecurityManager
      */
@@ -363,9 +362,7 @@ public class AzureStorageService implements AutoCloseable {
         NioThreadFactory() {
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
-            namePrefix = "reactor-nio-" +
-                          poolNumber.getAndIncrement() +
-                         "-thread-";
+            namePrefix = "reactor-nio-" + poolNumber.getAndIncrement() + "-thread-";
         }
 
         public Thread newThread(Runnable r) {
@@ -377,15 +374,15 @@ public class AzureStorageService implements AutoCloseable {
                 });
             };
             final Thread t = new Thread(group, priviledged, namePrefix + threadNumber.getAndIncrement(), 0);
-            
+
             if (t.isDaemon()) {
                 t.setDaemon(false);
             }
-            
+
             if (t.getPriority() != Thread.NORM_PRIORITY) {
                 t.setPriority(Thread.NORM_PRIORITY);
             }
-            
+
             return t;
         }
     }
