@@ -118,7 +118,7 @@ public class StoreRecoveryTests extends OpenSearchTestCase {
             && f.equals("write.lock") == false
             && f.startsWith("extra") == false;
         for (Directory d : dirs) {
-            numFiles += Arrays.asList(d.listAll()).stream().filter(filesFilter).count();
+            numFiles += (int) Arrays.asList(d.listAll()).stream().filter(filesFilter).count();
         }
         final long targetNumFiles = Arrays.asList(target.listAll()).stream().filter(filesFilter).count();
         assertEquals(numFiles, targetNumFiles);
