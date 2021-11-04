@@ -174,7 +174,10 @@ public class BwcVersions {
 
     private void assertNoOlderThanTwoMajors() {
         Set<Integer> majors = groupByMajor.keySet();
-        if (majors.size() != 2 && currentVersion.getMinor() != 0 && currentVersion.getRevision() != 0) {
+        // until OpenSearch 3.0 we will need to carry three major support
+        // (1, 7, 6) && (2, 1, 7) since OpenSearch 1.0 === Legacy 7.x
+        int numSupportedMajors = (currentVersion.getMajor() < 3) ? 3 : 2;
+        if (majors.size() != numSupportedMajors && currentVersion.getMinor() != 0 && currentVersion.getRevision() != 0) {
             throw new IllegalStateException("Expected exactly 2 majors in parsed versions but found: " + majors);
         }
     }
