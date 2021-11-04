@@ -50,7 +50,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.inject.Module;
-import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -365,7 +364,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (Files.exists(rootPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
                 for (Path plugin : stream) {
-                    if (FileSystemUtils.isDesktopServicesStore(plugin) || plugin.getFileName().toString().startsWith(".removing-")) {
+                    if (plugin.getFileName().toString().startsWith(".") && !Files.isDirectory(plugin)) {
+                        logger.warn(
+                            "Non-plugin file located in the plugins folder with the following name: [" + plugin.getFileName() + "]"
+                        );
                         continue;
                     }
                     if (seen.add(plugin.getFileName().toString()) == false) {

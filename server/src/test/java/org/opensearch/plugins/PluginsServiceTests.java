@@ -32,7 +32,10 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.logging.Loggers;
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.LegacyESVersion;
@@ -44,6 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexModule;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -51,9 +55,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
-import java.nio.file.FileSystemException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -154,48 +156,15 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
     }
 
-    public void testHiddenFiles() throws IOException {
+    public void testHiddenDirectories() throws IOException {
         final Path home = createTempDir();
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final Path hidden = home.resolve("plugins").resolve(".hidden");
         Files.createDirectories(hidden);
         @SuppressWarnings("unchecked")
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-
         final String expected = "Could not load plugin descriptor for plugin directory [.hidden]";
         assertThat(e, hasToString(containsString(expected)));
-    }
-
-    public void testDesktopServicesStoreFiles() throws IOException {
-        final Path home = createTempDir();
-        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
-        final Path plugins = home.resolve("plugins");
-        Files.createDirectories(plugins);
-        final Path desktopServicesStore = plugins.resolve(".DS_Store");
-        Files.createFile(desktopServicesStore);
-        if (Constants.MAC_OS_X) {
-            @SuppressWarnings("unchecked")
-            final PluginsService pluginsService = newPluginsService(settings);
-            assertNotNull(pluginsService);
-        } else {
-            final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-            assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [.DS_Store]"));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause(), instanceOf(FileSystemException.class));
-            if (Constants.WINDOWS) {
-                assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
-            } else {
-                // force a "Not a directory" exception to be thrown so that we can extract the locale-dependent message
-                final String expected;
-                try (InputStream ignored = Files.newInputStream(desktopServicesStore.resolve("not-a-directory"))) {
-                    throw new AssertionError();
-                } catch (final FileSystemException inner) {
-                    // locale-dependent translation of "Not a directory"
-                    expected = inner.getReason();
-                }
-                assertThat(e.getCause(), hasToString(containsString(expected)));
-            }
-        }
     }
 
     public void testStartupWithRemovingMarker() throws IOException {
@@ -765,10 +734,25 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("my_plugin requires Java"));
     }
 
-    public void testFindPluginDirs() throws IOException {
+    public void testFindPluginDirs() throws Exception {
         final Path plugins = createTempDir();
 
+        final MockLogAppender mockLogAppender = new MockLogAppender();
+        mockLogAppender.start();
+        mockLogAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "[.test] warning",
+                "org.opensearch.plugins.PluginsService",
+                Level.WARN,
+                "Non-plugin file located in the plugins folder with the following name: [.DS_Store]"
+            )
+        );
+        final Logger testLogger = LogManager.getLogger(PluginsService.class);
+        Loggers.addAppender(testLogger, mockLogAppender);
+
         final Path fake = plugins.resolve("fake");
+        Path testFile = plugins.resolve(".DS_Store");
+        Files.createFile(testFile);
 
         PluginTestUtil.writePluginProperties(
             fake,
@@ -791,6 +775,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         }
 
         assertThat(PluginsService.findPluginDirs(plugins), containsInAnyOrder(fake));
+        mockLogAppender.assertAllExpectationsMatched();
     }
 
     public void testExistingMandatoryClasspathPlugin() {
