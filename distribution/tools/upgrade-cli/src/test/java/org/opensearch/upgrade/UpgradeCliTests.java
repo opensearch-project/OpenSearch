@@ -113,6 +113,7 @@ public class UpgradeCliTests extends CommandTestCase {
             Arrays.asList(
                 "---",
                 "cluster.name: \"my-cluster\"",
+                "http.port: \"42123\"",
                 "node.name: \"node-x\"",
                 "path.data:",
                 "- \"/mnt/data_1\"",
