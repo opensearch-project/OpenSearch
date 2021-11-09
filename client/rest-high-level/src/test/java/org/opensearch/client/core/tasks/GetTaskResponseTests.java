@@ -41,10 +41,12 @@ import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskStatsType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
@@ -57,7 +59,7 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         )
             .assertEqualsConsumer(this::assertEqualInstances)
             .assertToXContentEquivalence(true)
-            .randomFieldsExcludeFilter(field -> field.endsWith("headers") || field.endsWith("status"))
+            .randomFieldsExcludeFilter(field -> field.endsWith("headers") || field.endsWith("status") || field.endsWith("stats_info"))
             .test();
     }
 
@@ -94,7 +96,25 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        return new TaskInfo(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
+        Map<String, Long> statsInfo = randomBoolean() ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<String, Long>() {
+            {
+                put(TaskStatsType.MEMORY.toString(), randomLong());
+                put(TaskStatsType.CPU.toString(), randomLong());
+            }
+        });
+        return new TaskInfo(
+            taskId,
+            type,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            parentTaskId,
+            headers,
+            statsInfo
+        );
     }
 
     private static TaskId randomTaskId() {

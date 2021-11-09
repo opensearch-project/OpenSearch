@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -71,7 +72,13 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
             1,
             true,
             new TaskId("node1", 0),
-            Collections.singletonMap("foo", "bar")
+            Collections.singletonMap("foo", "bar"),
+            Collections.unmodifiableMap(new HashMap<String, Long>() {
+                {
+                    put(TaskStatsType.MEMORY.toString(), 100L);
+                    put(TaskStatsType.CPU.toString(), 100L);
+                }
+            })
         );
         ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
         assertEquals(
@@ -91,6 +98,10 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 + "      \"parent_task_id\" : \"node1:0\",\n"
                 + "      \"headers\" : {\n"
                 + "        \"foo\" : \"bar\"\n"
+                + "      },\n"
+                + "      \"stats_info\" : {\n"
+                + "        \"Memory\" : 100,\n"
+                + "        \"CPU\" : 100\n"
                 + "      }\n"
                 + "    }\n"
                 + "  ]\n"
@@ -125,8 +136,8 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // status and headers hold arbitrary content, we can't inject random fields in them
-        return field -> field.endsWith("status") || field.endsWith("headers");
+        // status, headers and stats_info hold arbitrary content, we can't inject random fields in them
+        return field -> field.endsWith("status") || field.endsWith("headers") || field.endsWith("stats_info");
     }
 
     @Override

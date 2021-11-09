@@ -39,6 +39,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -131,7 +132,8 @@ public class Task {
             System.nanoTime() - startTimeNanos,
             this instanceof CancellableTask,
             parentTask,
-            headers
+            headers,
+            this instanceof StatCollectorTask ? ((StatCollectorTask) this).getStats() : Collections.emptyMap()
         );
     }
 

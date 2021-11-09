@@ -57,6 +57,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.tasks.consumer.TaskStatConsumer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
@@ -110,10 +111,14 @@ public class TaskManager implements ClusterStateApplier {
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
+    /** Consumers that are notified of the stats */
+    private List<TaskStatConsumer> statConsumers;
+
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.statConsumers = new ArrayList<>();
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -202,6 +207,12 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
+        if (task instanceof StatCollectorTask) {
+            TaskStatsContext statsContext = TaskStatsContext.createTaskStatsContext((StatCollectorTask) task);
+            for (TaskStatConsumer consumer : statConsumers) {
+                consumer.taskStatConsumed(statsContext);
+            }
+        }
         if (task instanceof CancellableTask) {
             CancellableTaskHolder holder = cancellableTasks.remove(task.getId());
             if (holder != null) {
@@ -346,6 +357,15 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             return null;
         }
+    }
+
+    /**
+     * Register task stat consumer with task manager
+     *
+     * <p>The consumer is notified whenever an task is complete
+     */
+    public void addTaskStatConsumer(TaskStatConsumer statConsumer) {
+        statConsumers.add(statConsumer);
     }
 
     /**

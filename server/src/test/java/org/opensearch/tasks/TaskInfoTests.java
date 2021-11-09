@@ -77,8 +77,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // status and headers hold arbitrary content, we can't inject random fields in them
-        return field -> "status".equals(field) || "headers".equals(field);
+        // status, headers and stats_info hold arbitrary content, we can't inject random fields in them
+        return field -> "status".equals(field) || "headers".equals(field) || "stats_info".equals(field);
     }
 
     @Override
@@ -96,7 +96,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
                     info.getParentTaskId(),
-                    info.getHeaders()
+                    info.getHeaders(),
+                    info.getStatsInfo()
                 );
             case 1:
                 return new TaskInfo(
@@ -109,7 +110,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
                     info.getParentTaskId(),
-                    info.getHeaders()
+                    info.getHeaders(),
+                    info.getStatsInfo()
                 );
             case 2:
                 return new TaskInfo(
@@ -122,7 +124,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
                     info.getParentTaskId(),
-                    info.getHeaders()
+                    info.getHeaders(),
+                    info.getStatsInfo()
                 );
             case 3:
                 return new TaskInfo(
@@ -135,7 +138,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
                     info.getParentTaskId(),
-                    info.getHeaders()
+                    info.getHeaders(),
+                    info.getStatsInfo()
                 );
             case 4:
                 Task.Status newStatus = randomValueOtherThan(info.getStatus(), TaskInfoTests::randomRawTaskStatus);
@@ -149,7 +153,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
                     info.getParentTaskId(),
-                    info.getHeaders()
+                    info.getHeaders(),
+                    info.getStatsInfo()
                 );
             case 5:
                 return new TaskInfo(
@@ -162,7 +167,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
                     info.getParentTaskId(),
-                    info.getHeaders()
+                    info.getHeaders(),
+                    info.getStatsInfo()
                 );
             case 6:
                 return new TaskInfo(
@@ -175,7 +181,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getRunningTimeNanos() + between(1, 100),
                     info.isCancellable(),
                     info.getParentTaskId(),
-                    info.getHeaders()
+                    info.getHeaders(),
+                    info.getStatsInfo()
                 );
             case 7:
                 return new TaskInfo(
@@ -188,7 +195,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getRunningTimeNanos(),
                     info.isCancellable() == false,
                     info.getParentTaskId(),
-                    info.getHeaders()
+                    info.getHeaders(),
+                    info.getStatsInfo()
                 );
             case 8:
                 TaskId parentId = new TaskId(info.getParentTaskId().getNodeId() + randomAlphaOfLength(5), info.getParentTaskId().getId());
@@ -202,7 +210,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
                     parentId,
-                    info.getHeaders()
+                    info.getHeaders(),
+                    info.getStatsInfo()
                 );
             case 9:
                 Map<String, String> headers = info.getHeaders();
@@ -222,7 +231,29 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
                     info.getParentTaskId(),
-                    headers
+                    headers,
+                    info.getStatsInfo()
+                );
+            case 10:
+                Map<String, Long> statsInfo = info.getStatsInfo();
+                if (statsInfo == null) {
+                    statsInfo = new HashMap<>(1);
+                } else {
+                    statsInfo = new HashMap<>(info.getStatsInfo());
+                }
+                statsInfo.put(TaskStatsType.MEMORY.toString(), randomLong());
+                return new TaskInfo(
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    info.isCancellable(),
+                    info.getParentTaskId(),
+                    info.getHeaders(),
+                    statsInfo
                 );
             default:
                 throw new IllegalStateException();
@@ -242,7 +273,25 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        return new TaskInfo(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
+        Map<String, Long> statsInfo = randomBoolean() ? Collections.emptyMap() : new HashMap<String, Long>() {
+            {
+                put(TaskStatsType.MEMORY.toString(), randomNonNegativeLong());
+                put(TaskStatsType.CPU.toString(), randomNonNegativeLong());
+            }
+        };
+        return new TaskInfo(
+            taskId,
+            type,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            parentTaskId,
+            headers,
+            statsInfo
+        );
     }
 
     private static TaskId randomTaskId() {

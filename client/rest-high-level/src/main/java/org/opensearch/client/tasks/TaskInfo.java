@@ -56,6 +56,7 @@ public class TaskInfo {
     private TaskId parentTaskId;
     private final Map<String, Object> status = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
+    private final Map<String, Object> statsInfo = new HashMap<>();
 
     public TaskInfo(TaskId taskId) {
         this.taskId = taskId;
@@ -141,6 +142,14 @@ public class TaskInfo {
         return status;
     }
 
+    public Map<String, Object> getStatsInfo() {
+        return statsInfo;
+    }
+
+    void setStatsInfo(Map<String, Object> statsInfo) {
+        this.statsInfo.putAll(statsInfo);
+    }
+
     private void noOpParse(Object s) {}
 
     public static final ObjectParser.NamedObjectParser<TaskInfo, Void> PARSER;
@@ -160,6 +169,7 @@ public class TaskInfo {
         parser.declareBoolean(TaskInfo::setCancellable, new ParseField("cancellable"));
         parser.declareString(TaskInfo::setParentTaskId, new ParseField("parent_task_id"));
         parser.declareObject(TaskInfo::setHeaders, (p, c) -> p.mapStrings(), new ParseField("headers"));
+        parser.declareObject(TaskInfo::setStatsInfo, (p, c) -> p.map(), new ParseField("stats_info"));
         PARSER = (XContentParser p, Void v, String name) -> parser.parse(p, new TaskInfo(new TaskId(name)), null);
     }
 
@@ -177,7 +187,8 @@ public class TaskInfo {
             && Objects.equals(getDescription(), taskInfo.getDescription())
             && Objects.equals(getParentTaskId(), taskInfo.getParentTaskId())
             && Objects.equals(status, taskInfo.status)
-            && Objects.equals(getHeaders(), taskInfo.getHeaders());
+            && Objects.equals(getHeaders(), taskInfo.getHeaders())
+            && Objects.equals(getStatsInfo(), taskInfo.getStatsInfo());
     }
 
     @Override
@@ -192,7 +203,8 @@ public class TaskInfo {
             isCancellable(),
             getParentTaskId(),
             status,
-            getHeaders()
+            getHeaders(),
+            getStatsInfo()
         );
     }
 
@@ -222,6 +234,8 @@ public class TaskInfo {
             + status
             + ", headers="
             + headers
+            + ", stats_info="
+            + statsInfo
             + '}';
     }
 }

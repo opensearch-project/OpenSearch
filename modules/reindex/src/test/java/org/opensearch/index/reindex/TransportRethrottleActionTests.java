@@ -130,6 +130,7 @@ public class TransportRethrottleActionTests extends OpenSearchTestCase {
                     0,
                     true,
                     new TaskId("test", task.getId()),
+                    Collections.emptyMap(),
                     Collections.emptyMap()
                 )
             );
@@ -165,6 +166,7 @@ public class TransportRethrottleActionTests extends OpenSearchTestCase {
                     0,
                     true,
                     new TaskId("test", task.getId()),
+                    Collections.emptyMap(),
                     Collections.emptyMap()
                 )
             );
