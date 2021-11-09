@@ -744,6 +744,10 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         // node_a0 or node_a1 should be the lowest ranked node to start
         groupIterator.forEach(shardRoutings -> assertThat(shardRoutings.nextOrNull().currentNodeId(), containsString("node_a")));
 
+        // Adding more load to node_a0
+        collector.addNodeStatistics("node_a0", 10, TimeValue.timeValueMillis(200).nanos(), TimeValue.timeValueMillis(150).nanos());
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+
         // Adding more load to node_a0 and node_a1 from zone-a
         collector.addNodeStatistics("node_a1", 100, TimeValue.timeValueMillis(300).nanos(), TimeValue.timeValueMillis(250).nanos());
         collector.addNodeStatistics("node_a0", 100, TimeValue.timeValueMillis(300).nanos(), TimeValue.timeValueMillis(250).nanos());
