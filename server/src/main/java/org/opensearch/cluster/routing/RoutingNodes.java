@@ -1281,63 +1281,88 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * The iterator then resumes on the first node by returning the second shard and continues until all shards from
      * all the nodes have been returned.
      */
-    public Iterator<ShardRouting> nodeInterleavedShardIterator() {
+    public Iterator<ShardRouting> nodeInterleavedShardIterator(boolean movePrimaryFirst) {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
         for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
             queue.add(entry.getValue().copyShards().iterator());
         }
-        return new Iterator<ShardRouting>() {
-            private Queue<ShardRouting> replicaShards = new ArrayDeque<>();
-            private Queue<Iterator<ShardRouting>> replicaIterators = new ArrayDeque<>();
+        if (movePrimaryFirst) {
+            return new Iterator<ShardRouting>() {
+                private Queue<ShardRouting> replicaShards = new ArrayDeque<>();
+                private Queue<Iterator<ShardRouting>> replicaIterators = new ArrayDeque<>();
 
-            public boolean hasNext() {
-                while (!queue.isEmpty()) {
-                    if (queue.peek().hasNext()) {
-                        return true;
-                    }
-                    queue.poll();
-                }
-                if (!replicaShards.isEmpty()) {
-                    return true;
-                }
-                while (!replicaIterators.isEmpty()) {
-                    if (replicaIterators.peek().hasNext()) {
-                        return true;
-                    }
-                    replicaIterators.poll();
-                }
-                return false;
-            }
-
-            public ShardRouting next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
-                }
-                while (!queue.isEmpty()) {
-                    Iterator<ShardRouting> iter = queue.poll();
-                    if (iter.hasNext()) {
-                        ShardRouting result = iter.next();
-                        if (result.primary()) {
-                            queue.offer(iter);
-                            return result;
+                public boolean hasNext() {
+                    while (!queue.isEmpty()) {
+                        if (queue.peek().hasNext()) {
+                            return true;
                         }
-                        replicaShards.offer(result);
-                        replicaIterators.offer(iter);
+                        queue.poll();
                     }
+                    if (!replicaShards.isEmpty()) {
+                        return true;
+                    }
+                    while (!replicaIterators.isEmpty()) {
+                        if (replicaIterators.peek().hasNext()) {
+                            return true;
+                        }
+                        replicaIterators.poll();
+                    }
+                    return false;
                 }
-                if (!replicaShards.isEmpty()) {
-                    return replicaShards.poll();
-                }
-                Iterator<ShardRouting> replicaIterator = replicaIterators.poll();
-                ShardRouting replicaShard = replicaIterator.next();
-                replicaIterators.offer(replicaIterator);
-                return replicaShard;
-            }
 
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
+                public ShardRouting next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    while (!queue.isEmpty()) {
+                        Iterator<ShardRouting> iter = queue.poll();
+                        if (iter.hasNext()) {
+                            ShardRouting result = iter.next();
+                            if (result.primary()) {
+                                queue.offer(iter);
+                                return result;
+                            }
+                            replicaShards.offer(result);
+                            replicaIterators.offer(iter);
+                        }
+                    }
+                    if (!replicaShards.isEmpty()) {
+                        return replicaShards.poll();
+                    }
+                    Iterator<ShardRouting> replicaIterator = replicaIterators.poll();
+                    ShardRouting replicaShard = replicaIterator.next();
+                    replicaIterators.offer(replicaIterator);
+                    return replicaShard;
+                }
+
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        } else {
+            return new Iterator<ShardRouting>() {
+                @Override
+                public boolean hasNext() {
+                    while (!queue.isEmpty()) {
+                        if (queue.peek().hasNext()) {
+                            return true;
+                        }
+                        queue.poll();
+                    }
+                    return false;
+                }
+
+                @Override
+                public ShardRouting next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    Iterator<ShardRouting> iter = queue.poll();
+                    queue.offer(iter);
+                    return iter.next();
+                }
+            };
+        }
     }
 
     private static final class Recoveries {

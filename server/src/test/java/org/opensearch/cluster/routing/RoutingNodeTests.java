@@ -97,11 +97,15 @@ public class RoutingNodeTests extends OpenSearchTestCase {
             true,
             ShardRoutingState.RELOCATING
         );
+        ShardRouting initializingShard5 = TestShardRouting.newShardRouting("test", 5, "node-1", true, ShardRoutingState.INITIALIZING);
         routingNode.add(initializingShard3);
         routingNode.add(relocatingShard4);
+        routingNode.add(initializingShard5);
         final Iterator<ShardRouting> shardRoutingIterator = routingNode.iterator();
         assertTrue(shardRoutingIterator.hasNext());
         assertThat(shardRoutingIterator.next(), equalTo(relocatingShard4));
+        assertTrue(shardRoutingIterator.hasNext());
+        assertThat(shardRoutingIterator.next(), equalTo(initializingShard5));
         assertTrue(shardRoutingIterator.hasNext());
         assertThat(shardRoutingIterator.next(), equalTo(unassignedShard0));
         assertTrue(shardRoutingIterator.hasNext());
