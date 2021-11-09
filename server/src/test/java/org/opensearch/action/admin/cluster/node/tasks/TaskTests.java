@@ -31,14 +31,22 @@
 
 package org.opensearch.action.admin.cluster.node.tasks;
 
+import org.opensearch.action.search.SearchAction;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.tasks.TaskResourceStats;
+import org.opensearch.tasks.TaskResourceUsage;
+import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.tasks.ResourceUsageMetric;
+import org.opensearch.tasks.ResourceStats;
+import org.opensearch.tasks.ResourceStatsType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 public class TaskTests extends OpenSearchTestCase {
@@ -50,6 +58,7 @@ public class TaskTests extends OpenSearchTestCase {
         long runningTime = randomNonNegativeLong();
         boolean cancellable = false;
         boolean cancelled = false;
+        TaskResourceStats resourceStats = randomResourceStats();
         TaskInfo taskInfo = new TaskInfo(
             new TaskId(nodeId, taskId),
             "test_type",
@@ -61,7 +70,8 @@ public class TaskTests extends OpenSearchTestCase {
             cancellable,
             cancelled,
             TaskId.EMPTY_TASK_ID,
-            Collections.singletonMap("foo", "bar")
+            Collections.singletonMap("foo", "bar"),
+            resourceStats
         );
         String taskInfoString = taskInfo.toString();
         Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
@@ -94,7 +104,8 @@ public class TaskTests extends OpenSearchTestCase {
             cancellable,
             cancelled,
             TaskId.EMPTY_TASK_ID,
-            Collections.singletonMap("foo", "bar")
+            Collections.singletonMap("foo", "bar"),
+            randomResourceStats()
         );
         String taskInfoString = taskInfo.toString();
         Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
@@ -120,7 +131,8 @@ public class TaskTests extends OpenSearchTestCase {
             cancellable,
             cancelled,
             TaskId.EMPTY_TASK_ID,
-            Collections.singletonMap("foo", "bar")
+            Collections.singletonMap("foo", "bar"),
+            randomResourceStats()
         );
         String taskInfoString = taskInfo.toString();
         Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
@@ -148,9 +160,56 @@ public class TaskTests extends OpenSearchTestCase {
                 cancellable,
                 cancelled,
                 TaskId.EMPTY_TASK_ID,
-                Collections.singletonMap("foo", "bar")
+                Collections.singletonMap("foo", "bar"),
+                randomResourceStats()
             )
         );
         assertEquals(e.getMessage(), "task cannot be cancelled");
+    }
+
+    public void testTaskResourceStats() {
+        final Task task = new Task(
+            randomLong(),
+            "transport",
+            SearchAction.NAME,
+            "description",
+            new TaskId(randomLong() + ":" + randomLong()),
+            Collections.emptyMap()
+        );
+
+        long totalMemory = 0L;
+        long totalCPU = 0L;
+
+        // reporting resource consumption events
+        for (int i = 0; i < randomInt(10); i++) {
+            long initial_memory = randomLongBetween(1, 100);
+            long initial_cpu = randomLongBetween(1, 100);
+
+            ResourceUsageMetric[] initialTaskResourceMetrics = new ResourceUsageMetric[] {
+                new ResourceUsageMetric(ResourceStats.MEMORY, initial_memory),
+                new ResourceUsageMetric(ResourceStats.CPU, initial_cpu) };
+            task.startThreadResourceTracking(i, ResourceStatsType.WORKER_STATS, initialTaskResourceMetrics);
+
+            long memory = initial_memory + randomLongBetween(1, 10000);
+            long cpu = initial_cpu + randomLongBetween(1, 10000);
+
+            totalMemory += memory - initial_memory;
+            totalCPU += cpu - initial_cpu;
+
+            ResourceUsageMetric[] taskResourceMetrics = new ResourceUsageMetric[] {
+                new ResourceUsageMetric(ResourceStats.MEMORY, memory),
+                new ResourceUsageMetric(ResourceStats.CPU, cpu) };
+            task.stopThreadResourceTracking(i, ResourceStatsType.WORKER_STATS, taskResourceMetrics);
+        }
+        assertEquals(task.getTotalResourceStats().getMemoryInBytes(), totalMemory);
+        assertEquals(task.getTotalResourceStats().getCpuTimeInNanos(), totalCPU);
+    }
+
+    private TaskResourceStats randomResourceStats() {
+        return false ? null : new TaskResourceStats(new HashMap<String, TaskResourceUsage>() {
+            {
+                put(randomAlphaOfLength(5), new TaskResourceUsage(randomNonNegativeLong(), randomNonNegativeLong()));
+            }
+        });
     }
 }

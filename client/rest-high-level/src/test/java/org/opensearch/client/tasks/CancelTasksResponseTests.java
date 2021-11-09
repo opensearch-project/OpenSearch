@@ -96,7 +96,8 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<
                     cancellable,
                     cancelled,
                     new TaskId("node1", randomLong()),
-                    Collections.singletonMap("x-header-of", "some-value")
+                    Collections.singletonMap("x-header-of", "some-value"),
+                    null
                 )
             );
         }

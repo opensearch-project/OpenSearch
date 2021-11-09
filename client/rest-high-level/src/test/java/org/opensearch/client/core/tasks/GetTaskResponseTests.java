@@ -38,6 +38,8 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.tasks.RawTaskStatus;
+import org.opensearch.tasks.TaskResourceStats;
+import org.opensearch.tasks.TaskResourceUsage;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
@@ -45,6 +47,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
@@ -57,7 +60,7 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         )
             .assertEqualsConsumer(this::assertEqualInstances)
             .assertToXContentEquivalence(true)
-            .randomFieldsExcludeFilter(field -> field.endsWith("headers") || field.endsWith("status"))
+            .randomFieldsExcludeFilter(field -> field.endsWith("headers") || field.endsWith("status") || field.contains("resource_stats"))
             .test();
     }
 
@@ -106,7 +109,8 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
             cancellable,
             cancelled,
             parentTaskId,
-            headers
+            headers,
+            randomResourceStats()
         );
     }
 
@@ -126,5 +130,15 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static TaskResourceStats randomResourceStats() {
+        return randomBoolean() ? null : new TaskResourceStats(new HashMap<String, TaskResourceUsage>() {
+            {
+                for (int i = 0; i < randomInt(5); i++) {
+                    put(randomAlphaOfLength(5), new TaskResourceUsage(randomNonNegativeLong(), randomNonNegativeLong()));
+                }
+            }
+        });
     }
 }

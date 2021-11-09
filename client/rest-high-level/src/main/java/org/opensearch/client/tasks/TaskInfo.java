@@ -57,6 +57,7 @@ public class TaskInfo {
     private TaskId parentTaskId;
     private final Map<String, Object> status = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
+    private final Map<String, Object> resourceStats = new HashMap<>();
 
     public TaskInfo(TaskId taskId) {
         this.taskId = taskId;
@@ -150,6 +151,14 @@ public class TaskInfo {
         return status;
     }
 
+    void setResourceStats(Map<String, Object> resourceStats) {
+        this.resourceStats.putAll(resourceStats);
+    }
+
+    public Map<String, Object> getResourceStats() {
+        return resourceStats;
+    }
+
     private void noOpParse(Object s) {}
 
     public static final ObjectParser.NamedObjectParser<TaskInfo, Void> PARSER;
@@ -170,6 +179,7 @@ public class TaskInfo {
         parser.declareBoolean(TaskInfo::setCancelled, new ParseField("cancelled"));
         parser.declareString(TaskInfo::setParentTaskId, new ParseField("parent_task_id"));
         parser.declareObject(TaskInfo::setHeaders, (p, c) -> p.mapStrings(), new ParseField("headers"));
+        parser.declareObject(TaskInfo::setResourceStats, (p, c) -> p.map(), new ParseField("resource_stats"));
         PARSER = (XContentParser p, Void v, String name) -> parser.parse(p, new TaskInfo(new TaskId(name)), null);
     }
 
@@ -188,7 +198,8 @@ public class TaskInfo {
             && Objects.equals(getDescription(), taskInfo.getDescription())
             && Objects.equals(getParentTaskId(), taskInfo.getParentTaskId())
             && Objects.equals(status, taskInfo.status)
-            && Objects.equals(getHeaders(), taskInfo.getHeaders());
+            && Objects.equals(getHeaders(), taskInfo.getHeaders())
+            && Objects.equals(getResourceStats(), taskInfo.getResourceStats());
     }
 
     @Override
@@ -204,7 +215,8 @@ public class TaskInfo {
             isCancelled(),
             getParentTaskId(),
             status,
-            getHeaders()
+            getHeaders(),
+            getResourceStats()
         );
     }
 
@@ -236,6 +248,8 @@ public class TaskInfo {
             + status
             + ", headers="
             + headers
+            + ", resource_stats="
+            + resourceStats
             + '}';
     }
 }
