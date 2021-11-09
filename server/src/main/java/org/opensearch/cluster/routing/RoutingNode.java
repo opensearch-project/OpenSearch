@@ -113,20 +113,20 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
         @Override
         public Iterator<ShardRouting> iterator() {
-            final Iterator<ShardRouting> iterator1 = Collections.unmodifiableCollection(shards[0].values()).iterator();
-            final Iterator<ShardRouting> iterator2 = Collections.unmodifiableCollection(shards[1].values()).iterator();
+            final Iterator<ShardRouting> primaryIterator = Collections.unmodifiableCollection(shards[0].values()).iterator();
+            final Iterator<ShardRouting> replicaIterator = Collections.unmodifiableCollection(shards[1].values()).iterator();
             return new Iterator<ShardRouting>() {
                 @Override
                 public boolean hasNext() {
-                    return iterator1.hasNext() || iterator2.hasNext();
+                    return primaryIterator.hasNext() || replicaIterator.hasNext();
                 }
 
                 @Override
                 public ShardRouting next() {
-                    if (iterator1.hasNext()) {
-                        return iterator1.next();
+                    if (primaryIterator.hasNext()) {
+                        return primaryIterator.next();
                     }
-                    return iterator2.next();
+                    return replicaIterator.next();
                 }
             };
         }

@@ -1361,6 +1361,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     queue.offer(iter);
                     return iter.next();
                 }
+
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
             };
         }
     }
