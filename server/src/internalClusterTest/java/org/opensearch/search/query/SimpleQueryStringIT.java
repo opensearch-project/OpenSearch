@@ -57,7 +57,6 @@ import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.search.SearchModule;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -78,6 +77,7 @@ import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
@@ -106,7 +106,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
+            .put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
             .build();
     }
 
@@ -649,6 +649,40 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
             ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
             containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: " + exceedingFieldCount)
         );
+    }
+
+    public void testLimitOnBooleanClauses() throws Exception {
+        String index = "test";
+
+        //LuceneTestCase-TestRuleSetupAndRestoreInstanceEnv resets the max clauses to default, hence initialize with an updated default
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT-1)));
+        client().prepareIndex(index, "type1", "1").setSource("field1", "foo bar baz").get();
+        refresh();
+
+        //First we create a query with clauses greater than allowed limit
+        StringBuilder sb = new StringBuilder("foo");
+        for (int i = 0 ; i <= CLUSTER_MAX_CLAUSE_COUNT; i++) {
+            sb.append(" OR foo" + i);
+        }
+        QueryStringQueryBuilder qb = queryStringQuery(sb.toString()).field("field1");
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch(index).setQuery(qb).get();
+        });
+        logger.info("Exception hit on breaching max clauses for boolean query", e);
+        assert(e.getDetailedMessage().contains("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT-1)));
+
+        //Update max clause limit and now the same query should execute successfully
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), 2048)));
+        Thread.sleep(10);
+
+        SearchResponse response = client().prepareSearch(index).setQuery(qb).get();
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey())));
     }
 
     public void testFieldAlias() throws Exception {

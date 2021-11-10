@@ -32,7 +32,6 @@
 
 package org.opensearch.search;
 
-import org.apache.lucene.search.BooleanQuery;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.GeoShapeType;
@@ -40,7 +39,6 @@ import org.opensearch.common.geo.ShapesAvailability;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.ParseFieldRegistry;
@@ -310,13 +308,6 @@ import static org.opensearch.index.query.CommonTermsQueryBuilder.COMMON_TERMS_QU
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
  */
 public class SearchModule {
-    public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting(
-        "indices.query.bool.max_clause_count",
-        1024,
-        1,
-        Integer.MAX_VALUE,
-        Setting.Property.NodeScope
-    );
 
     private final boolean transportClient;
     private final Map<String, Highlighter> highlighters;
@@ -335,7 +326,6 @@ public class SearchModule {
      * Constructs a new SearchModule object
      *
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
-     *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
      * @param settings Current settings
      * @param transportClient Is this being constructed in the TransportClient or not
      * @param plugins List of included {@link SearchPlugin} objects.
@@ -1152,7 +1142,6 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new, MatchAllQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(QueryStringQueryBuilder.NAME, QueryStringQueryBuilder::new, QueryStringQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(BoostingQueryBuilder.NAME, BoostingQueryBuilder::new, BoostingQueryBuilder::fromXContent));
-        BooleanQuery.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         registerQuery(new QuerySpec<>(BoolQueryBuilder.NAME, BoolQueryBuilder::new, BoolQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermsQueryBuilder.NAME, TermsQueryBuilder::new, TermsQueryBuilder::fromXContent));

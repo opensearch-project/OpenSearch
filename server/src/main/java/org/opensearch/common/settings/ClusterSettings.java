@@ -132,7 +132,6 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
-import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
@@ -500,6 +499,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 MultiBucketConsumerService.MAX_BUCKET_SETTING,
                 SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,
+                SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,
                 Node.NODE_ATTRIBUTES,
@@ -548,7 +548,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ResourceWatcherService.RELOAD_INTERVAL_HIGH,
                 ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
                 ResourceWatcherService.RELOAD_INTERVAL_LOW,
-                SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
                 ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
                 FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                 Node.BREAKER_TYPE_KEY,
