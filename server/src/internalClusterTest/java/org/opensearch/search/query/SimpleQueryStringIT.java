@@ -654,35 +654,48 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     public void testLimitOnBooleanClauses() throws Exception {
         String index = "test";
 
-        //LuceneTestCase-TestRuleSetupAndRestoreInstanceEnv resets the max clauses to default, hence initialize with an updated default
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT-1)));
+        // LuceneTestCase-TestRuleSetupAndRestoreInstanceEnv resets the max clauses to default, hence initialize with an updated default
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT - 1))
+        );
         client().prepareIndex(index, "type1", "1").setSource("field1", "foo bar baz").get();
         refresh();
 
-        //First we create a query with clauses greater than allowed limit
+        // First we create a query with clauses greater than allowed limit
         StringBuilder sb = new StringBuilder("foo");
-        for (int i = 0 ; i <= CLUSTER_MAX_CLAUSE_COUNT; i++) {
+        for (int i = 0; i <= CLUSTER_MAX_CLAUSE_COUNT; i++) {
             sb.append(" OR foo" + i);
         }
         QueryStringQueryBuilder qb = queryStringQuery(sb.toString()).field("field1");
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
-            client().prepareSearch(index).setQuery(qb).get();
-        });
+        SearchPhaseExecutionException e = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> { client().prepareSearch(index).setQuery(qb).get(); }
+        );
         logger.info("Exception hit on breaching max clauses for boolean query", e);
-        assert(e.getDetailedMessage().contains("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT-1)));
+        assert (e.getDetailedMessage().contains("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT - 1)));
 
-        //Update max clause limit and now the same query should execute successfully
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), 2048)));
+        // Update max clause limit and now the same query should execute successfully
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), 2048))
+        );
         Thread.sleep(10);
 
         SearchResponse response = client().prepareSearch(index).setQuery(qb).get();
         assertHitCount(response, 1);
         assertHits(response.getHits(), "1");
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey())));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()))
+        );
     }
 
     public void testFieldAlias() throws Exception {

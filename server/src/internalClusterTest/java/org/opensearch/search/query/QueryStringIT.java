@@ -43,7 +43,6 @@ import org.opensearch.index.query.Operator;
 import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
