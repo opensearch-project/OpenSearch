@@ -95,7 +95,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             // On Azure, if the location path is a secondary location, and the blob does not
             // exist, instead of returning immediately from the getInputStream call below
             // with a 404 StorageException, Azure keeps trying and trying for a long timeout
-            // before throwing a storage exception.  This can cause long delays in retrieving
+            // before throwing a storage exception. This can cause long delays in retrieving
             // snapshots, so we first check if the blob exists before trying to open an input
             // stream to it.
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
@@ -157,8 +157,10 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         if (blobNames.isEmpty()) {
             result.onResponse(null);
         } else {
-            final GroupedActionListener<Void> listener =
-                new GroupedActionListener<>(ActionListener.map(result, v -> null), blobNames.size());
+            final GroupedActionListener<Void> listener = new GroupedActionListener<>(
+                ActionListener.map(result, v -> null),
+                blobNames.size()
+            );
             final ExecutorService executor = threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME);
             // Executing deletes in parallel since Azure SDK 8 is using blocking IO while Azure does not provide a bulk delete API endpoint
             // TODO: Upgrade to newer non-blocking Azure SDK 11 and execute delete requests in parallel that way.

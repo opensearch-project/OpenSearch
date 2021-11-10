@@ -103,10 +103,9 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         this.nodes = project.container(OpenSearchNode.class);
         this.bwcJdk = bwcJdk;
 
-        this.nodes.add(
-            new OpenSearchNode(path, clusterName + "-0", project, reaper, fileSystemOperations, archiveOperations, workingDirBase, bwcJdk)
-        );
-        // configure the cluster name eagerly so nodes know about it
+        // Always add the first node
+        addNode(clusterName + "-0");
+        // configure the cluster name eagerly so all nodes know about it
         this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
         addWaitForClusterHealth();
@@ -126,19 +125,24 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         }
 
         for (int i = nodes.size(); i < numberOfNodes; i++) {
-            this.nodes.add(
-                new OpenSearchNode(
-                    path,
-                    clusterName + "-" + i,
-                    project,
-                    reaper,
-                    fileSystemOperations,
-                    archiveOperations,
-                    workingDirBase,
-                    bwcJdk
-                )
-            );
+            addNode(clusterName + "-" + i);
         }
+    }
+
+    private void addNode(String nodeName) {
+        OpenSearchNode newNode = new OpenSearchNode(
+            path,
+            nodeName,
+            project,
+            reaper,
+            fileSystemOperations,
+            archiveOperations,
+            workingDirBase,
+            bwcJdk
+        );
+        // configure the cluster name eagerly
+        newNode.defaultConfig.put("cluster.name", safeName(clusterName));
+        this.nodes.add(newNode);
     }
 
     @Internal

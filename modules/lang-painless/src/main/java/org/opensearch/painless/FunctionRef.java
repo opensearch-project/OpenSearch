@@ -69,8 +69,16 @@ public class FunctionRef {
      * @param numberOfCaptures number of captured arguments
      * @param constants constants used for injection when necessary
      */
-    public static FunctionRef create(PainlessLookup painlessLookup, FunctionTable functionTable, Location location,
-            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures, Map<String, Object> constants) {
+    public static FunctionRef create(
+        PainlessLookup painlessLookup,
+        FunctionTable functionTable,
+        Location location,
+        Class<?> targetClass,
+        String typeName,
+        String methodName,
+        int numberOfCaptures,
+        Map<String, Object> constants
+    ) {
 
         Objects.requireNonNull(painlessLookup);
         Objects.requireNonNull(targetClass);
@@ -84,8 +92,16 @@ public class FunctionRef {
             interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(targetClass);
 
             if (interfaceMethod == null) {
-                throw new IllegalArgumentException("cannot convert function reference [" + typeName + "::" + methodName + "] " +
-                        "to a non-functional interface [" + targetClassName + "]");
+                throw new IllegalArgumentException(
+                    "cannot convert function reference ["
+                        + typeName
+                        + "::"
+                        + methodName
+                        + "] "
+                        + "to a non-functional interface ["
+                        + targetClassName
+                        + "]"
+                );
             }
 
             String interfaceMethodName = interfaceMethod.javaMethod.getName();
@@ -113,9 +129,19 @@ public class FunctionRef {
                 LocalFunction localFunction = functionTable.getFunction(localFunctionKey);
 
                 if (localFunction == null) {
-                    throw new IllegalArgumentException("function reference [this::" + localFunctionKey + "] " +
-                            "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
-                            "not found" + (localFunctionKey.contains("$") ? " due to an incorrect number of arguments" : "")
+                    throw new IllegalArgumentException(
+                        "function reference [this::"
+                            + localFunctionKey
+                            + "] "
+                            + "matching ["
+                            + targetClassName
+                            + ", "
+                            + interfaceMethodName
+                            + "/"
+                            + interfaceTypeParametersSize
+                            + "] "
+                            + "not found"
+                            + (localFunctionKey.contains("$") ? " due to an incorrect number of arguments" : "")
                     );
                 }
 
@@ -137,9 +163,21 @@ public class FunctionRef {
                 PainlessConstructor painlessConstructor = painlessLookup.lookupPainlessConstructor(typeName, interfaceTypeParametersSize);
 
                 if (painlessConstructor == null) {
-                    throw new IllegalArgumentException("function reference [" + typeName + "::new/" + interfaceTypeParametersSize + "] " +
-                            "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
-                            "not found");
+                    throw new IllegalArgumentException(
+                        "function reference ["
+                            + typeName
+                            + "::new/"
+                            + interfaceTypeParametersSize
+                            + "] "
+                            + "matching ["
+                            + targetClassName
+                            + ", "
+                            + interfaceMethodName
+                            + "/"
+                            + interfaceTypeParametersSize
+                            + "] "
+                            + "not found"
+                    );
                 }
 
                 delegateClassName = painlessConstructor.javaConstructor.getDeclaringClass().getName();
@@ -158,18 +196,40 @@ public class FunctionRef {
                 }
 
                 boolean captured = numberOfCaptures == 1;
-                PainlessMethod painlessMethod =
-                        painlessLookup.lookupPainlessMethod(typeName, true, methodName, interfaceTypeParametersSize);
+                PainlessMethod painlessMethod = painlessLookup.lookupPainlessMethod(
+                    typeName,
+                    true,
+                    methodName,
+                    interfaceTypeParametersSize
+                );
 
                 if (painlessMethod == null) {
-                    painlessMethod = painlessLookup.lookupPainlessMethod(typeName, false, methodName,
-                            captured ? interfaceTypeParametersSize : interfaceTypeParametersSize - 1);
+                    painlessMethod = painlessLookup.lookupPainlessMethod(
+                        typeName,
+                        false,
+                        methodName,
+                        captured ? interfaceTypeParametersSize : interfaceTypeParametersSize - 1
+                    );
 
                     if (painlessMethod == null) {
                         throw new IllegalArgumentException(
-                                "function reference " + "[" + typeName + "::" + methodName + "/" + interfaceTypeParametersSize + "] " +
-                                "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
-                                "not found");
+                            "function reference "
+                                + "["
+                                + typeName
+                                + "::"
+                                + methodName
+                                + "/"
+                                + interfaceTypeParametersSize
+                                + "] "
+                                + "matching ["
+                                + targetClassName
+                                + ", "
+                                + interfaceMethodName
+                                + "/"
+                                + interfaceTypeParametersSize
+                                + "] "
+                                + "not found"
+                        );
                     }
                 } else if (captured) {
                     throw new IllegalStateException("internal error");
@@ -213,14 +273,23 @@ public class FunctionRef {
                 }
             }
 
-            MethodType factoryMethodType = MethodType.methodType(targetClass,
-                    delegateMethodType.dropParameterTypes(numberOfCaptures, delegateMethodType.parameterCount()));
+            MethodType factoryMethodType = MethodType.methodType(
+                targetClass,
+                delegateMethodType.dropParameterTypes(numberOfCaptures, delegateMethodType.parameterCount())
+            );
             delegateMethodType = delegateMethodType.dropParameterTypes(0, numberOfCaptures);
 
-            return new FunctionRef(interfaceMethodName, interfaceMethodType,
-                    delegateClassName, isDelegateInterface, isDelegateAugmented,
-                    delegateInvokeType, delegateMethodName, delegateMethodType, delegateInjections,
-                    factoryMethodType
+            return new FunctionRef(
+                interfaceMethodName,
+                interfaceMethodType,
+                delegateClassName,
+                isDelegateInterface,
+                isDelegateAugmented,
+                delegateInvokeType,
+                delegateMethodName,
+                delegateMethodType,
+                delegateInjections,
+                factoryMethodType
             );
         } catch (IllegalArgumentException iae) {
             if (location != null) {
@@ -253,10 +322,17 @@ public class FunctionRef {
     public final MethodType factoryMethodType;
 
     private FunctionRef(
-            String interfaceMethodName, MethodType interfaceMethodType,
-            String delegateClassName, boolean isDelegateInterface, boolean isDelegateAugmented,
-            int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType, Object[] delegateInjections,
-            MethodType factoryMethodType) {
+        String interfaceMethodName,
+        MethodType interfaceMethodType,
+        String delegateClassName,
+        boolean isDelegateInterface,
+        boolean isDelegateAugmented,
+        int delegateInvokeType,
+        String delegateMethodName,
+        MethodType delegateMethodType,
+        Object[] delegateInjections,
+        MethodType factoryMethodType
+    ) {
 
         this.interfaceMethodName = interfaceMethodName;
         this.interfaceMethodType = interfaceMethodType;

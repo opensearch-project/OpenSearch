@@ -252,7 +252,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
         int sum = 0;
         for (int i = 0; i < numDocs; i++) {
             final long value = randomLongBetween(0, 1000);
-            sum += value;
+            sum += (int) value;
             docs.add(singleton(new NumericDocValuesField(fieldType.name(), value)));
         }
 

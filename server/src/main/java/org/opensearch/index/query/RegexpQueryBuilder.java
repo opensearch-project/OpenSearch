@@ -62,7 +62,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     public static final String NAME = "regexp";
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
-    public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+    public static final int DEFAULT_DETERMINIZE_WORK_LIMIT = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
     public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
 
     private static final ParseField FLAGS_VALUE_FIELD = new ParseField("flags_value");
@@ -79,7 +79,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     private int syntaxFlagsValue = DEFAULT_FLAGS_VALUE;
     private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
 
-    private int maxDeterminizedStates = DEFAULT_MAX_DETERMINIZED_STATES;
+    private int maxDeterminizedStates = DEFAULT_DETERMINIZE_WORK_LIMIT;
 
     private String rewrite;
 
@@ -221,7 +221,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         int flagsValue = RegexpQueryBuilder.DEFAULT_FLAGS_VALUE;
         boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
-        int maxDeterminizedStates = RegexpQueryBuilder.DEFAULT_MAX_DETERMINIZED_STATES;
+        int maxDeterminizedStates = RegexpQueryBuilder.DEFAULT_DETERMINIZE_WORK_LIMIT;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;

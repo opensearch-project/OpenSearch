@@ -53,13 +53,8 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
     public static final ParseField TYPE = new ParseField("type");
 
     private static final ConstructingObjectParser<PainlessContextFieldInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextFieldInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextFieldInfo(
-                        (String)v[0],
-                        (String)v[1],
-                        (String)v[2]
-                    )
+        PainlessContextFieldInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextFieldInfo((String) v[0], (String) v[1], (String) v[2])
     );
 
     static {
@@ -74,9 +69,9 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
 
     public PainlessContextFieldInfo(PainlessField painlessField) {
         this(
-                painlessField.javaField.getDeclaringClass().getName(),
-                painlessField.javaField.getName(),
-                painlessField.typeParameter.getName()
+            painlessField.javaField.getDeclaringClass().getName(),
+            painlessField.javaField.getName(),
+            painlessField.typeParameter.getName()
         );
     }
 
@@ -123,9 +118,7 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextFieldInfo that = (PainlessContextFieldInfo) o;
-        return Objects.equals(declaring, that.declaring) &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(type, that.type);
+        return Objects.equals(declaring, that.declaring) && Objects.equals(name, that.name) && Objects.equals(type, that.type);
     }
 
     @Override
@@ -135,11 +128,7 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "PainlessContextFieldInfo{" +
-                "declaring='" + declaring + '\'' +
-                ", name='" + name + '\'' +
-                ", type='" + type + '\'' +
-                '}';
+        return "PainlessContextFieldInfo{" + "declaring='" + declaring + '\'' + ", name='" + name + '\'' + ", type='" + type + '\'' + '}';
     }
 
     public String getDeclaring() {

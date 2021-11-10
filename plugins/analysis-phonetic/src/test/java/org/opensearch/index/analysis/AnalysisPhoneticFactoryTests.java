@@ -65,20 +65,27 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
         AnalysisPhoneticPlugin plugin = new AnalysisPhoneticPlugin();
 
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT))
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT)
+            )
             .put("path.home", createTempDir().toString())
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
-        TokenFilterFactory tff
-            = plugin.getTokenFilters().get("phonetic").get(idxSettings, null, "phonetic", settings);
+        TokenFilterFactory tff = plugin.getTokenFilters().get("phonetic").get(idxSettings, null, "phonetic", settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, tff::getSynonymFilter);
         assertEquals("Token filter [phonetic] cannot be used to parse synonyms", e.getMessage());
 
         settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(),
-                LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)))
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(
+                    random(),
+                    LegacyESVersion.V_6_0_0,
+                    VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)
+                )
+            )
             .put("path.home", createTempDir().toString())
             .build();
         idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

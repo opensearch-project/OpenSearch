@@ -140,8 +140,16 @@ public class ClassNode extends IRNode {
         String className = CLASS_TYPE.getInternalName();
         String[] classInterfaces = new String[] { interfaceBase };
 
-        ClassWriter classWriter = new ClassWriter(scriptScope.getCompilerSettings(), statements, debugStream,
-                scriptClassInfo.getBaseClass(), classFrames, classAccess, className, classInterfaces);
+        ClassWriter classWriter = new ClassWriter(
+            scriptScope.getCompilerSettings(),
+            statements,
+            debugStream,
+            scriptClassInfo.getBaseClass(),
+            classFrames,
+            classAccess,
+            className,
+            classInterfaces
+        );
         ClassVisitor classVisitor = classWriter.getClassVisitor();
         classVisitor.visitSource(Location.computeSourceName(scriptScope.getScriptName()), null);
 
@@ -150,8 +158,11 @@ public class ClassNode extends IRNode {
         if (scriptClassInfo.getBaseClass().getConstructors().length == 0) {
             init = new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
         } else {
-            init = new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class,
-                scriptClassInfo.getBaseClass().getConstructors()[0].getParameterTypes()).toMethodDescriptorString());
+            init = new org.objectweb.asm.commons.Method(
+                "<init>",
+                MethodType.methodType(void.class, scriptClassInfo.getBaseClass().getConstructors()[0].getParameterTypes())
+                    .toMethodDescriptorString()
+            );
         }
 
         // Write the constructor:
@@ -165,8 +176,9 @@ public class ClassNode extends IRNode {
 
         if (clinitBlockNode.getStatementsNodes().isEmpty() == false) {
             MethodWriter methodWriter = classWriter.newMethodWriter(
-                    Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
-                    new Method("<clinit>", Type.getType(void.class), new Type[0]));
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                new Method("<clinit>", Type.getType(void.class), new Type[0])
+            );
             clinitBlockNode.write(classWriter, methodWriter, new WriteScope());
             methodWriter.returnValue();
             methodWriter.endMethod();

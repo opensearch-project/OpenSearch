@@ -5,3 +5,4 @@ path:
     - /mnt/data_1
     - /mnt/data_2
   logs: /var/log/eslogs
+http.port: 42123

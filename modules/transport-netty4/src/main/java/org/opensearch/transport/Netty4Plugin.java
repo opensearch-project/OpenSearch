@@ -81,32 +81,62 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     @Override
     public Settings additionalSettings() {
         return Settings.builder()
-                // here we set the netty4 transport and http transport as the default. This is a set once setting
-                // ie. if another plugin does that as well the server will fail - only one default network can exist!
-                .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NETTY_HTTP_TRANSPORT_NAME)
-                .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), NETTY_TRANSPORT_NAME)
-                .build();
+            // here we set the netty4 transport and http transport as the default. This is a set once setting
+            // ie. if another plugin does that as well the server will fail - only one default network can exist!
+            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NETTY_HTTP_TRANSPORT_NAME)
+            .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), NETTY_TRANSPORT_NAME)
+            .build();
     }
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
-                                                          CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-        return Collections.singletonMap(NETTY_TRANSPORT_NAME, () -> new Netty4Transport(settings, Version.CURRENT, threadPool,
-            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, getSharedGroupFactory(settings)));
+    public Map<String, Supplier<Transport>> getTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService
+    ) {
+        return Collections.singletonMap(
+            NETTY_TRANSPORT_NAME,
+            () -> new Netty4Transport(
+                settings,
+                Version.CURRENT,
+                threadPool,
+                networkService,
+                pageCacheRecycler,
+                namedWriteableRegistry,
+                circuitBreakerService,
+                getSharedGroupFactory(settings)
+            )
+        );
     }
 
     @Override
-    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                                        PageCacheRecycler pageCacheRecycler,
-                                                                        CircuitBreakerService circuitBreakerService,
-                                                                        NamedXContentRegistry xContentRegistry,
-                                                                        NetworkService networkService,
-                                                                        HttpServerTransport.Dispatcher dispatcher,
-                                                                        ClusterSettings clusterSettings) {
-        return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
-            () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher,
-                clusterSettings, getSharedGroupFactory(settings)));
+    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings
+    ) {
+        return Collections.singletonMap(
+            NETTY_HTTP_TRANSPORT_NAME,
+            () -> new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry,
+                dispatcher,
+                clusterSettings,
+                getSharedGroupFactory(settings)
+            )
+        );
     }
 
     private SharedGroupFactory getSharedGroupFactory(Settings settings) {

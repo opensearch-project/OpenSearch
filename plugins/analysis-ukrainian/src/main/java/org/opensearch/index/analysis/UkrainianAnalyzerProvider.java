@@ -56,5 +56,4 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Ukr
         return this.analyzer;
     }
 
-
 }

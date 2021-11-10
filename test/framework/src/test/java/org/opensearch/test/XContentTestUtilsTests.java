@@ -41,8 +41,6 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -88,8 +86,14 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         }
         builder.endObject();
 
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(builder), builder.contentType())) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder),
+                builder.contentType()
+            )
+        ) {
             parser.nextToken();
             List<String> insertPaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
             assertEquals(5, insertPaths.size());
@@ -106,16 +110,42 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.endObject();
-        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), BytesReference.bytes(builder),
-                Collections.singletonList(""), () -> "inn.er1", () -> new HashMap<>());
-        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), BytesReference.bytes(builder),
-                Collections.singletonList(""), () -> "field1", () -> "value1");
-        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), BytesReference.bytes(builder),
-                Collections.singletonList("inn\\.er1"), () -> "inner2", () -> new HashMap<>());
-        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), BytesReference.bytes(builder),
-                Collections.singletonList("inn\\.er1"), () -> "field2", () -> "value2");
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(builder), builder.contentType())) {
+        builder = XContentTestUtils.insertIntoXContent(
+            XContentType.JSON.xContent(),
+            BytesReference.bytes(builder),
+            Collections.singletonList(""),
+            () -> "inn.er1",
+            () -> new HashMap<>()
+        );
+        builder = XContentTestUtils.insertIntoXContent(
+            XContentType.JSON.xContent(),
+            BytesReference.bytes(builder),
+            Collections.singletonList(""),
+            () -> "field1",
+            () -> "value1"
+        );
+        builder = XContentTestUtils.insertIntoXContent(
+            XContentType.JSON.xContent(),
+            BytesReference.bytes(builder),
+            Collections.singletonList("inn\\.er1"),
+            () -> "inner2",
+            () -> new HashMap<>()
+        );
+        builder = XContentTestUtils.insertIntoXContent(
+            XContentType.JSON.xContent(),
+            BytesReference.bytes(builder),
+            Collections.singletonList("inn\\.er1"),
+            () -> "field2",
+            () -> "value2"
+        );
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder),
+                builder.contentType()
+            )
+        ) {
             Map<String, Object> map = parser.map();
             assertEquals(2, map.size());
             assertEquals("value1", map.get("field1"));
@@ -127,7 +157,6 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
             assertEquals(0, ((Map<String, Object>) innerMap.get("inner2")).size());
         }
     }
-
 
     @SuppressWarnings("unchecked")
     public void testInsertRandomXContent() throws IOException {
@@ -163,8 +192,12 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
 
         Map<String, Object> resultMap;
 
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), null, random()))) {
+        try (
+            XContentParser parser = createParser(
+                XContentType.JSON.xContent(),
+                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), null, random())
+            )
+        ) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());
@@ -177,8 +210,12 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         assertEquals(2, ((Map<String, Object>) foo4List.get(0)).keySet().size());
 
         Predicate<String> pathsToExclude = path -> path.endsWith("foo1");
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), pathsToExclude, random()))) {
+        try (
+            XContentParser parser = createParser(
+                XContentType.JSON.xContent(),
+                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), pathsToExclude, random())
+            )
+        ) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());
@@ -191,8 +228,12 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         assertEquals(2, ((Map<String, Object>) foo4List.get(0)).keySet().size());
 
         pathsToExclude = path -> path.contains("foo1");
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), pathsToExclude, random()))) {
+        try (
+            XContentParser parser = createParser(
+                XContentType.JSON.xContent(),
+                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), pathsToExclude, random())
+            )
+        ) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());

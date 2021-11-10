@@ -61,7 +61,7 @@ public class ApiCallSection {
     }
 
     public Map<String, String> getParams() {
-        //make sure we never modify the parameters once returned
+        // make sure we never modify the parameters once returned
         return unmodifiableMap(params);
     }
 

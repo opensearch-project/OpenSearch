@@ -50,5 +50,3 @@ public class PorterStemTokenFilterFactory extends AbstractTokenFilterFactory {
         return new PorterStemFilter(tokenStream);
     }
 }
-
-

@@ -44,8 +44,8 @@ public class IngestDocumentMatcher {
      * @param docB second document to compare
      */
     public static void assertIngestDocument(IngestDocument docA, IngestDocument docB) {
-        if ((deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true) &&
-            deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false)) == false) {
+        if ((deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true)
+            && deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false)) == false) {
             throw new AssertionError("Expected [" + docA + "] but received [" + docB + "].");
         }
     }
@@ -63,8 +63,7 @@ public class IngestDocumentMatcher {
             for (Map.Entry<?, ?> entry : mapA.entrySet()) {
                 Object key = entry.getKey();
                 // Don't compare the timestamp of ingest metadata since it will differ between executions
-                if ((isIngestMeta && "timestamp".equals(key)) == false
-                    && deepEquals(entry.getValue(), mapB.get(key), false) == false) {
+                if ((isIngestMeta && "timestamp".equals(key)) == false && deepEquals(entry.getValue(), mapB.get(key), false) == false) {
                     return false;
                 }
             }

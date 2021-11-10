@@ -720,7 +720,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
                 Fuzziness.fromEdits(FuzzyCompletionQuery.DEFAULT_MAX_EDITS),
                 FuzzyCompletionQuery.DEFAULT_NON_FUZZY_PREFIX,
                 FuzzyCompletionQuery.DEFAULT_MIN_FUZZY_LENGTH,
-                Operations.DEFAULT_MAX_DETERMINIZED_STATES,
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                 FuzzyCompletionQuery.DEFAULT_TRANSPOSITIONS,
                 FuzzyCompletionQuery.DEFAULT_UNICODE_AWARE
             );
@@ -732,7 +732,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
         Query prefixQuery = completionFieldMapper.fieldType()
-            .regexpQuery(new BytesRef("co"), RegExp.ALL, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+            .regexpQuery(new BytesRef("co"), RegExp.ALL, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertThat(prefixQuery, instanceOf(RegexCompletionQuery.class));
     }
 

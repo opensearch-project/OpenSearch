@@ -71,7 +71,7 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
      */
     static List<RatedSearchHit> joinHitsWithRatings(SearchHit[] hits, List<RatedDocument> ratedDocs) {
         Map<DocumentKey, RatedDocument> ratedDocumentMap = ratedDocs.stream()
-                .collect(Collectors.toMap(RatedDocument::getKey, item -> item));
+            .collect(Collectors.toMap(RatedDocument::getKey, item -> item));
         List<RatedSearchHit> ratedSearchHits = new ArrayList<>(hits.length);
         for (SearchHit hit : hits) {
             DocumentKey key = new DocumentKey(hit.getIndex(), hit.getId());
@@ -89,8 +89,10 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
      * Filter {@link RatedSearchHit}s that do not have a rating.
      */
     static List<DocumentKey> filterUnratedDocuments(List<RatedSearchHit> ratedHits) {
-        return ratedHits.stream().filter(hit -> hit.getRating().isPresent() == false)
-                .map(hit -> new DocumentKey(hit.getSearchHit().getIndex(), hit.getSearchHit().getId())).collect(Collectors.toList());
+        return ratedHits.stream()
+            .filter(hit -> hit.getRating().isPresent() == false)
+            .map(hit -> new DocumentKey(hit.getSearchHit().getIndex(), hit.getSearchHit().getId()))
+            .collect(Collectors.toList());
     }
 
     /**

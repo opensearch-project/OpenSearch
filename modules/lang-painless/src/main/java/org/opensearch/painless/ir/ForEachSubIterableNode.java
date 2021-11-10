@@ -141,8 +141,10 @@ public class ForEachSubIterableNode extends LoopNode {
         getConditionNode().write(classWriter, methodWriter, writeScope);
 
         if (method == null) {
-            org.objectweb.asm.Type methodType = org.objectweb.asm.Type
-                    .getMethodType(org.objectweb.asm.Type.getType(Iterator.class), org.objectweb.asm.Type.getType(Object.class));
+            org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(
+                org.objectweb.asm.Type.getType(Iterator.class),
+                org.objectweb.asm.Type.getType(Object.class)
+            );
             methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
             methodWriter.invokeMethodCall(method);

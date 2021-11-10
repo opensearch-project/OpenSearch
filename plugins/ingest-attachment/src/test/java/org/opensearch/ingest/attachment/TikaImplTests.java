@@ -36,8 +36,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 public class TikaImplTests extends OpenSearchTestCase {
 
-  public void testTikaLoads() throws Exception {
-    Class.forName("org.opensearch.ingest.attachment.TikaImpl");
-  }
+    public void testTikaLoads() throws Exception {
+        Class.forName("org.opensearch.ingest.attachment.TikaImpl");
+    }
 
 }

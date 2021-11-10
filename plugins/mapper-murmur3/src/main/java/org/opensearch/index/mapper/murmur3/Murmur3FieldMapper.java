@@ -96,7 +96,8 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
                 name,
                 new Murmur3FieldType(buildFullName(context), stored.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build());
+                copyTo.build()
+            );
         }
     }
 
@@ -130,10 +131,7 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    protected Murmur3FieldMapper(String simpleName,
-                                 MappedFieldType mappedFieldType,
-                                 MultiFields multiFields,
-                                 CopyTo copyTo) {
+    protected Murmur3FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
     }
 
@@ -148,8 +146,7 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context)
-            throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final Object value;
         if (context.externalValueSet()) {
             value = context.externalValue();
