@@ -83,6 +83,8 @@ public class IndexNameExpressionResolver {
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
     public static final Version SYSTEM_INDEX_ENFORCEMENT_VERSION = LegacyESVersion.V_7_10_0;
 
+    private boolean isDeprecationWarningAlreadyLogged;
+
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
     private final List<ExpressionResolver> expressionResolvers = org.opensearch.common.collect.List.of(
@@ -364,13 +366,14 @@ public class IndexNameExpressionResolver {
                 .map(i -> i.getIndex().getName())
                 .sorted() // reliable order for testing
                 .collect(Collectors.toList());
-            if (resolvedSystemIndices.isEmpty() == false) {
+            if (resolvedSystemIndices.isEmpty() == false && !isDeprecationWarningAlreadyLogged) {
                 deprecationLogger.deprecate(
                     "open_system_index_access",
                     "this request accesses system indices: {}, but in a future major version, direct access to system "
                         + "indices will be prevented by default",
                     resolvedSystemIndices
                 );
+                isDeprecationWarningAlreadyLogged = true;
             }
         }
     }

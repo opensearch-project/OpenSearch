@@ -104,16 +104,10 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         // And with a partial wildcard
         assertDeprecationWarningOnAccess(".test-*", SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
-        // And with a total wildcard
-        assertDeprecationWarningOnAccess(randomFrom("*", "_all"), SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
-
         // Try to index a doc directly
         {
-            String expectedWarning = "this request accesses system indices: [" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "], but in a " +
-                "future major version, direct access to system indices will be prevented by default";
             Request putDocDirectlyRequest = new Request("PUT", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "/_doc/43");
             putDocDirectlyRequest.setJsonEntity("{\"some_field\":  \"some_other_value\"}");
-            putDocDirectlyRequest.setOptions(expectWarnings(expectedWarning));
             Response response = getRestClient().performRequest(putDocDirectlyRequest);
             assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
         }
