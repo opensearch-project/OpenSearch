@@ -32,6 +32,7 @@
 
 package org.opensearch.client;
 
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -101,6 +102,25 @@ public class ReindexIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(1, bulkResponse.getBatches());
             assertEquals(0, bulkResponse.getBulkFailures().size());
             assertEquals(0, bulkResponse.getSearchFailures().size());
+        }
+        {
+            // set require_alias=true, but there exists no alias
+            ReindexRequest reindexRequest = new ReindexRequest();
+            reindexRequest.setSourceIndices(sourceIndex);
+            reindexRequest.setDestIndex(destinationIndex);
+            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1"));
+            reindexRequest.setRefresh(true);
+            reindexRequest.setRequireAlias(true);
+
+            OpenSearchStatusException exception = expectThrows(
+                OpenSearchStatusException.class,
+                () -> { execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync); }
+            );
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals(
+                "OpenSearch exception [type=index_not_found_exception, reason=no such index [dest] and [require_alias] request flag is [true] and [dest] is not an alias]",
+                exception.getMessage()
+            );
         }
     }
 
