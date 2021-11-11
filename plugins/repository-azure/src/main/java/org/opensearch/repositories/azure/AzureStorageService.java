@@ -46,6 +46,7 @@ import com.azure.core.http.ProxyOptions;
 import com.azure.core.http.ProxyOptions.Type;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.HttpPipelinePolicy;
+import com.azure.core.util.Configuration;
 import com.azure.core.util.Context;
 import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.blob.BlobServiceClient;
@@ -67,9 +68,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URISyntaxException;
-import java.security.AccessController;
 import java.security.InvalidKeyException;
-import java.security.PrivilegedAction;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -102,6 +101,14 @@ public class AzureStorageService implements AutoCloseable {
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final Map<AzureStorageSettings, ClientState> clients = new ConcurrentHashMap<>();
+
+    static {
+        // See please:
+        // - https://github.com/Azure/azure-sdk-for-java/issues/24373
+        // - https://github.com/Azure/azure-sdk-for-java/pull/25004
+        // - https://github.com/Azure/azure-sdk-for-java/pull/24374
+        Configuration.getGlobalConfiguration().put("AZURE_JACKSON_ADAPTER_USE_ACCESS_HELPER", "true");
+    }
 
     public AzureStorageService(Settings settings) {
         // eagerly load client settings so that secure settings are read
@@ -366,14 +373,7 @@ public class AzureStorageService implements AutoCloseable {
         }
 
         public Thread newThread(Runnable r) {
-            // See please: https://github.com/Azure/azure-sdk-for-java/pull/24374
-            final Runnable priviledged = () -> {
-                AccessController.doPrivileged((PrivilegedAction<?>) () -> {
-                    r.run();
-                    return null;
-                });
-            };
-            final Thread t = new Thread(group, priviledged, namePrefix + threadNumber.getAndIncrement(), 0);
+            final Thread t = new Thread(group, r, namePrefix + threadNumber.getAndIncrement(), 0);
 
             if (t.isDaemon()) {
                 t.setDaemon(false);

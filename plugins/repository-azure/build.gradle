@@ -44,9 +44,9 @@ opensearchplugin {
 }
 
 dependencies {
-  api 'com.azure:azure-core:1.20.0'
-  api 'com.azure:azure-storage-common:12.12.0'
-  api 'com.azure:azure-core-http-netty:1.11.0'
+  api 'com.azure:azure-core:1.22.0'
+  api 'com.azure:azure-storage-common:12.14.0'
+  api 'com.azure:azure-core-http-netty:1.11.2'
   api "io.netty:netty-codec-dns:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
@@ -54,12 +54,12 @@ dependencies {
   api "io.netty:netty-resolver-dns:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
   implementation project(':modules:transport-netty4')
-  api 'com.azure:azure-storage-blob:12.13.0'
+  api 'com.azure:azure-storage-blob:12.14.1'
   api 'org.reactivestreams:reactive-streams:1.0.3'
   api 'io.projectreactor:reactor-core:3.4.11'
-  api 'io.projectreactor.netty:reactor-netty:1.0.12'
-  api 'io.projectreactor.netty:reactor-netty-core:1.0.12'
-  api 'io.projectreactor.netty:reactor-netty-http:1.0.12'
+  api 'io.projectreactor.netty:reactor-netty:1.0.13'
+  api 'io.projectreactor.netty:reactor-netty-core:1.0.13'
+  api 'io.projectreactor.netty:reactor-netty-http:1.0.13'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
