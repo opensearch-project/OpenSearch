@@ -46,7 +46,7 @@ Apache Ivy includes the following in its NOTICE file:
 | The Apache Software Foundation (https://www.apache.org/).
 |
 | Portions of Ivy were originally developed by
-| Jayasoft SARL (http://www.jayasoft.fr/)
+| Jayasoft SARL (http://www.jaya.free.fr/about.html)
 | and are licensed to the Apache Software Foundation under the
 | "Software Grant License Agreement"
 |
