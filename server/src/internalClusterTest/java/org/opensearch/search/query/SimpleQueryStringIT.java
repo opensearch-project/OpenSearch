@@ -684,7 +684,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), 2048))
         );
-        Thread.sleep(10);
+        Thread.sleep(1);
 
         SearchResponse response = client().prepareSearch(index).setQuery(qb).get();
         assertHitCount(response, 1);
