@@ -63,9 +63,9 @@ OpenSearch builds using Java 11 at a minimum. This means you must have a JDK 11 
 
 Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
 
-#### JDK 8 and 17
+#### JDK 8 and 14
 
-To run the full suite of tests, download and install [JDK 8](https://adoptium.net/releases.html?variant=openjdk8) and [17](https://adoptium.net/releases.html?variant=openjdk17) and set `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
+To run the full suite of tests, download and install [JDK 8](https://adoptium.net/releases.html?variant=openjdk8) and [JDK 14](https://jdk.java.net/archive/) and set `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
 
 #### Runtime JDK
 
