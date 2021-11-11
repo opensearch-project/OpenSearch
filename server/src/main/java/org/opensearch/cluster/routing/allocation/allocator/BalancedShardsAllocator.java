@@ -739,6 +739,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             for (ModelNode currentNode : sorter.modelNodes) {
                 checkAndAddInEligibleTargetNode(currentNode.getRoutingNode());
             }
+            boolean primariesThrottled = false;
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(movePrimaryFirst); it.hasNext();) {
                 // Verify if the cluster concurrent recoveries have been reached.
                 if (allocation.deciders().canMoveAnyShard(allocation).type() != Decision.Type.YES) {
@@ -759,11 +760,19 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                 ShardRouting shardRouting = it.next();
 
+                // Ensure that replicas don't relocate before primaries if primaries are being throttled
+                if (movePrimaryFirst && primariesThrottled && !shardRouting.primary()) {
+                    continue;
+                }
+
                 // Verify if the shard is allowed to move if outgoing recovery on the node hosting the primary shard
                 // is not being throttled.
                 Decision canMoveAwayDecision = allocation.deciders().canMoveAway(shardRouting, allocation);
                 if (canMoveAwayDecision.type() != Decision.Type.YES) {
                     if (logger.isDebugEnabled()) logger.debug("Cannot move away shard [{}] Skipping this shard", shardRouting);
+                    if (shardRouting.primary() && canMoveAwayDecision.type() == Type.THROTTLE) {
+                        primariesThrottled = true;
+                    }
                     continue;
                 }
 
