@@ -314,8 +314,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
 
         BooleanQuery.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, integer -> { BooleanQuery.setMaxClauseCount(integer); });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, BooleanQuery::setMaxClauseCount);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
