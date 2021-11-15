@@ -15,10 +15,9 @@ The problem multiplies exponentially when we would like to run an arbitrary plug
 
 Zooming in technically, Plugins run with-in the same process as OpenSearch. As OpenSearch process is bootstrapping, it initializes [PluginService.java](https://github.com/opensearch-project/OpenSearch/blob/main/server/src/main/java/org/opensearch/plugins/PluginsService.java#L124) via
 [Node.java](https://github.com/opensearch-project/OpenSearch/blob/main/server/src/main/java/org/opensearch/node/Node.java#L392). All plugins are classloaded via [loadPlugin](https://github.com/opensearch-project/OpenSearch/blob/main/server/src/main/java/org/opensearch/plugins/PluginsService.java#L765:20) during the bootstrap of PluginService.
-It looks for `plugins` directory and loads the classpath where all the plugin jar and its dependencies are already present. During the bootstrap, each plugin is initialized.
-Plugins do have various interfaces through which they could choose to subscribe to state changes e.g [ClusterService.java](https://github.com/opensearch-project/OpenSearch/blob/main/server/src/main/java/org/opensearch/cluster/service/ClusterService.java).
+It looks for `plugins` directory and loads the classpath where all the plugin jar and its dependencies are already present. During the bootstrap, each plugin is initialized and they do have various interfaces through which they could choose to subscribe to state changes within the cluster e.g [ClusterService.java](https://github.com/opensearch-project/OpenSearch/blob/main/server/src/main/java/org/opensearch/cluster/service/ClusterService.java).
 
-Security permissions for Plugins in OpenSearch are managed via Java Security Manager. It is initialized during the [bootstrap](https://github.com/opensearch-project/OpenSearch/blob/main/server/src/main/java/org/opensearch/bootstrap/OpenSearch.java#L91) of OpenSearch process.
+Resources on the system for Plugins in OpenSearch are managed via Java Security Manager. It is initialized during the [bootstrap](https://github.com/opensearch-project/OpenSearch/blob/main/server/src/main/java/org/opensearch/bootstrap/OpenSearch.java#L91) of OpenSearch process.
 Each plugin defines a `security.policy` file e.g [Anomaly Detection Plugin](https://github.com/opensearch-project/anomaly-detection/blob/main/src/main/plugin-metadata/plugin-security.policy#L6)
 
 As we can see, plugins are loaded into OpenSearch process which fundamentally needs to change.
