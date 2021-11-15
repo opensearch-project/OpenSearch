@@ -70,6 +70,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api 'org.apache.avro:avro:1.10.2'
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api 'com.google.code.gson:gson:2.8.9'
   runtimeOnly 'com.google.guava:guava:30.1.1-jre'
   api 'com.google.protobuf:protobuf-java:2.5.0'
   api 'commons-logging:commons-logging:1.1.3'
