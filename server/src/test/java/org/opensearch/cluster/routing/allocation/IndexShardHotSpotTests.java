@@ -47,9 +47,6 @@ public class IndexShardHotSpotTests extends OpenSearchAllocationWithConstraintsT
 
     /**
      * Test under replicated yellow cluster scale out to green.
-     *
-     * This scenario is not expected to create hotspots even without constraints enabled. The
-     * test is a sanity check to ensure allocation constraints don't worsen the situation.
      */
     public void testUnderReplicatedClusterScaleOut() {
         setupInitialCluster(3, 30, 10, 3);
@@ -64,10 +61,7 @@ public class IndexShardHotSpotTests extends OpenSearchAllocationWithConstraintsT
      *
      * During moveShards(), shards are picked from across indexes in an interleaved manner.
      * This prevents hot spots by evenly picking up shards. Since shard order can change
-     * in subsequent runs, we are not guaranteed to less moves than no allocation constraint run.
-     *
-     * Move tests are hence just a sanity test, to ensure we don't create any unexpected hot spots with
-     * allocation settings.
+     * in subsequent runs.
      */
     public void testClusterScaleIn() {
         setupInitialCluster(4, 30, 10, 1);
