@@ -22,7 +22,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
-public class MovePrimaryFirstTestCase extends OpenSearchIntegTestCase {
+public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
 
     protected String startDataOnlyNode(final String zone) {
         final Settings settings = Settings.builder().put("node.attr.zone", zone).build();
@@ -40,17 +40,19 @@ public class MovePrimaryFirstTestCase extends OpenSearchIntegTestCase {
                     .put("max_result_window", 20000)
             )
         );
-        indexMoreDocs(index, 0, 10);
-    }
-
-    protected void indexMoreDocs(String index, int startDocCountId, int docCountToIndex) {
-        for (int i = 0; i < docCountToIndex; i++) {
+        int startDocCountId = 0;
+        for (int i = 0; i < 10; i++) {
             index(index, "_doc", Integer.toString(startDocCountId), "foo", "bar" + startDocCountId);
             ++startDocCountId;
         }
         flushAndRefresh(index);
     }
 
+    /**
+     * Creates two nodes each in two zones and shuts down nodes in one zone
+     * after relocating half the number of shards. Since, primaries are relocated
+     * first, cluster should stay green as primary should have relocated
+     */
     public void testClusterGreenAfterPartialRelocation() throws InterruptedException {
         internalCluster().startMasterOnlyNodes(1);
         final String z1 = "zone-1", z2 = "zone-2";
@@ -59,9 +61,13 @@ public class MovePrimaryFirstTestCase extends OpenSearchIntegTestCase {
         ensureGreen();
         createAndIndex("foo", 1, primaryShardCount);
         ensureYellow();
+        // Start second node in same zone only after yellow cluster to ensure
+        // that one gets all primaries and other all secondaries
         final String z1n2 = startDataOnlyNode(z1);
         ensureGreen();
 
+        // Enable cluster level setting for moving primaries first and keep new
+        // zone nodes excluded to prevent any shard relocation
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
         settingsRequest.persistentSettings(
             Settings.builder().put("cluster.routing.allocation.move.primary_first", true).put("cluster.routing.allocation.exclude.zone", z2)
@@ -71,6 +77,8 @@ public class MovePrimaryFirstTestCase extends OpenSearchIntegTestCase {
         final String z2n1 = startDataOnlyNode(z2);
         final String z2n2 = startDataOnlyNode(z2);
 
+        // Create cluster state listener to compute number of shards on new zone
+        // nodes before counting down the latch
         final CountDownLatch primaryMoveLatch = new CountDownLatch(1);
         final ClusterStateListener listener = event -> {
             if (event.routingTableChanged()) {
@@ -83,17 +91,20 @@ public class MovePrimaryFirstTestCase extends OpenSearchIntegTestCase {
                         relocatedShards += routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
                     }
                 }
-                if (relocatedShards >= primaryShardCount) {
+                if (relocatedShards == primaryShardCount) {
                     primaryMoveLatch.countDown();
                 }
             }
         };
         internalCluster().clusterService().addListener(listener);
 
+        // Exclude zone1 nodes for allocation and await latch count down
         settingsRequest = new ClusterUpdateSettingsRequest();
         settingsRequest.persistentSettings(Settings.builder().put("cluster.routing.allocation.exclude.zone", z1));
         client().admin().cluster().updateSettings(settingsRequest);
         primaryMoveLatch.await();
+
+        // Shutdown both nodes in zone and ensure cluster stays green
         try {
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(z1n1));
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(z1n2));

@@ -760,7 +760,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                 ShardRouting shardRouting = it.next();
 
-                // Ensure that replicas don't relocate before primaries if primaries are being throttled
+                // Ensure that replicas don't relocate if primaries are being throttled and primary first is enabled
                 if (movePrimaryFirst && primariesThrottled && !shardRouting.primary()) {
                     continue;
                 }
