@@ -83,15 +83,18 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
         final ClusterStateListener listener = event -> {
             if (event.routingTableChanged()) {
                 final RoutingNodes routingNodes = event.state().getRoutingNodes();
-                int relocatedShards = 0;
+                int startedz2n1 = 0;
+                int startedz2n2 = 0;
                 for (Iterator<RoutingNode> it = routingNodes.iterator(); it.hasNext();) {
                     RoutingNode routingNode = it.next();
                     final String nodeName = routingNode.node().getName();
-                    if (nodeName.equals(z2n1) || nodeName.equals(z2n2)) {
-                        relocatedShards += routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
+                    if (nodeName.equals(z2n1)) {
+                        startedz2n1 = routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
+                    } else if (nodeName.equals(z2n2)) {
+                        startedz2n2 = routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
                     }
                 }
-                if (relocatedShards == primaryShardCount) {
+                if (startedz2n1 >= primaryShardCount / 2 && startedz2n2 >= primaryShardCount / 2) {
                     primaryMoveLatch.countDown();
                 }
             }
