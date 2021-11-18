@@ -56,6 +56,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.metrics.ResourceTracker;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -213,6 +214,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /**
+     * Enables the tracking of resource consumption per query. This is an experimental setting and underlyign implementation can change
+     */
+    public static final Setting<Boolean> RESOURCE_TRACKING_SETTING = Setting.boolSetting(
+        "search.resource_tracking",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
@@ -244,6 +255,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile boolean lowLevelCancellation;
 
+    private volatile boolean resourceTrackingEnabled;
+
     private volatile int maxOpenScrollContext;
 
     private final Cancellable keepAliveReaper;
@@ -256,6 +269,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final AtomicInteger openScrollContexts = new AtomicInteger();
     private final String sessionId = UUIDs.randomBase64UUID();
+
+    public boolean isResourceTrackingEnabled() {
+        return resourceTrackingEnabled;
+    }
 
     public SearchService(
         ClusterService clusterService,
@@ -302,6 +319,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
+
+        resourceTrackingEnabled = RESOURCE_TRACKING_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(RESOURCE_TRACKING_SETTING, this::setResourceTracking);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -346,6 +366,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    private void setResourceTracking(Boolean resourceTrackingEnabled) {
+        this.resourceTrackingEnabled = resourceTrackingEnabled;
     }
 
     @Override
@@ -818,6 +842,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     ) throws IOException {
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout);
         try {
+            if (resourceTrackingEnabled) {
+                context.resourceTracker(new ResourceTracker());
+            }
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
             }
@@ -1445,6 +1472,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             this.context = context;
             time = startTime;
             this.fetch = fetch;
+            resetResourceTracking(context);
             if (fetch) {
                 listener.onPreFetchPhase(context);
             } else {
@@ -1461,6 +1489,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             assert closed == false : "already closed - while technically ok double closing is a likely a bug in this case";
             if (closed == false) {
                 closed = true;
+                updateResourceTracking(context);
                 if (afterQueryTime != -1) {
                     if (fetch) {
                         listener.onFetchPhase(context, afterQueryTime - time);
@@ -1474,6 +1503,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         listener.onFailedQueryPhase(context);
                     }
                 }
+            }
+        }
+
+        private void updateResourceTracking(SearchContext context) {
+            if (context.resourceTracker() != null) {
+                context.resourceTracker().updateMetrics();
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "Resources used by action: {} on query: {} for shard {} = {}",
+                        context.getTask().getAction(),
+                        context.request().source(),
+                        context.indexShard(),
+                        context.resourceTracker().toString()
+                    );
+                }
+            }
+        }
+
+        private void resetResourceTracking(SearchContext context) {
+            if (context.resourceTracker() != null) {
+                context.resourceTracker().reset();
             }
         }
     }

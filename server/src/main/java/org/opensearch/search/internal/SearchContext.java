@@ -39,6 +39,7 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.metrics.ResourceTracker;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
@@ -329,6 +330,11 @@ public abstract class SearchContext implements Releasable {
     public abstract List<String> groupStats();
 
     public abstract void groupStats(List<String> groupStats);
+
+    @Nullable
+    public abstract ResourceTracker resourceTracker();
+
+    public abstract void resourceTracker(ResourceTracker resourceTracker);
 
     public abstract boolean version();
 

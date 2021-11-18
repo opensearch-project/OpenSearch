@@ -32,6 +32,7 @@
 package org.opensearch.search.internal;
 
 import org.apache.lucene.search.Query;
+import org.opensearch.common.metrics.ResourceTracker;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.search.aggregations.SearchContextAggregations;
@@ -79,6 +80,7 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean trackScores;
     private boolean version;
     private boolean seqNoAndPrimaryTerm;
+    private ResourceTracker resourceTracker;
 
     public SubSearchContext(SearchContext context) {
         super(context);
@@ -358,5 +360,15 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public long getRelativeTimeInMillis() {
         throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public void resourceTracker(ResourceTracker resourceTracker) {
+        this.resourceTracker = resourceTracker;
+    }
+
+    @Override
+    public ResourceTracker resourceTracker() {
+        return this.resourceTracker;
     }
 }
