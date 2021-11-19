@@ -51,7 +51,19 @@ public class MockLogAppender extends AbstractAppender {
 
     private static final String COMMON_PREFIX = System.getProperty("opensearch.logger.prefix", "org.opensearch.");
 
-    private List<LoggingExpectation> expectations;
+    private final List<LoggingExpectation> expectations;
+
+    /**
+     * Creates and starts a MockLogAppender. Generally preferred over using the constructor
+     * directly because adding an unstarted appender to the static logging context can cause
+     * difficult-to-identify errors in the tests and this method makes it impossible to do
+     * that.
+     */
+    public static MockLogAppender createStarted() throws IllegalAccessException {
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        return appender;
+    }
 
     public MockLogAppender() throws IllegalAccessException {
         super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);

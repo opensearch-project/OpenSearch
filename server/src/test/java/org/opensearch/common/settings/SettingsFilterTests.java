@@ -143,10 +143,9 @@ public class SettingsFilterTests extends OpenSearchTestCase {
     private void assertExpectedLogMessages(Consumer<Logger> consumer, MockLogAppender.LoggingExpectation... expectations)
         throws IllegalAccessException {
         Logger testLogger = LogManager.getLogger("org.opensearch.test");
-        MockLogAppender appender = new MockLogAppender();
+        MockLogAppender appender = MockLogAppender.createStarted();
         Loggers.addAppender(testLogger, appender);
         try {
-            appender.start();
             Arrays.stream(expectations).forEach(appender::addExpectation);
             consumer.accept(testLogger);
             appender.assertAllExpectationsMatched();
