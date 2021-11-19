@@ -6,6 +6,8 @@
 package org.opensearch.index;
 
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
@@ -25,16 +27,18 @@ public class IndexingPressureService {
         shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
     }
 
-    public Releasable markCoordinatingOperationStarted(long bytes, boolean forceExecution) {
+    public Releasable markCoordinatingOperationStarted(BulkRequest bulkRequest, boolean forceExecution) {
         if (isShardIndexingPressureEnabled() == false) {
-            return shardIndexingPressure.markCoordinatingOperationStarted(bytes, forceExecution);
+            final long indexingBytes = bulkRequest.ramBytesUsed();
+            return shardIndexingPressure.markCoordinatingOperationStarted(indexingBytes, forceExecution);
         } else {
             return () -> {};
         }
     }
 
-    public Releasable markCoordinatingOperationStarted(ShardId shardId, long bytes, boolean forceExecution) {
+    public Releasable markCoordinatingOperationStarted(ShardId shardId, BulkShardRequest bulkShardRequest, boolean forceExecution) {
         if (isShardIndexingPressureEnabled()) {
+            final long bytes = bulkShardRequest.ramBytesUsed();
             return shardIndexingPressure.markCoordinatingOperationStarted(shardId, bytes, forceExecution);
         } else {
             return () -> {};
