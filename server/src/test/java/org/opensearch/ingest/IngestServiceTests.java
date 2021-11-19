@@ -34,7 +34,6 @@ package org.opensearch.ingest;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
@@ -59,7 +58,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -544,24 +542,17 @@ public class IngestServiceTests extends OpenSearchTestCase {
         );
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test1",
-                IngestService.class.getCanonicalName(),
-                Level.WARN,
-                "failed to update ingest pipelines"
-            )
-        );
-        Logger ingestLogger = LogManager.getLogger(IngestService.class);
-        Loggers.addAppender(ingestLogger, mockAppender);
-        try {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(IngestService.class))) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test1",
+                    IngestService.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to update ingest pipelines"
+                )
+            );
             ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(ingestLogger, mockAppender);
-            mockAppender.stop();
         }
         pipeline = ingestService.getPipeline(id);
         assertNotNull(pipeline);

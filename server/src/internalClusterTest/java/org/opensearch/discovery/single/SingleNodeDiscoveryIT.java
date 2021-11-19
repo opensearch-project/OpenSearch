@@ -39,7 +39,6 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.JoinHelper;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -119,73 +118,66 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
     }
 
     public void testCannotJoinNodeWithSingleNodeDiscovery() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
+        Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(clusterLogger)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
+
+                    @Override
+                    public boolean innerMatch(final LogEvent event) {
+                        return event.getThrown() != null
+                            && event.getThrown().getClass() == RemoteTransportException.class
+                            && event.getThrown().getCause() != null
+                            && event.getThrown().getCause().getClass() == IllegalStateException.class
+                            && event.getThrown()
+                                .getCause()
+                                .getMessage()
+                                .contains("cannot join node with [discovery.type] set to [single-node]");
+                    }
+                }
+            );
+            final TransportService service = internalCluster().getInstance(TransportService.class);
+            final int port = service.boundAddress().publishAddress().getPort();
+            final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
+                @Override
+                public Settings nodeSettings(int nodeOrdinal) {
+                    return Settings.builder()
+                        .put("discovery.type", "zen")
+                        .put("transport.type", getTestTransportType())
+                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
+                        /*
+                         * We align the port ranges of the two as then with zen discovery these two
+                         * nodes would find each other.
+                         */
+                        .put("transport.port", port + "-" + (port + 5 - 1))
+                        .build();
+                }
 
                 @Override
-                public boolean innerMatch(final LogEvent event) {
-                    return event.getThrown() != null
-                        && event.getThrown().getClass() == RemoteTransportException.class
-                        && event.getThrown().getCause() != null
-                        && event.getThrown().getCause().getClass() == IllegalStateException.class
-                        && event.getThrown()
-                            .getCause()
-                            .getMessage()
-                            .contains("cannot join node with [discovery.type] set to [single-node]");
+                public Path nodeConfigPath(int nodeOrdinal) {
+                    return null;
                 }
-            }
-        );
-        final TransportService service = internalCluster().getInstance(TransportService.class);
-        final int port = service.boundAddress().publishAddress().getPort();
-        final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
-            @Override
-            public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder()
-                    .put("discovery.type", "zen")
-                    .put("transport.type", getTestTransportType())
-                    .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
-                    /*
-                     * We align the port ranges of the two as then with zen discovery these two
-                     * nodes would find each other.
-                     */
-                    .put("transport.port", port + "-" + (port + 5 - 1))
-                    .build();
-            }
-
-            @Override
-            public Path nodeConfigPath(int nodeOrdinal) {
-                return null;
-            }
-        };
-        try (
-            InternalTestCluster other = new InternalTestCluster(
-                randomLong(),
-                createTempDir(),
-                false,
-                false,
-                1,
-                1,
-                internalCluster().getClusterName(),
-                configurationSource,
-                0,
-                "other",
-                Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-                Function.identity()
-            )
-        ) {
-
-            Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
-            Loggers.addAppender(clusterLogger, mockAppender);
-            try {
+            };
+            try (
+                InternalTestCluster other = new InternalTestCluster(
+                    randomLong(),
+                    createTempDir(),
+                    false,
+                    false,
+                    1,
+                    1,
+                    internalCluster().getClusterName(),
+                    configurationSource,
+                    0,
+                    "other",
+                    Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+                    Function.identity()
+                )
+            ) {
                 other.beforeTest(random(), 0);
                 final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
                 assertThat(first.nodes().getSize(), equalTo(1));
                 assertBusy(() -> mockAppender.assertAllExpectationsMatched());
-            } finally {
-                Loggers.removeAppender(clusterLogger, mockAppender);
-                mockAppender.stop();
             }
         }
     }

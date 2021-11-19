@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockLogAppender;
@@ -53,17 +52,15 @@ public class OpenSearchLoggingHandlerIT extends OpenSearchNetty4IntegTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        appender = MockLogAppender.createStarted();
-        Loggers.addAppender(LogManager.getLogger(OpenSearchLoggingHandler.class), appender);
-        Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
-        Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);
+        appender = MockLogAppender.createForLoggers(
+            LogManager.getLogger(OpenSearchLoggingHandler.class),
+            LogManager.getLogger(TransportLogger.class),
+            LogManager.getLogger(TcpTransport.class)
+        );
     }
 
     public void tearDown() throws Exception {
-        Loggers.removeAppender(LogManager.getLogger(OpenSearchLoggingHandler.class), appender);
-        Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
-        Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
-        appender.stop();
+        appender.close();
         super.tearDown();
     }
 

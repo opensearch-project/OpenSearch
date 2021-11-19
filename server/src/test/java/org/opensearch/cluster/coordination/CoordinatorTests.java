@@ -33,7 +33,6 @@ package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -48,7 +47,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
@@ -1265,19 +1263,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             cluster1.clusterNodes.add(newNode);
 
-            MockLogAppender mockAppender = new MockLogAppender();
-            mockAppender.start();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("test1", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
-            );
-            Logger joinLogger = LogManager.getLogger(JoinHelper.class);
-            Loggers.addAppender(joinLogger, mockAppender);
-            cluster1.runFor(DEFAULT_STABILISATION_TIME, "failing join validation");
-            try {
+            try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(JoinHelper.class))) {
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation("test1", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
+                );
+                cluster1.runFor(DEFAULT_STABILISATION_TIME, "failing join validation");
                 mockAppender.assertAllExpectationsMatched();
-            } finally {
-                Loggers.removeAppender(joinLogger, mockAppender);
-                mockAppender.stop();
             }
             assertEquals(0, newNode.getLastAppliedClusterState().version());
 
@@ -1554,10 +1545,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
-                final MockLogAppender mockLogAppender = new MockLogAppender();
-                try {
-                    mockLogAppender.start();
-                    Loggers.addAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
+                try (
+                    MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
+                        LogManager.getLogger(ClusterFormationFailureHelper.class)
+                    )
+                ) {
                     mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
                         final Set<DiscoveryNode> nodesLogged = new HashSet<>();
 
@@ -1599,9 +1591,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     });
                     cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
                     mockLogAppender.assertAllExpectationsMatched();
-                } finally {
-                    Loggers.removeAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
-                    mockLogAppender.stop();
                 }
             }
         }
@@ -1613,11 +1602,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
             final ClusterNode brokenNode = cluster.getAnyNodeExcept(cluster.getAnyLeader());
 
-            final MockLogAppender mockLogAppender = new MockLogAppender();
-            try {
-                mockLogAppender.start();
-                Loggers.addAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class), mockLogAppender);
-                Loggers.addAppender(LogManager.getLogger(LagDetector.class), mockLogAppender);
+            try (
+                MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
+                    LogManager.getLogger(Coordinator.CoordinatorPublication.class),
+                    LogManager.getLogger(LagDetector.class)
+                )
+            ) {
 
                 mockLogAppender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
@@ -1683,10 +1673,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 );
 
                 mockLogAppender.assertAllExpectationsMatched();
-            } finally {
-                Loggers.removeAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class), mockLogAppender);
-                Loggers.removeAppender(LogManager.getLogger(LagDetector.class), mockLogAppender);
-                mockLogAppender.stop();
             }
         }
     }
