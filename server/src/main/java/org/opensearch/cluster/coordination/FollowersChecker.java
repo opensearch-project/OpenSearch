@@ -405,7 +405,7 @@ public class FollowersChecker {
                             logger.info(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
                             reason = "followers check retry count exceeded";
                         } else {
-                            logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
+                            logger.info(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
                             return;
                         }
