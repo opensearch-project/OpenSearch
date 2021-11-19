@@ -54,10 +54,9 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        appender = new MockLogAppender();
+        appender = MockLogAppender.createStarted();
         Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
         Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);
-        appender.start();
     }
 
     public void tearDown() throws Exception {
