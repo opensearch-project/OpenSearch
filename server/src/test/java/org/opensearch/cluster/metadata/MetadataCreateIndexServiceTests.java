@@ -614,7 +614,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 false
             );
             validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
-
+            
             validateIndexName(checkerService, "index#name", "must not contain '#'");
 
             validateIndexName(checkerService, "_indexname", "must not start with '_', '-', or '+'");
@@ -626,6 +626,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             validateIndexName(checkerService, "..", "must not be '.' or '..'");
 
             validateIndexName(checkerService, "foo:bar", "must not contain ':'");
+
+            validateIndexName(checkerService, "", "Invalid index name [], reason: empty string is an invalid index name (do you have a double slash in the URL by accident?)");
         }));
     }
 

@@ -250,6 +250,10 @@ public class MetadataCreateIndexService {
         if (!Strings.validFileName(index)) {
             throw exceptionCtor.apply(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
+        if (index.isEmpty()) {
+            logger.info(() -> new ParameterizedMessage("Empty Index, presence of double slash maybe?"));
+            throw exceptionCtor.apply(index, "reason: empty string is an invalid index name (do you have a double slash in the URL by accident?)");
+        }
         if (index.contains("#")) {
             throw exceptionCtor.apply(index, "must not contain '#'");
         }
