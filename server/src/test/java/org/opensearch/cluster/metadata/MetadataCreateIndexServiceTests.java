@@ -627,11 +627,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
             validateIndexName(checkerService, "foo:bar", "must not contain ':'");
 
-            validateIndexName(
-                checkerService,
-                "",
-                "Invalid index name [], reason: empty string is an invalid index name (do you have a double slash in the URL by accident?)"
-            );
+            validateIndexName(checkerService, "", "Invalid index name [], must not be empty");
         }));
     }
 
