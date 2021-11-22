@@ -1,9 +1,90 @@
 ## Version 1.1.0 Release Notes
 
+* __Changes to support retrieval of operations from translog based on specified range (#1257)__
+
+  [Sai](mailto:karanas@amazon.com) - Sun, 26 Sep 2021 00:02:29 -0500
+
+  Backport changes to support retrieval of operations from translog based on
+  specified range
+  Signed-off-by: Sai Kumar &lt;karanas@amazon.com&gt;
+
+* __[Backport] Support for translog pruning based on retention leases (#1038) (#1256)__
+
+  [Sai](mailto:karanas@amazon.com) - Sat, 25 Sep 2021 23:53:32 -0500
+
+
+    Support for translog pruning based on retention leases; including deprecations
+    for
+    refactoring to ccr plugin in the future.
+     Co-authored-by: Nicholas Walter Knize &lt;nknize@apache.org&gt;
+    Signed-off-by: Sai
+    Kumar &lt;karanas@amazon.com&gt;
+
+* __fix gradle check fail due to renameing -min in #1094 (#1289) (#1291)__
+
+  [Xue Zhou](mailto:85715413+xuezhou25@users.noreply.github.com) - Fri, 24 Sep 2021 23:03:45 -0500
+
+
+    Signed-off-by: Xue Zhou &lt;xuezhou@amazon.com&gt;
+
+* __Rename artifact produced by the build to include -min (#1251) (#1271)__
+
+  [Daniel Doubrovkine (dB.)](mailto:dblock@dblock.org) - Wed, 22 Sep 2021 10:52:24 -0400
+
+
+    Signed-off-by: Xue Zhou &lt;xuezhou@amazon.com&gt;
+     Co-authored-by: Xue Zhou &lt;85715413+xuezhou25@users.noreply.github.com&gt;
+
+* __[Bug] Fix InstallPluginCommand to use proper key signatures (#1233) (#1235)__
+
+  [Nick Knize](mailto:nknize@apache.org) - Mon, 13 Sep 2021 11:55:24 -0700
+
+  efs/remotes/origin/1.1
+  The public key has changed since the initial release. This commit fixes the
+
+  public key and uses the .sig files that are published to the artifacts site.
+  Signed-off-by: Nicholas Walter Knize &lt;nknize@apache.org&gt;
+
+* __Fix org.opensearch.index.reindex.ReindexRestClientSslTests#testClientSucceedsWithCertificateAuthorities - javax.net.ssl.SSLPeerUnverifiedException (#1212) (#1224)__
+
+  [Andriy Redko](mailto:andriy.redko@aiven.io) - Fri, 10 Sep 2021 11:49:33 -0400
+
+
+    Signed-off-by: Andriy Redko &lt;andriy.redko@aiven.io&gt;
+
+* __Max scroll limit breach to throw a OpenSearchRejectedExecutionException (#1054) (#1231)__
+
+  [Rabi Panda](mailto:adnapibar@gmail.com) - Fri, 10 Sep 2021 10:34:46 -0400
+
+
+    * Changes the Exception to throw a OpenSearchRejectedExecutionException on max
+    scroll limit breach
+     Signed-off-by: Bukhtawar Khan bukhtawa@amazon.com
+     Co-authored-by: Bukhtawar Khan &lt;bukhtawa@amazon.com&gt;
+
+* __[1.x] Backport opensearch-upgrade CLI tool (#1222)__
+
+  [Rabi Panda](mailto:adnapibar@gmail.com) - Wed, 8 Sep 2021 10:39:02 -0700
+
+
+    * A CLI tool to assist during an upgrade to OpenSearch. (#846)
+     This change adds the initial version of a new CLI tool `opensearch-upgrade` as
+    part of the OpenSearch distribution. This tool is meant for assisting during an
+    upgrade from an existing Elasticsearch v7.10.2/v6.8.0 node to OpenSearch. It
+    automates the process of importing existing configurations and installing of
+    core plugins.
+     Signed-off-by: Rabi Panda &lt;adnapibar@gmail.com&gt;
+
+    * Validation for official plugins for upgrade tool (#973)
+     Add validation to check for official plugins during the plugins installation
+    task for the upgrade tool.
+     Signed-off-by: Vacha Shah &lt;vachshah@amazon.com&gt;
+     Co-authored-by: Vacha &lt;vachshah@amazon.com&gt;
+
 * __Kept the original constructor for PluginInfo to maintain bwc (#1206) (#1209)__
 
     [Vacha](mailto:vachshah@amazon.com) - Thu, 2 Sep 2021 22:05:44 -0400
-    
+
     efs/remotes/upstream/1.x, refs/remotes/origin/1.x, refs/heads/1.x
     Signed-off-by: Vacha &lt;vachshah@amazon.com&gt;
 
