@@ -58,7 +58,7 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
         );
         items[0] = new BulkItemRequest(0, writeRequest);
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.NONE, items);
-        Releasable releasable = service.markCoordinatingOperationStarted(shardId, bulkShardRequest, false);
+        Releasable releasable = service.markCoordinatingOperationStarted(shardId, bulkShardRequest::ramBytesUsed, false);
 
         IndexingPressurePerShardStats shardStats = service.shardStats(CommonStatsFlags.ALL).getIndexingPressureShardStats(shardId);
         assertEquals(bulkShardRequest.ramBytesUsed(), shardStats.getCurrentCoordinatingBytes());
@@ -79,7 +79,7 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
         clusterSettings.applySettings(updated.build());
 
         BulkRequest bulkRequest = new BulkRequest();
-        Releasable releasable = service.markCoordinatingOperationStarted(bulkRequest, false);
+        Releasable releasable = service.markCoordinatingOperationStarted(bulkRequest::ramBytesUsed, false);
         IndexingPressurePerShardStats shardStats = service.shardStats(CommonStatsFlags.ALL).getIndexingPressureShardStats(shardId);
         assertNull(shardStats);
         IndexingPressureStats nodeStats = service.nodeStats();
