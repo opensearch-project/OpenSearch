@@ -250,6 +250,9 @@ public class MetadataCreateIndexService {
         if (!Strings.validFileName(index)) {
             throw exceptionCtor.apply(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
+        if (index.isEmpty()) {
+            throw exceptionCtor.apply(index, "must not be empty");
+        }
         if (index.contains("#")) {
             throw exceptionCtor.apply(index, "must not contain '#'");
         }

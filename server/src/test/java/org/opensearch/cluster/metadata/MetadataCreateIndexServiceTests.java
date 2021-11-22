@@ -626,6 +626,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             validateIndexName(checkerService, "..", "must not be '.' or '..'");
 
             validateIndexName(checkerService, "foo:bar", "must not contain ':'");
+
+            validateIndexName(checkerService, "", "Invalid index name [], must not be empty");
         }));
     }
 
