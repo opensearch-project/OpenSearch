@@ -338,7 +338,6 @@ public class SearchModuleTests extends OpenSearchTestCase {
             .stream()
             .filter(e -> e.categoryClass.equals(QueryBuilder.class))
             .filter(e -> e.name.getAllReplacedWith() == null)
-            // .filter(e -> e.name.getDeprecatedNames() == null)
             .map(e -> e.name.getPreferredName())
             .collect(toSet());
         Set<String> registeredAll = module.getNamedXContents()
