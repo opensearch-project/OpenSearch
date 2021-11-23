@@ -914,7 +914,7 @@ public class RestClient implements Closeable {
         if (exception instanceof SSLHandshakeException) {
             SSLHandshakeException e = new SSLHandshakeException(
                 "Hint: Please check if the client truststore is setup correctly to trust the server certificate. Read this documentation for setting up the client trust store - https://opensearch.org/docs/latest/clients/java-rest-high-level/"
-                );
+            );
             e.initCause(exception);
             return e;
         }
