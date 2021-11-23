@@ -208,15 +208,15 @@ public class OpenSearchLoggerUsageTests extends OpenSearchTestCase {
         logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}", "world"), new Exception());
     }
 
-    public void checkFailOrderOfExceptionArgument1() {
+    public void checkOrderOfExceptionArgument2() {
         logger.info("Hello {}", "world", new Exception());
     }
 
-    public void checkOrderOfExceptionArgument2() {
+    public void checkOrderOfExceptionArgument3() {
         logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
     }
 
-    public void checkFailOrderOfExceptionArgument2() {
+    public void checkOrderOfExceptionArgument4() {
         logger.info("Hello {}, {}", "world", 42, new Exception());
     }
 
