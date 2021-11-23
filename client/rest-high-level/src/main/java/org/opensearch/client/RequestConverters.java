@@ -363,6 +363,7 @@ final class RequestConverters {
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
+        parameters.withRequireAlias(indexRequest.isRequireAlias());
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
@@ -391,6 +392,7 @@ final class RequestConverters {
         parameters.withRetryOnConflict(updateRequest.retryOnConflict());
         parameters.withVersion(updateRequest.version());
         parameters.withVersionType(updateRequest.versionType());
+        parameters.withRequireAlias(updateRequest.isRequireAlias());
 
         // The Java API allows update requests with different content types
         // set for the partial document and the upsert document. This client
@@ -618,6 +620,7 @@ final class RequestConverters {
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
             .withRequestsPerSecond(reindexRequest.getRequestsPerSecond())
+            .withRequireAlias(reindexRequest.getDestination().isRequireAlias())
             .withSlices(reindexRequest.getSlices());
 
         if (reindexRequest.getScrollTime() != null) {
@@ -962,6 +965,13 @@ final class RequestConverters {
             } else {
                 return putParam(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, "-1");
             }
+        }
+
+        Params withRequireAlias(boolean requireAlias) {
+            if (requireAlias) {
+                return putParam("require_alias", Boolean.TRUE.toString());
+            }
+            return this;
         }
 
         Params withRetryOnConflict(int retryOnConflict) {
