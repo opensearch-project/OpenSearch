@@ -3,7 +3,7 @@
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
       - [JDK 11](#jdk-11)
-      - [JDK 8 and 17](#jdk-8-and-17)
+      - [JDK 8 and 14](#jdk-8-and-14)
       - [Runtime JDK](#runtime-jdk)
       - [Windows](#windows)
       - [Docker](#docker)
@@ -44,6 +44,7 @@
     - [Aggregations](#aggregations)
     - [Distributed Framework](#distributed-framework)
   - [Submitting Changes](#submitting-changes)
+  - [Backports](#backports)
 
 # Developer Guide
 
@@ -408,3 +409,7 @@ Includes:
 ## Submitting Changes
 
 See [CONTRIBUTING](CONTRIBUTING.md).
+
+## Backports
+
+The Github workflow in [`backport.yml`](.github/workflows/backport.yml) creates backport PRs automatically when the original PR with an appropriate label `backport <backport-branch-name>` is merged to main. For example, if a PR on main needs to be backported to `1.x` branch, add a label `backport 1.x` to the PR. Once this PR is merged to main, the workflow will create a backport PR to the `1.x` branch.
