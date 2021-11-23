@@ -38,6 +38,7 @@ import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
+import static org.opensearch.index.query.FieldMaskingSpanQueryBuilder.SPAN_FIELD_MASKING_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -73,7 +74,9 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
 
     public void testFromJson() throws IOException {
         String json = "{\n"
-            + "  \"field_masking_span\" : {\n"
+            + "  \""
+            + SPAN_FIELD_MASKING_FIELD.getPreferredName()
+            + "\" : {\n"
             + "    \"query\" : {\n"
             + "      \"span_term\" : {\n"
             + "        \"value\" : {\n"
