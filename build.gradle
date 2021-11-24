@@ -313,7 +313,7 @@ allprojects {
         }
       }
       boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
-      project.configurations.compile.dependencies
+      project.configurations.implementation.dependencies
         .findAll()
         .toSorted(sortClosure)
         .each({ c -> depJavadocClosure(hasShadow, c) })

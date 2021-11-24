@@ -124,6 +124,13 @@ testClusters.integTest {
 String realm = "BUILD.OPENSEARCH.ORG"
 String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
+
+project(':test:fixtures:krb5kdc-fixture').tasks.preProcessFixture {
+  dependsOn tasks.named("jarHell")
+  dependsOn tasks.named("testingConventions")
+}
+
+
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
   def tsk = project.tasks.register(fixtureName, org.opensearch.gradle.test.AntFixture) {

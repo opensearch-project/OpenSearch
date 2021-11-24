@@ -53,9 +53,16 @@ public class JarHellPrecommitPlugin extends PrecommitPlugin {
 
         TaskProvider<JarHellTask> jarHell = project.getTasks().register("jarHell", JarHellTask.class);
         jarHell.configure(t -> {
-            SourceSet testSourceSet = Util.getJavaTestSourceSet(project).get();
+            final Task testClassesTask = project.getTasks().getByName("testClasses");
+            final SourceSet testSourceSet = Util.getJavaTestSourceSet(project).get();
             t.setClasspath(testSourceSet.getRuntimeClasspath().plus(jarHellConfig));
-            t.dependsOn(jarHellConfig);
+            t.dependsOn(jarHellConfig, testClassesTask);
+
+            // if this a plugin, we need to add dependency on pluginProperties task
+            project.getPluginManager().withPlugin("opensearch.opensearchplugin", plugin -> {
+                Task propertiesTask = project.getTasks().getByName("pluginProperties");
+                t.dependsOn(jarHellConfig, testClassesTask, propertiesTask);
+            });
         });
 
         return jarHell;
