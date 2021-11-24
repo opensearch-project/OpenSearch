@@ -6,7 +6,7 @@ So you want to contribute code to OpenSearch? Excellent! We're glad you're here.
   - [Getting Started](#getting-started)
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
-      - [JDK 14](#jdk-14)
+      - [JDK 11](#jdk-11)
       - [JDK 8 and 11](#jdk-8-and-11)
       - [Runtime JDK](#runtime-jdk)
       - [Windows](#windows)
@@ -47,22 +47,12 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 ### Install Prerequisites
 
-#### JDK 14
+#### JDK 11
 
-OpenSearch builds using Java 14 at a minimum. This means you must have a JDK 14 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 14 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-14`.
-
-One easy way to get Java 14 on *nix is to use [sdkman](https://sdkman.io/). 
-
-```bash
-curl -s "https://get.sdkman.io" | bash
-source ~/.sdkman/bin/sdkman-init.sh
-sdk install java 14.0.2-open
-sdk use java 14.0.2-open
-```
-
-Download Java 14 from [here](https://adoptium.net/releases.html?variant=openjdk14).
+OpenSearch builds using Java 11 at a minimum. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`.
 
 #### JDK 8 and 11
+By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
 
 To run the full suite of tests, download and install [JDK 8](https://adoptium.net/releases.html?variant=openjdk8) and [11](https://adoptium.net/releases.html?variant=openjdk11) and set `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
 
