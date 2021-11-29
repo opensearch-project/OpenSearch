@@ -124,7 +124,7 @@ dependencies {
   testFixturesApi gradleTestKit()
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
-  integTestImplementation('org.spockframework:spock-core:1.3-groovy-2.5') {
+  integTestImplementation('org.spockframework:spock-core:2.0-groovy-3.0') {
     exclude module: "groovy"
   }
 }
@@ -260,6 +260,9 @@ if (project != rootProject) {
    */
   afterEvaluate {
     generatePomFileForPluginMavenPublication.enabled = false
+    tasks.named("validatePluginMavenPom").configure {
+      dependsOn("generatePomFileForNebulaPublication")
+    }
   }
 
   publishing.publications.named("nebula").configure {
