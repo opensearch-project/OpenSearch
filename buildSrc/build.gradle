@@ -263,6 +263,9 @@ if (project != rootProject) {
     tasks.named("validatePluginMavenPom").configure {
       dependsOn("generatePomFileForNebulaPublication")
     }
+    tasks.named("publishPluginMavenPublicationToMavenLocal").configure {
+      dependsOn("generatePomFileForNebulaPublication")
+    }
   }
 
   publishing.publications.named("nebula").configure {
