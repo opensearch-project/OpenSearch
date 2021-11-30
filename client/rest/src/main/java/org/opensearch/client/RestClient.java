@@ -912,14 +912,9 @@ public class RestClient implements Closeable {
             return e;
         }
         if (exception instanceof SSLHandshakeException) {
-            SSLHandshakeException e;
-            if (exception.getMessage().contains("SunCertPathBuilderException")) {
-                e = new SSLHandshakeException(
-                    exception.getMessage() + "\nSee https://opensearch.org/docs/latest/clients/java-rest-high-level/ for troubleshooting."
-                );
-            } else {
-                e = new SSLHandshakeException(exception.getMessage());
-            }
+            SSLHandshakeException e = new SSLHandshakeException(
+                exception.getMessage() + "\nSee https://opensearch.org/docs/latest/clients/java-rest-high-level/ for troubleshooting."
+            );
             e.initCause(exception);
             return e;
         }
