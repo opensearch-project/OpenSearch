@@ -260,10 +260,7 @@ if (project != rootProject) {
    */
   afterEvaluate {
     generatePomFileForPluginMavenPublication.enabled = false
-    tasks.named("validatePluginMavenPom").configure {
-      dependsOn("generatePomFileForNebulaPublication")
-    }
-    tasks.named("publishPluginMavenPublicationToMavenLocal").configure {
+    tasks.matching { it.name.contains("PluginMaven") }*.configure {
       dependsOn("generatePomFileForNebulaPublication")
     }
   }
