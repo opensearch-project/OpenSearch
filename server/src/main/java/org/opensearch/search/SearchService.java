@@ -56,7 +56,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.metrics.ResourceTracker;
+import org.opensearch.common.metrics.MetricsTracker;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -843,7 +843,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout);
         try {
             if (resourceTrackingEnabled) {
-                context.resourceTracker(new ResourceTracker());
+                context.resourceTracker(new MetricsTracker());
             }
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
@@ -1472,7 +1472,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             this.context = context;
             time = startTime;
             this.fetch = fetch;
-            resetResourceTracking(context);
             if (fetch) {
                 listener.onPreFetchPhase(context);
             } else {
@@ -1518,12 +1517,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         context.resourceTracker().toString()
                     );
                 }
-            }
-        }
-
-        private void resetResourceTracking(SearchContext context) {
-            if (context.resourceTracker() != null) {
-                context.resourceTracker().reset();
             }
         }
     }

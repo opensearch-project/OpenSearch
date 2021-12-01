@@ -32,7 +32,7 @@
 package org.opensearch.search.internal;
 
 import org.apache.lucene.search.Query;
-import org.opensearch.common.metrics.ResourceTracker;
+import org.opensearch.common.metrics.MetricsTracker;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.search.aggregations.SearchContextAggregations;
@@ -80,7 +80,7 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean trackScores;
     private boolean version;
     private boolean seqNoAndPrimaryTerm;
-    private ResourceTracker resourceTracker;
+    private MetricsTracker metricsTracker;
 
     public SubSearchContext(SearchContext context) {
         super(context);
@@ -363,12 +363,12 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void resourceTracker(ResourceTracker resourceTracker) {
-        this.resourceTracker = resourceTracker;
+    public void resourceTracker(MetricsTracker metricsTracker) {
+        this.metricsTracker = metricsTracker;
     }
 
     @Override
-    public ResourceTracker resourceTracker() {
-        return this.resourceTracker;
+    public MetricsTracker resourceTracker() {
+        return this.metricsTracker;
     }
 }

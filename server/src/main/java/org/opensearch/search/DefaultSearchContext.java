@@ -46,7 +46,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.Queries;
-import org.opensearch.common.metrics.ResourceTracker;
+import org.opensearch.common.metrics.MetricsTracker;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.IndexService;
@@ -120,7 +120,7 @@ final class DefaultSearchContext extends SearchContext {
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private List<String> groupStats;
-    private ResourceTracker resourceTracker;
+    private MetricsTracker metricsTracker;
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
     private boolean seqAndPrimaryTerm = false;
@@ -761,13 +761,13 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     @Nullable
-    public ResourceTracker resourceTracker() {
-        return this.resourceTracker;
+    public MetricsTracker resourceTracker() {
+        return this.metricsTracker;
     }
 
     @Override
-    public void resourceTracker(ResourceTracker resourceTracker) {
-        this.resourceTracker = resourceTracker;
+    public void resourceTracker(MetricsTracker metricsTracker) {
+        this.metricsTracker = metricsTracker;
     }
 
     @Override

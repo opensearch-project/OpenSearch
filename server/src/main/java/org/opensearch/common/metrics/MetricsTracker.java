@@ -14,11 +14,14 @@ import org.opensearch.common.SuppressForbidden;
 import java.lang.management.ManagementFactory;
 
 /*
-    Simple tracker for CPU consumption and memory allocated by the current thread
+    Simple tracker for CPU consumption and memory allocated by the current thread.
+    In the current model, it is important for updateMetrics to be called from the thread that created the object
+
+    This will evolve to support frequent updates and directly update task with resource usage
 */
 @SuppressForbidden(reason = "ThreadMXBean enables tracking resource consumption by a thread. "
     + "It is platform dependent and i am not aware of an alternate mechanism to extract this info")
-public class ResourceTracker {
+public class MetricsTracker {
 
     static ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
     long startingAllocatedBytes;
@@ -26,26 +29,12 @@ public class ResourceTracker {
     long memoryAllocated;
     long cpuTime;
 
-    public ResourceTracker() {
-        reset();
-    }
-
     /**
      * Takes current snapshot of resource usage by thread since the creation of this object
      */
     public void updateMetrics() {
         this.memoryAllocated = threadMXBean.getThreadAllocatedBytes(Thread.currentThread().getId()) - startingAllocatedBytes;
         this.cpuTime = threadMXBean.getCurrentThreadCpuTime() - startingCPUTime;
-    }
-
-    /**
-     * Wipes out local state and resets to a clean tracker
-     */
-    public void reset() {
-        this.startingCPUTime = threadMXBean.getCurrentThreadCpuTime();
-        this.startingAllocatedBytes = threadMXBean.getThreadAllocatedBytes(Thread.currentThread().getId());
-        this.memoryAllocated = 0;
-        this.cpuTime = 0;
     }
 
     /**
@@ -66,6 +55,6 @@ public class ResourceTracker {
 
     @Override
     public String toString() {
-        return "resource_tracker[memoryAllocatedBytes=" + memoryAllocated + ",cpuTime=" + cpuTime + "]";
+        return "metrics_tracker[memoryAllocatedBytes=" + memoryAllocated + ",cpuTime=" + cpuTime + "]";
     }
 }

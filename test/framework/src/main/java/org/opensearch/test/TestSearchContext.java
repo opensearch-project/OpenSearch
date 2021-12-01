@@ -37,7 +37,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.common.metrics.ResourceTracker;
+import org.opensearch.common.metrics.MetricsTracker;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.IndexService;
@@ -110,7 +110,7 @@ public class TestSearchContext extends SearchContext {
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
     private ScrollContext scrollContext;
-    private ResourceTracker resourceTracker;
+    private MetricsTracker metricsTracker;
 
     private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
@@ -390,13 +390,13 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void resourceTracker(ResourceTracker resourceTracker) {
-        this.resourceTracker = resourceTracker;
+    public void resourceTracker(MetricsTracker metricsTracker) {
+        this.metricsTracker = metricsTracker;
     }
 
     @Override
-    public ResourceTracker resourceTracker() {
-        return this.resourceTracker;
+    public MetricsTracker resourceTracker() {
+        return this.metricsTracker;
     }
 
     @Override

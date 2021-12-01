@@ -8,11 +8,12 @@
 
 package org.opensearch.search.stats;
 
-import org.junit.AfterClass;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.metrics.ResourceTracker;
+import org.opensearch.common.metrics.MetricsTracker;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.query.MatchQueryBuilder;
@@ -35,7 +36,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class ResourceTrackerIT extends OpenSearchIntegTestCase {
+public class MetricsTrackerIT extends OpenSearchIntegTestCase {
 
     String index = "idx";
 
@@ -53,14 +54,6 @@ public class ResourceTrackerIT extends OpenSearchIntegTestCase {
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)
                 )
         );
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Collections.singletonMap(SearchService.RESOURCE_TRACKING_SETTING.getKey(), true))
-        );
-
         addDocuments(index, 100);
     }
 
@@ -69,23 +62,23 @@ public class ResourceTrackerIT extends OpenSearchIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Collections.singletonMap(SearchService.RESOURCE_TRACKING_SETTING.getKey(), false))
+                .setTransientSettings(Collections.singletonMap(SearchService.RESOURCE_TRACKING_SETTING.getKey(), false))
         );
 
         SearchRequestBuilder queryBuilder = client().prepareSearch(index).setQuery(new MatchQueryBuilder("tag", "tag99")).setSize(5);
         assertSearchResponse(queryBuilder.get());
-        assertNull(SearchResourceTrackerPlugin.queryTracker);
-        assertNull(SearchResourceTrackerPlugin.fetchTracker);
+        assertNull(SearchMetricsTrackerPlugin.queryTracker);
+        assertNull(SearchMetricsTrackerPlugin.fetchTracker);
 
         assertAcked(
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Collections.singletonMap(SearchService.RESOURCE_TRACKING_SETTING.getKey(), true))
+                .setTransientSettings(Collections.singletonMap(SearchService.RESOURCE_TRACKING_SETTING.getKey(), true))
         );
         assertSearchResponse(queryBuilder.get());
-        assertNotNull(SearchResourceTrackerPlugin.queryTracker);
-        assertNotNull(SearchResourceTrackerPlugin.fetchTracker);
+        assertNotNull(SearchMetricsTrackerPlugin.queryTracker);
+        assertNotNull(SearchMetricsTrackerPlugin.fetchTracker);
     }
 
     public void testQueryPhaseMemoryTracking() {
@@ -94,37 +87,27 @@ public class ResourceTrackerIT extends OpenSearchIntegTestCase {
         SearchRequestBuilder simpleMatchQuery = client().prepareSearch(index).setQuery(new MatchQueryBuilder("tag", "tag1")).setSize(0);
         long simpleMatchMemory = getResourcesForQuery(simpleMatchQuery, false);
 
-        SearchRequestBuilder termsAggQuery = client().prepareSearch(index).setSize(0).addAggregation(terms("values").field("value"));
-        long termsAggMemory = getResourcesForQuery(termsAggQuery, false);
-        assertTrue(
-            "termsAggregation memory consumption of ["
-                + termsAggMemory
-                + "] was found to be lower than simple match query ["
-                + simpleMatchMemory
-                + "]",
-            termsAggMemory > simpleMatchMemory
-        );
-
         SearchRequestBuilder multiLevelAggQuery = client().prepareSearch(index)
             .setSize(0)
             .addAggregation(terms("values").field("value").subAggregation(terms("tagSub").field("tag")));
         long multiLevelAggMemory = getResourcesForQuery(multiLevelAggQuery, false);
-        assert multiLevelAggMemory > termsAggMemory;
+        assertTrue(
+            "multiLevelAggQuery memory consumption of ["
+                + multiLevelAggMemory
+                + "] was found to be lower than simple match query ["
+                + simpleMatchMemory
+                + "]",
+            multiLevelAggMemory > simpleMatchMemory
+        );
     }
 
     public void testFetchPhaseMemoryTracking() {
         SearchRequestBuilder simpleMatchQuery5 = client().prepareSearch(index).setQuery(new MatchQueryBuilder("tag", "tag99")).setSize(5);
         long simpleMatchMemory5 = getResourcesForQuery(simpleMatchQuery5, true);
 
-        SearchRequestBuilder simpleMatchQuery100 = client().prepareSearch(index)
-            .setQuery(new MatchQueryBuilder("tag", "tag99"))
-            .setSize(50);
-        long simpleMatchMemory100 = getResourcesForQuery(simpleMatchQuery100, true);
-        assert simpleMatchMemory100 > simpleMatchMemory5;
-
-        SearchRequestBuilder simpleMatchQuery300 = client().prepareSearch(index).setQuery(matchQuery("tag", "tag99")).setSize(100);
-        long simpleMatchMemory300 = getResourcesForQuery(simpleMatchQuery300, true);
-        assert simpleMatchMemory300 > simpleMatchMemory100;
+        SearchRequestBuilder simpleMatchQuery1000 = client().prepareSearch(index).setQuery(matchQuery("tag", "tag99")).setSize(1000);
+        long simpleMatchMemory1000 = getResourcesForQuery(simpleMatchQuery1000, true);
+        assert simpleMatchMemory1000 > simpleMatchMemory5;
     }
 
     // Helper that ingests duplicate docs
@@ -143,35 +126,45 @@ public class ResourceTrackerIT extends OpenSearchIntegTestCase {
 
     // helper that returns the memory allocated by a query
     private long getResourcesForQuery(SearchRequestBuilder request, boolean fetchPhase) {
-        // we are doing some warm-up runs as first run uses showing higher memory
-        // TODO: why first run in test takes more memory - points towards caching but cache is being cleared after each run
-        // is there some other initialization overhead? buy a beer to anyone who can help answer this
+        // We are doing a warm-up run as first run uses showing higher memory
+        // Why does first run in test takes more memory - points towards caching but cache is being cleared after each run.
+        // Is there some other initialization overhead? Will buy a beer to anyone who can help answer this
         for (int i = 0; i < 2; i++) {
             assertSearchResponse(request.get());
             client().admin().indices().prepareClearCache("*").setFieldDataCache(true).setQueryCache(true).setRequestCache(true).execute();
         }
-        return fetchPhase ? SearchResourceTrackerPlugin.fetchMemorySnapshot : SearchResourceTrackerPlugin.queryMemorySnapshot;
+        return fetchPhase ? SearchMetricsTrackerPlugin.fetchMemorySnapshot : SearchMetricsTrackerPlugin.queryMemorySnapshot;
     }
 
-    @AfterClass
-    public static void cleanup() throws Exception {
+    @Before
+    public void setup() throws Exception {
         assertAcked(
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(SearchService.RESOURCE_TRACKING_SETTING.getKey()))
+                .setTransientSettings(Collections.singletonMap(SearchService.RESOURCE_TRACKING_SETTING.getKey(), true))
+        );
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(SearchService.RESOURCE_TRACKING_SETTING.getKey()))
         );
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(SearchResourceTrackerPlugin.class);
+        return Collections.singleton(SearchMetricsTrackerPlugin.class);
     }
 
     // Helper plugin tracks the resource tracker against the last shard that was queried on the node
-    public static class SearchResourceTrackerPlugin extends Plugin {
-        public static ResourceTracker fetchTracker;
-        public static ResourceTracker queryTracker;
+    public static class SearchMetricsTrackerPlugin extends Plugin {
+        public static MetricsTracker fetchTracker;
+        public static MetricsTracker queryTracker;
 
         // As query and fetch trackers are references which get reset, capture last snapshots here
         public static long fetchMemorySnapshot;
