@@ -98,9 +98,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 } else {
                     return primaryDirectory;
                 }
-            case SIMPLEFS:
             case MMAPFS:
                 return setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
+            // simplefs was removed in Lucene 9; support for enum is maintained for bwc
+            case SIMPLEFS:
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
             default:

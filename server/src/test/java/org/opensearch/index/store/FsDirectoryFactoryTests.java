@@ -156,6 +156,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
                 case HYBRIDFS:
                     assertTrue(FsDirectoryFactory.isHybridFs(directory));
                     break;
+                // simplefs was removed in Lucene 9; support for enum is maintained for bwc
                 case SIMPLEFS:
                 case NIOFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
