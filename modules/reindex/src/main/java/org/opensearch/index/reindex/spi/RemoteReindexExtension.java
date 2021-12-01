@@ -28,7 +28,8 @@ public interface RemoteReindexExtension {
      * the success/failure of the remote reindex call.
      * @return ActionListener wrapper implementation.
      */
-    ActionListener<BulkByScrollResponse> getRemoteReindexActionListener(ActionListener<BulkByScrollResponse> listener,
-        ReindexRequest reindexRequest);
+    ActionListener<BulkByScrollResponse> getRemoteReindexActionListener(
+        ActionListener<BulkByScrollResponse> listener,
+        ReindexRequest reindexRequest
+    );
 }
-

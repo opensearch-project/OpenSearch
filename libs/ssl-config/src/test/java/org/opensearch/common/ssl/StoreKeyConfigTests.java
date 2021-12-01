@@ -83,8 +83,13 @@ public class StoreKeyConfigTests extends OpenSearchTestCase {
     public void testLoadMultipleKeyJksWithSeparateKeyPassword() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path jks = getDataPath("/certs/cert-all/certs.jks");
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(jks, JKS_PASS, "jks", "key-pass".toCharArray(),
-            KeyManagerFactory.getDefaultAlgorithm());
+        final StoreKeyConfig keyConfig = new StoreKeyConfig(
+            jks,
+            JKS_PASS,
+            "jks",
+            "key-pass".toCharArray(),
+            KeyManagerFactory.getDefaultAlgorithm()
+        );
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(jks));
         assertKeysLoaded(keyConfig, "cert1", "cert2");
     }
@@ -92,8 +97,13 @@ public class StoreKeyConfigTests extends OpenSearchTestCase {
     public void testKeyManagerFailsWithIncorrectStorePassword() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path jks = getDataPath("/certs/cert-all/certs.jks");
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(jks, P12_PASS, "jks", "key-pass".toCharArray(),
-            KeyManagerFactory.getDefaultAlgorithm());
+        final StoreKeyConfig keyConfig = new StoreKeyConfig(
+            jks,
+            P12_PASS,
+            "jks",
+            "key-pass".toCharArray(),
+            KeyManagerFactory.getDefaultAlgorithm()
+        );
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(jks));
         assertPasswordIsIncorrect(keyConfig, jks);
     }
@@ -175,10 +185,10 @@ public class StoreKeyConfigTests extends OpenSearchTestCase {
             assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
             assertThat(certificate.getSubjectDN().getName(), is("CN=" + name));
             assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
-            assertThat(certificate.getSubjectAlternativeNames(), containsInAnyOrder(
-                Arrays.asList(DNS_NAME, "localhost"),
-                Arrays.asList(IP_NAME, "127.0.0.1")
-            ));
+            assertThat(
+                certificate.getSubjectAlternativeNames(),
+                containsInAnyOrder(Arrays.asList(DNS_NAME, "localhost"), Arrays.asList(IP_NAME, "127.0.0.1"))
+            );
         }
     }
 

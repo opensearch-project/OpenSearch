@@ -57,7 +57,8 @@ public class HdfsBlobStoreRepositoryTests extends OpenSearchBlobStoreRepositoryI
             .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
             .put("path", "foo")
             .put("chunk_size", randomIntBetween(100, 1000) + "k")
-            .put("compress", randomBoolean()).build();
+            .put("compress", randomBoolean())
+            .build();
     }
 
     @Override

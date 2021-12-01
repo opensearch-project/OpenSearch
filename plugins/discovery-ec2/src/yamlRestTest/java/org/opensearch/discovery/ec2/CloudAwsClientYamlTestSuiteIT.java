@@ -49,4 +49,3 @@ public class CloudAwsClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTest
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

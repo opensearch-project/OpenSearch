@@ -7,6 +7,7 @@
  */
 
 import javax.annotation.Nullable
+import org.gradle.internal.jvm.Jvm
 
 /**
  * Checks for missing javadocs.
@@ -300,9 +301,7 @@ class MissingJavadocTask extends DefaultTask {
 
     def javadocCmd = {
       if (executable == null) {
-        JavaInstallationRegistry registry = project.extensions.getByType(JavaInstallationRegistry)
-        JavaInstallation currentJvm = registry.installationForCurrentVirtualMachine.get()
-        return currentJvm.jdk.get().javadocExecutable.asFile
+        return Jvm.current().javadocExecutable
       } else {
         return project.file(executable)
       }

@@ -687,6 +687,21 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             );
         }
         {
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> {
+                IndexRequest indexRequest = new IndexRequest("index").id("missing_alias").setRequireAlias(true);
+                indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
+
+                execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
+            });
+
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals(
+                "OpenSearch exception [type=index_not_found_exception, reason=no such index [index]"
+                    + " and [require_alias] request flag is [true] and [index] is not an alias]",
+                exception.getMessage()
+            );
+        }
+        {
             IndexRequest indexRequest = new IndexRequest("index").id("external_version_type");
             indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
             indexRequest.version(12L);
@@ -923,6 +938,18 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             });
             assertEquals(
                 "Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
+                exception.getMessage()
+            );
+        }
+        {
+            OpenSearchException exception = expectThrows(OpenSearchException.class, () -> {
+                UpdateRequest updateRequest = new UpdateRequest("index", "require_alias").setRequireAlias(true);
+                updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
+                execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
+            });
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals(
+                "OpenSearch exception [type=index_not_found_exception, reason=no such index [index] and [require_alias] request flag is [true] and [index] is not an alias]",
                 exception.getMessage()
             );
         }

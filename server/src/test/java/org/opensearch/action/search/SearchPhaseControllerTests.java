@@ -396,7 +396,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         for (SearchPhaseResult shardResult : results.asList()) {
             TopDocs topDocs = shardResult.queryResult().topDocs().topDocs;
             assert topDocs.totalHits.relation == Relation.EQUAL_TO;
-            resultCount += topDocs.totalHits.value;
+            resultCount += (int) topDocs.totalHits.value;
         }
         return resultCount;
     }

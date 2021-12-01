@@ -61,7 +61,12 @@ public class FunctionTable {
         protected final Method asmMethod;
 
         public LocalFunction(
-                String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic) {
+            String functionName,
+            Class<?> returnType,
+            List<Class<?>> typeParameters,
+            boolean isInternal,
+            boolean isStatic
+        ) {
 
             this.functionName = Objects.requireNonNull(functionName);
             this.returnType = Objects.requireNonNull(returnType);
@@ -73,8 +78,10 @@ public class FunctionTable {
             Class<?>[] javaTypeParameters = typeParameters.stream().map(PainlessLookupUtility::typeToJavaType).toArray(Class<?>[]::new);
 
             this.methodType = MethodType.methodType(javaReturnType, javaTypeParameters);
-            this.asmMethod = new org.objectweb.asm.commons.Method(functionName,
-                    MethodType.methodType(javaReturnType, javaTypeParameters).toMethodDescriptorString());
+            this.asmMethod = new org.objectweb.asm.commons.Method(
+                functionName,
+                MethodType.methodType(javaReturnType, javaTypeParameters).toMethodDescriptorString()
+            );
         }
 
         public String getFunctionName() {
@@ -119,7 +126,12 @@ public class FunctionTable {
     protected Map<String, LocalFunction> localFunctions = new HashMap<>();
 
     public LocalFunction addFunction(
-            String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic) {
+        String functionName,
+        Class<?> returnType,
+        List<Class<?>> typeParameters,
+        boolean isInternal,
+        boolean isStatic
+    ) {
 
         String functionKey = buildLocalFunctionKey(functionName, typeParameters.size());
         LocalFunction function = new LocalFunction(functionName, returnType, typeParameters, isInternal, isStatic);

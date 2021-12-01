@@ -33,9 +33,11 @@
 package org.opensearch.gradle.internal;
 
 import org.opensearch.gradle.BwcVersions;
+import org.opensearch.gradle.LoggedExec;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin;
+import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -204,24 +206,30 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         TaskProvider<Task> bwcTaskProvider
     ) {
         String bwcTaskName = buildBwcTaskName(projectName);
-        bwcSetupExtension.bwcTask(bwcTaskName, c -> {
-            c.getInputs().file(new File(project.getBuildDir(), "refspec"));
-            c.getOutputs().files(projectArtifact);
-            c.getOutputs().cacheIf("BWC distribution caching is disabled on 'master' branch", task -> {
-                String gitBranch = System.getenv("GIT_BRANCH");
-                return BuildParams.isCi() && (gitBranch == null || gitBranch.endsWith("master") == false);
-            });
-            c.args(projectPath.replace('/', ':') + ":assemble");
-            if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
-                c.args("--build-cache");
-            }
-            c.doLast(task -> {
-                if (projectArtifact.exists() == false) {
-                    throw new InvalidUserDataException(
-                        "Building " + bwcVersion.get() + " didn't generate expected file " + projectArtifact
-                    );
+        bwcSetupExtension.bwcTask(bwcTaskName, new Action<LoggedExec>() {
+            @Override
+            public void execute(LoggedExec c) {
+                c.getInputs().file(new File(project.getBuildDir(), "refspec"));
+                c.getOutputs().files(projectArtifact);
+                c.getOutputs().cacheIf("BWC distribution caching is disabled on 'master' branch", task -> {
+                    String gitBranch = System.getenv("GIT_BRANCH");
+                    return BuildParams.isCi() && (gitBranch == null || gitBranch.endsWith("master") == false);
+                });
+                c.args(projectPath.replace('/', ':') + ":assemble");
+                if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
+                    c.args("--build-cache");
                 }
-            });
+                c.doLast(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        if (projectArtifact.exists() == false) {
+                            throw new InvalidUserDataException(
+                                "Building " + bwcVersion.get() + " didn't generate expected file " + projectArtifact
+                            );
+                        }
+                    }
+                });
+            }
         });
         bwcTaskProvider.configure(t -> t.dependsOn(bwcTaskName));
     }

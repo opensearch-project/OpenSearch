@@ -76,12 +76,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * @return a compiled template object for later execution.
      * */
     @Override
-    public <T> T compile(
-        String templateName,
-        String templateSource,
-        ScriptContext<T> context,
-        Map<String, String> options
-    ) {
+    public <T> T compile(String templateName, String templateSource, ScriptContext<T> context, Map<String, String> options) {
         if (context.instanceClazz.equals(TemplateScript.class) == false) {
             throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
         }

@@ -51,6 +51,8 @@ import java.util.Collections;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.transport.RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.opensearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS;
+import static org.opensearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY;
+import static org.opensearch.transport.SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {
@@ -67,6 +69,7 @@ public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRest
                     {
                         builder.field("search.remote.foo.skip_unavailable", true);
                         builder.field("search.remote.foo.seeds", Collections.singletonList("localhost:9200"));
+                        builder.field("search.remote.foo.proxy", "localhost:9200");
                     }
                     builder.endObject();
                 }
@@ -87,11 +90,15 @@ public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRest
                 assertThat(
                         SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
                         equalTo(Collections.singletonList("localhost:9200")));
+                assertTrue(SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
+                assertEquals(String.valueOf(SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings)), 
+                                "localhost:9200");
             }
 
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                     SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo"),
-                    SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo")});
+                    SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo"),
+                    SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo")});
         } else {
             final Request getSettingsRequest = new Request("GET", "/_cluster/settings");
             final Response getSettingsResponse = client().performRequest(getSettingsRequest);
@@ -109,6 +116,10 @@ public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRest
                 assertThat(
                         SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
                         equalTo(Collections.singletonList("localhost:9200")));
+                assertFalse(SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
+                assertTrue(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
+                assertEquals(String.valueOf(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings)), 
+                                "localhost:9200");
             }
         }
     }

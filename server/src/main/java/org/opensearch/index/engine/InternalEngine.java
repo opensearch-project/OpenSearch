@@ -106,6 +106,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogCorruptedException;
+import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -233,7 +234,7 @@ public class InternalEngine extends Engine {
         if (customTranslogDeletionPolicy != null) {
             translogDeletionPolicy = customTranslogDeletionPolicy;
         } else {
-            translogDeletionPolicy = new TranslogDeletionPolicy(
+            translogDeletionPolicy = new DefaultTranslogDeletionPolicy(
                 engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
                 engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
                 engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
@@ -2801,12 +2802,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void onSettingsChanged(
-        TimeValue translogRetentionAge,
-        ByteSizeValue translogRetentionSize,
-        long softDeletesRetentionOps,
-        boolean translogPruningByRetentionLease
-    ) {
+    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
         mergeScheduler.refreshConfig();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
         maybePruneDeletes();
@@ -2819,7 +2815,6 @@ public class InternalEngine extends Engine {
         final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
         translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
-        translogDeletionPolicy.shouldPruneTranslogByRetentionLease(translogPruningByRetentionLease);
         softDeletesPolicy.setRetentionOperations(softDeletesRetentionOps);
     }
 

@@ -65,7 +65,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
     public static void shutdownSchedulers() {
         Schedulers.shutdownNow();
     }
-    
+
     @Override
     protected String repositoryType() {
         return AzureRepository.TYPE;
@@ -125,10 +125,16 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
             return new AzureStorageService(settings) {
                 @Override
                 RequestRetryOptions createRetryPolicy(final AzureStorageSettings azureStorageSettings, String secondaryHost) {
-                    return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL, azureStorageSettings.getMaxRetries(),
-                        1, 100L, 500L, secondaryHost);
+                    return new RequestRetryOptions(
+                        RetryPolicyType.EXPONENTIAL,
+                        azureStorageSettings.getMaxRetries(),
+                        1,
+                        100L,
+                        500L,
+                        secondaryHost
+                    );
                 }
-                
+
                 @Override
                 ParallelTransferOptions getBlobRequestOptionsForWriteBlob() {
                     return new ParallelTransferOptions().setMaxSingleUploadSizeLong(ByteSizeUnit.MB.toBytes(1));

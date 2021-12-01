@@ -299,6 +299,7 @@ public class FollowersChecker {
     private void handleDisconnectedNode(DiscoveryNode discoveryNode) {
         FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
         if (followerChecker != null) {
+            logger.info(() -> new ParameterizedMessage("{} disconnected", followerChecker));
             followerChecker.failNode("disconnected");
         }
     }
@@ -395,16 +396,16 @@ public class FollowersChecker {
 
                         final String reason;
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                            logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
+                            logger.info(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
-                            logger.debug(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
+                            logger.info(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
                             reason = "health check failed";
                         } else if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
-                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
+                            logger.info(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
                             reason = "followers check retry count exceeded";
                         } else {
-                            logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
+                            logger.info(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
                             return;
                         }
@@ -429,7 +430,7 @@ public class FollowersChecker {
                             logger.trace("{} no longer running, not marking faulty", FollowerChecker.this);
                             return;
                         }
-                        logger.debug("{} marking node as faulty", FollowerChecker.this);
+                        logger.info("{} marking node as faulty", FollowerChecker.this);
                         faultyNodes.add(discoveryNode);
                         followerCheckers.remove(discoveryNode);
                     }

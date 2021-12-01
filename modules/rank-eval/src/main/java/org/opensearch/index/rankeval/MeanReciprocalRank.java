@@ -147,13 +147,17 @@ public class MeanReciprocalRank implements EvaluationMetric {
 
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
     private static final ParseField K_FIELD = new ParseField("k");
-    private static final ConstructingObjectParser<MeanReciprocalRank, Void> PARSER = new ConstructingObjectParser<>("reciprocal_rank",
-            args -> {
-                Integer optionalThreshold = (Integer) args[0];
-                Integer optionalK = (Integer) args[1];
-                return new MeanReciprocalRank(optionalThreshold == null ? DEFAULT_RATING_THRESHOLD : optionalThreshold,
-                        optionalK == null ? DEFAULT_K : optionalK);
-            });
+    private static final ConstructingObjectParser<MeanReciprocalRank, Void> PARSER = new ConstructingObjectParser<>(
+        "reciprocal_rank",
+        args -> {
+            Integer optionalThreshold = (Integer) args[0];
+            Integer optionalK = (Integer) args[1];
+            return new MeanReciprocalRank(
+                optionalThreshold == null ? DEFAULT_RATING_THRESHOLD : optionalThreshold,
+                optionalK == null ? DEFAULT_K : optionalK
+            );
+        }
+    );
 
     static {
         PARSER.declareInt(optionalConstructorArg(), RELEVANT_RATING_FIELD);
@@ -184,8 +188,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
             return false;
         }
         MeanReciprocalRank other = (MeanReciprocalRank) obj;
-        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold)
-                && Objects.equals(k, other.k);
+        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold) && Objects.equals(k, other.k);
     }
 
     @Override
@@ -207,20 +210,20 @@ public class MeanReciprocalRank implements EvaluationMetric {
         }
 
         @Override
-        public
-        String getMetricName() {
+        public String getMetricName() {
             return NAME;
         }
 
         @Override
-        public XContentBuilder innerToXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.field(FIRST_RELEVANT_RANK_FIELD.getPreferredName(), firstRelevantRank);
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
-            return new Detail((Integer) args[0]);
-        });
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> { return new Detail((Integer) args[0]); }
+        );
 
         static {
             PARSER.declareInt(constructorArg(), FIRST_RELEVANT_RANK_FIELD);

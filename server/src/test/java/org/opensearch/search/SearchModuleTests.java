@@ -337,7 +337,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
         Set<String> registeredNonDeprecated = module.getNamedXContents()
             .stream()
             .filter(e -> e.categoryClass.equals(QueryBuilder.class))
-            .filter(e -> e.name.getDeprecatedNames().length == 0)
+            .filter(e -> e.name.getAllReplacedWith() == null)
             .map(e -> e.name.getPreferredName())
             .collect(toSet());
         Set<String> registeredAll = module.getNamedXContents()
@@ -422,7 +422,6 @@ public class SearchModuleTests extends OpenSearchTestCase {
         "constant_score",
         "dis_max",
         "exists",
-        "field_masking_span",
         "function_score",
         "fuzzy",
         "geo_bounding_box",
@@ -448,6 +447,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
         "script_score",
         "simple_query_string",
         "span_containing",
+        "span_field_masking",
         "span_first",
         "span_gap",
         "span_multi",
@@ -465,7 +465,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
         "distance_feature" };
 
     // add here deprecated queries to make sure we log a deprecation warnings when they are used
-    private static final String[] DEPRECATED_QUERIES = new String[] { "common" };
+    private static final String[] DEPRECATED_QUERIES = new String[] { "common", "field_masking_span" };
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.

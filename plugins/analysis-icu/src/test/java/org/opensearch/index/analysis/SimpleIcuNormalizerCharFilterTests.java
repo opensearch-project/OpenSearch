@@ -41,15 +41,12 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.StringReader;
 
-
 /**
  * Test
  */
 public class SimpleIcuNormalizerCharFilterTests extends OpenSearchTestCase {
     public void testDefaultSetting() throws Exception {
-        Settings settings = Settings.builder()
-            .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
-            .build();
+        Settings settings = Settings.builder().put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer").build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
         CharFilterFactory charFilterFactory = analysis.charFilter.get("myNormalizerChar");
 

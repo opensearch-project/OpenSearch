@@ -148,9 +148,9 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MultiSearchTemplateRequest that = (MultiSearchTemplateRequest) o;
-        return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests &&
-                Objects.equals(requests, that.requests) &&
-                Objects.equals(indicesOptions, that.indicesOptions);
+        return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests
+            && Objects.equals(requests, that.requests)
+            && Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
@@ -158,8 +158,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions);
     }
 
-    public static byte[] writeMultiLineFormat(MultiSearchTemplateRequest multiSearchTemplateRequest,
-            XContent xContent) throws IOException {
+    public static byte[] writeMultiLineFormat(MultiSearchTemplateRequest multiSearchTemplateRequest, XContent xContent) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         for (SearchTemplateRequest templateRequest : multiSearchTemplateRequest.requests()) {
             final SearchRequest searchRequest = templateRequest.getRequest();

@@ -57,14 +57,16 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final Query parentFilter;
     private final Query childFilter;
 
-    public ParentAggregatorFactory(String name,
-                                   ValuesSourceConfig config,
-                                   Query childFilter,
-                                   Query parentFilter,
-                                   QueryShardContext queryShardContext,
-                                   AggregatorFactory parent,
-                                   AggregatorFactories.Builder subFactoriesBuilder,
-                                   Map<String, Object> metadata) throws IOException {
+    public ParentAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        Query childFilter,
+        Query parentFilter,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
 
         this.childFilter = childFilter;
@@ -82,19 +84,33 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator children,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator children,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
 
         ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
-            throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
-                "is not supported for aggregation " + this.name());
+            throw new AggregationExecutionException(
+                "ValuesSource type " + rawValuesSource.toString() + "is not supported for aggregation " + this.name()
+            );
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
-        return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
-            parentFilter, valuesSource, maxOrd, cardinality, metadata);
+        return new ChildrenToParentAggregator(
+            name,
+            factories,
+            searchContext,
+            children,
+            childFilter,
+            parentFilter,
+            valuesSource,
+            maxOrd,
+            cardinality,
+            metadata
+        );
     }
 
     @Override

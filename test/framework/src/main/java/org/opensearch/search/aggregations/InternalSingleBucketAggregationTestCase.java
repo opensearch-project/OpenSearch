@@ -54,8 +54,8 @@ import static java.util.Collections.singletonMap;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public abstract class InternalSingleBucketAggregationTestCase<T extends InternalSingleBucketAggregation>
-        extends InternalAggregationTestCase<T> {
+public abstract class InternalSingleBucketAggregationTestCase<T extends InternalSingleBucketAggregation> extends
+    InternalAggregationTestCase<T> {
 
     private boolean hasInternalMax;
     private boolean hasInternalMin;
@@ -80,6 +80,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
     }
 
     protected abstract T createTestInstance(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata);
+
     protected abstract void extraAssertReduced(T reduced, List<T> inputs);
 
     @Override
@@ -96,27 +97,27 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         InternalAggregations aggregations = instance.getAggregations();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            docCount += between(1, 2000);
-            break;
-        case 2:
-            List<InternalAggregation> aggs = new ArrayList<>();
-            aggs.add(new InternalMax("new_max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
-            aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
-            aggregations = InternalAggregations.from(aggs);
-            break;
-        case 3:
-        default:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                docCount += between(1, 2000);
+                break;
+            case 2:
+                List<InternalAggregation> aggs = new ArrayList<>();
+                aggs.add(new InternalMax("new_max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
+                aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
+                aggregations = InternalAggregations.from(aggs);
+                break;
+            case 3:
+            default:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
         }
         return createTestInstance(name, docCount, aggregations, metadata);
     }
@@ -126,17 +127,17 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         assertEquals(inputs.stream().mapToLong(InternalSingleBucketAggregation::getDocCount).sum(), reduced.getDocCount());
         if (hasInternalMax) {
             double expected = inputs.stream().mapToDouble(i -> {
-                        InternalMax max = i.getAggregations().get("max");
-                        return max.getValue();
-                    }).max().getAsDouble();
+                InternalMax max = i.getAggregations().get("max");
+                return max.getValue();
+            }).max().getAsDouble();
             InternalMax reducedMax = reduced.getAggregations().get("max");
             assertEquals(expected, reducedMax.getValue(), 0);
         }
         if (hasInternalMin) {
             double expected = inputs.stream().mapToDouble(i -> {
-                        InternalMin min = i.getAggregations().get("min");
-                        return min.getValue();
-                    }).min().getAsDouble();
+                InternalMin min = i.getAggregations().get("min");
+                return min.getValue();
+            }).min().getAsDouble();
             InternalMin reducedMin = reduced.getAggregations().get("min");
             assertEquals(expected, reducedMin.getValue(), 0);
         }

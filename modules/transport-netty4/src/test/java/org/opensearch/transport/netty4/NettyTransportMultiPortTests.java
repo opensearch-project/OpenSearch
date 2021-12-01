@@ -133,9 +133,16 @@ public class NettyTransportMultiPortTests extends OpenSearchTestCase {
 
     private TcpTransport startTransport(Settings settings, ThreadPool threadPool) {
         PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
-        TcpTransport transport = new Netty4Transport(settings, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
-            recycler, new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService(),
-            new SharedGroupFactory(settings));
+        TcpTransport transport = new Netty4Transport(
+            settings,
+            Version.CURRENT,
+            threadPool,
+            new NetworkService(Collections.emptyList()),
+            recycler,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(settings)
+        );
         transport.start();
 
         assertThat(transport.lifecycleState(), is(Lifecycle.State.STARTED));

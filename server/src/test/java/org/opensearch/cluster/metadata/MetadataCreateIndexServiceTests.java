@@ -626,6 +626,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             validateIndexName(checkerService, "..", "must not be '.' or '..'");
 
             validateIndexName(checkerService, "foo:bar", "must not contain ':'");
+
+            validateIndexName(checkerService, "", "Invalid index name [], must not be empty");
         }));
     }
 
@@ -1271,31 +1273,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertWarnings(
             "[simplefs] is deprecated and will be removed in 2.0. Use [niofs], which offers equal "
                 + "or better performance, or other file systems instead."
-        );
-    }
-
-    public void testTranslogPruningBasedOnRetentionLeaseDeprecation() {
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        request.settings(
-            Settings.builder()
-                .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_PLUGINS_REPLICATION_TRANSLOG_RETENTION_LEASE_PRUNING_ENABLED_SETTING.getKey(), true)
-                .build()
-        );
-        aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            Settings.EMPTY,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
-        );
-        assertWarnings(
-            "[index.plugins.replication.translog.retention_lease.pruning.enabled] setting "
-                + "was deprecated in OpenSearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version."
         );
     }
 

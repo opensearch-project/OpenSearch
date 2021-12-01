@@ -4598,7 +4598,7 @@
                         }
                       }
                     },
-                    "connected_slaves": {
+                    "connected_replicas": {
                       "type": "long"
                     },
                     "master_offset": {

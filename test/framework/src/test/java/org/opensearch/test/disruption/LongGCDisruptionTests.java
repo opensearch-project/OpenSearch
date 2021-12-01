@@ -33,7 +33,6 @@ package org.opensearch.test.disruption;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.disruption.LongGCDisruption;
 
 import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
@@ -70,9 +69,7 @@ public class LongGCDisruptionTests extends OpenSearchTestCase {
         LongGCDisruption disruption = new LongGCDisruption(random(), nodeName) {
             @Override
             protected Pattern[] getUnsafeClasses() {
-                return new Pattern[]{
-                    Pattern.compile(LockedExecutor.class.getSimpleName())
-                };
+                return new Pattern[] { Pattern.compile(LockedExecutor.class.getSimpleName()) };
             }
 
             @Override
@@ -132,9 +129,7 @@ public class LongGCDisruptionTests extends OpenSearchTestCase {
         LongGCDisruption disruption = new LongGCDisruption(random(), nodeName) {
             @Override
             protected Pattern[] getUnsafeClasses() {
-                return new Pattern[]{
-                    Pattern.compile(LockedExecutor.class.getSimpleName())
-                };
+                return new Pattern[] { Pattern.compile(LockedExecutor.class.getSimpleName()) };
             }
         };
         final AtomicBoolean stop = new AtomicBoolean();
@@ -247,9 +242,7 @@ public class LongGCDisruptionTests extends OpenSearchTestCase {
                 Thread thread = new Thread(() -> {
                     while (stop.get() == false) {
                         if (lockedExec) {
-                            lockedExecutor.executeLocked(() -> {
-                                ops.incrementAndGet();
-                            });
+                            lockedExecutor.executeLocked(() -> { ops.incrementAndGet(); });
                         } else {
                             ops.incrementAndGet();
                         }

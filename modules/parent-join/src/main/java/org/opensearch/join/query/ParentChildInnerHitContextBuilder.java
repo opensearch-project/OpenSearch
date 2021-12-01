@@ -72,8 +72,13 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     private final String typeName;
     private final boolean fetchChildInnerHits;
 
-    ParentChildInnerHitContextBuilder(String typeName, boolean fetchChildInnerHits, QueryBuilder query,
-                                      InnerHitBuilder innerHitBuilder, Map<String, InnerHitContextBuilder> children) {
+    ParentChildInnerHitContextBuilder(
+        String typeName,
+        boolean fetchChildInnerHits,
+        QueryBuilder query,
+        InnerHitBuilder innerHitBuilder,
+        Map<String, InnerHitContextBuilder> children
+    ) {
         super(query, innerHitBuilder, children);
         this.typeName = typeName;
         this.fetchChildInnerHits = fetchChildInnerHits;
@@ -85,8 +90,13 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.mapperService());
         if (joinFieldMapper != null) {
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
-            JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(name, context, typeName,
-                fetchChildInnerHits, joinFieldMapper);
+            JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(
+                name,
+                context,
+                typeName,
+                fetchChildInnerHits,
+                joinFieldMapper
+            );
             setupInnerHitsContext(queryShardContext, joinFieldInnerHits);
             innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
         } else {
@@ -101,8 +111,13 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         private final boolean fetchChildInnerHits;
         private final ParentJoinFieldMapper joinFieldMapper;
 
-        JoinFieldInnerHitSubContext(String name, SearchContext context, String typeName, boolean fetchChildInnerHits,
-                                    ParentJoinFieldMapper joinFieldMapper) {
+        JoinFieldInnerHitSubContext(
+            String name,
+            SearchContext context,
+            String typeName,
+            boolean fetchChildInnerHits,
+            ParentJoinFieldMapper joinFieldMapper
+        ) {
             super(name, context);
             this.typeName = typeName;
             this.fetchChildInnerHits = fetchChildInnerHits;
@@ -118,8 +133,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             }
 
             QueryShardContext qsc = context.getQueryShardContext();
-            ParentIdFieldMapper parentIdFieldMapper =
-                joinFieldMapper.getParentIdFieldMapper(typeName, fetchChildInnerHits == false);
+            ParentIdFieldMapper parentIdFieldMapper = joinFieldMapper.getParentIdFieldMapper(typeName, fetchChildInnerHits == false);
             if (parentIdFieldMapper == null) {
                 return new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
             }
@@ -148,10 +162,9 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                     intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
                 }
                 return new TopDocsAndMaxScore(
-                    new TopDocs(
-                        new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO),
-                        Lucene.EMPTY_SCORE_DOCS
-                    ), Float.NaN);
+                    new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
+                    Float.NaN
+                );
             } else {
                 int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                 TopDocsCollector<?> topDocsCollector;

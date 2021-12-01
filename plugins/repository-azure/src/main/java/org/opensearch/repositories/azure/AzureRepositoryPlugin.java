@@ -73,11 +73,16 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, RecoverySettings recoverySettings) {
-        return Collections.singletonMap(AzureRepository.TYPE,
-                (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService,
-                    recoverySettings));
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings
+    ) {
+        return Collections.singletonMap(
+            AzureRepository.TYPE,
+            (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService, recoverySettings)
+        );
     }
 
     @Override

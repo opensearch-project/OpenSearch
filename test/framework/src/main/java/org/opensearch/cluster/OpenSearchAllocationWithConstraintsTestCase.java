@@ -73,19 +73,19 @@ public abstract class OpenSearchAllocationWithConstraintsTestCase extends OpenSe
         allocation = createAllocationService(sb.build());
     }
 
-    public Metadata buildMetadata(Metadata.Builder mb, String indexPrefix, int numberOfIndices, int numberOfShards,
-            int numberOfReplicas) {
+    public Metadata buildMetadata(Metadata.Builder mb, String indexPrefix, int numberOfIndices, int numberOfShards, int numberOfReplicas) {
         for (int i = 0; i < numberOfIndices; i++) {
-            mb.put(IndexMetadata.builder(indexPrefix + i)
-                    .settings(settings(Version.CURRENT)
-                            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0"))
-                    .numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas));
+            mb.put(
+                IndexMetadata.builder(indexPrefix + i)
+                    .settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0"))
+                    .numberOfShards(numberOfShards)
+                    .numberOfReplicas(numberOfReplicas)
+            );
         }
         return mb.build();
     }
 
-    public RoutingTable buildRoutingTable(RoutingTable.Builder rb, Metadata metadata, String indexPrefix,
-            int numberOfIndices) {
+    public RoutingTable buildRoutingTable(RoutingTable.Builder rb, Metadata metadata, String indexPrefix, int numberOfIndices) {
         for (int i = 0; i < numberOfIndices; i++) {
             rb.addAsNew(metadata.index(indexPrefix + i));
         }
@@ -127,8 +127,7 @@ public abstract class OpenSearchAllocationWithConstraintsTestCase extends OpenSe
         Metadata metadata = buildMetadata(Metadata.builder(), DEFAULT_INDEX_PREFIX, indices, shards, replicas);
         RoutingTable routingTable = buildRoutingTable(RoutingTable.builder(), metadata, DEFAULT_INDEX_PREFIX, indices);
         DiscoveryNodes nodes = addNodes(DiscoveryNodes.builder(), DEFAULT_NODE_PREFIX, nodeCount);
-        initialClusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable)
-                .nodes(nodes).build();
+        initialClusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(nodes).build();
 
         buildAllocationService();
         initialClusterState = allocateShardsAndBalance(initialClusterState);
@@ -191,8 +190,7 @@ public abstract class OpenSearchAllocationWithConstraintsTestCase extends OpenSe
         int movesToBalance = 0;
         do {
             assert movesToBalance <= MAX_REROUTE_STEPS_ALLOWED : "Could not balance cluster in max allowed moves";
-            clusterState = allocation.applyStartedShards(clusterState,
-                    clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+            clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
             clusterState = allocation.reroute(clusterState, "reroute");
 
             initShards = clusterState.getRoutingNodes().shardsWithState(INITIALIZING);
@@ -279,12 +277,10 @@ public abstract class OpenSearchAllocationWithConstraintsTestCase extends OpenSe
     public ClusterState allocateShardsAndBalance(ClusterState clusterState) {
         int iterations = 0;
         do {
-            clusterState = allocation.applyStartedShards(clusterState,
-                    clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+            clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
             clusterState = allocation.reroute(clusterState, "reroute");
             iterations++;
-        } while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty()
-                && iterations < MAX_REROUTE_STEPS_ALLOWED);
+        } while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty() && iterations < MAX_REROUTE_STEPS_ALLOWED);
         return clusterState;
     }
 
@@ -306,10 +302,8 @@ public abstract class OpenSearchAllocationWithConstraintsTestCase extends OpenSe
 
     public void addNodesWithIndexing(int nodeCount, String node_prefix, int indices, int shards, int replicas) {
         final String NEW_INDEX_PREFIX = "new_index_";
-        Metadata md = buildMetadata(Metadata.builder(clusterState.getMetadata()), NEW_INDEX_PREFIX, indices, shards,
-                replicas);
-        RoutingTable rb = buildRoutingTable(RoutingTable.builder(clusterState.getRoutingTable()), md, NEW_INDEX_PREFIX,
-                indices);
+        Metadata md = buildMetadata(Metadata.builder(clusterState.getMetadata()), NEW_INDEX_PREFIX, indices, shards, replicas);
+        RoutingTable rb = buildRoutingTable(RoutingTable.builder(clusterState.getRoutingTable()), md, NEW_INDEX_PREFIX, indices);
         DiscoveryNodes nodes = addNodes(DiscoveryNodes.builder(clusterState.nodes()), node_prefix, nodeCount);
         clusterState = ClusterState.builder(clusterState).metadata(md).routingTable(rb).nodes(nodes).build();
         for (int i = 0; i < indices; i++) {
@@ -318,10 +312,8 @@ public abstract class OpenSearchAllocationWithConstraintsTestCase extends OpenSe
     }
 
     public void addIndices(String index_prefix, int indices, int shards, int replicas) {
-        Metadata md = buildMetadata(Metadata.builder(clusterState.getMetadata()), index_prefix, indices, shards,
-                replicas);
-        RoutingTable rb = buildRoutingTable(RoutingTable.builder(clusterState.getRoutingTable()), md, index_prefix,
-                indices);
+        Metadata md = buildMetadata(Metadata.builder(clusterState.getMetadata()), index_prefix, indices, shards, replicas);
+        RoutingTable rb = buildRoutingTable(RoutingTable.builder(clusterState.getRoutingTable()), md, index_prefix, indices);
         clusterState = ClusterState.builder(clusterState).metadata(md).routingTable(rb).build();
 
         if (indexShardCount == null) {

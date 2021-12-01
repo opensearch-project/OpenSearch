@@ -1172,7 +1172,7 @@ public class SearchModule {
         );
         registerQuery(
             new QuerySpec<>(
-                FieldMaskingSpanQueryBuilder.NAME,
+                FieldMaskingSpanQueryBuilder.SPAN_FIELD_MASKING_FIELD,
                 FieldMaskingSpanQueryBuilder::new,
                 FieldMaskingSpanQueryBuilder::fromXContent
             )

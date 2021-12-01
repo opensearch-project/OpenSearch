@@ -56,8 +56,10 @@ public final class SmbSimpleFsDirectoryFactory extends FsDirectoryFactory {
 
     @Override
     protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
-        DEPRECATION_LOGGER.deprecate(IndexModule.Type.SIMPLEFS.getSettingsKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()
-            + " is deprecated and will be removed in 2.0");
+        DEPRECATION_LOGGER.deprecate(
+            IndexModule.Type.SIMPLEFS.getSettingsKey(),
+            IndexModule.Type.SIMPLEFS.getSettingsKey() + " is deprecated and will be removed in 2.0"
+        );
         return new SmbDirectoryWrapper(new SimpleFSDirectory(location, lockFactory));
     }
 }

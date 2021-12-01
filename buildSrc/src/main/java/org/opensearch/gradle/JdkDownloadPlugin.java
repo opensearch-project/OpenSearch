@@ -110,12 +110,17 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
         if (jdk.getVendor().equals(VENDOR_ADOPTIUM)) {
             repoUrl = "https://github.com/adoptium/temurin" + jdk.getMajor() + "-binaries/releases/download/";
+            // JDK updates are suffixed with 'U' (fe OpenJDK17U), whereas GA releases are not (fe OpenJDK17).
+            // To distinguish between those, the GA releases have only major version component (fe 17+32),
+            // the updates always have minor/patch components (fe 17.0.1+12), checking for the presence of
+            // version separator '.' should be enough.
             artifactPattern = "jdk-"
                 + jdk.getBaseVersion()
                 + "+"
                 + jdk.getBuild()
                 + "/OpenJDK"
                 + jdk.getMajor()
+                + (jdk.getBaseVersion().contains(".") ? "U" : "")
                 + "-jdk_[classifier]_[module]_hotspot_"
                 + jdk.getBaseVersion()
                 + "_"

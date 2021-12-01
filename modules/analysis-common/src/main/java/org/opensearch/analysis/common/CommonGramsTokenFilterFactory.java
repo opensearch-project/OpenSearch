@@ -47,7 +47,7 @@ import org.opensearch.index.analysis.TokenFilterFactory;
 
 public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(CommonGramsTokenFilterFactory.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(CommonGramsTokenFilterFactory.class);
 
     private final CharArraySet words;
 
@@ -63,7 +63,8 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
         if (this.words == null) {
             throw new IllegalArgumentException(
-                    "missing or empty [common_words] or [common_words_path] configuration for common_grams token filter");
+                "missing or empty [common_words] or [common_words_path] configuration for common_grams token filter"
+            );
         }
     }
 
@@ -82,11 +83,12 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
         if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         } else {
-            DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter [" + name()
-                + "] will not be usable to parse synonyms after v7.0");
+            DEPRECATION_LOGGER.deprecate(
+                "synonym_tokenfilters",
+                "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
+            );
         }
 
         return this;
     }
 }
-

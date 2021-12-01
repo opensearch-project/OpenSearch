@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 
-
 package org.opensearch.repositories.azure;
 
 /**

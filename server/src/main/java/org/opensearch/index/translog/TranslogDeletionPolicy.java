@@ -35,8 +35,6 @@ package org.opensearch.index.translog;
 import org.apache.lucene.util.Counter;
 import org.opensearch.Assertions;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.index.seqno.RetentionLease;
-import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
@@ -45,19 +43,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
-public class TranslogDeletionPolicy {
+public abstract class TranslogDeletionPolicy {
 
     private final Map<Object, RuntimeException> openTranslogRef;
-    /**
-     * @deprecated EXPERT: this supplier is specific to CCR and will be moved to a plugin in the next release
-     */
-    @Deprecated
-    private Supplier<RetentionLeases> retentionLeasesSupplier;
 
     public void assertNoOpenTranslogRefs() {
-        if (openTranslogRef.isEmpty() == false) {
+        if (openTranslogRef != null && openTranslogRef.isEmpty() == false) {
             AssertionError e = new AssertionError("not all translog generations have been released");
             openTranslogRef.values().forEach(e::addSuppressed);
             throw e;
@@ -71,42 +63,12 @@ public class TranslogDeletionPolicy {
     private final Map<Long, Counter> translogRefCounts = new HashMap<>();
     private long localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
 
-    private long retentionSizeInBytes;
-
-    private long retentionAgeInMillis;
-
-    private int retentionTotalFiles;
-
-    /**
-     * @deprecated EXPERT: this variable is specific to CCR and will be moved to a plugin in the next release
-     */
-    @Deprecated
-    private boolean shouldPruneTranslogByRetentionLease;
-
-    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles) {
-        this.retentionSizeInBytes = retentionSizeInBytes;
-        this.retentionAgeInMillis = retentionAgeInMillis;
-        this.retentionTotalFiles = retentionTotalFiles;
+    public TranslogDeletionPolicy() {
         if (Assertions.ENABLED) {
             openTranslogRef = new ConcurrentHashMap<>();
         } else {
             openTranslogRef = null;
         }
-    }
-
-    /**
-     * Construct a TranslogDeletionPolicy to include pruning by retention leases
-     * @deprecated EXPERT: this ctor is specific to CCR and will be moved to a plugin in the next release
-     */
-    @Deprecated
-    public TranslogDeletionPolicy(
-        long retentionSizeInBytes,
-        long retentionAgeInMillis,
-        int retentionTotalFiles,
-        Supplier<RetentionLeases> retentionLeasesSupplier
-    ) {
-        this(retentionSizeInBytes, retentionAgeInMillis, retentionTotalFiles);
-        this.retentionLeasesSupplier = retentionLeasesSupplier;
     }
 
     public synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
@@ -123,26 +85,11 @@ public class TranslogDeletionPolicy {
         this.localCheckpointOfSafeCommit = newCheckpoint;
     }
 
-    public synchronized void setRetentionSizeInBytes(long bytes) {
-        retentionSizeInBytes = bytes;
-    }
+    public abstract void setRetentionSizeInBytes(long bytes);
 
-    public synchronized void setRetentionAgeInMillis(long ageInMillis) {
-        retentionAgeInMillis = ageInMillis;
-    }
+    public abstract void setRetentionAgeInMillis(long ageInMillis);
 
-    synchronized void setRetentionTotalFiles(int retentionTotalFiles) {
-        this.retentionTotalFiles = retentionTotalFiles;
-    }
-
-    /**
-     * Should the translog be pruned by the retention lease heuristic
-     * @deprecated EXPERT: this setting is specific to CCR and will be moved to a plugin in the next release
-     */
-    @Deprecated
-    public synchronized void shouldPruneTranslogByRetentionLease(boolean translogPruneByRetentionLease) {
-        this.shouldPruneTranslogByRetentionLease = translogPruneByRetentionLease;
-    }
+    protected abstract void setRetentionTotalFiles(int retentionTotalFiles);
 
     /**
      * acquires the basis generation for a new snapshot. Any translog generation above, and including, the returned generation
@@ -197,57 +144,9 @@ public class TranslogDeletionPolicy {
      * @param readers current translog readers
      * @param writer  current translog writer
      */
-    synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException {
-        long minByLocks = getMinTranslogGenRequiredByLocks();
-        long minByAge = getMinTranslogGenByAge(readers, writer, retentionAgeInMillis, currentTime());
-        long minBySize = getMinTranslogGenBySize(readers, writer, retentionSizeInBytes);
-        long minByRetentionLeasesAndSize = Long.MAX_VALUE;
-        if (shouldPruneTranslogByRetentionLease) {
-            // If retention size is specified, size takes precedence.
-            long minByRetentionLeases = getMinTranslogGenByRetentionLease(readers, writer, retentionLeasesSupplier);
-            minByRetentionLeasesAndSize = Math.max(minBySize, minByRetentionLeases);
-        }
-        final long minByAgeAndSize;
-        if (minBySize == Long.MIN_VALUE && minByAge == Long.MIN_VALUE) {
-            // both size and age are disabled;
-            minByAgeAndSize = Long.MAX_VALUE;
-        } else {
-            minByAgeAndSize = Math.max(minByAge, minBySize);
-        }
-        long minByNumFiles = getMinTranslogGenByTotalFiles(readers, writer, retentionTotalFiles);
-        long minByTranslogGenSettings = Math.min(Math.max(minByAgeAndSize, minByNumFiles), minByLocks);
-        return Math.min(minByTranslogGenSettings, minByRetentionLeasesAndSize);
-    }
+    public abstract long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException;
 
-    /**
-     * Find the minimum translog generation by minimum retaining sequence number
-     * @deprecated EXPERT: this configuration is specific to CCR and will be moved to a plugin in the next release
-     */
-    @Deprecated
-    static long getMinTranslogGenByRetentionLease(
-        List<TranslogReader> readers,
-        TranslogWriter writer,
-        Supplier<RetentionLeases> retentionLeasesSupplier
-    ) {
-        long minGen = writer.getGeneration();
-        final long minimumRetainingSequenceNumber = retentionLeasesSupplier.get()
-            .leases()
-            .stream()
-            .mapToLong(RetentionLease::retainingSequenceNumber)
-            .min()
-            .orElse(Long.MAX_VALUE);
-
-        for (int i = readers.size() - 1; i >= 0; i--) {
-            final TranslogReader reader = readers.get(i);
-            if (reader.getCheckpoint().minSeqNo <= minimumRetainingSequenceNumber
-                && reader.getCheckpoint().maxSeqNo >= minimumRetainingSequenceNumber) {
-                minGen = Math.min(minGen, reader.getGeneration());
-            }
-        }
-        return minGen;
-    }
-
-    static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
+    public static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
         if (retentionSizeInBytes >= 0) {
             long totalSize = writer.sizeInBytes();
             long minGen = writer.getGeneration();
@@ -262,7 +161,7 @@ public class TranslogDeletionPolicy {
         }
     }
 
-    static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now)
+    public static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now)
         throws IOException {
         if (maxRetentionAgeInMillis >= 0) {
             for (TranslogReader reader : readers) {
@@ -276,7 +175,7 @@ public class TranslogDeletionPolicy {
         }
     }
 
-    static long getMinTranslogGenByTotalFiles(List<TranslogReader> readers, TranslogWriter writer, final int maxTotalFiles) {
+    public static long getMinTranslogGenByTotalFiles(List<TranslogReader> readers, TranslogWriter writer, final int maxTotalFiles) {
         long minGen = writer.generation;
         int totalFiles = 1; // for the current writer
         for (int i = readers.size() - 1; i >= 0 && totalFiles < maxTotalFiles; i--) {
@@ -290,7 +189,7 @@ public class TranslogDeletionPolicy {
         return System.currentTimeMillis();
     }
 
-    private long getMinTranslogGenRequiredByLocks() {
+    protected long getMinTranslogGenRequiredByLocks() {
         return translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
     }
 
