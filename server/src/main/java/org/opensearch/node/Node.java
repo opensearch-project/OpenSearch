@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.tasks.TaskResourceTracker;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
@@ -431,6 +432,7 @@ public class Node implements Closeable {
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
+            resourceWatcherService.add(TaskResourceTracker.getInstance(), ResourceWatcherService.Frequency.HIGH);
             // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
             HeaderWarning.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));

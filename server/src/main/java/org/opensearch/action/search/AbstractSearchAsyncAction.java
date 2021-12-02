@@ -32,9 +32,11 @@
 
 package org.opensearch.action.search;
 
+import com.sun.management.ThreadMXBean;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.tasks.TaskResourceTracker;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -56,8 +58,10 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.tasks.TaskResourceTracker;
 import org.opensearch.transport.Transport;
 
+import java.lang.management.ManagementFactory;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -283,6 +287,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             } finally {
                                 executeNext(pendingExecutions, thread);
                             }
+                            ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+                            long bytes = threadMXBean.getThreadAllocatedBytes(Thread.currentThread().getId());
+
+                            TaskResourceTracker.getInstance().transfer(task.getId(), result, bytes);
                         }
 
                         @Override

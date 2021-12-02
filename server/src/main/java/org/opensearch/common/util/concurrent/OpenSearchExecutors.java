@@ -201,6 +201,16 @@ public class OpenSearchExecutors {
             ConcurrentCollections.<Runnable>newBlockingQueue(),
             initialQueueCapacity
         );
+        Function<Runnable, WrappedRunnable> runnableWrapper;
+        if (name.endsWith("search")) {
+            runnableWrapper = (r) -> {
+                ResourceRunnable rr = new ResourceRunnable(contextHolder, r, name);
+                return new TimedRunnable(rr);
+            };
+        } else {
+            runnableWrapper = TimedRunnable::new;
+        }
+
         return new QueueResizingOpenSearchThreadPoolExecutor(
             name,
             size,
@@ -210,7 +220,7 @@ public class OpenSearchExecutors {
             queue,
             minQueueSize,
             maxQueueSize,
-            TimedRunnable::new,
+            runnableWrapper,
             frameSize,
             targetedResponseTime,
             threadFactory,

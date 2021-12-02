@@ -140,10 +140,12 @@ public final class ThreadContext implements Writeable {
                     .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
                     .immutableMap()
             );
-            threadLocal.set(threadContextStruct);
-        } else {
-            threadLocal.set(DEFAULT_CONTEXT);
         }
+        if (context.transientHeaders.containsKey("TASK_ID")) {
+            DEFAULT_CONTEXT.putTransient("TASK_ID", context.transientHeaders.get("TASK_ID"));
+        }
+        threadLocal.set(DEFAULT_CONTEXT);
+
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an

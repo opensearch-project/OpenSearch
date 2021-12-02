@@ -53,6 +53,7 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
 import org.opensearch.node.ReportingService;
+import org.opensearch.tasks.TaskResourceTracker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -318,6 +319,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             long rejected = -1;
             int largest = -1;
             long completed = -1;
+            long jvmBytes = -1;
+            long responseOverhead = -1;
+
+            if (Names.SEARCH.equals(name)) {
+                jvmBytes = TaskResourceTracker.getInstance().getBytes();
+                responseOverhead = TaskResourceTracker.getInstance().getResponseOverhead();
+            }
             if (holder.executor() instanceof ThreadPoolExecutor) {
                 ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) holder.executor();
                 threads = threadPoolExecutor.getPoolSize();
@@ -330,7 +338,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
                 }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed));
+            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed, jvmBytes, responseOverhead));
         }
         return new ThreadPoolStats(stats);
     }

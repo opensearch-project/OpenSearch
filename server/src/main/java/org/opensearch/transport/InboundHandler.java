@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import com.sun.management.ThreadMXBean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -45,9 +46,12 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.tasks.TaskResourceTracker;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
@@ -295,8 +299,18 @@ public class InboundHandler {
     ) {
         final T response;
         try {
+            ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+            long bytesStart = threadMXBean.getThreadAllocatedBytes(Thread.currentThread().getId());
+
             response = handler.read(stream);
             response.remoteAddress(new TransportAddress(remoteAddress));
+
+//            long bytesEnd = threadMXBean.getThreadAllocatedBytes(Thread.currentThread().getId());
+            if (response instanceof SearchPhaseResult) {
+//                TaskResourceTracker.getInstance().registerResponseOverhead(((SearchPhaseResult) response).getShardSearchRequest().getParentTask().getId(), bytesEnd - bytesStart);
+                TaskResourceTracker.getInstance().registerResponseOverhead1(response, bytesStart);
+            }
+
         } catch (Exception e) {
             final Exception serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",

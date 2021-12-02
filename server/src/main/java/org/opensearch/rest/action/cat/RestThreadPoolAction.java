@@ -156,6 +156,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
         table.addCell("max", "alias:mx;default:false;text-align:right;desc:maximum number of threads in a scaling thread pool");
         table.addCell("size", "alias:sz;default:false;text-align:right;desc:number of threads in a fixed thread pool");
         table.addCell("keep_alive", "alias:ka;default:false;text-align:right;desc:thread keep alive time");
+        table.addCell("bytes", "alias:by;default:true;text-align:right;desc:Bytes consumed");
+        table.addCell("resposne_overhead", "alias:ro;default:true;text-align:right;desc:Response overhead");
         table.endHeaders();
         return table;
     }
@@ -260,6 +262,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(max);
                 table.addCell(size);
                 table.addCell(keepAlive);
+                table.addCell(poolStats == null ? null : poolStats.getBytes());
+                table.addCell(poolStats == null ? null : poolStats.getRO());
 
                 table.endRow();
             }

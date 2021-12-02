@@ -55,6 +55,8 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
         private final long rejected;
         private final int largest;
         private final long completed;
+        private long ro;
+        private long bytes;
 
         public Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed) {
             this.name = name;
@@ -66,6 +68,18 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             this.completed = completed;
         }
 
+        public Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed, long bytes, long ro) {
+            this.name = name;
+            this.threads = threads;
+            this.queue = queue;
+            this.active = active;
+            this.rejected = rejected;
+            this.largest = largest;
+            this.completed = completed;
+            this.bytes = bytes;
+            this.ro = ro;
+        }
+
         public Stats(StreamInput in) throws IOException {
             name = in.readString();
             threads = in.readInt();
@@ -74,6 +88,8 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             rejected = in.readLong();
             largest = in.readInt();
             completed = in.readLong();
+            bytes = in.readLong();
+            ro = in.readLong();
         }
 
         @Override
@@ -85,6 +101,8 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             out.writeLong(rejected);
             out.writeInt(largest);
             out.writeLong(completed);
+            out.writeLong(bytes);
+            out.writeLong(ro);
         }
 
         public String getName() {
@@ -105,6 +123,14 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
 
         public long getRejected() {
             return rejected;
+        }
+
+        public long getBytes() {
+            return bytes;
+        }
+
+        public long getRO() {
+            return ro;
         }
 
         public int getLargest() {
@@ -135,6 +161,12 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             }
             if (completed != -1) {
                 builder.field(Fields.COMPLETED, completed);
+            }
+            if (bytes != -1) {
+                builder.field("bytes", bytes);
+            }
+            if (bytes != -1) {
+                builder.field("worker_count", ro);
             }
             builder.endObject();
             return builder;

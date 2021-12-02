@@ -38,12 +38,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.tasks.TaskResourceTracker;
 import org.opensearch.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.IndicesRequest;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -62,6 +64,7 @@ import org.opensearch.transport.TcpChannel;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -150,6 +153,20 @@ public class TaskManager implements ClusterStateApplier {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
         }
 
+        // just register read operations
+        if (action.startsWith("indices:data/read")) {
+            if (threadContext.getTransient("TASK_ID") == null) {
+                threadContext.putTransient("TASK_ID", String.valueOf(task.getId()));
+
+                List<String> indices = new ArrayList<>();
+                if (request instanceof IndicesRequest) {
+                    indices = Arrays.asList(((IndicesRequest) request).indices());
+                }
+                // TODO Add shard id handling
+                TaskResourceTracker.getInstance().registerTaskForTracking(task.getId(), indices, null, action);
+            }
+        }
+
         if (task instanceof CancellableTask) {
             registerCancellableTask(task);
         } else {
@@ -202,6 +219,7 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
+        TaskResourceTracker.getInstance().unregisterTaskForTracking(task.getId());
         if (task instanceof CancellableTask) {
             CancellableTaskHolder holder = cancellableTasks.remove(task.getId());
             if (holder != null) {
