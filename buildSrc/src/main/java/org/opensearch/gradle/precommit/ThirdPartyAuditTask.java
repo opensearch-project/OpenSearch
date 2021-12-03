@@ -281,10 +281,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
         getLogger().error("Forbidden APIs output:\n{}==end of forbidden APIs==", forbiddenApisOutput);
     }
 
-    private void throwNotConfiguredCorrectlyException() {
-        throw new IllegalArgumentException("Audit of third party dependencies is not configured correctly");
-    }
-
     private void extractJars(Set<File> jars) {
         File jarExpandDir = getJarExpandDir();
         // We need to clean up to make sure old dependencies don't linger
@@ -360,7 +356,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             );
             spec.jvmArgs("-Xmx1g");
             spec.jvmArgs(LoggedExec.shortLivedArgs());
-            spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
+            spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
             spec.setErrorOutput(errorOut);
             if (getLogger().isInfoEnabled() == false) {
@@ -390,7 +386,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
             );
 
-            spec.setMain(JDK_JAR_HELL_MAIN_CLASS);
+            spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
             spec.setIgnoreExitValue(true);
             if (javaHome != null) {

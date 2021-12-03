@@ -112,27 +112,42 @@ public class TestFixturesPlugin implements Plugin<Project> {
             project.getPluginManager().apply(BasePlugin.class);
             project.getPluginManager().apply(DockerComposePlugin.class);
 
-            TaskProvider<Task> preProcessFixture = project.getTasks().register("preProcessFixture", t -> {
-                t.getOutputs().dir(testfixturesDir);
-                t.doFirst(t2 -> {
-                    try {
-                        Files.createDirectories(testfixturesDir.toPath());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
+            TaskProvider<Task> preProcessFixture = project.getTasks().register("preProcessFixture", new Action<Task>() {
+                @Override
+                public void execute(Task t) {
+                    t.getOutputs().dir(testfixturesDir);
+                    t.doFirst(new Action<Task>() {
+                        @Override
+                        public void execute(Task t2) {
+                            {
+                                try {
+                                    Files.createDirectories(testfixturesDir.toPath());
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            }
+                        }
+                    });
+                }
             });
-            TaskProvider<Task> buildFixture = project.getTasks()
-                .register("buildFixture", t -> t.dependsOn(preProcessFixture, tasks.named("composeUp")));
+            TaskProvider<Task> buildFixture = project.getTasks().register("buildFixture", new Action<Task>() {
+                @Override
+                public void execute(Task t) {
+                    t.dependsOn(preProcessFixture, tasks.named("composeUp"));
+                }
+            });
 
-            TaskProvider<Task> postProcessFixture = project.getTasks().register("postProcessFixture", task -> {
-                task.dependsOn(buildFixture);
-                configureServiceInfoForTask(
-                    task,
-                    project,
-                    false,
-                    (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
-                );
+            TaskProvider<Task> postProcessFixture = project.getTasks().register("postProcessFixture", new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    task.dependsOn(buildFixture);
+                    configureServiceInfoForTask(
+                        task,
+                        project,
+                        false,
+                        (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
+                    );
+                }
             });
 
             maybeSkipTask(dockerSupport, preProcessFixture);
