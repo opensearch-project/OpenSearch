@@ -39,9 +39,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.zen.MembershipAction;
-import org.opensearch.discovery.zen.PublishClusterStateAction;
-import org.opensearch.discovery.zen.ZenDiscovery;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
@@ -56,7 +53,6 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for discovery during disruptions.
@@ -97,23 +93,15 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
             discoveryNodes.getLocalNode().getName()
         );
         if (randomBoolean()) {
-            masterTransportService.addFailToSendNoConnectRule(
-                localTransportService,
-                PublishClusterStateAction.SEND_ACTION_NAME,
-                PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME
-            );
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME);
         } else {
-            masterTransportService.addFailToSendNoConnectRule(
-                localTransportService,
-                PublishClusterStateAction.COMMIT_ACTION_NAME,
-                PublicationTransportHandler.COMMIT_STATE_ACTION_NAME
-            );
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
         }
 
         logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);
         final CountDownLatch countDownLatch = new CountDownLatch(2);
         nonMasterTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
-            if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME) || action.equals(JoinHelper.JOIN_ACTION_NAME)) {
+            if (action.equals(JoinHelper.JOIN_ACTION_NAME)) {
                 countDownLatch.countDown();
             }
             connection.sendRequest(requestId, action, request, options);
@@ -139,7 +127,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(random(), 0, 0, 1000, 2000);
 
         // don't wait for initial state, we want to add the disruption while the cluster is forming
-        internalCluster().startNodes(3, Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "3s").build());
+        internalCluster().startNodes(3);
 
         logger.info("applying disruption while cluster is forming ...");
 
@@ -167,14 +155,6 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3);
         final String preferredMasterName = internalCluster().getMasterName();
         final DiscoveryNode preferredMaster = internalCluster().clusterService(preferredMasterName).localNode();
-        final Discovery discovery = internalCluster().getInstance(Discovery.class);
-        // only Zen1 guarantees that node with lowest id is elected
-        if (discovery instanceof ZenDiscovery) {
-            for (String node : nodes) {
-                DiscoveryNode discoveryNode = internalCluster().clusterService(node).localNode();
-                assertThat(discoveryNode.getId(), greaterThanOrEqualTo(preferredMaster.getId()));
-            }
-        }
 
         logger.info("--> preferred master is {}", preferredMaster);
         final Set<String> nonPreferredNodes = new HashSet<>(nodes);

@@ -71,14 +71,6 @@ public class NoMasterBlockService {
         EnumSet.of(ClusterBlockLevel.METADATA_WRITE)
     );
 
-    public static final Setting<ClusterBlock> LEGACY_NO_MASTER_BLOCK_SETTING = new Setting<>(
-        "discovery.zen.no_master_block",
-        "write",
-        NoMasterBlockService::parseNoMasterBlock,
-        Property.Dynamic,
-        Property.NodeScope,
-        Property.Deprecated
-    );
     public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>(
         "cluster.no_master_block",
         "write",
@@ -92,9 +84,6 @@ public class NoMasterBlockService {
     public NoMasterBlockService(Settings settings, ClusterSettings clusterSettings) {
         this.noMasterBlock = NO_MASTER_BLOCK_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(NO_MASTER_BLOCK_SETTING, this::setNoMasterBlock);
-
-        LEGACY_NO_MASTER_BLOCK_SETTING.get(settings); // for deprecation warnings
-        clusterSettings.addSettingsUpdateConsumer(LEGACY_NO_MASTER_BLOCK_SETTING, b -> {}); // for deprecation warnings
     }
 
     private static ClusterBlock parseNoMasterBlock(String value) {

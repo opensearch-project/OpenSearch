@@ -62,7 +62,6 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;
@@ -125,39 +124,6 @@ public class GatewayMetaState implements Closeable {
         PersistedClusterStateService persistedClusterStateService
     ) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
-
-        if (DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings).equals(DiscoveryModule.ZEN_DISCOVERY_TYPE)) {
-            // only for tests that simulate mixed Zen1/Zen2 clusters, see Zen1IT
-            final Tuple<Manifest, Metadata> manifestClusterStateTuple;
-            try {
-                NodeMetadata.FORMAT.writeAndCleanup(
-                    new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
-                    persistedClusterStateService.getDataPaths()
-                );
-                manifestClusterStateTuple = metaStateService.loadFullState();
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                .version(manifestClusterStateTuple.v1().getClusterStateVersion())
-                .metadata(manifestClusterStateTuple.v2())
-                .build();
-
-            final IncrementalClusterStateWriter incrementalClusterStateWriter = new IncrementalClusterStateWriter(
-                settings,
-                clusterService.getClusterSettings(),
-                metaStateService,
-                manifestClusterStateTuple.v1(),
-                prepareInitialClusterState(transportService, clusterService, clusterState),
-                transportService.getThreadPool()::relativeTimeInMillis
-            );
-
-            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
-                clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));
-            }
-            persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), clusterState));
-            return;
-        }
 
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {

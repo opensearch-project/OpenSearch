@@ -35,8 +35,6 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.cluster.ClusterName;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -46,7 +44,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.discovery.zen.NodesFaultDetection;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -151,15 +148,6 @@ public class FollowersChecker {
             false,
             FollowerCheckRequest::new,
             (request, transportChannel, task) -> handleFollowerCheck(request, transportChannel)
-        );
-        transportService.registerRequestHandler(
-            NodesFaultDetection.PING_ACTION_NAME,
-            Names.SAME,
-            false,
-            false,
-            NodesFaultDetection.PingRequest::new,
-            (request, channel, task) -> // TODO: check that we're a follower of the requesting node?
-            channel.sendResponse(new NodesFaultDetection.PingResponse())
         );
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
@@ -348,24 +336,10 @@ public class FollowersChecker {
             final FollowerCheckRequest request = new FollowerCheckRequest(fastResponseState.term, transportService.getLocalNode());
             logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
 
-            final String actionName;
-            final TransportRequest transportRequest;
-            if (Coordinator.isZen1Node(discoveryNode)) {
-                actionName = NodesFaultDetection.PING_ACTION_NAME;
-                transportRequest = new NodesFaultDetection.PingRequest(
-                    discoveryNode,
-                    ClusterName.CLUSTER_NAME_SETTING.get(settings),
-                    transportService.getLocalNode(),
-                    ClusterState.UNKNOWN_VERSION
-                );
-            } else {
-                actionName = FOLLOWER_CHECK_ACTION_NAME;
-                transportRequest = request;
-            }
             transportService.sendRequest(
                 discoveryNode,
-                actionName,
-                transportRequest,
+                FOLLOWER_CHECK_ACTION_NAME,
+                request,
                 TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
                 new TransportResponseHandler<Empty>() {
                     @Override

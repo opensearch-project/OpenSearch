@@ -41,7 +41,6 @@ import org.opensearch.cluster.NotMasterException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.zen.MembershipAction;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -190,13 +189,6 @@ public class JoinHelperTests extends OpenSearchTestCase {
                 new RemoteTransportException("caused by NotMasterException", new NotMasterException("test"))
             ),
             is(Level.DEBUG)
-        );
-    }
-
-    public void testZen1JoinValidationRejectsMismatchedClusterUUID() {
-        assertJoinValidationRejectsMismatchedClusterUUID(
-            MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-            "mixed-version cluster join validation on cluster state with a different cluster uuid"
         );
     }
 

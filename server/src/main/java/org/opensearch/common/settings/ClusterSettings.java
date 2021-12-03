@@ -59,7 +59,6 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.opensearch.cluster.coordination.Coordinator;
-import org.opensearch.cluster.coordination.DiscoveryUpgradeService;
 import org.opensearch.cluster.coordination.ElectionSchedulerFactory;
 import org.opensearch.cluster.coordination.FollowersChecker;
 import org.opensearch.cluster.coordination.JoinHelper;
@@ -93,14 +92,10 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.discovery.DiscoveryModule;
-import org.opensearch.discovery.DiscoverySettings;
 import org.opensearch.discovery.HandshakingTransportAddressConnector;
 import org.opensearch.discovery.PeerFinder;
 import org.opensearch.discovery.SeedHostsResolver;
 import org.opensearch.discovery.SettingsBasedSeedHostsProvider;
-import org.opensearch.discovery.zen.ElectMasterService;
-import org.opensearch.discovery.zen.FaultDetection;
-import org.opensearch.discovery.zen.ZenDiscovery;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.DanglingIndicesState;
@@ -125,6 +120,7 @@ import org.opensearch.monitor.jvm.JvmService;
 import org.opensearch.monitor.os.OsService;
 import org.opensearch.monitor.process.ProcessService;
 import org.opensearch.node.Node;
+import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.decider.EnableAssignmentDecider;
@@ -280,11 +276,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
                 InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
                 DestructiveOperations.REQUIRES_NAME_SETTING,
-                DiscoverySettings.PUBLISH_TIMEOUT_SETTING,
-                DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING,
-                DiscoverySettings.COMMIT_TIMEOUT_SETTING,
                 NoMasterBlockService.NO_MASTER_BLOCK_SETTING,
-                NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING,
                 GatewayService.EXPECTED_DATA_NODES_SETTING,
                 GatewayService.EXPECTED_MASTER_NODES_SETTING,
                 GatewayService.EXPECTED_NODES_SETTING,
@@ -349,7 +341,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
-                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
@@ -472,20 +463,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 DiscoveryModule.DISCOVERY_TYPE_SETTING,
                 DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING,
                 DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING,
-                FaultDetection.PING_RETRIES_SETTING,
-                FaultDetection.PING_TIMEOUT_SETTING,
-                FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING,
-                FaultDetection.PING_INTERVAL_SETTING,
-                FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING,
-                ZenDiscovery.PING_TIMEOUT_SETTING,
-                ZenDiscovery.JOIN_TIMEOUT_SETTING,
-                ZenDiscovery.JOIN_RETRY_ATTEMPTS_SETTING,
-                ZenDiscovery.JOIN_RETRY_DELAY_SETTING,
-                ZenDiscovery.MAX_PINGS_FROM_ANOTHER_MASTER_SETTING,
-                ZenDiscovery.SEND_LEAVE_REQUEST_SETTING,
-                ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
-                ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING,
-                ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING,
                 DiscoveryModule.ELECTION_STRATEGY_SETTING,
                 SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING,
                 SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
@@ -579,15 +556,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
                 HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
                 HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
-                DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
-                DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING,
                 SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
                 FsHealthService.ENABLED_SETTING,
                 FsHealthService.REFRESH_INTERVAL_SETTING,
                 FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
                 FsHealthService.HEALTHY_TIMEOUT_SETTING,
                 TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION,
-                IndexingPressure.MAX_INDEXING_BYTES,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
@@ -602,7 +576,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardIndexingPressureMemoryManager.NODE_SOFT_LIMIT,
                 ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS,
                 ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT,
-                ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS
+                ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS,
+                IndexingPressure.MAX_INDEXING_BYTES
             )
         )
     );

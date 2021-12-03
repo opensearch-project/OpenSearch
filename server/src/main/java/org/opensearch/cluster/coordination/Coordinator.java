@@ -82,7 +82,6 @@ import org.opensearch.discovery.HandshakingTransportAddressConnector;
 import org.opensearch.discovery.PeerFinder;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.SeedHostsResolver;
-import org.opensearch.discovery.zen.PendingClusterStateStats;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.Scheduler;
@@ -166,7 +165,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private long maxTermSeen;
     private final Reconfigurator reconfigurator;
     private final ClusterBootstrapService clusterBootstrapService;
-    private final DiscoveryUpgradeService discoveryUpgradeService;
     private final LagDetector lagDetector;
     private final ClusterFormationFailureHelper clusterFormationFailureHelper;
 
@@ -264,14 +262,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService,
             this::getFoundPeers,
             this::isInitialConfigurationSet,
-            this::setInitialConfiguration
-        );
-        this.discoveryUpgradeService = new DiscoveryUpgradeService(
-            settings,
-            transportService,
-            this::isInitialConfigurationSet,
-            joinHelper,
-            peerFinder::getFoundPeers,
             this::setInitialConfiguration
         );
         this.lagDetector = new LagDetector(
@@ -670,10 +660,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
             clusterFormationFailureHelper.start();
 
-            if (getCurrentTerm() == ZEN1_BWC_TERM) {
-                discoveryUpgradeService.activate(lastKnownLeader, coordinationState.get().getLastAcceptedState());
-            }
-
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
             leaderChecker.updateLeader(null);
 
@@ -713,7 +699,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         lastKnownLeader = Optional.of(getLocalNode());
         peerFinder.deactivate(getLocalNode());
-        discoveryUpgradeService.deactivate();
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
@@ -751,7 +736,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
-        discoveryUpgradeService.deactivate();
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         cancelActivePublication("become follower: " + method);

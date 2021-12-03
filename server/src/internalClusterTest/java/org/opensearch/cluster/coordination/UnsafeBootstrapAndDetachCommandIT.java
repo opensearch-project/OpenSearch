@@ -39,13 +39,13 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.DiscoverySettings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 

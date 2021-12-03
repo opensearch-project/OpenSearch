@@ -59,7 +59,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.opensearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
-import static org.opensearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -122,7 +121,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        final String discoveryType = randomFrom(ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, "single-node");
+        final String discoveryType = randomFrom(ZEN2_DISCOVERY_TYPE, "single-node");
 
         assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
     }
@@ -140,7 +139,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        final String discoveryType = randomFrom(ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, "single-node");
+        final String discoveryType = randomFrom(ZEN2_DISCOVERY_TYPE, "single-node");
 
         assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
     }
@@ -774,11 +773,6 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
     public void testDiscoveryConfiguredCheck() throws NodeValidationException {
         final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.DiscoveryConfiguredCheck());
 
-        final BootstrapContext zen1Context = createTestContext(
-            Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN_DISCOVERY_TYPE).build(),
-            Metadata.EMPTY_METADATA
-        );
-
         final BootstrapContext zen2Context = createTestContext(
             Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(),
             Metadata.EMPTY_METADATA
@@ -797,11 +791,6 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             ),
             true,
             checks
-        );
-
-        assertThat(
-            expectThrows(NodeValidationException.class, () -> BootstrapChecks.check(zen1Context, true, checks)),
-            hasToString(containsString("discovery type [legacy-zen-for-testing-only-do-not-use] is unsuitable for production use"))
         );
 
         final NodeValidationException e = expectThrows(
@@ -829,9 +818,5 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey()));
-        ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
-        ensureChecksPass.accept(
-            Settings.builder().putList(SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
-        );
     }
 }

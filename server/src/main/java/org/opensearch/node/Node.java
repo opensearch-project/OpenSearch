@@ -109,7 +109,6 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
-import org.opensearch.discovery.DiscoverySettings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
@@ -293,6 +292,14 @@ public class Node implements Closeable {
     }, Setting.Property.NodeScope);
 
     private static final String CLIENT_TYPE = "node";
+
+    public static class DiscoverySettings {
+        public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+            "discovery.initial_state_timeout",
+            TimeValue.timeValueSeconds(30),
+            Property.NodeScope
+        );
+    }
 
     private final Lifecycle lifecycle = new Lifecycle();
 
@@ -1068,10 +1075,7 @@ public class Node implements Closeable {
         );
         if (Assertions.ENABLED) {
             try {
-                if (DiscoveryModule.DISCOVERY_TYPE_SETTING.get(environment.settings())
-                    .equals(DiscoveryModule.ZEN_DISCOVERY_TYPE) == false) {
-                    assert injector.getInstance(MetaStateService.class).loadFullState().v1().isEmpty();
-                }
+                assert injector.getInstance(MetaStateService.class).loadFullState().v1().isEmpty();
                 final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(
                     logger,
                     NamedXContentRegistry.EMPTY,

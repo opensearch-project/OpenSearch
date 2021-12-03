@@ -42,7 +42,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.discovery.zen.ZenDiscovery;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.BlockMasterServiceOnMaster;
 import org.opensearch.test.disruption.IntermittentLongGCDisruption;
@@ -55,7 +54,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,9 +89,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("waiting for nodes to elect a new master");
         ensureStableCluster(2, oldNonMasterNodes.get(0));
-
-        logger.info("waiting for any pinging to stop");
-        assertDiscoveryCompleted(oldNonMasterNodes);
 
         // restore GC
         masterNodeDisruption.stopDisrupting();
@@ -322,16 +317,5 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
             }
         });
 
-    }
-
-    private void assertDiscoveryCompleted(List<String> nodes) throws Exception {
-        for (final String node : nodes) {
-            assertBusy(() -> {
-                final Discovery discovery = internalCluster().getInstance(Discovery.class, node);
-                if (discovery instanceof ZenDiscovery) {
-                    assertFalse("node [" + node + "] is still joining master", ((ZenDiscovery) discovery).joiningCluster());
-                }
-            }, 30, TimeUnit.SECONDS);
-        }
     }
 }

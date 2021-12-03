@@ -38,8 +38,8 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.discovery.zen.PendingClusterStateStats;
-import org.opensearch.discovery.zen.PublishClusterStateStats;
+import org.opensearch.cluster.coordination.PendingClusterStateStats;
+import org.opensearch.cluster.coordination.PublishClusterStateStats;
 
 import java.io.IOException;
 
