@@ -32,10 +32,15 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.shrink.ResizeRequest;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -49,6 +54,8 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public abstract class RestResizeHandler extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestResizeHandler.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     RestResizeHandler() {}
 
@@ -61,6 +68,27 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public final RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
         resizeRequest.setResizeType(getResizeType());
+        // copy_settings should be removed in OpenSearch 1.0.0; cf. https://github.com/elastic/elasticsearch/issues/28347
+        assert Version.CURRENT.major < 8;
+        final String rawCopySettings = request.param("copy_settings");
+        final Boolean copySettings;
+        if (rawCopySettings == null) {
+            copySettings = resizeRequest.getCopySettings();
+        } else {
+            if (rawCopySettings.isEmpty()) {
+                copySettings = true;
+            } else {
+                copySettings = Booleans.parseBoolean(rawCopySettings);
+                if (copySettings == false) {
+                    throw new IllegalArgumentException("parameter [copy_settings] can not be explicitly set to [false]");
+                }
+            }
+            deprecationLogger.deprecate(
+                "resize_deprecated_parameter",
+                "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
+            );
+        }
+        resizeRequest.setCopySettings(copySettings);
         request.applyContentParser(resizeRequest::fromXContent);
         resizeRequest.timeout(request.paramAsTime("timeout", resizeRequest.timeout()));
         resizeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resizeRequest.masterNodeTimeout()));
