@@ -115,6 +115,7 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
+import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.node.NodeService;
 import org.opensearch.node.NodeValidationException;
@@ -729,7 +730,7 @@ public final class InternalTestCluster extends TestCluster {
             if (autoManageMasterNodes) {
                 assertThat(
                     "if master nodes are automatically managed then nodes must complete a join cycle when starting",
-                    updatedSettings.get(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey()),
+                    updatedSettings.get(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey()),
                     nullValue()
                 );
             }

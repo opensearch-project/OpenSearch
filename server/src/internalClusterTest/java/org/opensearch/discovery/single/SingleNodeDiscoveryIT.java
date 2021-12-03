@@ -41,7 +41,7 @@ import org.opensearch.cluster.coordination.JoinHelper;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.node.Node;
+import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
@@ -145,7 +145,7 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
                 return Settings.builder()
                     .put("discovery.type", "zen")
                     .put("transport.type", getTestTransportType())
-                    .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
+                    .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
                     /*
                      * We align the port ranges of the two as then with zen discovery these two
                      * nodes would find each other.

@@ -120,6 +120,7 @@ import org.opensearch.monitor.jvm.JvmService;
 import org.opensearch.monitor.os.OsService;
 import org.opensearch.monitor.process.ProcessService;
 import org.opensearch.node.Node;
+import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.decider.EnableAssignmentDecider;
@@ -458,7 +459,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Environment.PIDFILE_SETTING,
                 Environment.NODE_PIDFILE_SETTING,
                 NodeEnvironment.NODE_ID_SEED_SETTING,
-                Node.INITIAL_STATE_TIMEOUT_SETTING,
+                DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING,
                 DiscoveryModule.DISCOVERY_TYPE_SETTING,
                 DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING,
                 DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING,

@@ -43,7 +43,7 @@ import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.SettingsBasedSeedHostsProvider;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.node.Node;
+import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalTestCluster;
@@ -394,7 +394,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
                 public Settings nodeSettings(int nodeOrdinal) {
                     return Settings.builder()
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                        .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
+                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
                         .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
                         .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                         .build();

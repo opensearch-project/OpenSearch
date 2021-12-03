@@ -292,11 +292,14 @@ public class Node implements Closeable {
     }, Setting.Property.NodeScope);
 
     private static final String CLIENT_TYPE = "node";
-    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "discovery.initial_state_timeout",
-        TimeValue.timeValueSeconds(30),
-        Property.NodeScope
-    );
+
+    public static class DiscoverySettings {
+        public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+            "discovery.initial_state_timeout",
+            TimeValue.timeValueSeconds(30),
+            Property.NodeScope
+        );
+    }
 
     private final Lifecycle lifecycle = new Lifecycle();
 
@@ -1103,7 +1106,7 @@ public class Node implements Closeable {
             .equals(localNodeFactory.getNode()) : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
-        final TimeValue initialStateTimeout = INITIAL_STATE_TIMEOUT_SETTING.get(settings());
+        final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
 
         if (initialStateTimeout.millis() > 0) {
