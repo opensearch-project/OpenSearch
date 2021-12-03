@@ -38,6 +38,7 @@ import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.gradle.plugins.ide.eclipse.model.EclipseJdt
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
@@ -423,6 +424,12 @@ allprojects {
   tasks.named('cleanEclipse') { dependsOn 'wipeEclipseSettings' }
   // otherwise the eclipse merging is *super confusing*
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
+  
+  afterEvaluate {
+     tasks.findByName("eclipseJdt")?.configure {
+         dependsOn 'copyEclipseSettings'
+     } 
+  }
 }
 
 wrapper {
