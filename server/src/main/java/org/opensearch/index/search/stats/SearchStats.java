@@ -63,6 +63,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long scrollTimeInMillis;
         private long scrollCurrent;
 
+        private long pitCount;
+        private long pitTimeInMillis;
+        private long pitCurrent;
+
         private long suggestCount;
         private long suggestTimeInMillis;
         private long suggestCurrent;
@@ -81,6 +85,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long scrollCount,
             long scrollTimeInMillis,
             long scrollCurrent,
+            long pitCount, long pitTimeInMillis, long pitCurrent,
             long suggestCount,
             long suggestTimeInMillis,
             long suggestCurrent
@@ -96,6 +101,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.scrollCount = scrollCount;
             this.scrollTimeInMillis = scrollTimeInMillis;
             this.scrollCurrent = scrollCurrent;
+
+            this.pitCount = pitCount;
+            this.pitTimeInMillis = pitTimeInMillis;
+            this.pitCurrent = pitCurrent;
 
             this.suggestCount = suggestCount;
             this.suggestTimeInMillis = suggestTimeInMillis;
@@ -115,6 +124,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             scrollTimeInMillis = in.readVLong();
             scrollCurrent = in.readVLong();
 
+            pitCount = in.readVLong();
+            pitTimeInMillis = in.readVLong();
+            pitCurrent = in.readVLong();
+
             suggestCount = in.readVLong();
             suggestTimeInMillis = in.readVLong();
             suggestCurrent = in.readVLong();
@@ -128,6 +141,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
             fetchCount += stats.fetchCount;
             fetchTimeInMillis += stats.fetchTimeInMillis;
             fetchCurrent += stats.fetchCurrent;
+
+            pitCount += stats.pitCount;
+            pitTimeInMillis += stats.pitTimeInMillis;
+            // need consider the count of the pit's current scroll
+            pitCount += stats.pitCurrent;
 
             scrollCount += stats.scrollCount;
             scrollTimeInMillis += stats.scrollTimeInMillis;
@@ -149,6 +167,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             scrollTimeInMillis += stats.scrollTimeInMillis;
             // need consider the count of the shard's current scroll
             scrollCount += stats.scrollCurrent;
+
+            pitCount += stats.pitCount;
+            pitTimeInMillis += stats.pitTimeInMillis;
+            pitCurrent += stats.pitCurrent;
 
             suggestCount += stats.suggestCount;
             suggestTimeInMillis += stats.suggestTimeInMillis;
@@ -202,6 +224,22 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return scrollCurrent;
         }
 
+        public long getPitCount() {
+            return pitCount;
+        }
+
+        public TimeValue getPitTime() {
+            return new TimeValue(pitTimeInMillis);
+        }
+
+        public long getPitTimeInMillis() {
+            return pitTimeInMillis;
+        }
+
+        public long getPitCurrent() {
+            return pitCurrent;
+        }
+
         public long getSuggestCount() {
             return suggestCount;
         }
@@ -236,6 +274,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeVLong(scrollTimeInMillis);
             out.writeVLong(scrollCurrent);
 
+            out.writeVLong(pitCount);
+            out.writeVLong(pitTimeInMillis);
+            out.writeVLong(pitCurrent);
+
             out.writeVLong(suggestCount);
             out.writeVLong(suggestTimeInMillis);
             out.writeVLong(suggestCurrent);
@@ -254,6 +296,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.field(Fields.SCROLL_TOTAL, scrollCount);
             builder.humanReadableField(Fields.SCROLL_TIME_IN_MILLIS, Fields.SCROLL_TIME, getScrollTime());
             builder.field(Fields.SCROLL_CURRENT, scrollCurrent);
+
+            builder.field(Fields.PIT_TOTAL, pitCount);
+            builder.humanReadableField(Fields.PIT_TIME_IN_MILLIS, Fields.PIT_TIME, getPitTime());
+            builder.field(Fields.PIT_CURRENT, pitCurrent);
 
             builder.field(Fields.SUGGEST_TOTAL, suggestCount);
             builder.humanReadableField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, getSuggestTime());
@@ -370,6 +416,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SCROLL_TIME = "scroll_time";
         static final String SCROLL_TIME_IN_MILLIS = "scroll_time_in_millis";
         static final String SCROLL_CURRENT = "scroll_current";
+        static final String PIT_TOTAL = "pit_total";
+        static final String PIT_TIME = "pit_time";
+        static final String PIT_TIME_IN_MILLIS = "pit_time_in_millis";
+        static final String PIT_CURRENT = "pit_current";
         static final String SUGGEST_TOTAL = "suggest_total";
         static final String SUGGEST_TIME = "suggest_time";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";

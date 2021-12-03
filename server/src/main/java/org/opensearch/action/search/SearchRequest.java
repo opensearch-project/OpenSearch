@@ -383,7 +383,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return this;
     }
 
-    private static void validateIndices(String... indices) {
+    public static void validateIndices(String... indices) {
         Objects.requireNonNull(indices, "indices must not be null");
         for (String index : indices) {
             Objects.requireNonNull(index, "index must not be null");

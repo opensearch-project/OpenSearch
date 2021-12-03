@@ -38,6 +38,8 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.search.TransportCreatePITAction.CreateReaderContextRequest;
+import org.opensearch.action.search.TransportCreatePITAction.CreateReaderContextResponse;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -60,10 +62,12 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportActionProxy;
+import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
@@ -93,6 +97,7 @@ public class SearchTransportService {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
+    public static final String CREATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[create_context]";
 
     private final TransportService transportService;
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
@@ -545,6 +550,13 @@ public class SearchTransportService {
             }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
+
+        transportService.registerRequestHandler(CREATE_READER_CONTEXT_ACTION_NAME, ThreadPool.Names.SAME, CreateReaderContextRequest::new,
+            (request, channel, task) -> {
+                ChannelActionListener<CreateReaderContextResponse, CreateReaderContextRequest> listener = new ChannelActionListener<>(channel, CREATE_READER_CONTEXT_ACTION_NAME, request);
+                searchService.openReaderContext(request.getShardId(), request.getKeepAlive(), ActionListener.wrap(r -> listener.onResponse(new CreateReaderContextResponse(r)), listener::onFailure));
+            });
+        TransportActionProxy.registerProxyAction(transportService, CREATE_READER_CONTEXT_ACTION_NAME, CreateReaderContextResponse::new);
     }
 
     /**

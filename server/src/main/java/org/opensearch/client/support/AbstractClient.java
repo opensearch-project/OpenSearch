@@ -335,6 +335,9 @@ import org.opensearch.action.search.ClearScrollAction;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollRequestBuilder;
 import org.opensearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.DeletePITAction;
+import org.opensearch.action.search.DeletePITRequest;
+import org.opensearch.action.search.DeletePITResponse;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
@@ -627,6 +630,11 @@ public abstract class AbstractClient implements Client {
     @Override
     public ActionFuture<MultiTermVectorsResponse> multiTermVectors(final MultiTermVectorsRequest request) {
         return execute(MultiTermVectorsAction.INSTANCE, request);
+    }
+
+    @Override
+    public void deletePit(DeletePITRequest request, ActionListener<DeletePITResponse> listener) {
+        execute(DeletePITAction.INSTANCE, request, listener);
     }
 
     @Override

@@ -847,6 +847,15 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCount());
 
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCurrent());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCurrent());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitTime());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitTime());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCount());
+
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());
 

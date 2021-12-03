@@ -58,6 +58,8 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollRequestBuilder;
 import org.opensearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.DeletePITRequest;
+import org.opensearch.action.search.DeletePITResponse;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
 import org.opensearch.action.search.MultiSearchResponse;
@@ -286,6 +288,8 @@ public interface Client extends OpenSearchClient, Releasable {
      * Multi get documents.
      */
     void multiGet(MultiGetRequest request, ActionListener<MultiGetResponse> listener);
+
+    void deletePit(DeletePITRequest request, ActionListener<DeletePITResponse> listener);
 
     /**
      * Multi get documents.

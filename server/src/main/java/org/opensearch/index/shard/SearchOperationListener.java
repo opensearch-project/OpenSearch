@@ -121,6 +121,19 @@ public interface SearchOperationListener {
     default void onFreeScrollContext(ReaderContext readerContext) {}
 
     /**
+     * Executed when a new Point-In-Time {@link ReaderContext} was created
+     * @param readerContext the created reader context
+     */
+    default void onNewPitContext(ReaderContext readerContext) {}
+
+    /**
+     * Executed when a Point-In-Time search {@link SearchContext} is freed.
+     * This happens on deleteion of a Point-In-Time or on it's keep-alive expiring.
+     * @param readerContext the freed search context
+     */
+    default void onFreePitContext(ReaderContext readerContext) {}
+
+    /**
      * Executed prior to using a {@link ReaderContext} that has been retrieved
      * from the active contexts. If the context is deemed invalid a runtime
      * exception can be thrown, which will prevent the context from being used.
@@ -247,6 +260,28 @@ public interface SearchOperationListener {
                     listener.onFreeScrollContext(readerContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onFreeScrollContext listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onNewPitContext(ReaderContext readerContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onNewPitContext(readerContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onNewPitContext listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onFreePitContext(ReaderContext readerContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onNewPitContext(readerContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onFreePitContext listener [{}] failed", listener), e);
                 }
             }
         }
