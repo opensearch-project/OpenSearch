@@ -70,7 +70,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -244,7 +243,7 @@ public class TransportBulkActionTookTests extends OpenSearchTestCase {
             }
         });
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     static class Resolver extends IndexNameExpressionResolver {

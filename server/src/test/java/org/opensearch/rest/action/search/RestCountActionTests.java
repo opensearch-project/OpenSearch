@@ -38,7 +38,6 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -58,7 +57,7 @@ public class RestCountActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
-        assertWarningsOnce(Arrays.asList(RestCountAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeParameter() {
@@ -74,6 +73,6 @@ public class RestCountActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
-        assertWarningsOnce(Arrays.asList(RestCountAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

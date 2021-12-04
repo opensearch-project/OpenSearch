@@ -37,14 +37,12 @@ import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import static org.opensearch.index.query.FieldMaskingSpanQueryBuilder.SPAN_FIELD_MASKING_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<FieldMaskingSpanQueryBuilder> {
-
     @Override
     protected FieldMaskingSpanQueryBuilder doCreateTestQueryBuilder() {
         String fieldName;
@@ -114,10 +112,8 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
             + "  }\n"
             + "}";
         FieldMaskingSpanQueryBuilder parsed = (FieldMaskingSpanQueryBuilder) parseQuery(json);
-        assertWarningsOnce(
-            Arrays.asList(
-                "Deprecated field [field_masking_span] used, expected [" + SPAN_FIELD_MASKING_FIELD.getPreferredName() + "] instead"
-            )
+        assertWarnings(
+            "Deprecated field [field_masking_span] used, expected [" + SPAN_FIELD_MASKING_FIELD.getPreferredName() + "] instead"
         );
     }
 }

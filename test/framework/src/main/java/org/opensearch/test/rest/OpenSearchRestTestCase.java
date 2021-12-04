@@ -127,6 +127,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
+    // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
+    // This ensures that no matter in what order the tests run, the warning is asserted once.
+    private static Set<String> assertedWarnings = new HashSet<>();
+
     /**
      * Convert the entity from a {@link Response} into a map of maps.
      */
@@ -299,6 +303,18 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      */
     public static RequestOptions expectWarnings(String... warnings) {
         return expectVersionSpecificWarnings(consumer -> consumer.current(warnings));
+    }
+
+    /**
+     * Filters out already asserted warnings and calls expectWarnings method.
+     * @param deprecationWarning expected warning
+     */
+    public static RequestOptions expectWarningsOnce(String deprecationWarning) {
+        if (assertedWarnings.contains(deprecationWarning)) {
+            return RequestOptions.DEFAULT;
+        }
+        assertedWarnings.add(deprecationWarning);
+        return expectWarnings(deprecationWarning);
     }
 
     /**

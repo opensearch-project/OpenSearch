@@ -45,7 +45,6 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -85,7 +84,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarningsOnce(Arrays.asList("Parameter [boost] on field [field] is deprecated and will be removed in 8.0"));
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
     public void testDefaults() throws Exception {
@@ -249,7 +248,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     public void testBadNullValue() throws IOException {
         createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
 
-        assertWarningsOnce(Arrays.asList("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored"));
+        assertWarnings("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored");
     }
 
     public void testNullConfigValuesFail() {

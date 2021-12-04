@@ -41,7 +41,6 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -221,7 +220,7 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
         }, req -> fail(), req -> fail());
         assertTrue(parsed.get());
 
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testParseDeduplicatesParameterStrings() throws IOException {

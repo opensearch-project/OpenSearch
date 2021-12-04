@@ -32,8 +32,6 @@
 
 package org.opensearch.search.aggregations.support;
 
-import java.util.Arrays;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -327,7 +325,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
                 null,
                 CoreValuesSourceType.BYTES
             );
-            assertWarningsOnce(Arrays.asList(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE));
+            assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
         }
     }
 

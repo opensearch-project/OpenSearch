@@ -40,9 +40,6 @@ import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_SETTING;
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
-
-import java.util.Arrays;
-
 import static org.hamcrest.Matchers.sameInstance;
 
 public class NoMasterBlockServiceTests extends OpenSearchTestCase {
@@ -56,11 +53,9 @@ public class NoMasterBlockServiceTests extends OpenSearchTestCase {
     }
 
     private void assertDeprecatedWarningEmitted() {
-        assertWarningsOnce(
-            Arrays.asList(
-                "[discovery.zen.no_master_block] setting was deprecated in OpenSearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version."
-            )
+        assertWarnings(
+            "[discovery.zen.no_master_block] setting was deprecated in OpenSearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 

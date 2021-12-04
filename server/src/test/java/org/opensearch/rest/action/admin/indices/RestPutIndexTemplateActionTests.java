@@ -43,7 +43,6 @@ import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -51,7 +50,6 @@ import static org.opensearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.mockito.Mockito.mock;
 
 public class RestPutIndexTemplateActionTests extends RestActionTestCase {
-
     private RestPutIndexTemplateAction action;
 
     @Before
@@ -89,6 +87,6 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
             .withContent(BytesReference.bytes(typedContent), XContentType.JSON)
             .build();
         action.prepareRequest(request, mock(NodeClient.class));
-        assertWarningsOnce(Arrays.asList(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

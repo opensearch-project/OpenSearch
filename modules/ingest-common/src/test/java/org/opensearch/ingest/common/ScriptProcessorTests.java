@@ -44,7 +44,6 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -124,6 +123,6 @@ public class ScriptProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, null, scriptService);
         processor.execute(ingestDocument);
-        assertWarningsOnce(Arrays.asList("[types removal] Looking up doc types [_type] in scripts is deprecated."));
+        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
     }
 }

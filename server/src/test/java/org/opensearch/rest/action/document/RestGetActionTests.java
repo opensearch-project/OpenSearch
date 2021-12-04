@@ -35,9 +35,6 @@ package org.opensearch.rest.action.document;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
-
-import java.util.Arrays;
-
 import org.junit.Before;
 
 public class RestGetActionTests extends RestActionTestCase {
@@ -55,7 +52,7 @@ public class RestGetActionTests extends RestActionTestCase {
             "/some_index/some_type/some_id"
         );
         dispatchRequest(deprecatedRequest.withMethod(Method.GET).build());
-        assertWarningsOnce(Arrays.asList(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
 
         FakeRestRequest.Builder validRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/some_index/_doc/some_id");
         dispatchRequest(validRequest.withMethod(Method.GET).build());
@@ -69,7 +66,7 @@ public class RestGetActionTests extends RestActionTestCase {
             "/some_index/some_type/some_id"
         );
         dispatchRequest(deprecatedRequest.withMethod(Method.HEAD).build());
-        assertWarningsOnce(Arrays.asList(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
 
         FakeRestRequest.Builder validRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/some_index/_doc/some_id");
         dispatchRequest(validRequest.withMethod(Method.HEAD).build());

@@ -37,7 +37,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Arrays;
 import java.util.Locale;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -88,11 +87,9 @@ public class DiskThresholdSettingsTests extends OpenSearchTestCase {
         assertFalse(diskThresholdSettings.isEnabled());
         assertFalse(diskThresholdSettings.includeRelocations());
 
-        assertWarningsOnce(
-            Arrays.asList(
-                "[cluster.routing.allocation.disk.include_relocations] setting was deprecated in OpenSearch and "
-                    + "will be removed in a future release! See the breaking changes documentation for the next major version."
-            )
+        assertWarnings(
+            "[cluster.routing.allocation.disk.include_relocations] setting was deprecated in OpenSearch and "
+                + "will be removed in a future release! See the breaking changes documentation for the next major version."
         );
     }
 

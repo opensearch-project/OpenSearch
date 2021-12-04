@@ -42,8 +42,6 @@ import org.hamcrest.CoreMatchers;
 
 import static org.hamcrest.Matchers.equalTo;
 
-import java.util.Arrays;
-
 public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
 
     private String modifiedInput;
@@ -109,11 +107,8 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, expectedResultType()), equalTo(1126L));
-        assertWarningsOnce(
-            Arrays.asList(
-                "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [1.1kb] found for setting "
-                    + "[Ingest Field]"
-            )
+        assertWarnings(
+            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [1.1kb] found for setting " + "[Ingest Field]"
         );
     }
 }

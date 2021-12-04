@@ -3,7 +3,7 @@
   - skip:
       version: " - 7.7.99"
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      features: warnings
 
   - do:
       cluster.put_component_template:
@@ -36,7 +36,7 @@
                 is_write_index: true
 
   - do:
-      allowed_warnings:
+      warnings:
         - "index template [my-template] has index patterns [foo, bar-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template
@@ -90,10 +90,10 @@
   - skip:
       version: " - 7.7.99"
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      features: warnings
 
   - do:
-      allowed_warnings:
+      warnings:
         - "index template [my-template] has index patterns [foo, bar-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template
@@ -106,7 +106,7 @@
           priority: 400
 
   - do:
-      allowed_warnings:
+      warnings:
         - "index template [another-template] has index patterns [bar-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [another-template] will take precedence during new index creation"
       indices.put_index_template:
         name: another-template
@@ -133,7 +133,7 @@
   - skip:
       version: " - 7.7.99"
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      features: warnings
 
   - do:
       cluster.put_component_template:
@@ -154,7 +154,7 @@
                   type: keyword
 
   - do:
-      allowed_warnings:
+      warnings:
         - "index template [my-template] has index patterns [baz*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template
@@ -178,10 +178,10 @@
   - skip:
       version: " - 7.7.99"
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      features: warnings
 
   - do:
-      allowed_warnings:
+      warnings:
         - "index template [my-template] has index patterns [eggplant] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template
@@ -206,7 +206,7 @@
   - skip:
       version: " - 7.8.99"
       reason: "index template v2 mapping merging not available before 7.9"
-      features: allowed_warnings
+      features: warnings
 
   - do:
       cluster.put_component_template:
@@ -235,7 +235,7 @@
                   type: text
 
   - do:
-      allowed_warnings:
+      warnings:
         - "index template [blue] has index patterns [purple-index] matching patterns from existing older templates [global] with patterns (global => [*]); this template [blue] will take precedence during new index creation"
       indices.put_index_template:
         name: blue

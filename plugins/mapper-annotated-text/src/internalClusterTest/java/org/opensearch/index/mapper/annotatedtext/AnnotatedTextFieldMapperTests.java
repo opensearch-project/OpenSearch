@@ -99,7 +99,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarningsOnce(Arrays.asList("Parameter [boost] on field [field] is deprecated and will be removed in 8.0"));
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
     @Override
@@ -600,7 +600,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             b.field("type", "annotated_text");
             b.field("index", false);
         }));
-        assertWarningsOnce(Arrays.asList("Parameter [index] has no effect on type [annotated_text] and will be removed in future"));
+        assertWarnings("Parameter [index] has no effect on type [annotated_text] and will be removed in future");
     }
 
     public void testAnalyzedFieldPositionIncrementWithoutPositions() {

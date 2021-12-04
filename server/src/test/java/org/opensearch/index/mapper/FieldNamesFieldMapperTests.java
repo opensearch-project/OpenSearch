@@ -156,7 +156,7 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
         );
 
         assertFieldNames(set("field"), doc);
-        assertWarningsOnce(Arrays.asList(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE));
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
     }
 
     public void testDisabled() throws Exception {
@@ -187,7 +187,7 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
         );
 
         assertNull(doc.rootDoc().get("_field_names"));
-        assertWarningsOnce(Arrays.asList(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test")));
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
 
     public void testMergingMappings() throws Exception {
@@ -227,6 +227,6 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
             MapperService.MergeReason.MAPPING_UPDATE
         );
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
-        assertWarningsOnce(Arrays.asList(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test")));
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
 }

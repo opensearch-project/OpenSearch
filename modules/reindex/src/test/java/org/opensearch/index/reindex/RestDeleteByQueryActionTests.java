@@ -40,12 +40,10 @@ import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import static java.util.Collections.emptyList;
 
 public class RestDeleteByQueryActionTests extends RestActionTestCase {
-
     private RestDeleteByQueryAction action;
 
     @Before
@@ -71,7 +69,7 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
 
         // RestDeleteByQueryAction itself doesn't check for a deprecated type usage
         // checking here for a deprecation from its internal search request
-        assertWarningsOnce(Arrays.asList(RestSearchAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testParseEmpty() throws IOException {

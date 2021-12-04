@@ -44,7 +44,6 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -87,11 +86,8 @@ public class RestForceMergeActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
-        assertWarningsOnce(
-            Arrays.asList(
-                "setting only_expunge_deletes and max_num_segments at the same time is deprecated "
-                    + "and will be rejected in a future version"
-            )
+        assertWarnings(
+            "setting only_expunge_deletes and max_num_segments at the same time is deprecated " + "and will be rejected in a future version"
         );
     }
 }

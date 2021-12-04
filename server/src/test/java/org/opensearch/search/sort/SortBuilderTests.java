@@ -59,6 +59,7 @@ public class SortBuilderTests extends OpenSearchTestCase {
     private static final int NUMBER_OF_RUNS = 20;
 
     private static NamedXContentRegistry xContentRegistry;
+    private Set<String> assertedWarnings = new HashSet<>();
 
     @BeforeClass
     public static void init() {
@@ -152,11 +153,13 @@ public class SortBuilderTests extends OpenSearchTestCase {
             for (SortBuilder<?> builder : testBuilders) {
                 if (builder instanceof GeoDistanceSortBuilder) {
                     GeoDistanceSortBuilder gdsb = (GeoDistanceSortBuilder) builder;
-                    if (gdsb.getNestedFilter() != null) {
-                        expectedWarningHeaders.add("[nested_filter] has been deprecated in favour of the [nested] parameter");
+                    String nestedFilterDeprecationWarning = "[nested_filter] has been deprecated in favour of the [nested] parameter";
+                    String nestedPathDeprecationWarning = "[nested_path] has been deprecated in favour of the [nested] parameter";
+                    if (gdsb.getNestedFilter() != null && !assertedWarnings.contains(nestedFilterDeprecationWarning)) {
+                        expectedWarningHeaders.add(nestedFilterDeprecationWarning);
                     }
-                    if (gdsb.getNestedPath() != null) {
-                        expectedWarningHeaders.add("[nested_path] has been deprecated in favour of the [nested] parameter");
+                    if (gdsb.getNestedPath() != null && !assertedWarnings.contains(nestedPathDeprecationWarning)) {
+                        expectedWarningHeaders.add(nestedPathDeprecationWarning);
                     }
                 }
 
@@ -199,6 +202,7 @@ public class SortBuilderTests extends OpenSearchTestCase {
             }
             if (expectedWarningHeaders.size() > 0) {
                 assertWarnings(expectedWarningHeaders.toArray(new String[expectedWarningHeaders.size()]));
+                assertedWarnings.addAll(expectedWarningHeaders);
             }
         }
     }

@@ -49,7 +49,6 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -107,7 +106,7 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
         IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) service.mapperService().fieldType("_id");
 
         ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null);
-        assertWarningsOnce(Arrays.asList(ID_FIELD_DATA_DEPRECATION_MESSAGE));
+        assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
         assertTrue(ft.isAggregatable());
 
         client().admin()

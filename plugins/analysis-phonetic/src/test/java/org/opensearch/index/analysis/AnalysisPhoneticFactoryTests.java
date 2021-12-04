@@ -43,12 +43,10 @@ import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
 public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
-
     public AnalysisPhoneticFactoryTests() {
         super(new AnalysisPhoneticPlugin());
     }

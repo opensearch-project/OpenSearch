@@ -54,7 +54,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +68,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BulkRequestTests extends OpenSearchTestCase {
-
     public void testSimpleBulk1() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk.json");
         BulkRequest bulkRequest = new BulkRequest();
@@ -79,7 +77,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
         assertThat(((IndexRequest) bulkRequest.requests().get(2)).source(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }")));
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSimpleBulkWithCarriageReturn() throws Exception {
@@ -95,7 +93,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         ).v2();
         assertEquals("value1", sourceMap.get("field1"));
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSimpleBulk2() throws Exception {
@@ -133,7 +131,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         assertThat(scriptParams.get("param1"), equalTo(1));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().utf8ToString(), equalTo("{\"counter\":1}"));
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testBulkAllowExplicitIndex() throws Exception {
@@ -147,7 +145,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk5.json");
         new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), "test", null, false, XContentType.JSON);
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testBulkAddIterable() {
@@ -172,7 +170,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         );
         assertThat(exc.getMessage(), containsString("Unknown key for a VALUE_STRING in [hello]"));
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSimpleBulk7() throws Exception {
@@ -187,7 +185,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
             containsString("Malformed action/metadata line [5], expected a simple value for field [_unknown] but found [START_ARRAY]")
         );
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSimpleBulk8() throws Exception {
@@ -199,7 +197,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         );
         assertThat(exc.getMessage(), containsString("Action/metadata line [3] contains an unknown parameter [_foo]"));
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSimpleBulk9() throws Exception {
@@ -221,7 +219,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(9));
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testBulkActionShouldNotContainArray() throws Exception {
@@ -348,7 +346,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         assertEquals(1, request.sourceAsMap().size());
         assertEquals("value", request.sourceAsMap().get("field"));
         // This test's content contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testToValidateUpsertRequestAndCASInBulkRequest() throws IOException {
@@ -385,7 +383,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         bulkRequest.add(data, null, null, xContentType);
         assertThat(bulkRequest.validate().validationErrors(), contains("upsert requests don't support `if_seq_no` and `if_primary_term`"));
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testBulkTerminatedByNewline() throws Exception {
@@ -407,6 +405,6 @@ public class BulkRequestTests extends OpenSearchTestCase {
         );
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
         // This test's JSON contains outdated references to types
-        assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

@@ -86,10 +86,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -99,10 +97,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
-
-    // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
-    // This ensures that no matter in what order the tests run, the warning is asserted once.
-    private static Set<String> assertedWarnings = new HashSet<>();
 
     public void testDelete() throws IOException {
         {
@@ -1446,13 +1440,5 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 );
             }
         }
-    }
-
-    private RequestOptions expectWarningsOnce(String deprecationWarning) {
-        if (!assertedWarnings.contains(deprecationWarning)) {
-            assertedWarnings.add(deprecationWarning);
-            return expectWarnings(deprecationWarning);
-        }
-        return RequestOptions.DEFAULT;
     }
 }

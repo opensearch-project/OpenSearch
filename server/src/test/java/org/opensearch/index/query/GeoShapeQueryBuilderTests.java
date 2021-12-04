@@ -61,7 +61,6 @@ import org.junit.After;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -270,7 +269,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
 
         GeoShapeQueryBuilder shapeQuery = (GeoShapeQueryBuilder) query;
         if (shapeQuery.indexedShapeType() != null) {
-            assertWarningsOnce(Arrays.asList(GeoShapeQueryBuilder.TYPES_DEPRECATION_MESSAGE));
+            assertWarnings(GeoShapeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
         }
         return query;
     }

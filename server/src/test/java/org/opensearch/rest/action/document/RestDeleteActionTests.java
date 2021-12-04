@@ -36,9 +36,6 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
-
-import java.util.Arrays;
-
 import org.junit.Before;
 
 public class RestDeleteActionTests extends RestActionTestCase {
@@ -56,7 +53,7 @@ public class RestDeleteActionTests extends RestActionTestCase {
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(deprecatedRequest);
-        assertWarningsOnce(Arrays.asList(RestDeleteAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestDeleteAction.TYPES_DEPRECATION_MESSAGE);
 
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.DELETE)
             .withPath("/some_index/_doc/some_id")

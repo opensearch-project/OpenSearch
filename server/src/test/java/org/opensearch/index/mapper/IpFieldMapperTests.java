@@ -45,7 +45,6 @@ import org.opensearch.index.termvectors.TermVectorsService;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -214,6 +213,6 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("type", "ip");
             b.field("null_value", ":1");
         }));
-        assertWarningsOnce(Arrays.asList("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored"));
+        assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
     }
 }

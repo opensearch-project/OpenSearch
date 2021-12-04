@@ -68,7 +68,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -250,7 +249,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
             containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
         );
-        assertWarningsOnce(Arrays.asList(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE));
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     public void testWithdrawsVotesFromAllMasterEligibleNodes() throws InterruptedException {
@@ -272,7 +271,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
             containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion)
         );
-        assertWarningsOnce(Arrays.asList(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE));
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     public void testWithdrawsVoteFromLocalNode() throws InterruptedException {
@@ -291,7 +290,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), contains(localNodeExclusion));
-        assertWarningsOnce(Arrays.asList(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE));
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     public void testReturnsImmediatelyIfVoteAlreadyWithdrawn() throws InterruptedException {
@@ -347,7 +346,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             rootCause.getMessage(),
             equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes")
         );
-        assertWarningsOnce(Arrays.asList(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE));
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     public void testOnlyMatchesMasterEligibleNodes() throws InterruptedException {
@@ -371,7 +370,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             rootCause.getMessage(),
             equalTo("add voting config exclusions request for [_all, master:false] matched no master-eligible nodes")
         );
-        assertWarningsOnce(Arrays.asList(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE));
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     public void testExcludeAbsentNodesByNodeIds() throws InterruptedException {
@@ -616,7 +615,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
                     + "] set by [cluster.max_voting_config_exclusions]"
             )
         );
-        assertWarningsOnce(Arrays.asList(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE));
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     public void testTimesOut() throws InterruptedException {
@@ -642,7 +641,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         final Throwable rootCause = exceptionHolder.get().getRootCause();
         assertThat(rootCause, instanceOf(OpenSearchTimeoutException.class));
         assertThat(rootCause.getMessage(), startsWith("timed out waiting for voting config exclusions [{other1}"));
-        assertWarningsOnce(Arrays.asList(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE));
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
 
     }
 

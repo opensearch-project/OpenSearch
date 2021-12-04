@@ -41,14 +41,12 @@ import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportGetAliasesActionTests extends OpenSearchTestCase {
-
     private final SystemIndices EMPTY_SYSTEM_INDICES = new SystemIndices(Collections.emptyMap());
 
     public void testPostProcess() {
@@ -125,11 +123,9 @@ public class TransportGetAliasesActionTests extends OpenSearchTestCase {
         assertThat(result.get("a").size(), equalTo(0));
         assertThat(result.get(".b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
-        assertWarningsOnce(
-            Arrays.asList(
-                "this request accesses system indices: [.b], but in a future major version, direct access to system "
-                    + "indices will be prevented by default"
-            )
+        assertWarnings(
+            "this request accesses system indices: [.b], but in a future major version, direct access to system "
+                + "indices will be prevented by default"
         );
     }
 
@@ -153,11 +149,9 @@ public class TransportGetAliasesActionTests extends OpenSearchTestCase {
         );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
-        assertWarningsOnce(
-            Arrays.asList(
-                "this request accesses system indices: [.b], but in a future major version, direct access to system "
-                    + "indices will be prevented by default"
-            )
+        assertWarnings(
+            "this request accesses system indices: [.b], but in a future major version, direct access to system "
+                + "indices will be prevented by default"
         );
     }
 
@@ -180,11 +174,9 @@ public class TransportGetAliasesActionTests extends OpenSearchTestCase {
         );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
-        assertWarningsOnce(
-            Arrays.asList(
-                "this request accesses system indices: [.b], but in a future major version, direct access to system "
-                    + "indices will be prevented by default"
-            )
+        assertWarnings(
+            "this request accesses system indices: [.b], but in a future major version, direct access to system "
+                + "indices will be prevented by default"
         );
     }
 
@@ -256,11 +248,9 @@ public class TransportGetAliasesActionTests extends OpenSearchTestCase {
             systemIndices
         );
         assertThat(result.size(), equalTo(0));
-        assertWarningsOnce(
-            Arrays.asList(
-                "this request accesses aliases with names reserved for system indices: [.y], but in a future major version, direct"
-                    + "access to system indices and their aliases will not be allowed"
-            )
+        assertWarnings(
+            "this request accesses aliases with names reserved for system indices: [.y], but in a future major version, direct"
+                + "access to system indices and their aliases will not be allowed"
         );
     }
 

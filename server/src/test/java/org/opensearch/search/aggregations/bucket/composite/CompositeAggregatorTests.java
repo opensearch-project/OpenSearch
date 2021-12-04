@@ -1462,9 +1462,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
         });
 
-        assertWarningsOnce(
-            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
-        );
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testThatDateHistogramFailsFormatAfter() throws IOException {
@@ -1504,9 +1502,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             )
         );
         assertThat(exc.getMessage(), containsString("failed to parse date field [1474329600000]"));
-        assertWarningsOnce(
-            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
-        );
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithDateHistogramAndKeyword() throws IOException {
@@ -1581,9 +1577,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
         );
 
-        assertWarningsOnce(
-            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
-        );
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithKeywordAndHistogram() throws IOException {
@@ -1791,9 +1785,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
         );
 
-        assertWarningsOnce(
-            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
-        );
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithKeywordAndTopHits() throws Exception {

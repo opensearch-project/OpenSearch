@@ -43,7 +43,6 @@ import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 public class RestTermVectorsActionTests extends RestActionTestCase {
 
@@ -61,7 +60,7 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
-        assertWarningsOnce(Arrays.asList(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInBody() throws IOException {
@@ -76,6 +75,6 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
-        assertWarningsOnce(Arrays.asList(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

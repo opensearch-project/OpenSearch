@@ -41,7 +41,6 @@ import org.opensearch.index.reindex.AbstractAsyncBulkByScrollAction.RequestWrapp
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.UpdateScript;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -82,7 +81,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
 
     public void testTypeDeprecation() {
         applyScript((Map<String, Object> ctx) -> ctx.get("_type"));
-        assertWarningsOnce(Arrays.asList("[types removal] Looking up doc types [_type] in scripts is deprecated."));
+        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
     }
 
     public void testScriptAddingJunkToCtxIsError() {

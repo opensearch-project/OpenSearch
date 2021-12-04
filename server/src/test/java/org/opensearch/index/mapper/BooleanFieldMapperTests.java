@@ -47,7 +47,6 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
@@ -63,7 +62,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarningsOnce(Arrays.asList("Parameter [boost] on field [field] is deprecated and will be removed in 8.0"));
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {

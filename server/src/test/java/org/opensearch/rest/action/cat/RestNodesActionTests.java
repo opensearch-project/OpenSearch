@@ -47,7 +47,6 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
@@ -86,7 +85,7 @@ public class RestNodesActionTests extends OpenSearchTestCase {
         request.params().put("local", randomFrom("", "true", "false"));
 
         action.doCatRequest(request, client);
-        assertWarningsOnce(Arrays.asList(RestNodesAction.LOCAL_DEPRECATED_MESSAGE));
+        assertWarnings(RestNodesAction.LOCAL_DEPRECATED_MESSAGE);
 
         terminate(threadPool);
     }

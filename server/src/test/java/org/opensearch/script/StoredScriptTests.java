@@ -44,7 +44,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -128,7 +127,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             assertThat(parsed, equalTo(source));
         }
-        assertWarningsOnce(Arrays.asList("Deprecated field [code] used, expected [source] instead"));
+        assertWarnings("Deprecated field [code] used, expected [source] instead");
 
         // complex script with script object and empty options
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -246,7 +245,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
-            assertWarningsOnce(Arrays.asList("empty templates should no longer be used"));
+            assertWarnings("empty templates should no longer be used");
         }
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -256,7 +255,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
-            assertWarningsOnce(Arrays.asList("empty templates should no longer be used"));
+            assertNoDeprecationWarnings();
         }
     }
 

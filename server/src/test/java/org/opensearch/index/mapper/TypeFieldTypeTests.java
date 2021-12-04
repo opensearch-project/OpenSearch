@@ -61,8 +61,6 @@ public class TypeFieldTypeTests extends OpenSearchTestCase {
         query = ft.termQueryCaseInsensitive("_DOC", context);
         assertEquals(new MatchAllDocsQuery(), query);
 
-        assertWarningsOnce(
-            Arrays.asList("[types removal] Using the _type field in queries and aggregations is deprecated, prefer to use a field instead.")
-        );
+        assertWarnings("[types removal] Using the _type field in queries and aggregations is deprecated, prefer to use a field instead.");
     }
 }

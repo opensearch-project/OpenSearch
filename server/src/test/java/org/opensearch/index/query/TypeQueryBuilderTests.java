@@ -38,7 +38,6 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -74,18 +73,18 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
     @Override
     public void testToQuery() throws IOException {
         super.testToQuery();
-        assertWarningsOnce(Arrays.asList(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testMustRewrite() throws IOException {
         super.testMustRewrite();
-        assertWarningsOnce(Arrays.asList(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testCacheability() throws IOException {
         super.testCacheability();
-        assertWarningsOnce(Arrays.asList(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
     }
 }

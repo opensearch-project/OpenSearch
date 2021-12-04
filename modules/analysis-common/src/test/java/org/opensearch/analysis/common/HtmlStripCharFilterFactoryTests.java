@@ -45,7 +45,6 @@ import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.Arrays;
 import java.util.Map;
 
 public class HtmlStripCharFilterFactoryTests extends OpenSearchTestCase {
@@ -67,11 +66,9 @@ public class HtmlStripCharFilterFactoryTests extends OpenSearchTestCase {
             Map<String, CharFilterFactory> charFilters = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).charFilter;
             CharFilterFactory charFilterFactory = charFilters.get("htmlStrip");
             assertNotNull(charFilterFactory.create(new StringReader("input")));
-            assertWarningsOnce(
-                Arrays.asList(
-                    "The [htmpStrip] char filter name is deprecated and will be removed in a future version. "
-                        + "Please change the filter name to [html_strip] instead."
-                )
+            assertWarnings(
+                "The [htmpStrip] char filter name is deprecated and will be removed in a future version. "
+                    + "Please change the filter name to [html_strip] instead."
             );
         }
     }

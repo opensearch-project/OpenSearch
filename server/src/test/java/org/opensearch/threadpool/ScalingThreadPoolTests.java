@@ -36,7 +36,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -113,14 +112,12 @@ public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
         });
 
         if (processorsUsed > availableProcessors) {
-            assertWarningsOnce(
-                Arrays.asList(
-                    "setting [node.processors] to value ["
-                        + processorsUsed
-                        + "] which is more than available processors ["
-                        + availableProcessors
-                        + "] is deprecated"
-                )
+            assertWarnings(
+                "setting [node.processors] to value ["
+                    + processorsUsed
+                    + "] which is more than available processors ["
+                    + availableProcessors
+                    + "] is deprecated"
             );
         }
     }

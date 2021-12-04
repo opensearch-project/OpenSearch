@@ -56,7 +56,6 @@ import static org.hamcrest.Matchers.hasToString;
  * Simple unit-tests for Environment.java
  */
 public class EnvironmentTests extends OpenSearchTestCase {
-
     public Environment newEnvironment() {
         return newEnvironment(Settings.EMPTY);
     }

@@ -66,7 +66,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
 
 public class OperationRoutingTests extends OpenSearchTestCase {
-
     public void testGenerateShardId() {
         int[][] possibleValues = new int[][] { { 8, 4, 2 }, { 20, 10, 2 }, { 36, 12, 3 }, { 15, 5, 1 } };
         for (int i = 0; i < 10; i++) {
@@ -666,7 +665,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        assertWarningsOnce(Arrays.asList(IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE));
+        assertWarnings(IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
     }
 
 }

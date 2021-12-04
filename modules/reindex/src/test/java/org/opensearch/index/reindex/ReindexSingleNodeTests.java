@@ -44,7 +44,6 @@ import static org.opensearch.index.reindex.ReindexTestCase.matcher;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class ReindexSingleNodeTests extends OpenSearchSingleNodeTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(ReindexPlugin.class);
@@ -70,6 +69,6 @@ public class ReindexSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         assertHitCount(client().prepareSearch("dest").setSize(0).get(), subsetSize);
         assertHitCount(client().prepareSearch("dest").setQuery(new RangeQueryBuilder("foo").gte(0).lt(max - subsetSize)).get(), 0);
-        assertWarningsOnce(Arrays.asList(ReindexValidator.SORT_DEPRECATED_MESSAGE));
+        assertWarnings(ReindexValidator.SORT_DEPRECATED_MESSAGE);
     }
 }

@@ -40,9 +40,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import static org.opensearch.search.lookup.LeafDocLookup.TYPES_DEPRECATION_MESSAGE;
-
-import java.util.Arrays;
-
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.doReturn;
@@ -50,7 +47,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LeafDocLookupTests extends OpenSearchTestCase {
-
     private ScriptDocValues<?> docValues;
     private LeafDocLookup docLookup;
 
@@ -86,7 +82,7 @@ public class LeafDocLookupTests extends OpenSearchTestCase {
     public void testTypesDeprecation() {
         ScriptDocValues<?> fetchedDocValues = docLookup.get("_type");
         assertEquals(docValues, fetchedDocValues);
-        assertWarningsOnce(Arrays.asList(TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(TYPES_DEPRECATION_MESSAGE);
     }
 
     private IndexFieldData<?> createFieldData(ScriptDocValues scriptDocValues) {

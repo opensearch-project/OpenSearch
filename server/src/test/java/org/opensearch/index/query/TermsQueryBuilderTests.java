@@ -60,8 +60,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -72,6 +74,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     private List<Object> randomTerms;
     private String termsPath;
     private boolean maybeIncludeType = true;
+    private Set<String> assertedWarnings = new HashSet<>();
 
     @Before
     public void randomTerms() {
@@ -355,7 +358,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testTypeField() throws IOException {
         TermsQueryBuilder builder = QueryBuilders.termsQuery("_type", "value1", "value2");
         builder.doToQuery(createShardContext());
-        assertWarningsOnce(Arrays.asList(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
@@ -380,8 +383,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
 
             TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
-            if (termsQuery.isTypeless() == false) {
-                assertWarningsOnce(Arrays.asList("Deprecated field [type] used, this field is unused and will be removed entirely"));
+            String deprecationWarning = "Deprecated field [type] used, this field is unused and will be removed entirely";
+            if (termsQuery.isTypeless() == false && !assertedWarnings.contains(deprecationWarning)) {
+                assertWarnings(deprecationWarning);
+                assertedWarnings.add(deprecationWarning);
             }
             return query;
         } finally {

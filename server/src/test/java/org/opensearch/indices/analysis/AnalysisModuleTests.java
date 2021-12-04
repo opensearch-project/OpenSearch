@@ -96,7 +96,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AnalysisModuleTests extends OpenSearchTestCase {
-
     private final Settings emptyNodeSettings = Settings.builder()
         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
         .build();
@@ -268,7 +267,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build();
             getIndexAnalyzers(settings);
-            assertWarningsOnce(Arrays.asList("The [standard] token filter is deprecated and will be removed in a future version."));
+            assertWarnings("The [standard] token filter is deprecated and will be removed in a future version.");
         }
     }
 

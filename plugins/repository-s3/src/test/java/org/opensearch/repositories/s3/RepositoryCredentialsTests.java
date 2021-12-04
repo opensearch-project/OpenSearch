@@ -59,7 +59,6 @@ import org.opensearch.test.rest.FakeRestRequest;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
@@ -131,15 +130,13 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
         assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
         assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
 
-        assertWarningsOnce(
-            Arrays.asList(
-                "[secret_key] setting was deprecated in OpenSearch and will be removed in a future release!"
-                    + " See the breaking changes documentation for the next major version.",
-                "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                    + " the opensearch keystore for secure settings.",
-                "[access_key] setting was deprecated in OpenSearch and will be removed in a future release!"
-                    + " See the breaking changes documentation for the next major version."
-            )
+        assertWarnings(
+            "[secret_key] setting was deprecated in OpenSearch and will be removed in a future release!"
+                + " See the breaking changes documentation for the next major version.",
+            "Using s3 access/secret key from repository settings. Instead store these in named clients and"
+                + " the opensearch keystore for secure settings.",
+            "[access_key] setting was deprecated in OpenSearch and will be removed in a future release!"
+                + " See the breaking changes documentation for the next major version."
         );
     }
 
@@ -219,15 +216,13 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
         }
 
         if (hasInsecureSettings) {
-            assertWarningsOnce(
-                Arrays.asList(
-                    "[secret_key] setting was deprecated in OpenSearch and will be removed in a future release!"
-                        + " See the breaking changes documentation for the next major version.",
-                    "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                        + " the opensearch keystore for secure settings.",
-                    "[access_key] setting was deprecated in OpenSearch and will be removed in a future release!"
-                        + " See the breaking changes documentation for the next major version."
-                )
+            assertWarnings(
+                "[secret_key] setting was deprecated in OpenSearch and will be removed in a future release!"
+                    + " See the breaking changes documentation for the next major version.",
+                "Using s3 access/secret key from repository settings. Instead store these in named clients and"
+                    + " the opensearch keystore for secure settings.",
+                "[access_key] setting was deprecated in OpenSearch and will be removed in a future release!"
+                    + " See the breaking changes documentation for the next major version."
             );
         }
     }
@@ -267,11 +262,9 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
             throw error.get();
         }
 
-        assertWarningsOnce(
-            Arrays.asList(
-                "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                    + " the opensearch keystore for secure settings."
-            )
+        assertWarnings(
+            "Using s3 access/secret key from repository settings. Instead store these in named clients and"
+                + " the opensearch keystore for secure settings."
         );
     }
 

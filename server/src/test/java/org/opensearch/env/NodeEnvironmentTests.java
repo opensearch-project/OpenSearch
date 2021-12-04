@@ -76,7 +76,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends OpenSearchTestCase {
-
     private final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
 
     public void testNodeLockSillySettings() {
@@ -95,11 +94,9 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
             Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build()
         );
         assertEquals(value, max);
-        assertWarningsOnce(
-            Arrays.asList(
-                "[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version."
-            )
+        assertWarnings(
+            "[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -125,11 +122,9 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         }
         env.close();
         assertThat(env.lockedShards(), empty());
-        assertWarningsOnce(
-            Arrays.asList(
-                "[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version."
-            )
+        assertWarnings(
+            "[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -167,11 +162,9 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
             assertEquals(first.nodeDataPaths()[i].getParent(), second.nodeDataPaths()[i].getParent());
         }
         IOUtils.close(first, second);
-        assertWarningsOnce(
-            Arrays.asList(
-                "[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version."
-            )
+        assertWarnings(
+            "[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 

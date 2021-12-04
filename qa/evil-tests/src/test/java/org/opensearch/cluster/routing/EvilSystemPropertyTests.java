@@ -38,10 +38,6 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-
 public class EvilSystemPropertyTests extends OpenSearchTestCase {
 
     @SuppressForbidden(reason = "manipulates system properties for testing")
@@ -51,7 +47,7 @@ public class EvilSystemPropertyTests extends OpenSearchTestCase {
             .build();
         OperationRouting routing = new OperationRouting(indexSettings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        assertWarningsOnce(Arrays.asList(OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE));
+        assertWarnings(OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
         assertThat(routing.getAwarenessAttributes().size(), equalTo(1));
         assertThat(routing.getAwarenessAttributes().get(0), equalTo("test"));
         System.setProperty("opensearch.search.ignore_awareness_attributes", "true");

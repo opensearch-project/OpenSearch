@@ -474,11 +474,9 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.get(Settings.EMPTY).intValue(),
             settings.getMaxAdjacencyMatrixFilters()
         );
-        assertWarningsOnce(
-            Arrays.asList(
-                "[index.max_adjacency_matrix_filters] setting was deprecated in OpenSearch and will be removed in a "
-                    + "future release! See the breaking changes documentation for the next major version."
-            )
+        assertWarnings(
+            "[index.max_adjacency_matrix_filters] setting was deprecated in OpenSearch and will be removed in a "
+                + "future release! See the breaking changes documentation for the next major version."
         );
     }
 

@@ -141,10 +141,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.hasItem;
@@ -168,10 +166,6 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.extractRa
 import static org.opensearch.common.xcontent.support.XContentMapValues.extractValue;
 
 public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
-
-    // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
-    // This ensures that no matter in what order the tests run, the warning is asserted once.
-    private static Set<String> assertedWarnings = new HashSet<>();
 
     public void testIndicesExists() throws IOException {
         // Index present
@@ -2605,13 +2599,5 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             simulateResponse.overlappingTemplates().get("my-template").get(0),
             is("pattern")
         );
-    }
-
-    private RequestOptions expectWarningsOnce(String deprecationWarning) {
-        if (!assertedWarnings.contains(deprecationWarning)) {
-            assertedWarnings.add(deprecationWarning);
-            return expectWarnings(deprecationWarning);
-        }
-        return RequestOptions.DEFAULT;
     }
 }

@@ -287,7 +287,7 @@
     - skip:
         version: " - 7.7.99"
         reason: "format changed in 7.8 to accomodate V2 index templates"
-        features: allowed_warnings
+        features: warnings
 
     - do:
         cluster.put_component_template:
@@ -310,7 +310,7 @@
               number_of_replicas: 0
 
     - do:
-        allowed_warnings:
+        warnings:
           - "index template [testv2] has index patterns [v2-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [testv2] will take precedence during new index creation"
         indices.put_index_template:
           name: testv2

@@ -44,7 +44,6 @@ import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
 
@@ -56,7 +55,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
-
     private static final String FROM_DATE = "2016-10-31";
     private static final String TO_DATE = "2016-11-01 20:00:00";
     private static final String FROM_IP = "::ffff:c0a8:107";
@@ -98,7 +96,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarningsOnce(Arrays.asList("Parameter [boost] on field [field] is deprecated and will be removed in 8.0"));
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {

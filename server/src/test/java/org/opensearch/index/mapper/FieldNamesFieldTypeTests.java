@@ -42,7 +42,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Arrays;
 import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
@@ -86,9 +85,7 @@ public class FieldNamesFieldTypeTests extends OpenSearchTestCase {
         );
         Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
-        assertWarningsOnce(
-            Arrays.asList("terms query on the _field_names field is deprecated and will be removed, use exists query instead")
-        );
+        assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");
 
         FieldNamesFieldMapper.FieldNamesFieldType unsearchable = new FieldNamesFieldMapper.FieldNamesFieldType(false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> unsearchable.termQuery("field_name", null));

@@ -411,7 +411,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         String mapping = "{\"type\":\"test_mapper\",\"fixed2_old\":true,\"required\":\"value\"}";
         TestMapper mapper = fromMapping(mapping);
         assertTrue(mapper.fixed2);
-        assertWarningsOnce(Arrays.asList("Parameter [fixed2_old] on mapper [field] is deprecated, use [fixed2]"));
+        assertWarnings("Parameter [fixed2_old] on mapper [field] is deprecated, use [fixed2]");
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed2\":true,\"required\":\"value\"}}", Strings.toString(mapper));
     }
 
@@ -444,7 +444,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
         String mapping = "{\"type\":\"test_mapper\",\"index\":false,\"store\":true,\"required\":\"value\"}";
         TestMapper mapper = fromMapping(mapping, LegacyESVersion.V_7_8_0);
-        assertWarningsOnce(Arrays.asList("Parameter [store] has no effect on type [test_mapper] and will be removed in future"));
+        assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
         assertFalse(mapper.index);
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"index\":false,\"required\":\"value\"}}", Strings.toString(mapper));
     }

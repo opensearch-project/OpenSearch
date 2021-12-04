@@ -83,7 +83,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
-
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private ThreadContext threadContext;
 
@@ -2202,11 +2201,11 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta"));
-        assertWarningsOnce(
-            Arrays.asList(
-                "this request accesses system indices: [.ml-meta, .ml-stuff], but in a future major version, "
-                    + "direct access to system indices will be prevented by default"
-            )
+        assertWarnings(
+            "this request accesses system indices: [.ml-meta], but in a future major version, "
+                + "direct access to system indices will be prevented by default",
+            "this request accesses system indices: [.ml-stuff], but in a future major version, "
+                + "direct access to system indices will be prevented by default"
         );
 
     }
@@ -2218,11 +2217,9 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder(".ml-meta"));
-        assertWarningsOnce(
-            Arrays.asList(
-                "this request accesses system indices: [.ml-meta], but in a future major version, direct access "
-                    + "to system indices will be prevented by default"
-            )
+        assertWarnings(
+            "this request accesses system indices: [.ml-meta], but in a future major version, direct access "
+                + "to system indices will be prevented by default"
         );
 
     }
@@ -2234,11 +2231,11 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder(".ml-meta", ".ml-stuff"));
-        assertWarningsOnce(
-            Arrays.asList(
-                "this request accesses system indices: [.ml-meta, .ml-stuff], but in a future major version, direct access "
-                    + "to system indices will be prevented by default"
-            )
+        assertWarnings(
+            "this request accesses system indices: [.ml-meta], but in a future major version, direct access "
+                + "to system indices will be prevented by default",
+            "this request accesses system indices: [.ml-stuff], but in a future major version, direct access "
+                + "to system indices will be prevented by default"
         );
 
     }

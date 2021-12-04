@@ -38,8 +38,6 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
-
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -66,7 +64,7 @@ public class RestAddVotingConfigExclusionActionTests extends RestActionTestCase 
         assertArrayEquals(expected, addVotingConfigExclusionsRequest.getNodeDescriptions());
         assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeIds());
         assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeNames());
-        assertWarningsOnce(Arrays.asList("nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead"));
+        assertWarnings("nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead");
     }
 
     public void testResolveVotingConfigExclusionsRequestNodeIds() {

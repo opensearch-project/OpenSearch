@@ -39,7 +39,6 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -259,10 +258,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     }
 
     private void assertDeprecationWarning() {
-        assertWarningsOnce(
-            Arrays.asList(
-                "Deprecated field [common] used, replaced by [" + CommonTermsQueryBuilder.COMMON_TERMS_QUERY_DEPRECATION_MSG + "]"
-            )
-        );
+        assertWarnings("Deprecated field [common] used, replaced by [" + CommonTermsQueryBuilder.COMMON_TERMS_QUERY_DEPRECATION_MSG + "]");
     }
 }

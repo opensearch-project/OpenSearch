@@ -43,7 +43,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
-import java.util.Arrays;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
@@ -422,10 +421,8 @@ public class DateFormattersTests extends OpenSearchTestCase {
 
     public void testWeek_yearDeprecation() {
         DateFormatter.forPattern("week_year");
-        assertWarningsOnce(
-            Arrays.asList(
-                "Format name \"week_year\" is deprecated and will be removed in a future version. " + "Use \"weekyear\" format instead"
-            )
+        assertWarnings(
+            "Format name \"week_year\" is deprecated and will be removed in a future version. " + "Use \"weekyear\" format instead"
         );
     }
 
@@ -508,15 +505,13 @@ public class DateFormattersTests extends OpenSearchTestCase {
 
             DateFormatter dateFormatter = DateFormatter.forPattern(name);
             assertThat(dateFormatter.pattern(), equalTo(name));
-            assertWarningsOnce(
-                Arrays.asList(
-                    "Camel case format name "
-                        + name
-                        + " is deprecated and will be removed in a future version. "
-                        + "Use snake case name "
-                        + snakeCaseName
-                        + " instead."
-                )
+            assertWarnings(
+                "Camel case format name "
+                    + name
+                    + " is deprecated and will be removed in a future version. "
+                    + "Use snake case name "
+                    + snakeCaseName
+                    + " instead."
             );
 
             dateFormatter = DateFormatter.forPattern(snakeCaseName);
@@ -529,17 +524,6 @@ public class DateFormattersTests extends OpenSearchTestCase {
                 assertThat(dateFormatter.pattern(), equalTo(name));
 
                 String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
-                assertWarningsOnce(
-                    Arrays.asList(
-                        "Camel case format name "
-                            + name
-                            + " is deprecated and will be removed in a future version. "
-                            + "Use snake case name "
-                            + snakeCaseName
-                            + " instead."
-                    )
-                );
-
                 dateFormatter = Joda.forPattern(snakeCaseName);
                 assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
             }

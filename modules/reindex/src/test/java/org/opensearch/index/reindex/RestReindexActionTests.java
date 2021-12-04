@@ -124,7 +124,7 @@ public class RestReindexActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
 
         dispatchRequest(requestBuilder.build());
-        assertWarningsOnce(Arrays.asList(ReindexRequest.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(ReindexRequest.TYPES_DEPRECATION_MESSAGE);
     }
 
     /**
@@ -148,6 +148,6 @@ public class RestReindexActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
 
         dispatchRequest(requestBuilder.build());
-        assertWarningsOnce(Arrays.asList(ReindexRequest.TYPES_DEPRECATION_MESSAGE));
+        assertWarnings(ReindexRequest.TYPES_DEPRECATION_MESSAGE);
     }
 }
