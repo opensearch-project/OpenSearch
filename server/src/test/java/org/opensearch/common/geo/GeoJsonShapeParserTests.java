@@ -32,7 +32,6 @@
 
 package org.opensearch.common.geo;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -407,7 +406,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         shellCoordinates.add(new Coordinate(100, 0, 10));
         Coordinate[] coordinates = shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]);
 
-        Version randomVersion = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
+        Version randomVersion = VersionUtils.randomIndexCompatibleVersion(random());
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)

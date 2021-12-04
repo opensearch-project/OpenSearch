@@ -32,9 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
@@ -42,74 +39,12 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
-import org.opensearch.test.VersionUtils;
-
-import static org.hamcrest.CoreMatchers.containsString;
 
 public class AllFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
         return false;
-    }
-
-    public void testAllDisabled() throws Exception {
-        {
-            final Version version = VersionUtils.randomVersionBetween(
-                random(),
-                LegacyESVersion.V_6_0_0,
-                LegacyESVersion.V_7_0_0.minimumCompatibilityVersion()
-            );
-            IndexService indexService = createIndex(
-                "test_6x",
-                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build()
-            );
-            String mappingDisabled = Strings.toString(
-                XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().endObject()
-            );
-            indexService.mapperService().merge("_doc", new CompressedXContent(mappingDisabled), MergeReason.MAPPING_UPDATE);
-            assertEquals("{\"_doc\":{\"_all\":{\"enabled\":false}}}", Strings.toString(indexService.mapperService().documentMapper()));
-
-            String mappingEnabled = Strings.toString(
-                XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().endObject()
-            );
-            MapperParsingException exc = expectThrows(
-                MapperParsingException.class,
-                () -> indexService.mapperService().merge("_doc", new CompressedXContent(mappingEnabled), MergeReason.MAPPING_UPDATE)
-            );
-            assertThat(exc.getMessage(), containsString("[_all] is disabled in this version."));
-        }
-        {
-            IndexService indexService = createIndex("test");
-            String mappingEnabled = Strings.toString(
-                XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().endObject()
-            );
-            MapperParsingException exc = expectThrows(
-                MapperParsingException.class,
-                () -> indexService.mapperService().merge("_doc", new CompressedXContent(mappingEnabled), MergeReason.MAPPING_UPDATE)
-            );
-            assertThat(exc.getMessage(), containsString("unsupported parameters:  [_all"));
-
-            String mappingDisabled = Strings.toString(
-                XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().endObject()
-            );
-            exc = expectThrows(
-                MapperParsingException.class,
-                () -> indexService.mapperService().merge("_doc", new CompressedXContent(mappingDisabled), MergeReason.MAPPING_UPDATE)
-            );
-            assertThat(exc.getMessage(), containsString("unsupported parameters:  [_all"));
-
-            String mappingAll = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_all").endObject().endObject());
-            exc = expectThrows(
-                MapperParsingException.class,
-                () -> indexService.mapperService().merge("_doc", new CompressedXContent(mappingAll), MergeReason.MAPPING_UPDATE)
-            );
-            assertThat(exc.getMessage(), containsString("unsupported parameters:  [_all"));
-
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().endObject());
-            indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-            assertEquals("{\"_doc\":{}}", indexService.mapperService().documentMapper("_doc").mapping().toString());
-        }
     }
 
     public void testUpdateDefaultSearchAnalyzer() throws Exception {

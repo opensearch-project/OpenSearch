@@ -104,12 +104,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         super(in);
         cause = in.readString();
         name = in.readString();
-
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
-            indexPatterns = in.readStringList();
-        } else {
-            indexPatterns = Collections.singletonList(in.readString());
-        }
+        indexPatterns = in.readStringList();
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
@@ -498,11 +493,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         super.writeTo(out);
         out.writeString(cause);
         out.writeString(name);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
-            out.writeStringCollection(indexPatterns);
-        } else {
-            out.writeString(indexPatterns.size() > 0 ? indexPatterns.get(0) : "");
-        }
+        out.writeStringCollection(indexPatterns);
         out.writeInt(order);
         out.writeBoolean(create);
         writeSettingsToStream(settings, out);

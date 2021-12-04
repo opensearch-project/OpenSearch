@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -125,6 +124,6 @@ public class ClusterUpdateSettingsResponseTests extends AbstractSerializingTestC
 
     public void testOldSerialisation() throws IOException {
         ClusterUpdateSettingsResponse original = createTestInstance();
-        assertSerialization(original, VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_6_4_0));
+        assertSerialization(original, VersionUtils.randomIndexCompatibleVersion(random()));
     }
 }

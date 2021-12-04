@@ -32,7 +32,6 @@
 
 package org.opensearch.search.functionscore;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -886,7 +885,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
     }
 
     public void testManyDocsLin() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("type")

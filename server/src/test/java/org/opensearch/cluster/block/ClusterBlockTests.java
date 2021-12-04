@@ -46,9 +46,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.EnumSet.copyOf;
-import static org.opensearch.test.VersionUtils.getPreviousVersion;
 import static org.opensearch.test.VersionUtils.randomVersion;
-import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -73,45 +71,6 @@ public class ClusterBlockTests extends OpenSearchTestCase {
             ClusterBlock result = new ClusterBlock(in);
 
             assertClusterBlockEquals(clusterBlock, result);
-        }
-    }
-
-    public void testBwcSerialization() throws Exception {
-        for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
-            // Generate a random cluster block in version < 7.0.0
-            final Version version = randomVersionBetween(random(), LegacyESVersion.V_6_0_0, getPreviousVersion(LegacyESVersion.V_6_7_0));
-            final ClusterBlock expected = randomClusterBlock(version);
-            assertNull(expected.uuid());
-
-            // Serialize to node in current version
-            final BytesStreamOutput out = new BytesStreamOutput();
-            expected.writeTo(out);
-
-            // Deserialize and check the cluster block
-            final ClusterBlock actual = new ClusterBlock(out.bytes().streamInput());
-            assertClusterBlockEquals(expected, actual);
-        }
-
-        for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
-            // Generate a random cluster block in current version
-            final ClusterBlock expected = randomClusterBlock(Version.CURRENT);
-
-            // Serialize to node in version < 7.0.0
-            final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), LegacyESVersion.V_6_0_0, getPreviousVersion(LegacyESVersion.V_6_7_0)));
-            expected.writeTo(out);
-
-            // Deserialize and check the cluster block
-            final StreamInput in = out.bytes().streamInput();
-            in.setVersion(out.getVersion());
-            final ClusterBlock actual = new ClusterBlock(in);
-
-            assertThat(actual.id(), equalTo(expected.id()));
-            assertThat(actual.status(), equalTo(expected.status()));
-            assertThat(actual.description(), equalTo(expected.description()));
-            assertThat(actual.retryable(), equalTo(expected.retryable()));
-            assertThat(actual.disableStatePersistence(), equalTo(expected.disableStatePersistence()));
-            assertArrayEquals(actual.levels().toArray(), expected.levels().toArray());
         }
     }
 

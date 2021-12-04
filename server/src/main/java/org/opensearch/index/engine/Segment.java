@@ -88,11 +88,7 @@ public class Segment implements Writeable {
             // verbose mode
             ramTree = readRamTree(in);
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
-            segmentSort = readSegmentSort(in);
-        } else {
-            segmentSort = null;
-        }
+        segmentSort = readSegmentSort(in);
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0) && in.readBoolean()) {
             attributes = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
@@ -207,9 +203,7 @@ public class Segment implements Writeable {
         if (verbose) {
             writeRamTree(out, ramTree);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
-            writeSegmentSort(out, segmentSort);
-        }
+        writeSegmentSort(out, segmentSort);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             boolean hasAttributes = attributes != null;
             out.writeBoolean(hasAttributes);

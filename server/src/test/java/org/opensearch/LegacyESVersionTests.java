@@ -85,7 +85,7 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
     }
 
     public void testMinimumIndexCompatibilityVersion() {
-        assertEquals(LegacyESVersion.fromId(5000099), LegacyESVersion.V_6_0_0_beta1.minimumIndexCompatibilityVersion());
+        assertEquals(LegacyESVersion.fromId(5000099), LegacyESVersion.fromId(6000026).minimumIndexCompatibilityVersion());
         assertEquals(LegacyESVersion.fromId(2000099), LegacyESVersion.fromId(5000099).minimumIndexCompatibilityVersion());
         assertEquals(LegacyESVersion.fromId(2000099), LegacyESVersion.fromId(5010000).minimumIndexCompatibilityVersion());
         assertEquals(LegacyESVersion.fromId(2000099), LegacyESVersion.fromId(5000001).minimumIndexCompatibilityVersion());
