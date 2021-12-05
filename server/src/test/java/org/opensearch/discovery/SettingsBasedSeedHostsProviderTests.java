@@ -102,9 +102,11 @@ public class SettingsBasedSeedHostsProviderTests extends OpenSearchTestCase {
             null
         ).getSeedAddresses(hostsResolver);
         assertTrue(hostsResolver.getResolvedHosts());
-        assertWarnings(
-            "[discovery.zen.ping.unicast.hosts] setting was deprecated in OpenSearch and will be removed in a future "
-                + "release! See the breaking changes documentation for the next major version."
+        assertWarningsOnce(
+            Arrays.asList(
+                "[discovery.zen.ping.unicast.hosts] setting was deprecated in OpenSearch and will be removed in a future "
+                    + "release! See the breaking changes documentation for the next major version."
+            )
         );
     }
 

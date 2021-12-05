@@ -77,6 +77,7 @@ import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -93,6 +94,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SliceBuilderTests extends OpenSearchTestCase {
+
     private static final int MAX_SLICE = 20;
 
     private static SliceBuilder randomSliceBuilder() {
@@ -372,7 +374,7 @@ public class SliceBuilderTests extends OpenSearchTestCase {
             Query query = builder.toFilter(null, createRequest(0), context, Version.CURRENT);
             assertThat(query, instanceOf(TermsSliceQuery.class));
             assertThat(builder.toFilter(null, createRequest(0), context, Version.CURRENT), equalTo(query));
-            assertWarnings("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
+            assertWarningsOnce(Arrays.asList("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead"));
         }
     }
 

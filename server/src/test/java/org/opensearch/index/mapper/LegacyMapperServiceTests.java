@@ -45,6 +45,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class LegacyMapperServiceTests extends OpenSearchSingleNodeTestCase {
 
@@ -101,7 +102,7 @@ public class LegacyMapperServiceTests extends OpenSearchSingleNodeTestCase {
         }
         final MapperService mapperService = createIndex("test", settings).mapperService();
         mapperService.merge("_default_", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        assertWarnings(MapperService.DEFAULT_MAPPING_ERROR_MESSAGE);
+        assertWarningsOnce(Arrays.asList(MapperService.DEFAULT_MAPPING_ERROR_MESSAGE));
     }
 
 }

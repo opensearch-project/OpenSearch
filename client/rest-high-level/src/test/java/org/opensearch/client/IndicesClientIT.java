@@ -141,8 +141,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.hasItem;
@@ -166,6 +168,10 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.extractRa
 import static org.opensearch.common.xcontent.support.XContentMapValues.extractValue;
 
 public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
+
+    // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
+    // This ensures that no matter in what order the tests run, the warning is asserted once.
+    private static Set<String> assertedWarnings = new HashSet<>();
 
     public void testIndicesExists() throws IOException {
         // Index present
@@ -293,7 +299,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                 createIndexRequest,
                 highLevelClient().indices()::create,
                 highLevelClient().indices()::createAsync,
-                expectWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE)
+                expectWarningsOnce(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE)
             );
             assertTrue(createIndexResponse.isAcknowledged());
 
@@ -326,7 +332,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                 createIndexRequest,
                 highLevelClient().indices()::create,
                 highLevelClient().indices()::createAsync,
-                expectWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE)
+                expectWarningsOnce(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE)
             );
             assertTrue(createIndexResponse.isAcknowledged());
 
@@ -505,7 +511,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             getIndexRequest,
             highLevelClient().indices()::get,
             highLevelClient().indices()::getAsync,
-            expectWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         // default settings should be null
@@ -601,7 +607,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             putMappingRequest,
             highLevelClient().indices()::putMapping,
             highLevelClient().indices()::putMappingAsync,
-            expectWarnings(RestPutMappingAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestPutMappingAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertTrue(putMappingResponse.isAcknowledged());
 
@@ -676,7 +682,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             request,
             highLevelClient().indices()::getMapping,
             highLevelClient().indices()::getMappingAsync,
-            expectWarnings(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         Map<String, Object> mappings = getMappingsResponse.getMappings().get(indexName).get("_doc").sourceAsMap();
@@ -750,7 +756,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             getFieldMappingsRequest,
             highLevelClient().indices()::getFieldMapping,
             highLevelClient().indices()::getFieldMappingAsync,
-            expectWarnings(RestGetFieldMappingAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestGetFieldMappingAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         final Map<String, org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata> fieldMappingMap =
@@ -1090,7 +1096,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                 syncedFlushRequest,
                 highLevelClient().indices()::flushSynced,
                 highLevelClient().indices()::flushSyncedAsync,
-                expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
+                expectWarningsOnce(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
             );
             assertThat(flushResponse.totalShards(), equalTo(1));
             assertThat(flushResponse.successfulShards(), equalTo(1));
@@ -1106,7 +1112,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                     syncedFlushRequest,
                     highLevelClient().indices()::flushSynced,
                     highLevelClient().indices()::flushSyncedAsync,
-                    expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
+                    expectWarningsOnce(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
                 )
             );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
@@ -1368,7 +1374,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             rolloverRequest,
             highLevelClient().indices()::rollover,
             highLevelClient().indices()::rolloverAsync,
-            expectWarnings(RestRolloverIndexAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestRolloverIndexAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertTrue(rolloverResponse.isRolledOver());
         assertFalse(rolloverResponse.isDryRun());
@@ -1782,7 +1788,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             putTemplateRequest,
             highLevelClient().indices()::putTemplate,
             highLevelClient().indices()::putTemplateAsync,
-            expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
@@ -1846,7 +1852,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             putTemplateRequest,
             highLevelClient().indices()::putTemplate,
             highLevelClient().indices()::putTemplateAsync,
-            expectWarnings("Deprecated field [template] used, replaced by [index_patterns]")
+            expectWarningsOnce("Deprecated field [template] used, replaced by [index_patterns]")
         );
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
@@ -1916,7 +1922,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             putTemplateRequest,
             highLevelClient().indices()::putTemplate,
             highLevelClient().indices()::putTemplateAsync,
-            expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
@@ -2026,7 +2032,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                 putTemplate1,
                 client.indices()::putTemplate,
                 client.indices()::putTemplateAsync,
-                expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+                expectWarningsOnce(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
             ).isAcknowledged(),
             equalTo(true)
         );
@@ -2040,7 +2046,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                 putTemplate2,
                 client.indices()::putTemplate,
                 client.indices()::putTemplateAsync,
-                expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+                expectWarningsOnce(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
             ).isAcknowledged(),
             equalTo(true)
         );
@@ -2049,7 +2055,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             new GetIndexTemplatesRequest("template-1"),
             client.indices()::getTemplate,
             client.indices()::getTemplateAsync,
-            expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertThat(getTemplate1.getIndexTemplates(), hasSize(1));
         org.opensearch.cluster.metadata.IndexTemplateMetadata template1 = getTemplate1.getIndexTemplates().get(0);
@@ -2062,7 +2068,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             new GetIndexTemplatesRequest("template-2"),
             client.indices()::getTemplate,
             client.indices()::getTemplateAsync,
-            expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertThat(getTemplate2.getIndexTemplates(), hasSize(1));
         org.opensearch.cluster.metadata.IndexTemplateMetadata template2 = getTemplate2.getIndexTemplates().get(0);
@@ -2080,7 +2086,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             getBothRequest,
             client.indices()::getTemplate,
             client.indices()::getTemplateAsync,
-            expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertThat(getBoth.getIndexTemplates(), hasSize(2));
         assertThat(
@@ -2093,7 +2099,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             getAllRequest,
             client.indices()::getTemplate,
             client.indices()::getTemplateAsync,
-            expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertThat(getAll.getIndexTemplates().size(), greaterThanOrEqualTo(2));
         assertThat(
@@ -2132,7 +2138,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                 new GetIndexTemplatesRequest("template-*"),
                 client.indices()::getTemplate,
                 client.indices()::getTemplateAsync,
-                expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+                expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
             ).getIndexTemplates(),
             hasSize(1)
         );
@@ -2141,7 +2147,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                 new GetIndexTemplatesRequest("template-*"),
                 client.indices()::getTemplate,
                 client.indices()::getTemplateAsync,
-                expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+                expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
             ).getIndexTemplates().get(0).name(),
             equalTo("template-2")
         );
@@ -2157,7 +2163,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                     new GetIndexTemplatesRequest("template-*"),
                     client.indices()::getTemplate,
                     client.indices()::getTemplateAsync,
-                    expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+                    expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
                 )
             ).status(),
             equalTo(RestStatus.NOT_FOUND)
@@ -2599,5 +2605,13 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             simulateResponse.overlappingTemplates().get("my-template").get(0),
             is("pattern")
         );
+    }
+
+    private RequestOptions expectWarningsOnce(String deprecationWarning) {
+        if (!assertedWarnings.contains(deprecationWarning)) {
+            assertedWarnings.add(deprecationWarning);
+            return expectWarnings(deprecationWarning);
+        }
+        return RequestOptions.DEFAULT;
     }
 }

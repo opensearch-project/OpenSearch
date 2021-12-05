@@ -41,9 +41,18 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
 import org.junit.Before;
 
 public class RestMultiGetActionTests extends RestActionTestCase {
+
+    // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
+    // This ensures that no matter in what order the tests run, the warning is asserted once.
+    private static Set<String> assertedWarnings = new HashSet<>();
 
     @Before
     public void setUpAction() {
@@ -58,7 +67,7 @@ public class RestMultiGetActionTests extends RestActionTestCase {
             .withPath("some_index/some_type/_mget")
             .build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE));
 
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.GET)
             .withPath("some_index/_mget")
@@ -89,6 +98,6 @@ public class RestMultiGetActionTests extends RestActionTestCase {
             .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();
         dispatchRequest(request);
-        assertWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE));
     }
 }

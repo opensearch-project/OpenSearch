@@ -80,6 +80,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.joda.JodaDeprecationPatterns;
+import org.opensearch.common.logging.DeprecatedMessage;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.HeaderWarningAppender;
 import org.opensearch.common.logging.LogConfigurator;
@@ -202,6 +203,10 @@ import static org.hamcrest.Matchers.hasItem;
     "Lucene50" })
 @LuceneTestCase.SuppressReproduceLine
 public abstract class OpenSearchTestCase extends LuceneTestCase {
+
+    // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
+    // This ensures that no matter in what order the tests run, the warning is asserted once.
+    private static Set<String> assertedWarnings = new HashSet<>();
 
     protected static final List<String> JODA_TIMEZONE_IDS;
     protected static final List<String> JAVA_TIMEZONE_IDS;
@@ -471,13 +476,14 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      *
      * @param settings the settings that are expected to be deprecated
      * @param warnings other expected general deprecation warnings
+     * @param assertedWarnings the deprecation warnings that are already asserted since we log same deprecation warnings only once to avoid duplication
      */
     protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
         assertSettingDeprecationsAndWarnings(Arrays.stream(settings).map(Setting::getKey).toArray(String[]::new), warnings);
     }
 
     protected final void assertSettingDeprecationsAndWarnings(final String[] settings, final String... warnings) {
-        assertWarnings(
+        assertWarningsOnce(
             Stream.concat(
                 Arrays.stream(settings)
                     .map(
@@ -487,8 +493,19 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
                             + "See the breaking changes documentation for the next major version."
                     ),
                 Arrays.stream(warnings)
-            ).toArray(String[]::new)
+            ).collect(Collectors.toList())
         );
+    }
+
+    protected final void assertWarningsOnce(List<String> expectedWarnings) {
+        List<String> uniqueExpectedWarnings = expectedWarnings.stream()
+            .filter(expectedWarning -> !assertedWarnings.contains(expectedWarning))
+            .collect(Collectors.toList());
+        assertedWarnings.addAll(uniqueExpectedWarnings);
+        if (uniqueExpectedWarnings.isEmpty()) {
+            return;
+        }
+        assertWarnings(uniqueExpectedWarnings.toArray(new String[0]));
     }
 
     protected final void assertWarnings(String... expectedWarnings) {
@@ -579,6 +596,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     private void resetDeprecationLogger() {
         // "clear" context by stashing current values and dropping the returned StoredContext
         threadContext.stashContext();
+        // "clear" the deprecated message set for the next tests to run independently.
+        DeprecatedMessage.resetDeprecatedMessageForTests();
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();

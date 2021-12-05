@@ -1098,7 +1098,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     MapperService.MergeReason.MAPPING_UPDATE
                 );
         }
-        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE));
     }
 
     public void testFromJson() throws IOException {

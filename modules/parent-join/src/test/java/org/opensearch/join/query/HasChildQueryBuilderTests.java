@@ -181,7 +181,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         QueryBuilder query = new MatchAllQueryBuilder();
         HasChildQueryBuilder foo = hasChildQuery("foo", query, ScoreMode.None);
         foo.minMaxChildren(0, 1);
-        assertWarnings(HasChildQueryBuilder.MIN_CHILDREN_0_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(HasChildQueryBuilder.MIN_CHILDREN_0_DEPRECATION_MESSAGE));
     }
 
     @Override

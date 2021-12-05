@@ -241,8 +241,10 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
         builder.putMapping("type2", "{\"type2\":{}}");
         builder.build();
 
-        assertWarnings(
-            "Index template my-template contains multiple typed mappings; " + "templates in 8x will only support a single mapping"
+        assertWarningsOnce(
+            Arrays.asList(
+                "Index template my-template contains multiple typed mappings; " + "templates in 8x will only support a single mapping"
+            )
         );
     }
 }

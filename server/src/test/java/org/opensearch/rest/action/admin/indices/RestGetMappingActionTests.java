@@ -45,6 +45,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -76,7 +77,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
         RestGetMappingAction handler = new RestGetMappingAction(threadPool);
         handler.prepareRequest(request, mock(NodeClient.class));
 
-        assertWarnings("Type exists requests are deprecated, as types have been deprecated.");
+        assertWarningsOnce(Arrays.asList("Type exists requests are deprecated, as types have been deprecated."));
     }
 
     public void testTypeInPath() {
@@ -118,7 +119,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         controller().dispatchRequest(request, channel, threadContext);
 
-        assertWarnings(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE));
     }
 
 }

@@ -64,6 +64,7 @@ import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -589,7 +590,7 @@ public class TransportAnalyzeActionTests extends OpenSearchTestCase {
 
         AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(2, analyze.getTokens().size());
-        assertWarnings("Using deprecated token filter [deprecated]");
+        assertWarningsOnce(Arrays.asList("Using deprecated token filter [deprecated]"));
 
         // normalizer
         req = new AnalyzeAction.Request();
@@ -599,6 +600,5 @@ public class TransportAnalyzeActionTests extends OpenSearchTestCase {
 
         analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(1, analyze.getTokens().size());
-        assertWarnings("Using deprecated token filter [deprecated]");
     }
 }

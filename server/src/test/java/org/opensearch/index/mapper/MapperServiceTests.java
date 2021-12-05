@@ -222,7 +222,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(mapperService.unmappedFieldType("long"), instanceOf(NumberFieldType.class));
         // back compat
         assertThat(mapperService.unmappedFieldType("string"), instanceOf(KeywordFieldType.class));
-        assertWarnings("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
+        assertWarningsOnce(Arrays.asList("[unmapped_type:string] should be replaced with [unmapped_type:keyword]"));
     }
 
     public void testPartitionedConstraints() {

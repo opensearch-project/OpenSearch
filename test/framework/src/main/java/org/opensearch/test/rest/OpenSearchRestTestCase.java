@@ -256,6 +256,9 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
         @Override
         public boolean warningsShouldFailRequest(List<String> warnings) {
+            if (warnings.isEmpty()) {
+                return false;
+            }
             if (isExclusivelyTargetingCurrentVersionCluster()) {
                 // absolute equality required in expected and actual.
                 Set<String> actual = new HashSet<>(warnings);

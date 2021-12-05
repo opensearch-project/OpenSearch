@@ -62,6 +62,7 @@ import org.hamcrest.Matchers;
 import org.hamcrest.core.CombinableMatcher;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -758,9 +759,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         }));
-        assertWarnings(
-            "You have defined more than [10] completion contexts in the mapping for index [null]. "
-                + "The maximum allowed number of completion contexts in a mapping will be limited to [10] starting in version [8.0]."
+        assertWarningsOnce(
+            Arrays.asList(
+                "You have defined more than [10] completion contexts in the mapping for index [null]. "
+                    + "The maximum allowed number of completion contexts in a mapping will be limited to [10] starting in version [8.0]."
+            )
         );
     }
 

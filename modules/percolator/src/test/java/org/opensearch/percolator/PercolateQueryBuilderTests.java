@@ -302,7 +302,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
             "{\"percolate\" : { \"document\": {}, \"document_type\":\"" + docType + "\", \"field\":\"" + queryField + "\"}}"
         );
         queryBuilder.toQuery(queryShardContext);
-        assertWarnings(PercolateQueryBuilder.DOCUMENT_TYPE_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(PercolateQueryBuilder.DOCUMENT_TYPE_DEPRECATION_MESSAGE));
     }
 
     public void testFromJsonNoType() throws IOException {
@@ -341,7 +341,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
                 + "\"}}"
         );
         rewriteAndFetch(queryBuilder, queryShardContext).toQuery(queryShardContext);
-        assertWarnings(PercolateQueryBuilder.TYPE_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(PercolateQueryBuilder.TYPE_DEPRECATION_MESSAGE));
     }
 
     public void testBothDocumentAndDocumentsSpecified() {

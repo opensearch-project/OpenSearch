@@ -39,6 +39,8 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Arrays;
+
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
@@ -135,7 +137,7 @@ public class TermsLookupTests extends OpenSearchTestCase {
         assertEquals("path", tl.path());
         assertEquals("routing", tl.routing());
 
-        assertWarnings("Deprecated field [type] used, this field is unused and will be removed entirely");
+        assertWarningsOnce(Arrays.asList("Deprecated field [type] used, this field is unused and will be removed entirely"));
     }
 
     public void testXContentParsing() throws IOException {

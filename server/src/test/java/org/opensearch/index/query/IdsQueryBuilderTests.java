@@ -162,7 +162,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
         IdsQueryBuilder idsQuery = (IdsQueryBuilder) query;
         if (idsQuery.types().length > 0) {
-            assertWarnings(IdsQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+            assertWarningsOnce(Arrays.asList(IdsQueryBuilder.TYPES_DEPRECATION_MESSAGE));
         }
         return query;
     }

@@ -45,6 +45,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.TestSearchContext;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -101,9 +102,11 @@ public class AdjacencyMatrixAggregationBuilderTests extends OpenSearchTestCase {
         AggregatorFactory factory = aggregationBuilder.doBuild(context.getQueryShardContext(), null, new AggregatorFactories.Builder());
         assertThat(factory instanceof AdjacencyMatrixAggregatorFactory, is(true));
         assertThat(factory.name(), equalTo("dummy"));
-        assertWarnings(
-            "[index.max_adjacency_matrix_filters] setting was deprecated in OpenSearch and will be "
-                + "removed in a future release! See the breaking changes documentation for the next major version."
+        assertWarningsOnce(
+            Arrays.asList(
+                "[index.max_adjacency_matrix_filters] setting was deprecated in OpenSearch and will be "
+                    + "removed in a future release! See the breaking changes documentation for the next major version."
+            )
         );
     }
 }

@@ -51,6 +51,7 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -72,7 +73,7 @@ public class RestIndexActionTests extends RestActionTestCase {
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
 
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/_doc/some_id")
@@ -85,7 +86,7 @@ public class RestIndexActionTests extends RestActionTestCase {
             .withPath("/some_index/some_type/some_id/_create")
             .build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
 
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/_create/some_id")

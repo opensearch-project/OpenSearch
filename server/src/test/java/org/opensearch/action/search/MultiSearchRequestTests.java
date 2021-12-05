@@ -63,6 +63,7 @@ import org.opensearch.test.rest.FakeRestRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -269,9 +270,11 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             assertThat(searchRequest.indices().length, equalTo(0));
             assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
         }
-        assertWarnings(
-            "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
-                + "in the next major version"
+        assertWarningsOnce(
+            Arrays.asList(
+                "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
+                    + "in the next major version"
+            )
         );
     }
 
@@ -292,9 +295,11 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             assertThat(searchRequest.indices().length, equalTo(0));
             assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
         }
-        assertWarnings(
-            "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
-                + "in the next major version"
+        assertWarningsOnce(
+            Arrays.asList(
+                "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
+                    + "in the next major version"
+            )
         );
     }
 

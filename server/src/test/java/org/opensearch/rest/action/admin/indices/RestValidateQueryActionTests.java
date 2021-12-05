@@ -59,6 +59,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -181,7 +182,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             .build();
 
         performRequest(request);
-        assertWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE));
     }
 
     public void testTypeParameter() {
@@ -193,7 +194,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             .build();
 
         performRequest(request);
-        assertWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE));
     }
 
     private void performRequest(RestRequest request) {

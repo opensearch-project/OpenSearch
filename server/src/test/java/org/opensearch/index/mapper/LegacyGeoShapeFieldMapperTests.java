@@ -52,6 +52,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
 
@@ -296,7 +297,8 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         for (int i = 0; i < fieldNames.length; ++i) {
             warnings[i] = "Field parameter [" + fieldNames[i] + "] " + "is deprecated and will be removed in a future version.";
         }
-        assertWarnings(warnings);
+        assertWarningsOnce(Arrays.asList(warnings));
+        ;
     }
 
     public void testLevelPrecisionConfiguration() throws IOException {
@@ -633,17 +635,19 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
 
     @Override
     protected void assertParseMinimalWarnings() {
-        assertWarnings("Field parameter [strategy] is deprecated and will be removed in a future version.");
+        assertWarningsOnce(Arrays.asList("Field parameter [strategy] is deprecated and will be removed in a future version."));
     }
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarnings(
-            "Field parameter [strategy] is deprecated and will be removed in a future version.",
-            "Field parameter [tree] is deprecated and will be removed in a future version.",
-            "Field parameter [tree_levels] is deprecated and will be removed in a future version.",
-            "Field parameter [precision] is deprecated and will be removed in a future version.",
-            "Field parameter [distance_error_pct] is deprecated and will be removed in a future version."
+        assertWarningsOnce(
+            Arrays.asList(
+                "Field parameter [strategy] is deprecated and will be removed in a future version.",
+                "Field parameter [tree] is deprecated and will be removed in a future version.",
+                "Field parameter [tree_levels] is deprecated and will be removed in a future version.",
+                "Field parameter [precision] is deprecated and will be removed in a future version.",
+                "Field parameter [distance_error_pct] is deprecated and will be removed in a future version."
+            )
         );
     }
 

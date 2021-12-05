@@ -509,7 +509,7 @@ public class BulkProcessorIT extends OpenSearchRestHighLevelClientTestCase {
 
                 if (localType != null) {
                     // If the payload contains types, parsing it into a bulk request results in a warning.
-                    assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+                    assertWarningsOnce(Arrays.asList(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
                 }
             }
             multiGetRequest.add(localIndex, Integer.toString(i));

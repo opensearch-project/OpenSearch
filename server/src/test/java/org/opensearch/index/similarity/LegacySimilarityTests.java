@@ -44,6 +44,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -61,10 +62,12 @@ public class LegacySimilarityTests extends OpenSearchSingleNodeTestCase {
             .build();
         final SimilarityService similarityService = createIndex("foo", indexSettings).similarityService();
         assertThat(similarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
-        assertWarnings(
-            "The [classic] similarity is now deprecated in favour of BM25, which is generally "
-                + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
-                + "instead."
+        assertWarningsOnce(
+            Arrays.asList(
+                "The [classic] similarity is now deprecated in favour of BM25, which is generally "
+                    + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
+                    + "instead."
+            )
         );
         assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(LegacyBM25Similarity.class));
         assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));

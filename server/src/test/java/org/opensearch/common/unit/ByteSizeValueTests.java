@@ -38,12 +38,14 @@ import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSizeValue> {
+
     public void testActualPeta() {
         MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.PB).getBytes(), equalTo(4503599627370496L));
     }
@@ -338,10 +340,12 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         String fractionalValue = "23.5" + unit.getSuffix();
         ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
         assertEquals(fractionalValue, instance.toString());
-        assertWarnings(
-            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: ["
-                + fractionalValue
-                + "] found for setting [test]"
+        assertWarningsOnce(
+            Arrays.asList(
+                "Fractional bytes values are deprecated. Use non-fractional bytes values instead: ["
+                    + fractionalValue
+                    + "] found for setting [test]"
+            )
         );
     }
 

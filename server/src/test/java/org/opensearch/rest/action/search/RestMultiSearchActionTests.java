@@ -41,6 +41,7 @@ import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class RestMultiSearchActionTests extends RestActionTestCase {
 
@@ -62,7 +63,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE));
     }
 
     public void testTypeInBody() {
@@ -78,6 +79,6 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE));
     }
 }

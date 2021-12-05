@@ -40,6 +40,7 @@ import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -153,7 +154,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     public void testTypeField() throws IOException {
         WildcardQueryBuilder builder = QueryBuilders.wildcardQuery("_type", "doc*");
         builder.doToQuery(createShardContext());
-        assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE));
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

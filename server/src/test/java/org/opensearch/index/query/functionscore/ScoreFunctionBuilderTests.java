@@ -43,6 +43,9 @@ import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.Arrays;
+
 import org.mockito.Mockito;
 
 public class ScoreFunctionBuilderTests extends OpenSearchTestCase {
@@ -81,6 +84,6 @@ public class ScoreFunctionBuilderTests extends OpenSearchTestCase {
         Mockito.when(mapperService.fieldType(Mockito.anyString())).thenReturn(ft);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
         builder.toFunction(context);
-        assertWarnings("OpenSearch requires that a [field] parameter is provided when a [seed] is set");
+        assertWarningsOnce(Arrays.asList("OpenSearch requires that a [field] parameter is provided when a [seed] is set"));
     }
 }

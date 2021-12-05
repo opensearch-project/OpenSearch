@@ -355,7 +355,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testTypeField() throws IOException {
         TermsQueryBuilder builder = QueryBuilders.termsQuery("_type", "value1", "value2");
         builder.doToQuery(createShardContext());
-        assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE));
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
@@ -381,7 +381,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
             TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
             if (termsQuery.isTypeless() == false) {
-                assertWarnings("Deprecated field [type] used, this field is unused and will be removed entirely");
+                assertWarningsOnce(Arrays.asList("Deprecated field [type] used, this field is unused and will be removed entirely"));
             }
             return query;
         } finally {

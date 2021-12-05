@@ -47,6 +47,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
@@ -71,6 +72,7 @@ import static org.hamcrest.Matchers.not;
  * features from this file just because the version constants have been removed.
  */
 public class RemoteRequestBuildersTests extends OpenSearchTestCase {
+
     public void testIntialSearchPath() {
         Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
         BytesReference query = new BytesArray("{}");
@@ -100,7 +102,7 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         searchRequest.indices("%2f", "%3a");
         assertEquals("/%2f,%3a/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
 
-        assertWarnings(DEPRECATED_URL_ENCODED_INDEX_WARNING);
+        assertWarningsOnce(Arrays.asList(DEPRECATED_URL_ENCODED_INDEX_WARNING));
 
         // do not allow , and / if already escaped.
         searchRequest.indices("%2fcat,");

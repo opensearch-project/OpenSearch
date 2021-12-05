@@ -159,7 +159,9 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
                 sum += 1.0;
             }
         });
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testDocCount() throws IOException {

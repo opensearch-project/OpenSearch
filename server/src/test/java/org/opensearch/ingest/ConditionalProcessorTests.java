@@ -46,6 +46,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -210,7 +211,7 @@ public class ConditionalProcessorTests extends OpenSearchTestCase {
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         processor.execute(ingestDocument, (result, e) -> {});
-        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
+        assertWarningsOnce(Arrays.asList("[types removal] Looking up doc types [_type] in scripts is deprecated."));
     }
 
     public void testPrecompiledError() {

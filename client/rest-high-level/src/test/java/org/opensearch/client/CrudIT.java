@@ -86,8 +86,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -97,6 +99,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
+
+    // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
+    // This ensures that no matter in what order the tests run, the warning is asserted once.
+    private static Set<String> assertedWarnings = new HashSet<>();
 
     public void testDelete() throws IOException {
         {
@@ -214,7 +220,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             indexRequest,
             highLevelClient()::index,
             highLevelClient()::indexAsync,
-            expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
@@ -222,7 +228,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             deleteRequest,
             highLevelClient()::delete,
             highLevelClient()::deleteAsync,
-            expectWarnings(RestDeleteAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestDeleteAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         assertEquals("index", deleteResponse.getIndex());
@@ -425,7 +431,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             indexRequest,
             highLevelClient()::index,
             highLevelClient()::indexAsync,
-            expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         GetRequest getRequest = new GetRequest("index", "type", "id");
@@ -433,7 +439,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             getRequest,
             highLevelClient()::get,
             highLevelClient()::getAsync,
-            expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestGetAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         assertEquals("index", getResponse.getIndex());
@@ -512,7 +518,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         bulk.add(new IndexRequest("index", "type", "id1").source("{\"field\":\"value1\"}", XContentType.JSON));
         bulk.add(new IndexRequest("index", "type", "id2").source("{\"field\":\"value2\"}", XContentType.JSON));
 
-        highLevelClient().bulk(bulk, expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        highLevelClient().bulk(bulk, expectWarningsOnce(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.add("index", "id1");
         multiGetRequest.add("index", "type", "id2");
@@ -521,7 +527,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             multiGetRequest,
             highLevelClient()::mget,
             highLevelClient()::mgetAsync,
-            expectWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertEquals(2, response.getResponses().length);
 
@@ -747,7 +753,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             indexRequest,
             highLevelClient()::index,
             highLevelClient()::indexAsync,
-            expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertEquals(RestStatus.CREATED, indexResponse.status());
         assertEquals("index", indexResponse.getIndex());
@@ -962,7 +968,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             indexRequest,
             highLevelClient()::index,
             highLevelClient()::indexAsync,
-            expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
@@ -971,7 +977,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             updateRequest,
             highLevelClient()::update,
             highLevelClient()::updateAsync,
-            expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarningsOnce(RestUpdateAction.TYPES_DEPRECATION_MESSAGE)
         );
 
         assertEquals(RestStatus.OK, updateResponse.status());
@@ -1440,5 +1446,13 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 );
             }
         }
+    }
+
+    private RequestOptions expectWarningsOnce(String deprecationWarning) {
+        if (!assertedWarnings.contains(deprecationWarning)) {
+            assertedWarnings.add(deprecationWarning);
+            return expectWarnings(deprecationWarning);
+        }
+        return RequestOptions.DEFAULT;
     }
 }

@@ -45,6 +45,7 @@ import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 public class CommonAnalysisPluginTests extends OpenSearchTestCase {
@@ -148,9 +149,11 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
         final CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin();
 
         createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
-        assertWarnings(
-            "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                + "Please change the filter name to [ngram] instead."
+        assertWarningsOnce(
+            Arrays.asList(
+                "The [nGram] token filter name is deprecated and will be removed in a future version. "
+                    + "Please change the filter name to [ngram] instead."
+            )
         );
     }
 
@@ -172,9 +175,11 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
         final CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin();
 
         createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
-        assertWarnings(
-            "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                + "Please change the filter name to [edge_ngram] instead."
+        assertWarningsOnce(
+            Arrays.asList(
+                "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
+                    + "Please change the filter name to [edge_ngram] instead."
+            )
         );
     }
 
@@ -234,13 +239,15 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
             Tokenizer tokenizer = tokenizerFactory.create();
             assertNotNull(tokenizer);
             if (expectWarning) {
-                assertWarnings(
-                    "The ["
-                        + deprecatedName
-                        + "] tokenizer name is deprecated and will be removed in a future version. "
-                        + "Please change the tokenizer name to ["
-                        + replacement
-                        + "] instead."
+                assertWarningsOnce(
+                    Arrays.asList(
+                        "The ["
+                            + deprecatedName
+                            + "] tokenizer name is deprecated and will be removed in a future version. "
+                            + "Please change the tokenizer name to ["
+                            + replacement
+                            + "] instead."
+                    )
                 );
             }
         }
@@ -260,13 +267,15 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
             createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
 
             if (expectWarning) {
-                assertWarnings(
-                    "The ["
-                        + deprecatedName
-                        + "] tokenizer name is deprecated and will be removed in a future version. "
-                        + "Please change the tokenizer name to ["
-                        + replacement
-                        + "] instead."
+                assertWarningsOnce(
+                    Arrays.asList(
+                        "The ["
+                            + deprecatedName
+                            + "] tokenizer name is deprecated and will be removed in a future version. "
+                            + "Please change the tokenizer name to ["
+                            + replacement
+                            + "] instead."
+                    )
                 );
             }
         }

@@ -38,6 +38,7 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -59,7 +60,7 @@ public class RestGetIndicesActionTests extends RestActionTestCase {
 
         RestGetIndicesAction handler = new RestGetIndicesAction();
         handler.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE));
 
         // the same request without the parameter should pass without warning
         request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET).withPath("/some_index").build();

@@ -37,15 +37,31 @@ import java.util.Map;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.MapBuilder;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * A logger message used by {@link DeprecationLogger}.
  * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
  */
 public class DeprecatedMessage extends OpenSearchLogMessage {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
+    private static Set<String> keys = new HashSet<>();
+    private String keyWithXOpaqueId;
 
     public DeprecatedMessage(String key, String xOpaqueId, String messagePattern, Object... args) {
         super(fieldMap(key, xOpaqueId), messagePattern, args);
+        this.keyWithXOpaqueId = new StringBuilder().append(key).append(xOpaqueId).toString();
+    }
+
+    /**
+     * This method is to reset the key set which is used to log unique deprecation logs only.
+     * The key set helps avoiding the deprecation messages being logged multiple times.
+     * This method is a utility to reset this set for tests so they can run independent of each other.
+     * Otherwise, a warning can be logged by some test and the upcoming test can be impacted by it.
+     */
+    public static void resetDeprecatedMessageForTests() {
+        keys = new HashSet<>();
     }
 
     private static Map<String, Object> fieldMap(String key, String xOpaqueId) {
@@ -57,5 +73,13 @@ public class DeprecatedMessage extends OpenSearchLogMessage {
             builder.put(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
         }
         return builder.immutableMap();
+    }
+
+    public boolean isAlreadyLogged() {
+        if (keys.contains(this.keyWithXOpaqueId)) {
+            return true;
+        }
+        keys.add(this.keyWithXOpaqueId);
+        return false;
     }
 }

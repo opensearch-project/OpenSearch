@@ -121,6 +121,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -153,6 +154,10 @@ import static org.hamcrest.Matchers.nullValue;
  * (the code indentation of the tag is not included in the width)
  */
 public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
+
+    // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
+    // This ensures that no matter in what order the tests run, the warning is asserted once.
+    private static Set<String> assertedWarnings = new HashSet<>();
 
     public void testIndicesExist() throws IOException {
         RestHighLevelClient client = highLevelClient();
@@ -1032,7 +1037,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             // end::flush-synced-request-indicesOptions
 
             // tag::flush-synced-execute
-            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, expectWarnings(
+            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, expectWarningsOnce(
                 "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
             ));
             // end::flush-synced-execute
@@ -1078,7 +1083,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::flush-synced-execute-async
-            client.indices().flushSyncedAsync(request, expectWarnings(
+            client.indices().flushSyncedAsync(request, expectWarningsOnce(
                 "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
             ), listener); // <1>
             // end::flush-synced-execute-async
@@ -3105,5 +3110,13 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    private RequestOptions expectWarningsOnce(String deprecationWarning) {
+        if (!assertedWarnings.contains(deprecationWarning)) {
+            assertedWarnings.add(deprecationWarning);
+            return expectWarnings(deprecationWarning);
+        }
+        return RequestOptions.DEFAULT;
     }
 }

@@ -53,9 +53,12 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -122,7 +125,7 @@ public class JsonLoggerTests extends OpenSearchTestCase {
                 );
             }
 
-            assertWarnings("deprecated message1");
+            assertWarningsOnce(Arrays.asList("deprecated message1"));
         });
     }
 
@@ -289,12 +292,10 @@ public class JsonLoggerTests extends OpenSearchTestCase {
     public void testDuplicateLogMessages() throws Exception {
         final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("test");
 
-        // For the same key and X-Opaque-ID deprecation should be once
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
             deprecationLogger.deprecate("key", "message1");
-            deprecationLogger.deprecate("key", "message2");
-            assertWarnings("message1", "message2");
+            assertWarnings("message1");
 
             final Path path = PathUtils.get(System.getProperty("opensearch.logs.base_path"),
                 System.getProperty("opensearch.logs.cluster_name") + "_deprecated.json");
@@ -317,12 +318,11 @@ public class JsonLoggerTests extends OpenSearchTestCase {
         });
 
         // For the same key and different X-Opaque-ID should be multiple times per key/x-opaque-id
-        //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
+        //continuing with message1-ID1 in logs already
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
             deprecationLogger.deprecate("key", "message1");
-            deprecationLogger.deprecate("key", "message2");
-            assertWarnings("message1", "message2");
+            assertWarnings("message1");
 
             final Path path = PathUtils.get(
                 System.getProperty("opensearch.logs.base_path"),

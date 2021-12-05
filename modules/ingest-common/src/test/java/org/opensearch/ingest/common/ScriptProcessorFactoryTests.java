@@ -45,6 +45,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -136,7 +137,7 @@ public class ScriptProcessorFactoryTests extends OpenSearchTestCase {
         configMap.put("inline", "code");
 
         factory.create(null, randomAlphaOfLength(10), null, configMap);
-        assertWarnings("Deprecated field [inline] used, expected [source] instead");
+        assertWarningsOnce(Arrays.asList("Deprecated field [inline] used, expected [source] instead"));
     }
 
     public void testFactoryInvalidateWithInvalidCompiledScript() throws Exception {

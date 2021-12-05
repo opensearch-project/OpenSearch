@@ -73,6 +73,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TermVectorsUnitTests extends OpenSearchTestCase {
+
     public void testStreamResponse() throws Exception {
         TermVectorsResponse outResponse = new TermVectorsResponse("a", "b", "c");
         outResponse.setExists(true);
@@ -281,7 +282,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
         request.add(new TermVectorsRequest(), data);
 
         checkParsedParameters(request);
-        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE));
     }
 
     void checkParsedParameters(MultiTermVectorsRequest request) {
@@ -313,7 +314,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
         request.add(new TermVectorsRequest(), data);
 
         checkParsedFilterParameters(request);
-        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE));
     }
 
     void checkParsedFilterParameters(MultiTermVectorsRequest multiRequest) {

@@ -91,7 +91,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             false
         );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testMatchNoDocs() throws IOException {
@@ -134,7 +136,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             false
         );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testMatchAllDocs() throws IOException {
@@ -245,7 +249,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
         }, false);
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testNoDocs() throws IOException {
@@ -272,7 +278,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             false
         );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testAggregateWrongField() throws IOException {
@@ -315,7 +323,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             false
         );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
+        ;
     }
 
     public void testIntervalYear() throws IOException {
@@ -366,7 +377,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             false
         );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testIntervalMonth() throws IOException {
@@ -421,7 +434,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             false
         );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testIntervalDay() throws IOException {
@@ -525,7 +540,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             false
         );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testIntervalHour() throws IOException {
@@ -650,7 +667,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             false
         );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testIntervalMinute() throws IOException {
@@ -742,7 +761,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             false
         );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testIntervalSecond() throws IOException {
@@ -920,7 +941,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             false
         );
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testMinDocCount() throws IOException {
@@ -1151,7 +1174,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
         assertThat(e.getMessage(), equalTo("Cannot use [calendar_interval] with [interval] configuration option."));
 
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     public void testOverlappingBounds() {
@@ -1190,7 +1215,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             )
         );
         assertThat(e.getMessage(), equalTo("Unable to parse interval [foobar]"));
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarningsOnce(
+            Arrays.asList("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.")
+        );
     }
 
     private void testSearchCase(

@@ -47,6 +47,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -59,6 +60,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
+
     @Override
     protected BoolQueryBuilder doCreateTestQueryBuilder() {
         BoolQueryBuilder query = new BoolQueryBuilder();
@@ -341,7 +343,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         QueryBuilder q = parseQuery(query);
         QueryBuilder expected = new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder());
         assertEquals(expected, q);
-        assertWarnings("Deprecated field [mustNot] used, expected [must_not] instead");
+        assertWarningsOnce(Arrays.asList("Deprecated field [mustNot] used, expected [must_not] instead"));
     }
 
     public void testRewrite() throws IOException {

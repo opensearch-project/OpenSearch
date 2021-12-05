@@ -59,6 +59,7 @@ import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -446,7 +447,7 @@ public class AnalysisRegistryTests extends OpenSearchTestCase {
         new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(plugin)).getAnalysisRegistry().build(idxSettings);
 
         // We should only get a warning from the token filter that is referenced in settings
-        assertWarnings("Using deprecated token filter [deprecated]");
+        assertWarningsOnce(Arrays.asList("Using deprecated token filter [deprecated]"));
 
         indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.getPreviousVersion())
@@ -464,7 +465,7 @@ public class AnalysisRegistryTests extends OpenSearchTestCase {
 
         // We should only get a warning from the normalizer, because we're on a version where 'deprecated'
         // works fine
-        assertWarnings("Using deprecated token filter [deprecated_normalizer]");
+        assertWarningsOnce(Arrays.asList("Using deprecated token filter [deprecated_normalizer]"));
 
         indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

@@ -45,6 +45,7 @@ import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collections;
 
 public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetadata> {
@@ -207,7 +208,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 BytesReference.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty templates should no longer be used");
+        assertWarningsOnce(Arrays.asList("empty templates should no longer be used"));
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject().field("lang#empty", "").endObject();
@@ -218,7 +219,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 BytesReference.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty scripts should no longer be used");
+        assertWarningsOnce(Arrays.asList("empty scripts should no longer be used"));
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject().startObject("script").field("lang", "lang").field("source", "").endObject().endObject();
@@ -229,7 +230,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 BytesReference.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty scripts should no longer be used");
+        assertWarningsOnce(Arrays.asList("empty scripts should no longer be used"));
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject().startObject("script").field("lang", "mustache").field("source", "").endObject().endObject();
@@ -240,7 +241,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 BytesReference.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty templates should no longer be used");
+        assertWarningsOnce(Arrays.asList("empty templates should no longer be used"));
     }
 
     public void testOldStyleDropped() throws IOException {

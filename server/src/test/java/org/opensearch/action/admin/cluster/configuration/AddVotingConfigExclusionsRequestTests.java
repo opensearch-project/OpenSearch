@@ -45,6 +45,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -77,7 +78,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
         );
         assertThat(deserialized.getNodeDescriptions(), equalTo(originalRequest.getNodeDescriptions()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
-        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE));
     }
 
     public void testSerializationForNodeIdOrNodeName() throws IOException {
@@ -165,7 +166,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             ).getMessage(),
             equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes")
         );
-        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE));
     }
 
     public void testResolveAllNodeIdentifiersNullOrEmpty() {
@@ -447,7 +448,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
                     + "exceed the maximum of [1] set by [setting.name]"
             )
         );
-        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE));
     }
 
     private static AddVotingConfigExclusionsRequest makeRequestWithNodeDescriptions(String... nodeDescriptions) {

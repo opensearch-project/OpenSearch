@@ -74,7 +74,9 @@ public class DateUtilsTests extends OpenSearchTestCase {
                 equalTo(jodaTz.getOffset(now))
             );
             if (DateUtils.DEPRECATED_SHORT_TIMEZONES.containsKey(jodaTz.getID())) {
-                assertWarnings("Use of short timezone id " + jodaId + " is deprecated. Use " + zoneId.getId() + " instead");
+                assertWarningsOnce(
+                    Arrays.asList("Use of short timezone id " + jodaId + " is deprecated. Use " + zoneId.getId() + " instead")
+                );
             }
             // roundtrip does not throw either
             assertNotNull(DateUtils.zoneIdToDateTimeZone(zoneId));

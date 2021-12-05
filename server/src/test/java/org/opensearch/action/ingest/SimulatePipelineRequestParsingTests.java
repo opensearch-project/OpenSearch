@@ -149,7 +149,7 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         assertThat(actualRequest.getPipeline().getDescription(), nullValue());
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
         if (useExplicitType) {
-            assertWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
+            assertWarningsOnce(Arrays.asList("[types removal] specifying _type in pipeline simulation requests is deprecated"));
         }
     }
 
@@ -271,7 +271,7 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         assertThat(actualRequest.getPipeline().getDescription(), nullValue());
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(numProcessors));
         if (useExplicitType) {
-            assertWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
+            assertWarningsOnce(Arrays.asList("[types removal] specifying _type in pipeline simulation requests is deprecated"));
         }
     }
 

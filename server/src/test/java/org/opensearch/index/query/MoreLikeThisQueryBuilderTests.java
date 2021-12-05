@@ -481,7 +481,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
         MoreLikeThisQueryBuilder mltQuery = (MoreLikeThisQueryBuilder) query;
         if (mltQuery.isTypeless() == false) {
-            assertWarnings(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+            assertWarningsOnce(Arrays.asList(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE));
         }
         return query;
     }

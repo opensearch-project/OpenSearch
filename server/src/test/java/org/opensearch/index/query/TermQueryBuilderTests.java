@@ -44,6 +44,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -201,7 +202,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     public void testTypeField() throws IOException {
         TermQueryBuilder builder = QueryBuilders.termQuery("_type", "value1");
         builder.doToQuery(createShardContext());
-        assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE));
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

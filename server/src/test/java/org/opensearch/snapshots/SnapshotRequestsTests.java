@@ -41,10 +41,12 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class SnapshotRequestsTests extends OpenSearchTestCase {
+
     public void testRestoreSnapshotRequestParsing() throws IOException {
         RestoreSnapshotRequest request = new RestoreSnapshotRequest("test-repo", "test-snap");
 
@@ -110,7 +112,9 @@ public class SnapshotRequestsTests extends OpenSearchTestCase {
             : IndicesOptions.strictExpandOpen().ignoreUnavailable();
         assertEquals(expectedIgnoreAvailable, request.indicesOptions().ignoreUnavailable());
 
-        assertWarnings("specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version");
+        assertWarningsOnce(
+            Arrays.asList("specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version")
+        );
     }
 
     public void testCreateSnapshotRequestParsing() throws IOException {

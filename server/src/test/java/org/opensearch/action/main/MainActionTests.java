@@ -49,6 +49,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -169,6 +170,6 @@ public class MainActionTests extends OpenSearchTestCase {
 
         final MainResponse mainResponse = responseRef.get();
         assertEquals(LegacyESVersion.V_7_10_2.toString(), mainResponse.getVersionNumber());
-        assertWarnings(TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION_DEPRECATION_MESSAGE);
+        assertWarningsOnce(Arrays.asList(TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION_DEPRECATION_MESSAGE));
     }
 }

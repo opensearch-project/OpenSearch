@@ -1183,7 +1183,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
             assertEquals(test1, p.namedObject(Object.class, "test1", null));
             assertEquals(test2, p.namedObject(Object.class, "test2", null));
             assertEquals(test2, p.namedObject(Object.class, "deprecated", null));
-            assertWarnings("Deprecated field [deprecated] used, expected [test2] instead");
+            assertWarningsOnce(Arrays.asList("Deprecated field [deprecated] used, expected [test2] instead"));
             p.nextToken();
             assertEquals("test", p.namedObject(Object.class, "str", null));
             {

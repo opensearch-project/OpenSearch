@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.aggregations.BasePipelineAggregationTestCase;
@@ -115,7 +116,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
     @Override
     public void testFromXContent() throws IOException {
         super.testFromXContent();
-        assertWarnings("The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
+        assertWarningsOnce(Arrays.asList("The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation."));
     }
 
     public void testDefaultParsing() throws Exception {
@@ -128,7 +129,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
             + "    }"
             + "}";
         PipelineAggregationBuilder newAgg = parse(createParser(JsonXContent.jsonXContent, json));
-        assertWarnings("The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
+        assertWarningsOnce(Arrays.asList("The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation."));
         assertNotSame(newAgg, expected);
         assertEquals(expected, newAgg);
         assertEquals(expected.hashCode(), newAgg.hashCode());
