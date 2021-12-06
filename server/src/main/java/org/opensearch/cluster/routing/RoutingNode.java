@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 
@@ -57,38 +58,30 @@ import java.util.stream.StreamSupport;
 public class RoutingNode implements Iterable<ShardRouting> {
 
     static class BucketedShards implements Iterable<ShardRouting> {
-        private static Map<Boolean, Integer> map = new HashMap<Boolean, Integer>() {
-            {
-                put(true, 0);
-                put(false, 1);
-            }
-        };
-
-        private final LinkedHashMap<ShardId, ShardRouting>[] shards; // LinkedHashMap to preserve order
+        private final Tuple<LinkedHashMap<ShardId, ShardRouting>, LinkedHashMap<ShardId, ShardRouting>> shardTuple; // LinkedHashMap to
+                                                                                                                    // preserve order
 
         BucketedShards(LinkedHashMap<ShardId, ShardRouting> primaryShards, LinkedHashMap<ShardId, ShardRouting> replicaShards) {
-            this.shards = new LinkedHashMap[2];
-            this.shards[0] = primaryShards;
-            this.shards[1] = replicaShards;
+            this.shardTuple = new Tuple(primaryShards, replicaShards);
         }
 
         public boolean isEmpty() {
-            return this.shards[0].isEmpty() && this.shards[1].isEmpty();
+            return this.shardTuple.v1().isEmpty() && this.shardTuple.v2().isEmpty();
         }
 
         public int size() {
-            return this.shards[0].size() + this.shards[1].size();
+            return this.shardTuple.v1().size() + this.shardTuple.v2().size();
         }
 
         public boolean containsKey(ShardId shardId) {
-            return this.shards[0].containsKey(shardId) || this.shards[1].containsKey(shardId);
+            return this.shardTuple.v1().containsKey(shardId) || this.shardTuple.v2().containsKey(shardId);
         }
 
         public ShardRouting get(ShardId shardId) {
-            if (this.shards[0].containsKey(shardId)) {
-                return this.shards[0].get(shardId);
+            if (this.shardTuple.v1().containsKey(shardId)) {
+                return this.shardTuple.v1().get(shardId);
             }
-            return this.shards[1].get(shardId);
+            return this.shardTuple.v2().get(shardId);
         }
 
         public ShardRouting add(ShardRouting shardRouting) {
@@ -96,25 +89,33 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
 
         public ShardRouting put(ShardId shardId, ShardRouting shardRouting) {
-            ShardRouting ret = this.shards[map.get(shardRouting.primary())].put(shardId, shardRouting);
-            if (this.shards[map.get(!shardRouting.primary())].containsKey(shardId)) {
-                return this.shards[map.get(!shardRouting.primary())].remove(shardId);
+            ShardRouting ret;
+            if (shardRouting.primary()) {
+                ret = this.shardTuple.v1().put(shardId, shardRouting);
+                if (this.shardTuple.v2().containsKey(shardId)) {
+                    ret = this.shardTuple.v2().remove(shardId);
+                }
+            } else {
+                ret = this.shardTuple.v2().put(shardId, shardRouting);
+                if (this.shardTuple.v1().containsKey(shardId)) {
+                    ret = this.shardTuple.v1().remove(shardId);
+                }
             }
 
             return ret;
         }
 
         public ShardRouting remove(ShardId shardId) {
-            if (this.shards[0].containsKey(shardId)) {
-                return this.shards[0].remove(shardId);
+            if (this.shardTuple.v1().containsKey(shardId)) {
+                return this.shardTuple.v1().remove(shardId);
             }
-            return this.shards[1].remove(shardId);
+            return this.shardTuple.v2().remove(shardId);
         }
 
         @Override
         public Iterator<ShardRouting> iterator() {
-            final Iterator<ShardRouting> primaryIterator = Collections.unmodifiableCollection(shards[0].values()).iterator();
-            final Iterator<ShardRouting> replicaIterator = Collections.unmodifiableCollection(shards[1].values()).iterator();
+            final Iterator<ShardRouting> primaryIterator = Collections.unmodifiableCollection(this.shardTuple.v1().values()).iterator();
+            final Iterator<ShardRouting> replicaIterator = Collections.unmodifiableCollection(this.shardTuple.v2().values()).iterator();
             return new Iterator<ShardRouting>() {
                 @Override
                 public boolean hasNext() {
