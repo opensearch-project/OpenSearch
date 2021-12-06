@@ -39,7 +39,7 @@ repositories {
       artifact()
     }
   }
-  mavenCentral()
+  jcenter()
 }
 
 repositories {
@@ -53,7 +53,7 @@ repositories {
       artifact()
     }
   }
-  mavenCentral()
+  jcenter()
 }
 
 // todo remove offending rules
