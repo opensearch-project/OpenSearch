@@ -1385,27 +1385,25 @@ public class OpenSearchNode implements TestClusterConfiguration {
         return distributions.get(currentDistro).getExtracted().getSingleFile().toPath();
     }
 
-    private List<Provider<List<File>>> getInstalledFileSet(Action<? super PatternFilterable> filter) {
-        return Stream.concat(plugins.stream(), modules.stream()).map(p -> p.map(f -> {
-            if (f.exists()) {
-                final FileTree tree = archiveOperations.zipTree(f).matching(filter);
-                return tree.getFiles();
-            } else {
-                return new HashSet<File>();
-            }
-        }))
-            .map(p -> p.map(f -> f.stream().sorted(Comparator.comparing(File::getName)).collect(Collectors.toList())))
+    private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
+        return Stream.concat(plugins.stream().map(Provider::get), modules.stream().map(Provider::get))
+            .filter(File::exists)
+            // TODO: We may be able to simplify this with Gradle 5.6
+            // https://docs.gradle.org/nightly/release-notes.html#improved-handling-of-zip-archives-on-classpaths
+            .map(zipFile -> archiveOperations.zipTree(zipFile).matching(filter))
+            .flatMap(tree -> tree.getFiles().stream())
+            .sorted(Comparator.comparing(File::getName))
             .collect(Collectors.toList());
     }
 
     @Classpath
-    public List<Provider<List<File>>> getInstalledClasspath() {
+    public List<File> getInstalledClasspath() {
         return getInstalledFileSet(filter -> filter.include("**/*.jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    public List<Provider<List<File>>> getInstalledFiles() {
+    public List<File> getInstalledFiles() {
         return getInstalledFileSet(filter -> filter.exclude("**/*.jar"));
     }
 

@@ -108,7 +108,7 @@ configurations {
 }
 
 task testJar(type: Jar) {
-  archiveAppendix = 'test'
+  appendix 'test'
   from sourceSets.test.output
 }
 
