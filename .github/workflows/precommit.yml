@@ -1,5 +1,6 @@
 name: Gradle Precommit
 on: [pull_request]
+
 jobs:
   precommit:
     runs-on: ubuntu-latest

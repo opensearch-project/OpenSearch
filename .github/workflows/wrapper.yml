@@ -1,23 +1,10 @@
 name: Validate Gradle Wrapper
-on: [pull_request]
-defaults:
-  run:
-    shell: bash
-    working-directory: gradle/wrapper
+on: [push, pull_request]
+
 jobs:
   validate:
+    name: Validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Check Gradle Wrapper
-        run: |
-          GRADLE_WRAPPER_VERSION=`basename $(cat gradle-wrapper.properties | grep distributionUrl) | sed 's/gradle-//g;s/-all.zip//g'`
-          GRADLE_WRAPPER_HASH_REMOTE="https://services.gradle.org/distributions/gradle-${GRADLE_WRAPPER_VERSION}-wrapper.jar.sha256"
-
-          curl --location --output gradle-wrapper.jar.sha256 $GRADLE_WRAPPER_HASH_REMOTE
-          echo "  gradle-wrapper.jar" >> gradle-wrapper.jar.sha256
-
-          echo $GRADLE_WRAPPER_VERSION
-          cat gradle-wrapper.jar.sha256
-
-          sha256sum --check gradle-wrapper.jar.sha256
+      - uses: gradle/wrapper-validation-action@v1
