@@ -267,6 +267,13 @@ public class VersionUtils {
         return ALL_OPENSEARCH_VERSIONS.get(random.nextInt(ALL_OPENSEARCH_VERSIONS.size()));
     }
 
+    /**
+     * Return a random {@link LegacyESVersion} from all available legacy versions.
+     **/
+    public static LegacyESVersion randomLegacyVersion(Random random) {
+        return (LegacyESVersion) ALL_LEGACY_VERSIONS.get(random.nextInt(ALL_LEGACY_VERSIONS.size()));
+    }
+
     /** Returns the first released (e.g., patch version 0) {@link Version} of the last minor from the requested major version
      *  e.g., for version 1.0.0 this would be legacy version (7.10.0); the first release (patch 0), of the last
      *  minor (for 7.x that is minor version 10) for the desired major version (7)

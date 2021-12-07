@@ -176,6 +176,19 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (cached != null) {
             return cached;
         }
+        {
+            // get major string; remove when creating OpenSearch 3.0
+            String[] parts = version.split("[.-]");
+            if (parts.length < 3 || parts.length > 4) {
+                throw new IllegalArgumentException(
+                    "the version needs to contain major, minor, and revision, and optionally the build: " + version
+                );
+            }
+            int major = Integer.parseInt(parts[0]);
+            if (major > 3) {
+                return LegacyESVersion.fromStringSlow(version);
+            }
+        }
         return fromStringSlow(version);
     }
 

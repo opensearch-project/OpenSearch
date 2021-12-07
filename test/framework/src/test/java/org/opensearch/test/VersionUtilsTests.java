@@ -120,14 +120,14 @@ public class VersionUtilsTests extends OpenSearchTestCase {
     }
 
     public static class TestReleaseBranch {
-        public static final Version V_4_0_0 = Version.fromString("4.0.0");
-        public static final Version V_4_0_1 = Version.fromString("4.0.1");
-        public static final Version V_5_3_0 = Version.fromString("5.3.0");
-        public static final Version V_5_3_1 = Version.fromString("5.3.1");
-        public static final Version V_5_3_2 = Version.fromString("5.3.2");
-        public static final Version V_5_4_0 = Version.fromString("5.4.0");
-        public static final Version V_5_4_1 = Version.fromString("5.4.1");
-        public static final Version CURRENT = V_5_4_1;
+        public static final Version V_2_0_0 = Version.fromString("2.0.0");
+        public static final Version V_2_0_1 = Version.fromString("2.0.1");
+        public static final Version V_3_3_0 = Version.fromString("3.3.0");
+        public static final Version V_3_3_1 = Version.fromString("3.3.1");
+        public static final Version V_3_3_2 = Version.fromString("3.3.2");
+        public static final Version V_3_4_0 = Version.fromString("3.4.0");
+        public static final Version V_3_4_1 = Version.fromString("3.4.1");
+        public static final Version CURRENT = V_3_4_1;
     }
 
     public void testResolveReleasedVersionsForReleaseBranch() {
@@ -139,25 +139,25 @@ public class VersionUtilsTests extends OpenSearchTestCase {
             released,
             equalTo(
                 Arrays.asList(
-                    TestReleaseBranch.V_4_0_0,
-                    TestReleaseBranch.V_5_3_0,
-                    TestReleaseBranch.V_5_3_1,
-                    TestReleaseBranch.V_5_3_2,
-                    TestReleaseBranch.V_5_4_0
+                    TestReleaseBranch.V_2_0_0,
+                    TestReleaseBranch.V_3_3_0,
+                    TestReleaseBranch.V_3_3_1,
+                    TestReleaseBranch.V_3_3_2,
+                    TestReleaseBranch.V_3_4_0
                 )
             )
         );
-        assertThat(unreleased, equalTo(Arrays.asList(TestReleaseBranch.V_4_0_1, TestReleaseBranch.V_5_4_1)));
+        assertThat(unreleased, equalTo(Arrays.asList(TestReleaseBranch.V_2_0_1, TestReleaseBranch.V_3_4_1)));
     }
 
     public static class TestStableBranch {
-        public static final Version V_4_0_0 = Version.fromString("4.0.0");
-        public static final Version V_4_0_1 = Version.fromString("4.0.1");
-        public static final Version V_5_0_0 = Version.fromString("5.0.0");
-        public static final Version V_5_0_1 = Version.fromString("5.0.1");
-        public static final Version V_5_0_2 = Version.fromString("5.0.2");
-        public static final Version V_5_1_0 = Version.fromString("5.1.0");
-        public static final Version CURRENT = V_5_1_0;
+        public static final Version V_2_0_0 = Version.fromString("2.0.0");
+        public static final Version V_2_0_1 = Version.fromString("2.0.1");
+        public static final Version V_3_0_0 = Version.fromString("3.0.0");
+        public static final Version V_3_0_1 = Version.fromString("3.0.1");
+        public static final Version V_3_0_2 = Version.fromString("3.0.2");
+        public static final Version V_3_1_0 = Version.fromString("3.1.0");
+        public static final Version CURRENT = V_3_1_0;
     }
 
     public void testResolveReleasedVersionsForUnreleasedStableBranch() {
@@ -165,19 +165,19 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
-        assertThat(released, equalTo(Arrays.asList(TestStableBranch.V_4_0_0, TestStableBranch.V_5_0_0, TestStableBranch.V_5_0_1)));
-        assertThat(unreleased, equalTo(Arrays.asList(TestStableBranch.V_4_0_1, TestStableBranch.V_5_0_2, TestStableBranch.V_5_1_0)));
+        assertThat(released, equalTo(Arrays.asList(TestStableBranch.V_2_0_0, TestStableBranch.V_3_0_0, TestStableBranch.V_3_0_1)));
+        assertThat(unreleased, equalTo(Arrays.asList(TestStableBranch.V_2_0_1, TestStableBranch.V_3_0_2, TestStableBranch.V_3_1_0)));
     }
 
     public static class TestStableBranchBehindStableBranch {
-        public static final Version V_4_0_0 = Version.fromString("4.0.0");
-        public static final Version V_4_0_1 = Version.fromString("4.0.1");
-        public static final Version V_5_3_0 = Version.fromString("5.3.0");
-        public static final Version V_5_3_1 = Version.fromString("5.3.1");
-        public static final Version V_5_3_2 = Version.fromString("5.3.2");
-        public static final Version V_5_4_0 = Version.fromString("5.4.0");
-        public static final Version V_5_5_0 = Version.fromString("5.5.0");
-        public static final Version CURRENT = V_5_5_0;
+        public static final Version V_2_0_0 = Version.fromString("2.0.0");
+        public static final Version V_2_0_1 = Version.fromString("2.0.1");
+        public static final Version V_3_3_0 = Version.fromString("3.3.0");
+        public static final Version V_3_3_1 = Version.fromString("3.3.1");
+        public static final Version V_3_3_2 = Version.fromString("3.3.2");
+        public static final Version V_3_4_0 = Version.fromString("3.4.0");
+        public static final Version V_3_5_0 = Version.fromString("3.5.0");
+        public static final Version CURRENT = V_3_5_0;
     }
 
     public void testResolveReleasedVersionsForStableBranchBehindStableBranch() {
@@ -192,9 +192,9 @@ public class VersionUtilsTests extends OpenSearchTestCase {
             released,
             equalTo(
                 Arrays.asList(
-                    TestStableBranchBehindStableBranch.V_4_0_0,
-                    TestStableBranchBehindStableBranch.V_5_3_0,
-                    TestStableBranchBehindStableBranch.V_5_3_1
+                    TestStableBranchBehindStableBranch.V_2_0_0,
+                    TestStableBranchBehindStableBranch.V_3_3_0,
+                    TestStableBranchBehindStableBranch.V_3_3_1
                 )
             )
         );
@@ -202,22 +202,22 @@ public class VersionUtilsTests extends OpenSearchTestCase {
             unreleased,
             equalTo(
                 Arrays.asList(
-                    TestStableBranchBehindStableBranch.V_4_0_1,
-                    TestStableBranchBehindStableBranch.V_5_3_2,
-                    TestStableBranchBehindStableBranch.V_5_4_0,
-                    TestStableBranchBehindStableBranch.V_5_5_0
+                    TestStableBranchBehindStableBranch.V_2_0_1,
+                    TestStableBranchBehindStableBranch.V_3_3_2,
+                    TestStableBranchBehindStableBranch.V_3_4_0,
+                    TestStableBranchBehindStableBranch.V_3_5_0
                 )
             )
         );
     }
 
     public static class TestNewMajorRelease {
-        public static final Version V_4_6_0 = Version.fromString("4.6.0");
-        public static final Version V_4_6_1 = Version.fromString("4.6.1");
-        public static final Version V_4_6_2 = Version.fromString("4.6.2");
-        public static final Version V_5_0_0 = Version.fromString("5.0.0");
-        public static final Version V_5_0_1 = Version.fromString("5.0.1");
-        public static final Version CURRENT = V_5_0_1;
+        public static final Version V_2_6_0 = Version.fromString("2.6.0");
+        public static final Version V_2_6_1 = Version.fromString("2.6.1");
+        public static final Version V_2_6_2 = Version.fromString("2.6.2");
+        public static final Version V_3_0_0 = Version.fromString("3.0.0");
+        public static final Version V_3_0_1 = Version.fromString("3.0.1");
+        public static final Version CURRENT = V_3_0_1;
     }
 
     public void testResolveReleasedVersionsAtNewMajorRelease() {
@@ -228,8 +228,8 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
-        assertThat(released, equalTo(Arrays.asList(TestNewMajorRelease.V_4_6_0, TestNewMajorRelease.V_4_6_1, TestNewMajorRelease.V_5_0_0)));
-        assertThat(unreleased, equalTo(Arrays.asList(TestNewMajorRelease.V_4_6_2, TestNewMajorRelease.V_5_0_1)));
+        assertThat(released, equalTo(Arrays.asList(TestNewMajorRelease.V_2_6_0, TestNewMajorRelease.V_2_6_1, TestNewMajorRelease.V_3_0_0)));
+        assertThat(unreleased, equalTo(Arrays.asList(TestNewMajorRelease.V_2_6_2, TestNewMajorRelease.V_3_0_1)));
     }
 
     public static class TestVersionBumpIn2x {
