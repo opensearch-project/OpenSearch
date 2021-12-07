@@ -34,6 +34,7 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.AbstractProfiler;
+import org.opensearch.search.profile.ContextualProfileBreakdown;
 
 import java.util.Objects;
 
@@ -48,19 +49,19 @@ import java.util.Objects;
  * request may execute two searches (query + global agg).  A Profiler just
  * represents one of those
  */
-public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown, Query> {
+public final class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown<QueryTimingType>, Query> {
 
     /**
      * The root Collector used in the search
      */
-    private InternalProfileCollector collector;
+    private InternalProfileComponent collector;
 
-    public QueryProfiler() {
-        super(new InternalQueryProfileTree());
+    public QueryProfiler(boolean concurrent) {
+        super(new InternalQueryProfileTree(concurrent));
     }
 
     /** Set the collector that is associated with this profiler. */
-    public void setCollector(InternalProfileCollector collector) {
+    public void setCollector(InternalProfileComponent collector) {
         if (this.collector != null) {
             throw new IllegalStateException("The collector can only be set once.");
         }
