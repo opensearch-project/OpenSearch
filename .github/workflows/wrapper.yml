@@ -1,19 +1,16 @@
 name: Validate Gradle Wrapper
 on: [pull_request]
+defaults:
+  run:
+    shell: bash
+    working-directory: gradle/wrapper
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Set up JDK 11
-        uses: actions/setup-java@v2
-        with:
-          java-version: 11
-          distribution: adopt
       - name: Check Gradle Wrapper
         run: |
-          cd gradle/wrapper
-
           GRADLE_WRAPPER_VERSION=`basename $(cat gradle-wrapper.properties | grep distributionUrl) | sed 's/gradle-//g;s/-all.zip//g'`
           GRADLE_WRAPPER_HASH_REMOTE="https://services.gradle.org/distributions/gradle-${GRADLE_WRAPPER_VERSION}-wrapper.jar.sha256"
 
