@@ -222,7 +222,9 @@ public class VersionTests extends OpenSearchTestCase {
 
     /** test opensearch min index compatibility */
     public void testOpenSearchMinIndexCompatVersion() {
-        Version opensearchVersion = VersionUtils.randomOpenSearchVersion(random());
+        // setting to CURRENT to enforce minIndexCompat Version during version bump
+        // previous compatibility versions are guaranteed to be tested during past releases
+        Version opensearchVersion = Version.CURRENT;
         // opensearch 1.x minIndexCompat is Legacy 6.8.0
         // opensearch 2.x minCompat is Legacy 7.10.0
         // opensearch 3.x minCompat is 1.{last minor version}.0
@@ -461,5 +463,4 @@ public class VersionTests extends OpenSearchTestCase {
         Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
         VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
     }
-
 }
