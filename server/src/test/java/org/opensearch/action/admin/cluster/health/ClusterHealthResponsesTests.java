@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.health;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -184,7 +185,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         );
 
         BytesStreamOutput out_lt_1_0 = new BytesStreamOutput();
-        Version old_version = VersionUtils.randomIndexCompatibleVersion(random());
+        Version old_version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_8_0);
         out_lt_1_0.setVersion(old_version);
         clusterHealth.writeTo(out_lt_1_0);
 

@@ -55,8 +55,6 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
 
     ResyncReplicationRequest(StreamInput in) throws IOException {
         super(in);
-        // todo: remove assertions
-        // assert Version.CURRENT.major <= 7;
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
             trimAboveSeqNo = in.readZLong();
         } else {
