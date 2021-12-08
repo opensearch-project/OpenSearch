@@ -100,8 +100,6 @@ import static org.hamcrest.Matchers.startsWith;
  * with {@code tests.is_old_cluster} set to {@code false}.
  */
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
-    private final boolean supportsLenientBooleans = getOldClusterVersion().before(LegacyESVersion.V_6_0_0_alpha1);
-
     private String index;
     private String type;
 
@@ -173,7 +171,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                             .field("int", randomInt(100))
                             .field("float", randomFloat())
                             // be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
-                            .field("bool", i > 0 && supportsLenientBooleans ? randomLenientBoolean() : randomBoolean())
+                            .field("bool", i > 0 && randomBoolean())
                             .field("field.with.dots", randomAlphaOfLength(10))
                             .field("binary", Base64.getEncoder().encodeToString(randomByteArray))
                             .endObject()
@@ -1200,11 +1198,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(getTemplateRequest));
         Map<String, Object> expectedTemplate = new HashMap<>();
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(LegacyESVersion.V_6_0_0_beta1)) {
-            expectedTemplate.put("template", "evil_*");
-        } else {
-            expectedTemplate.put("index_patterns", singletonList("evil_*"));
-        }
+        expectedTemplate.put("index_patterns", singletonList("evil_*"));
         expectedTemplate.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
         // We don't have the type in the response starting with 7.0, but we won't have it on old cluster after upgrade
         // either so look at the response to figure out the correct assertions

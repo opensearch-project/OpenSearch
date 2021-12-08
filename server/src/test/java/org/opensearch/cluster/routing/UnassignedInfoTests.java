@@ -34,7 +34,6 @@ package org.opensearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -49,14 +48,12 @@ import org.opensearch.cluster.routing.allocation.FailedShard;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.Index;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -128,28 +125,6 @@ public class UnassignedInfoTests extends OpenSearchAllocationTestCase {
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
         assertThat(read.getNumFailedAllocations(), equalTo(meta.getNumFailedAllocations()));
         assertThat(read.getFailedNodeIds(), equalTo(meta.getFailedNodeIds()));
-    }
-
-    public void testBwcSerialization() throws Exception {
-        final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, "message");
-        BytesStreamOutput out = new BytesStreamOutput();
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
-        out.setVersion(version);
-        unassignedInfo.writeTo(out);
-        out.close();
-
-        StreamInput in = out.bytes().streamInput();
-        in.setVersion(version);
-        UnassignedInfo read = new UnassignedInfo(in);
-        if (version.before(LegacyESVersion.V_7_0_0)) {
-            assertThat(read.getReason(), equalTo(UnassignedInfo.Reason.REINITIALIZED));
-        } else {
-            assertThat(read.getReason(), equalTo(UnassignedInfo.Reason.INDEX_CLOSED));
-        }
-        assertThat(read.getUnassignedTimeInMillis(), equalTo(unassignedInfo.getUnassignedTimeInMillis()));
-        assertThat(read.getMessage(), equalTo(unassignedInfo.getMessage()));
-        assertThat(read.getDetails(), equalTo(unassignedInfo.getDetails()));
-        assertThat(read.getNumFailedAllocations(), equalTo(unassignedInfo.getNumFailedAllocations()));
     }
 
     public void testIndexCreated() {

@@ -55,7 +55,6 @@ import java.util.Map;
 
 import static org.mockito.Matchers.anyBoolean;
 import static org.opensearch.test.VersionUtils.getPreviousVersion;
-import static org.opensearch.test.VersionUtils.incompatibleFutureVersion;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomVersion;
@@ -115,17 +114,6 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
                     JoinTaskExecutor.ensureNodesCompatibility(tooLow, nodes);
                 } else {
                     JoinTaskExecutor.ensureNodesCompatibility(tooLow, minNodeVersion, maxNodeVersion);
-                }
-            });
-        }
-
-        if (minNodeVersion.before(LegacyESVersion.V_6_0_0)) {
-            Version tooHigh = incompatibleFutureVersion(minNodeVersion);
-            expectThrows(IllegalStateException.class, () -> {
-                if (randomBoolean()) {
-                    JoinTaskExecutor.ensureNodesCompatibility(tooHigh, nodes);
-                } else {
-                    JoinTaskExecutor.ensureNodesCompatibility(tooHigh, minNodeVersion, maxNodeVersion);
                 }
             });
         }

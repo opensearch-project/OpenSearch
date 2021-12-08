@@ -1250,9 +1250,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         } else {
             baseConfig.put("script.max_compilations_rate", "2048/1m");
         }
-        if (getVersion().onOrAfter("6.0.0")) {
-            baseConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
-        }
+        baseConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.

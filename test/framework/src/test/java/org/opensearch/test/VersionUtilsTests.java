@@ -76,21 +76,21 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         assertTrue(got.onOrBefore(Version.CURRENT));
 
         // sub range
-        got = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0_alpha1, LegacyESVersion.V_6_2_4);
-        assertTrue(got.onOrAfter(LegacyESVersion.V_6_0_0_alpha1));
-        assertTrue(got.onOrBefore(LegacyESVersion.V_6_2_4));
+        got = VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromId(7000099), LegacyESVersion.fromId(7010099));
+        assertTrue(got.onOrAfter(LegacyESVersion.fromId(7000099)));
+        assertTrue(got.onOrBefore(LegacyESVersion.fromId(7010099)));
 
         // unbounded lower
-        got = VersionUtils.randomVersionBetween(random(), null, LegacyESVersion.V_6_0_0_beta1);
+        got = VersionUtils.randomVersionBetween(random(), null, LegacyESVersion.fromId(7000099));
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
-        assertTrue(got.onOrBefore(LegacyESVersion.V_6_0_0_beta1));
+        assertTrue(got.onOrBefore(LegacyESVersion.fromId(7000099)));
         got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.allReleasedVersions().get(0));
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
         assertTrue(got.onOrBefore(VersionUtils.allReleasedVersions().get(0)));
 
         // unbounded upper
-        got = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, null);
-        assertTrue(got.onOrAfter(LegacyESVersion.V_6_0_0));
+        got = VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromId(7000099), null);
+        assertTrue(got.onOrAfter(LegacyESVersion.fromId(7000099)));
         assertTrue(got.onOrBefore(Version.CURRENT));
         got = VersionUtils.randomVersionBetween(random(), VersionUtils.getPreviousVersion(), null);
         assertTrue(got.onOrAfter(VersionUtils.getPreviousVersion()));
@@ -101,8 +101,8 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         assertEquals(got, VersionUtils.getFirstVersion());
         got = VersionUtils.randomVersionBetween(random(), Version.CURRENT, Version.CURRENT);
         assertEquals(got, Version.CURRENT);
-        got = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0_beta1, LegacyESVersion.V_6_0_0_beta1);
-        assertEquals(got, LegacyESVersion.V_6_0_0_beta1);
+        got = VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromId(7000099), LegacyESVersion.fromId(7000099));
+        assertEquals(got, LegacyESVersion.fromId(7000099));
 
         // implicit range of one
         got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getFirstVersion());

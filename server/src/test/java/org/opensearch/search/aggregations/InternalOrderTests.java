@@ -31,16 +31,11 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
 import org.opensearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,31 +96,6 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
         if (expectedInstance instanceof CompoundOrder || expectedInstance instanceof InternalOrder.Aggregation) {
             assertNotSame(newInstance, expectedInstance);
-        }
-    }
-
-    public void testHistogramOrderBwc() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            BucketOrder order = createTestInstance();
-            Version bwcVersion = VersionUtils.randomVersionBetween(
-                random(),
-                VersionUtils.getFirstVersion(),
-                VersionUtils.getPreviousVersion(LegacyESVersion.V_6_0_0_alpha2)
-            );
-            boolean bwcOrderFlag = randomBoolean();
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(bwcVersion);
-                InternalOrder.Streams.writeHistogramOrder(order, out, bwcOrderFlag);
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(bwcVersion);
-                    BucketOrder actual = InternalOrder.Streams.readHistogramOrder(in, bwcOrderFlag);
-                    BucketOrder expected = order;
-                    if (order instanceof CompoundOrder) {
-                        expected = ((CompoundOrder) order).orderElements.get(0);
-                    }
-                    assertEquals(expected, actual);
-                }
-            }
         }
     }
 

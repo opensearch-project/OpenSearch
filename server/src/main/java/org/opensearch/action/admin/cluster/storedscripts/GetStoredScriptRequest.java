@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.MasterNodeReadRequest;
 import org.opensearch.common.io.stream.StreamInput;
@@ -58,21 +57,12 @@ public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScrip
 
     public GetStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(LegacyESVersion.V_6_0_0_alpha2)) {
-            in.readString(); // read lang from previous versions
-        }
-
         id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
-        if (out.getVersion().before(LegacyESVersion.V_6_0_0_alpha2)) {
-            out.writeString(""); // write an empty lang to previous versions
-        }
-
         out.writeString(id);
     }
 

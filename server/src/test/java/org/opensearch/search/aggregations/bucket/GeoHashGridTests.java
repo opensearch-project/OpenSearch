@@ -74,7 +74,7 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
     }
 
     public void testSerializationPreBounds() throws Exception {
-        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_5_0);
+        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_0);
         GeoHashGridAggregationBuilder builder = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(LegacyESVersion.V_7_6_0);

@@ -32,7 +32,6 @@
 
 package org.opensearch.search.sort;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -82,9 +81,7 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
          * |___________________________
          * 1   2   3   4   5   6   7
          */
-        Version version = randomBoolean()
-            ? Version.CURRENT
-            : VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
+        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
@@ -175,9 +172,7 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
          * d1 = (0, 1), (0, 4), (0, 10); so avg. distance is 5, median distance is 4
          * d2 = (0, 1), (0, 5), (0, 6); so avg. distance is 4, median distance is 5
          */
-        Version version = randomBoolean()
-            ? Version.CURRENT
-            : VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
+        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
@@ -251,9 +246,7 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
          * |______________________
          * 1   2   3   4   5   6
          */
-        Version version = randomBoolean()
-            ? Version.CURRENT
-            : VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
+        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();

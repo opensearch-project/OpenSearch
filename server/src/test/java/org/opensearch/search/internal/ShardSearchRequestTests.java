@@ -32,7 +32,6 @@
 
 package org.opensearch.search.internal;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
@@ -55,7 +54,6 @@ import org.opensearch.index.query.RandomQueryBuilder;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.search.AbstractSearchTestCase;
-import org.opensearch.test.VersionUtils;
 import org.opensearch.search.SearchSortValuesAndFormatsTests;
 
 import java.io.IOException;
@@ -89,26 +87,6 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             ShardSearchRequest shardSearchTransportRequest = createShardSearchRequest();
             ShardSearchRequest clone = new ShardSearchRequest(shardSearchTransportRequest);
             assertEquals(shardSearchTransportRequest, clone);
-        }
-    }
-
-    public void testAllowPartialResultsSerializationPre7_0_0() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(
-            random(),
-            LegacyESVersion.V_6_0_0,
-            VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)
-        );
-        ShardSearchRequest shardSearchTransportRequest = createShardSearchRequest();
-        ShardSearchRequest deserializedRequest = copyWriteable(
-            shardSearchTransportRequest,
-            namedWriteableRegistry,
-            ShardSearchRequest::new,
-            version
-        );
-        if (version.before(LegacyESVersion.V_6_3_0)) {
-            assertFalse(deserializedRequest.allowPartialSearchResults());
-        } else {
-            assertEquals(shardSearchTransportRequest.allowPartialSearchResults(), deserializedRequest.allowPartialSearchResults());
         }
     }
 

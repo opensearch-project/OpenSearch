@@ -213,11 +213,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     public static IndexTemplateMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
-            builder.patterns(in.readStringList());
-        } else {
-            builder.patterns(Collections.singletonList(in.readString()));
-        }
+        builder.patterns(in.readStringList());
         builder.settings(Settings.readSettingsFromStream(in));
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
@@ -248,11 +244,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeInt(order);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
-            out.writeStringCollection(patterns);
-        } else {
-            out.writeString(patterns.get(0));
-        }
+        out.writeStringCollection(patterns);
         Settings.writeSettingsToStream(settings, out);
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, CompressedXContent> cursor : mappings) {

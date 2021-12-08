@@ -72,7 +72,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             "foobar"
         );
         assertFalse(section.skip(Version.CURRENT));
-        assertTrue(section.skip(LegacyESVersion.V_6_0_0));
+        assertTrue(section.skip(LegacyESVersion.fromString("6.0.0")));
         section = new SkipSection(randomBoolean() ? null : "6.0.0 - 6.1.0", Collections.singletonList("boom"), "foobar");
         assertTrue(section.skip(Version.CURRENT));
     }

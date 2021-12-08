@@ -135,13 +135,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         super(in);
         fieldName = in.readString();
         value = in.readGenericValue();
-        if (in.getVersion().before(LegacyESVersion.V_6_0_0_rc1)) {
-            MatchQuery.Type.readFromStream(in);  // deprecated type
-        }
         operator = Operator.readFromStream(in);
-        if (in.getVersion().before(LegacyESVersion.V_6_0_0_rc1)) {
-            in.readVInt(); // deprecated slop
-        }
         prefixLength = in.readVInt();
         maxExpansions = in.readVInt();
         fuzzyTranspositions = in.readBoolean();
@@ -162,13 +156,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeGenericValue(value);
-        if (out.getVersion().before(LegacyESVersion.V_6_0_0_rc1)) {
-            MatchQuery.Type.BOOLEAN.writeTo(out); // deprecated type
-        }
         operator.writeTo(out);
-        if (out.getVersion().before(LegacyESVersion.V_6_0_0_rc1)) {
-            out.writeVInt(MatchQuery.DEFAULT_PHRASE_SLOP); // deprecated slop
-        }
         out.writeVInt(prefixLength);
         out.writeVInt(maxExpansions);
         out.writeBoolean(fuzzyTranspositions);

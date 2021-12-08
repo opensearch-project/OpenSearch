@@ -33,7 +33,6 @@
 package org.opensearch.indices.recovery;
 
 import org.opensearch.LegacyESVersion;
-import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.shard.ShardId;
@@ -58,9 +57,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportReque
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         totalTranslogOps = in.readVInt();
-        if (in.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
-            in.readLong(); // maxUnsafeAutoIdTimestamp
-        }
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_2_0) && in.getVersion().before(LegacyESVersion.V_7_4_0)) {
             in.readBoolean(); // was fileBasedRecovery
         }
@@ -84,9 +80,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportReque
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
-            out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
-        }
         if (out.getVersion().onOrAfter(LegacyESVersion.V_6_2_0) && out.getVersion().before(LegacyESVersion.V_7_4_0)) {
             out.writeBoolean(true); // was fileBasedRecovery
         }

@@ -72,7 +72,6 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -290,11 +289,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             name = in.readOptionalString();
         }
-        if (in.getVersion().before(LegacyESVersion.V_6_0_0_beta1)) {
-            documentType = in.readString();
-        } else {
-            documentType = in.readOptionalString();
-        }
+        documentType = in.readOptionalString();
         indexedDocumentIndex = in.readOptionalString();
         indexedDocumentType = in.readOptionalString();
         indexedDocumentId = in.readOptionalString();
@@ -337,11 +332,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             out.writeOptionalString(name);
         }
-        if (out.getVersion().before(LegacyESVersion.V_6_0_0_beta1)) {
-            out.writeString(documentType);
-        } else {
-            out.writeOptionalString(documentType);
-        }
+        out.writeOptionalString(documentType);
         out.writeOptionalString(indexedDocumentIndex);
         out.writeOptionalString(indexedDocumentType);
         out.writeOptionalString(indexedDocumentId);
@@ -707,66 +698,35 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             if (binaryDocValues == null) {
                 return docId -> null;
             }
-            if (indexVersion.onOrAfter(LegacyESVersion.V_6_0_0_beta2)) {
-                return docId -> {
-                    if (binaryDocValues.advanceExact(docId)) {
-                        BytesRef qbSource = binaryDocValues.binaryValue();
-                        try (InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length)) {
-                            try (
-                                StreamInput input = new NamedWriteableAwareStreamInput(
-                                    new InputStreamStreamInput(in, qbSource.length),
-                                    registry
-                                )
-                            ) {
-                                input.setVersion(indexVersion);
-                                // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
-                                // to encode multiple binary values into a single binary doc values field.
-                                // This is the reason we need to first need to read the number of values and
-                                // then the length of the field value in bytes.
-                                int numValues = input.readVInt();
-                                assert numValues == 1;
-                                int valueLength = input.readVInt();
-                                assert valueLength > 0;
-                                QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                                assert in.read() == -1;
-                                queryBuilder = Rewriteable.rewrite(queryBuilder, context);
-                                return queryBuilder.toQuery(context);
-                            }
+            return docId -> {
+                if (binaryDocValues.advanceExact(docId)) {
+                    BytesRef qbSource = binaryDocValues.binaryValue();
+                    try (InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length)) {
+                        try (
+                            StreamInput input = new NamedWriteableAwareStreamInput(
+                                new InputStreamStreamInput(in, qbSource.length),
+                                registry
+                            )
+                        ) {
+                            input.setVersion(indexVersion);
+                            // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
+                            // to encode multiple binary values into a single binary doc values field.
+                            // This is the reason we need to first need to read the number of values and
+                            // then the length of the field value in bytes.
+                            int numValues = input.readVInt();
+                            assert numValues == 1;
+                            int valueLength = input.readVInt();
+                            assert valueLength > 0;
+                            QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
+                            assert in.read() == -1;
+                            queryBuilder = Rewriteable.rewrite(queryBuilder, context);
+                            return queryBuilder.toQuery(context);
                         }
-                    } else {
-                        return null;
                     }
-                };
-            } else {
-                return docId -> {
-                    if (binaryDocValues.advanceExact(docId)) {
-                        BytesRef qbSource = binaryDocValues.binaryValue();
-                        if (qbSource.length > 0) {
-                            XContent xContent = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent();
-                            try (
-                                XContentParser sourceParser = xContent.createParser(
-                                    context.getXContentRegistry(),
-                                    LoggingDeprecationHandler.INSTANCE,
-                                    qbSource.bytes,
-                                    qbSource.offset,
-                                    qbSource.length
-                                )
-                            ) {
-                                QueryBuilder queryBuilder = PercolatorFieldMapper.parseQueryBuilder(
-                                    sourceParser,
-                                    sourceParser.getTokenLocation()
-                                );
-                                queryBuilder = Rewriteable.rewrite(queryBuilder, context);
-                                return queryBuilder.toQuery(context);
-                            }
-                        } else {
-                            return null;
-                        }
-                    } else {
-                        return null;
-                    }
-                };
-            }
+                } else {
+                    return null;
+                }
+            };
         };
     }
 
