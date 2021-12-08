@@ -251,17 +251,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             in.readOptionalBoolean(); // unused use_dis_max flag
         }
         tieBreaker = in.readOptionalFloat();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            lenient = in.readOptionalBoolean();
-        } else {
-            lenient = in.readBoolean();
-        }
+        lenient = in.readOptionalBoolean();
         cutoffFrequency = in.readOptionalFloat();
         zeroTermsQuery = MatchQuery.ZeroTermsQuery.readFromStream(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            autoGenerateSynonymsPhraseQuery = in.readBoolean();
-            fuzzyTranspositions = in.readBoolean();
-        }
+        autoGenerateSynonymsPhraseQuery = in.readBoolean();
+        fuzzyTranspositions = in.readBoolean();
     }
 
     @Override
@@ -285,17 +279,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             out.writeOptionalBoolean(null);
         }
         out.writeOptionalFloat(tieBreaker);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            out.writeOptionalBoolean(lenient);
-        } else {
-            out.writeBoolean(lenient == null ? MatchQuery.DEFAULT_LENIENCY : lenient);
-        }
+        out.writeOptionalBoolean(lenient);
         out.writeOptionalFloat(cutoffFrequency);
         zeroTermsQuery.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            out.writeBoolean(autoGenerateSynonymsPhraseQuery);
-            out.writeBoolean(fuzzyTranspositions);
-        }
+        out.writeBoolean(autoGenerateSynonymsPhraseQuery);
+        out.writeBoolean(fuzzyTranspositions);
     }
 
     public Object value() {

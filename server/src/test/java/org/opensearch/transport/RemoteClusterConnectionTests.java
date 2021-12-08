@@ -33,7 +33,6 @@ package org.opensearch.transport;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -68,7 +67,6 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.VersionUtils;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -80,7 +78,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
@@ -438,36 +435,6 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
             assertEquals(info, remoteConnectionInfo);
             assertEquals(info.hashCode(), remoteConnectionInfo.hashCode());
             return randomBoolean() ? info : remoteConnectionInfo;
-        }
-    }
-
-    public void testRemoteConnectionInfoBwComp() throws IOException {
-        final Version version = VersionUtils.randomVersionBetween(
-            random(),
-            LegacyESVersion.V_6_1_0,
-            VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)
-        );
-        SniffConnectionStrategy.SniffModeInfo modeInfo = new SniffConnectionStrategy.SniffModeInfo(Arrays.asList("0.0.0.0:1"), 4, 4);
-        RemoteConnectionInfo expected = new RemoteConnectionInfo("test_cluster", modeInfo, new TimeValue(30, TimeUnit.MINUTES), false);
-
-        // This version was created using the serialization code in use from 6.1 but before 7.0
-        String encoded = "AQQAAAAABzAuMC4wLjAAAAABAQQAAAAABzAuMC4wLjAAAABQBDwEBAx0ZXN0X2NsdXN0ZXIA";
-        final byte[] data = Base64.getDecoder().decode(encoded);
-
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            RemoteConnectionInfo deserialized = new RemoteConnectionInfo(in);
-            assertEquals(expected, deserialized);
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                deserialized.writeTo(out);
-                try (StreamInput in2 = StreamInput.wrap(out.bytes().toBytesRef().bytes)) {
-                    in2.setVersion(version);
-                    RemoteConnectionInfo deserialized2 = new RemoteConnectionInfo(in2);
-                    assertEquals(expected, deserialized2);
-                }
-            }
         }
     }
 

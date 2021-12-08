@@ -48,7 +48,6 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexNotFoundException;
@@ -70,28 +69,6 @@ import java.util.function.IntFunction;
 public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
     private final MetadataCreateIndexService createIndexService;
     private final Client client;
-
-    @Inject
-    public TransportResizeAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        MetadataCreateIndexService createIndexService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Client client
-    ) {
-        this(
-            ResizeAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
-            createIndexService,
-            actionFilters,
-            indexNameExpressionResolver,
-            client
-        );
-    }
 
     protected TransportResizeAction(
         String actionName,
@@ -250,12 +227,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
 
     @Override
     protected String getMasterActionName(DiscoveryNode node) {
-        if (node.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
-            return super.getMasterActionName(node);
-        } else {
-            // this is for BWC - when we send this to version that doesn't have ResizeAction.NAME registered
-            // we have to send to shrink instead.
-            return ShrinkAction.NAME;
-        }
+        return super.getMasterActionName(node);
     }
 }

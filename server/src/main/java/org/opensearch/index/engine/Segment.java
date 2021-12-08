@@ -40,7 +40,6 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -89,10 +88,8 @@ public class Segment implements Writeable {
             ramTree = readRamTree(in);
         }
         segmentSort = readSegmentSort(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             attributes = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            attributes = null;
         }
     }
 
@@ -204,12 +201,10 @@ public class Segment implements Writeable {
             writeRamTree(out, ramTree);
         }
         writeSegmentSort(out, segmentSort);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            boolean hasAttributes = attributes != null;
-            out.writeBoolean(hasAttributes);
-            if (hasAttributes) {
-                out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
-            }
+        boolean hasAttributes = attributes != null;
+        out.writeBoolean(hasAttributes);
+        if (hasAttributes) {
+            out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
         }
     }
 

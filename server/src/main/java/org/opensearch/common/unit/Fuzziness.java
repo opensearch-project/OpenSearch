@@ -31,7 +31,6 @@
 
 package org.opensearch.common.unit;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -95,7 +94,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
      */
     public Fuzziness(StreamInput in) throws IOException {
         fuzziness = in.readString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             lowDistance = in.readVInt();
             highDistance = in.readVInt();
         }
@@ -104,17 +103,15 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fuzziness);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            // we cannot serialize the low/high bounds since the other node does not know about them.
-            // This is a best-effort to not fail queries in case the cluster is being upgraded and users
-            // start using features that are not available on all nodes.
-            if (isAutoWithCustomValues()) {
-                out.writeBoolean(true);
-                out.writeVInt(lowDistance);
-                out.writeVInt(highDistance);
-            } else {
-                out.writeBoolean(false);
-            }
+        // we cannot serialize the low/high bounds since the other node does not know about them.
+        // This is a best-effort to not fail queries in case the cluster is being upgraded and users
+        // start using features that are not available on all nodes.
+        if (isAutoWithCustomValues()) {
+            out.writeBoolean(true);
+            out.writeVInt(lowDistance);
+            out.writeVInt(highDistance);
+        } else {
+            out.writeBoolean(false);
         }
     }
 

@@ -50,11 +50,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.ParsingException;
@@ -67,7 +65,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentLocation;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
@@ -108,8 +105,6 @@ import java.util.function.Supplier;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public class PercolatorFieldMapper extends ParametrizedFieldMapper {
-
-    static final XContentType QUERY_BUILDER_CONTENT_TYPE = XContentType.SMILE;
 
     static final Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING = Setting.boolSetting(
         "index.percolator.map_unmapped_fields_as_text",
@@ -303,18 +298,11 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             }
 
             BooleanQuery.Builder candidateQuery = new BooleanQuery.Builder();
-            if (canUseMinimumShouldMatchField && indexVersion.onOrAfter(LegacyESVersion.V_6_1_0)) {
-                LongValuesSource valuesSource = LongValuesSource.fromIntField(minimumShouldMatchField.name());
-                for (BytesRef extractedTerm : extractedTerms) {
-                    subQueries.add(new TermQuery(new Term(queryTermsField.name(), extractedTerm)));
-                }
-                candidateQuery.add(new CoveringQuery(subQueries, valuesSource), BooleanClause.Occur.SHOULD);
-            } else {
-                candidateQuery.add(new TermInSetQuery(queryTermsField.name(), extractedTerms), BooleanClause.Occur.SHOULD);
-                for (Query subQuery : subQueries) {
-                    candidateQuery.add(subQuery, BooleanClause.Occur.SHOULD);
-                }
+            LongValuesSource valuesSource = LongValuesSource.fromIntField(minimumShouldMatchField.name());
+            for (BytesRef extractedTerm : extractedTerms) {
+                subQueries.add(new TermQuery(new Term(queryTermsField.name(), extractedTerm)));
             }
+            candidateQuery.add(new CoveringQuery(subQueries, valuesSource), BooleanClause.Occur.SHOULD);
             // include extractionResultField:failed, because docs with this term have no extractedTermsField
             // and otherwise we would fail to return these docs. Docs that failed query term extraction
             // always need to be verified by MemoryIndex:
@@ -458,7 +446,6 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        Version indexVersionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
         if (result.matchAllDocs) {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_FAILED, INDEXED_KEYWORD));
             if (result.verified) {
@@ -471,9 +458,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         }
 
         createFieldNamesField(context);
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_6_1_0)) {
-            doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
-        }
+        doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 
     static void configureContext(QueryShardContext context, boolean mapUnmappedFieldsAsString) {
