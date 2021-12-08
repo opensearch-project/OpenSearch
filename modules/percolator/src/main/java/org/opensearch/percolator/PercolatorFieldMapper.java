@@ -50,6 +50,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -298,11 +299,18 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             }
 
             BooleanQuery.Builder candidateQuery = new BooleanQuery.Builder();
-            LongValuesSource valuesSource = LongValuesSource.fromIntField(minimumShouldMatchField.name());
-            for (BytesRef extractedTerm : extractedTerms) {
-                subQueries.add(new TermQuery(new Term(queryTermsField.name(), extractedTerm)));
+            if (canUseMinimumShouldMatchField) {
+                LongValuesSource valuesSource = LongValuesSource.fromIntField(minimumShouldMatchField.name());
+                for (BytesRef extractedTerm : extractedTerms) {
+                    subQueries.add(new TermQuery(new Term(queryTermsField.name(), extractedTerm)));
+                }
+                candidateQuery.add(new CoveringQuery(subQueries, valuesSource), BooleanClause.Occur.SHOULD);
+            } else {
+                candidateQuery.add(new TermInSetQuery(queryTermsField.name(), extractedTerms), BooleanClause.Occur.SHOULD);
+                for (Query subQuery : subQueries) {
+                    candidateQuery.add(subQuery, BooleanClause.Occur.SHOULD);
+                }
             }
-            candidateQuery.add(new CoveringQuery(subQueries, valuesSource), BooleanClause.Occur.SHOULD);
             // include extractionResultField:failed, because docs with this term have no extractedTermsField
             // and otherwise we would fail to return these docs. Docs that failed query term extraction
             // always need to be verified by MemoryIndex:

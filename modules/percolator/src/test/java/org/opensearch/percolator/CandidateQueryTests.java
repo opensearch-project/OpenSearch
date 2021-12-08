@@ -674,7 +674,6 @@ public class CandidateQueryTests extends OpenSearchSingleNodeTestCase {
         shardSearcher.setQueryCache(null);
 
         Version v = VersionUtils.randomIndexCompatibleVersion(random());
-        ;
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new IntPoint("int_field", 3)), new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         Query query = fieldType.percolateQuery(
