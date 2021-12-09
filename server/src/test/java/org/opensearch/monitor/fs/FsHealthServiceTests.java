@@ -236,12 +236,10 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             assertThat(disruptedPathCount, equalTo(1));
             logger.info("--> Fix file system disruption");
             disruptFileSystemProvider.injectIODelay.set(false);
-            assertTrue(
-                waitUntil(
+            waitUntil(
                     () -> fsHealthSrvc.getHealth().getStatus() == HEALTHY,
-                    delayBetweenChecks + (2 * refreshInterval),
+                    delayBetweenChecks + (3 * refreshInterval),
                     TimeUnit.MILLISECONDS
-                )
             );
             fsHealth = fsHealthSrvc.getHealth();
             assertEquals(HEALTHY, fsHealth.getStatus());
