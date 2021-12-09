@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.open;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActiveShardCount;
@@ -59,9 +58,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            waitForActiveShards = ActiveShardCount.readFrom(in);
-        }
+        waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
     public OpenIndexRequest() {}
@@ -167,8 +164,6 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            waitForActiveShards.writeTo(out);
-        }
+        waitForActiveShards.writeTo(out);
     }
 }

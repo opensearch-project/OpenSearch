@@ -1130,7 +1130,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
              * we will hit a warning exception because we put some deprecated settings in that test.
              */
             if (isRunningAgainstOldCluster() == false
-                && getOldClusterVersion().onOrAfter(LegacyESVersion.V_6_1_0) && getOldClusterVersion().before(LegacyESVersion.V_6_5_0)) {
+                && getOldClusterVersion().before(LegacyESVersion.V_6_5_0)) {
                 for (String warning : e.getResponse().getWarnings()) {
                     assertThat(warning, containsString(
                         "setting was deprecated and will be removed in a future release! "

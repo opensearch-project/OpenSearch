@@ -103,11 +103,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 shardFailures[i] = ShardSearchFailure.readShardSearchFailure(in);
             }
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            clusters = new Clusters(in);
-        } else {
-            clusters = Clusters.EMPTY;
-        }
+        clusters = new Clusters(in);
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
@@ -460,9 +456,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         for (ShardSearchFailure shardSearchFailure : shardFailures) {
             shardSearchFailure.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            clusters.writeTo(out);
-        }
+        clusters.writeTo(out);
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);

@@ -32,7 +32,6 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchRequest;
@@ -491,18 +490,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeTimeValue(retryBackoffInitialTime);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
-        if (out.getVersion().before(LegacyESVersion.V_6_1_0) && slices == AUTO_SLICES) {
-            throw new IllegalArgumentException(
-                "Slices set as \"auto\" are not supported before version ["
-                    + LegacyESVersion.V_6_1_0
-                    + "]. "
-                    + "Found version ["
-                    + out.getVersion()
-                    + "]"
-            );
-        } else {
-            out.writeVInt(slices);
-        }
+        out.writeVInt(slices);
     }
 
     /**

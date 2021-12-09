@@ -134,11 +134,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         scriptStats = in.readOptionalWriteable(ScriptStats::new);
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
         ingestStats = in.readOptionalWriteable(IngestStats::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
-        } else {
-            adaptiveSelectionStats = null;
-        }
+        adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         scriptCacheStats = null;
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
             if (in.getVersion().before(LegacyESVersion.V_7_9_0)) {
@@ -328,9 +324,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(scriptStats);
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            out.writeOptionalWriteable(adaptiveSelectionStats);
-        }
+        out.writeOptionalWriteable(adaptiveSelectionStats);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0) && out.getVersion().before(LegacyESVersion.V_7_9_0)) {
             out.writeOptionalWriteable(scriptCacheStats);
         }

@@ -34,7 +34,6 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -147,9 +146,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
         cutoffFrequency = in.readOptionalFloat();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            autoGenerateSynonymsPhraseQuery = in.readBoolean();
-        }
+        autoGenerateSynonymsPhraseQuery = in.readBoolean();
     }
 
     @Override
@@ -168,9 +165,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
         out.writeOptionalFloat(cutoffFrequency);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            out.writeBoolean(autoGenerateSynonymsPhraseQuery);
-        }
+        out.writeBoolean(autoGenerateSynonymsPhraseQuery);
     }
 
     /** Returns the field name used in this query. */

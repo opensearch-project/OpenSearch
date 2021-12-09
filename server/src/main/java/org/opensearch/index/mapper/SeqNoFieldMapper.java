@@ -38,8 +38,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -215,15 +213,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         // we share the parent docs fields to ensure good compression
         SequenceIDFields seqID = context.seqID();
         assert seqID != null;
-        final Version versionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
-        final boolean includePrimaryTerm = versionCreated.before(LegacyESVersion.V_6_1_0);
         for (Document doc : context.nonRootDocuments()) {
             doc.add(seqID.seqNo);
             doc.add(seqID.seqNoDocValue);
-            if (includePrimaryTerm) {
-                // primary terms are used to distinguish between parent and nested docs since 6.1.0
-                doc.add(seqID.primaryTerm);
-            }
         }
     }
 
