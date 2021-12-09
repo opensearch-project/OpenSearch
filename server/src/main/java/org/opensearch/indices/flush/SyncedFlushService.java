@@ -719,6 +719,9 @@ public class SyncedFlushService implements IndexEventListener {
         public void writeTo(StreamOutput out) throws IOException {
             commitId.writeTo(out);
             out.writeInt(numDocs);
+            if (includeExistingSyncId(out.getVersion())) {
+                out.writeOptionalString(existingSyncId);
+            }
         }
     }
 
