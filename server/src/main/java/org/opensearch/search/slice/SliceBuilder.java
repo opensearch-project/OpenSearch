@@ -117,23 +117,14 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     public SliceBuilder(StreamInput in) throws IOException {
-        String field = in.readString();
-        if ("_uid".equals(field) && in.getVersion().before(LegacyESVersion.V_6_3_0)) {
-            // This is safe because _id and _uid are handled the same way in #toFilter
-            field = IdFieldMapper.NAME;
-        }
-        this.field = field;
+        this.field = in.readString();
         this.id = in.readVInt();
         this.max = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (IdFieldMapper.NAME.equals(field) && out.getVersion().before(LegacyESVersion.V_6_3_0)) {
-            out.writeString("_uid");
-        } else {
-            out.writeString(field);
-        }
+        out.writeString(field);
         out.writeVInt(id);
         out.writeVInt(max);
     }

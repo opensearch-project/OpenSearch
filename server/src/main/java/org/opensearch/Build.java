@@ -215,15 +215,11 @@ public class Build {
         // (Integ test zip still write OSS as distribution)
         // See issue: https://github.com/opendistro-for-elasticsearch/search/issues/159
         // todo change to V_1_3_0 after backporting
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0) && in.getVersion().before(Version.V_2_0_0)) {
+        if (in.getVersion().before(Version.V_2_0_0)) {
             String flavor = in.readString();
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-            type = Type.fromDisplayName(in.readString(), false);
-        } else {
-            type = Type.UNKNOWN;
-        }
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
         String date = in.readString();
         boolean snapshot = in.readBoolean();
@@ -247,18 +243,16 @@ public class Build {
         // TODO - clean up this code when we remove all v6 bwc tests.
         // TODO - clean this up when OSS flavor is removed in all of the code base
         // todo change to V_1_3_0 after backporting
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0) && out.getVersion().before(Version.V_2_0_0)) {
+        if (out.getVersion().before(Version.V_2_0_0)) {
             out.writeString("oss");
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            final Type buildType;
-            if (out.getVersion().before(LegacyESVersion.V_6_7_0) && build.type() == Type.DOCKER) {
-                buildType = Type.TAR;
-            } else {
-                buildType = build.type();
-            }
-            out.writeString(buildType.displayName());
+        final Type buildType;
+        if (out.getVersion().before(LegacyESVersion.V_6_7_0) && build.type() == Type.DOCKER) {
+            buildType = Type.TAR;
+        } else {
+            buildType = build.type();
         }
+        out.writeString(buildType.displayName());
         out.writeString(build.hash());
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
