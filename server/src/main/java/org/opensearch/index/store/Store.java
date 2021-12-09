@@ -64,7 +64,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.Streams;
@@ -1618,28 +1617,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final IndexCommit lastIndexCommitCommit = existingCommits.get(existingCommits.size() - 1);
             final String translogUUID = lastIndexCommitCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
             final IndexCommit startingIndexCommit;
-            // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
-            // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
-            // To avoid this issue, we only select index commits whose translog are fully retained.
-            if (indexVersionCreated.before(LegacyESVersion.V_6_2_0)) {
-                final List<IndexCommit> recoverableCommits = new ArrayList<>();
-                for (IndexCommit commit : existingCommits) {
-                    final String translogGeneration = commit.getUserData().get("translog_generation");
-                    if (translogGeneration == null || minRetainedTranslogGen <= Long.parseLong(translogGeneration)) {
-                        recoverableCommits.add(commit);
-                    }
-                }
-                // We could reach here if the node is restarted multiple times after upgraded without flushing a new index commit.
-                // In this case, we can safely consider all commits as the starting commit because we have trimmed the unsafe
-                // commits in the first restart.
-                if (recoverableCommits.isEmpty()) {
-                    recoverableCommits.addAll(existingCommits);
-                }
-                startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
-            } else {
-                // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.
-                startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
-            }
+            // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.
+            startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
 
             if (translogUUID.equals(startingIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY)) == false) {
                 throw new IllegalStateException(

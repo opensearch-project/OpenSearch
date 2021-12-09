@@ -57,7 +57,7 @@ class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportReque
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         totalTranslogOps = in.readVInt();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_2_0) && in.getVersion().before(LegacyESVersion.V_7_4_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_4_0)) {
             in.readBoolean(); // was fileBasedRecovery
         }
     }
@@ -80,7 +80,7 @@ class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportReque
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_2_0) && out.getVersion().before(LegacyESVersion.V_7_4_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_7_4_0)) {
             out.writeBoolean(true); // was fileBasedRecovery
         }
     }

@@ -168,11 +168,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         } else {
             customFolderName = this.name;
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
-            extendedPlugins = in.readStringList();
-        } else {
-            extendedPlugins = Collections.emptyList();
-        }
+        extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
         if (in.getVersion().onOrAfter(LegacyESVersion.fromId(6000027)) && in.getVersion().before(LegacyESVersion.V_6_3_0)) {
             /*
@@ -200,11 +196,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 out.writeString(name);
             }
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
-            out.writeStringCollection(extendedPlugins);
-        }
+        out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
-        if (out.getVersion().onOrAfter(LegacyESVersion.fromId(6000027)) && out.getVersion().before(LegacyESVersion.V_6_3_0)) {
+        if (out.getVersion().before(LegacyESVersion.V_6_3_0)) {
             /*
              * Elasticsearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
              * serialized into the plugin info. Therefore, we have to write out a value for this boolean.

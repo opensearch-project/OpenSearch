@@ -1525,7 +1525,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             MultiBucketConsumerService.TooManyBucketsException.class,
             MultiBucketConsumerService.TooManyBucketsException::new,
             149,
-            LegacyESVersion.V_6_2_0
+            UNKNOWN_VERSION_ADDED
         ),
         COORDINATION_STATE_REJECTED_EXCEPTION(
             org.opensearch.cluster.coordination.CoordinationStateRejectedException.class,

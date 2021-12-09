@@ -131,7 +131,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection.getName(), equalTo("First test section"));
         assertThat(testSection.getSkipSection(), notNullValue());
         assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(LegacyESVersion.fromString("6.0.0")));
-        assertThat(testSection.getSkipSection().getUpperVersion(), equalTo(LegacyESVersion.V_6_2_0));
+        assertThat(testSection.getSkipSection().getUpperVersion(), equalTo(LegacyESVersion.fromString("6.2.0")));
         assertThat(testSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
         DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);

@@ -32,7 +32,6 @@
 
 package org.opensearch.tasks;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
@@ -121,11 +120,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         runningTimeNanos = in.readLong();
         cancellable = in.readBoolean();
         parentTaskId = TaskId.readFromStream(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
-            headers = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            headers = Collections.emptyMap();
-        }
+        headers = in.readMap(StreamInput::readString, StreamInput::readString);
     }
 
     @Override
@@ -139,9 +134,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         out.writeLong(runningTimeNanos);
         out.writeBoolean(cancellable);
         parentTaskId.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
-        }
+        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     public TaskId getTaskId() {
