@@ -394,7 +394,8 @@ public class SliceBuilderTests extends OpenSearchTestCase {
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         try (IndexReader reader = DirectoryReader.open(dir)) {
             Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-            QueryShardContext context = createShardContext(version, reader, "field", DocValuesType.SORTED, 5, 0);            SliceBuilder builder = new SliceBuilder("field", 6, 10);
+            QueryShardContext context = createShardContext(version, reader, "field", DocValuesType.SORTED, 5, 0);
+            SliceBuilder builder = new SliceBuilder("field", 6, 10);
             String[] routings = new String[] { "foo" };
             Query query = builder.toFilter(clusterService, createRequest(1, routings, null), context, version);
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
