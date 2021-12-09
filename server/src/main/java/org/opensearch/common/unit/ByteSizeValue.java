@@ -32,7 +32,6 @@
 
 package org.opensearch.common.unit;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -65,23 +64,14 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     private final ByteSizeUnit unit;
 
     public ByteSizeValue(StreamInput in) throws IOException {
-        if (in.getVersion().before(LegacyESVersion.V_6_2_0)) {
-            size = in.readVLong();
-            unit = ByteSizeUnit.BYTES;
-        } else {
-            size = in.readZLong();
-            unit = ByteSizeUnit.readFrom(in);
-        }
+        size = in.readZLong();
+        unit = ByteSizeUnit.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(LegacyESVersion.V_6_2_0)) {
-            out.writeVLong(getBytes());
-        } else {
-            out.writeZLong(size);
-            unit.writeTo(out);
-        }
+        out.writeZLong(size);
+        unit.writeTo(out);
     }
 
     public ByteSizeValue(long bytes) {

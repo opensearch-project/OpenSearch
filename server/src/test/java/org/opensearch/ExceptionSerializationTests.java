@@ -393,7 +393,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     public void testTooManyBucketsException() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_2_0, Version.CURRENT);
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         MultiBucketConsumerService.TooManyBucketsException ex = serialize(
             new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
             version

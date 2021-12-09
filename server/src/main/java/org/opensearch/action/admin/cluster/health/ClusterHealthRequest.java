@@ -84,9 +84,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (in.readBoolean()) {
             waitForEvents = Priority.readFrom(in);
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
-            waitForNoInitializingShards = in.readBoolean();
-        }
+        waitForNoInitializingShards = in.readBoolean();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         } else {
@@ -118,9 +116,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             out.writeBoolean(true);
             Priority.writeTo(waitForEvents, out);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_2_0)) {
-            out.writeBoolean(waitForNoInitializingShards);
-        }
+        out.writeBoolean(waitForNoInitializingShards);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             indicesOptions.writeIndicesOptions(out);
         }
