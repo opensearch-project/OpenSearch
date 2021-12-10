@@ -133,6 +133,7 @@ tasks.named("check").configure {
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
+          'javax.jms.Message',
           'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
           'com.amazonaws.jmespath.JmesPathExpression',
           'com.amazonaws.jmespath.JmesPathField',

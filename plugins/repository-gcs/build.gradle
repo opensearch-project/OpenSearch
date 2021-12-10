@@ -205,6 +205,7 @@ thirdPartyAudit {
     'org.apache.http.protocol.HttpProcessor',
     'org.apache.http.protocol.HttpRequestExecutor',
     // commons-logging provided dependencies
+    'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
   )
