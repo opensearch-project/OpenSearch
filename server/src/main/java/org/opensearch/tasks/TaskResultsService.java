@@ -67,12 +67,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.Arrays;
 
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
-import static org.opensearch.tasks.TaskInfo.INCLUDE_CANCELLED_PARAM;
 
 /**
  * Service that can store task results.
@@ -80,9 +77,6 @@ import static org.opensearch.tasks.TaskInfo.INCLUDE_CANCELLED_PARAM;
 public class TaskResultsService {
 
     private static final Logger logger = LogManager.getLogger(TaskResultsService.class);
-
-    private static Map<String, String> mapParams = Arrays.stream(new String[][] { { INCLUDE_CANCELLED_PARAM, "false" } })
-        .collect(Collectors.toMap(keyMapper -> keyMapper[0], valueMapper -> valueMapper[1]));
 
     public static final String TASK_INDEX = ".tasks";
 
@@ -177,7 +171,7 @@ public class TaskResultsService {
     private void doStoreResult(TaskResult taskResult, ActionListener<Void> listener) {
         IndexRequestBuilder index = client.prepareIndex(TASK_INDEX, TASK_TYPE, taskResult.getTask().getTaskId().toString());
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
-            taskResult.toXContent(builder, new ToXContent.MapParams(mapParams));
+            taskResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
             index.setSource(builder);
         } catch (IOException e) {
             throw new OpenSearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
