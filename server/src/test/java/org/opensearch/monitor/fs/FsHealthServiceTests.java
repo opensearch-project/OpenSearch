@@ -222,12 +222,10 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             disruptFileSystemProvider.injectIODelay.set(true);
             final FsHealthService fsHealthSrvc = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthSrvc.doStart();
-            assertTrue(
-                waitUntil(
-                    () -> fsHealthSrvc.getHealth().getStatus() == UNHEALTHY,
-                    healthyTimeoutThreshold + (2 * refreshInterval),
-                    TimeUnit.MILLISECONDS
-                )
+            waitUntil(
+                () -> fsHealthSrvc.getHealth().getStatus() == UNHEALTHY,
+                healthyTimeoutThreshold + (2 * refreshInterval),
+                TimeUnit.MILLISECONDS
             );
             fsHealth = fsHealthSrvc.getHealth();
             assertEquals(UNHEALTHY, fsHealth.getStatus());
@@ -236,12 +234,10 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             assertThat(disruptedPathCount, equalTo(1));
             logger.info("--> Fix file system disruption");
             disruptFileSystemProvider.injectIODelay.set(false);
-            assertTrue(
-                waitUntil(
-                    () -> fsHealthSrvc.getHealth().getStatus() == HEALTHY,
-                    delayBetweenChecks + (2 * refreshInterval),
-                    TimeUnit.MILLISECONDS
-                )
+            waitUntil(
+                () -> fsHealthSrvc.getHealth().getStatus() == HEALTHY,
+                delayBetweenChecks + (3 * refreshInterval),
+                TimeUnit.MILLISECONDS
             );
             fsHealth = fsHealthSrvc.getHealth();
             assertEquals(HEALTHY, fsHealth.getStatus());
