@@ -129,6 +129,25 @@ public class DiscoveryNodeFilters {
         }
     }
 
+    /**
+     * Updates filters returning a new {@link DiscoveryNodeFilters} object.
+     * If the new object has no filters, {@code null} is returned.
+     */
+    @Nullable
+    public static DiscoveryNodeFilters updateFromKeyValue(final DiscoveryNodeFilters original, final Map<String, String> updatedFilters) {
+        final DiscoveryNodeFilters existing = new DiscoveryNodeFilters(original.opType, original.filters);
+        for (final Map.Entry<String, String> entry : updatedFilters.entrySet()) {
+            final String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
+            existing.filters.compute(entry.getKey(), (k,v) -> values.length > 0 ? values : null);
+        }
+
+        if (existing.filters.size() == 0) {
+            return null;
+        } else {
+            return existing;
+        }
+    }
+
     public boolean match(DiscoveryNode node) {
         for (Map.Entry<String, String[]> entry : filters.entrySet()) {
             String attr = entry.getKey();

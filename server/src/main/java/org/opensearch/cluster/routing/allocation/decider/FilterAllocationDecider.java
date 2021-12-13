@@ -255,14 +255,32 @@ public class FilterAllocationDecider extends AllocationDecider {
     }
 
     private void setClusterRequireFilters(Map<String, String> filters) {
-        clusterRequireFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValue(AND, filters));
+        final DiscoveryNodeFilters updated;
+        if (clusterRequireFilters == null) {
+            updated = DiscoveryNodeFilters.buildFromKeyValue(AND, filters);
+        } else {
+            updated = DiscoveryNodeFilters.updateFromKeyValue(clusterRequireFilters, filters);
+        }
+        clusterRequireFilters = DiscoveryNodeFilters.trimTier(updated);
     }
 
     private void setClusterIncludeFilters(Map<String, String> filters) {
-        clusterIncludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValue(OR, filters));
+        final DiscoveryNodeFilters updated;
+        if (clusterIncludeFilters == null) {
+            updated = DiscoveryNodeFilters.buildFromKeyValue(OR, filters);
+        } else {
+            updated = DiscoveryNodeFilters.updateFromKeyValue(clusterIncludeFilters, filters);
+        }
+        clusterIncludeFilters = DiscoveryNodeFilters.trimTier(updated);
     }
 
     private void setClusterExcludeFilters(Map<String, String> filters) {
-        clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValue(OR, filters));
+        final DiscoveryNodeFilters updated;
+        if (clusterExcludeFilters == null) {
+            updated = DiscoveryNodeFilters.buildFromKeyValue(OR, filters);
+        } else {
+            updated = DiscoveryNodeFilters.updateFromKeyValue(clusterExcludeFilters, filters);
+        }
+        clusterExcludeFilters = DiscoveryNodeFilters.trimTier(updated);
     }
 }
