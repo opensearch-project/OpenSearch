@@ -65,7 +65,6 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
     public static final String PROFILE_FIELD = "profile";
     public static final String INBOUND_NETWORK_FIELD = "inbound_network_time_in_millis";
     public static final String OUTBOUND_NETWORK_FIELD = "outbound_network_time_in_millis";
-    public static final String ROUND_TRIP_NETWORK_FIELD = "round_trip_network_time_in_millis";
 
     private Map<String, ProfileShardResult> shardResults;
 
@@ -109,10 +108,6 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             builder.field(ID_FIELD, key);
             builder.field(INBOUND_NETWORK_FIELD, shardResults.get(key).getInboundNetworkTime());
             builder.field(OUTBOUND_NETWORK_FIELD, shardResults.get(key).getOutboundNetworkTime());
-            builder.field(
-                ROUND_TRIP_NETWORK_FIELD,
-                shardResults.get(key).getInboundNetworkTime() + shardResults.get(key).getOutboundNetworkTime()
-            );
             builder.startArray(SEARCHES_FIELD);
             ProfileShardResult profileShardResult = shardResults.get(key);
             for (QueryProfileShardResult result : profileShardResult.getQueryProfileResults()) {
