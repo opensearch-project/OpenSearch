@@ -1,2 +1,8 @@
 * text eol=lf
 *.bat text eol=crlf
+*.zip binary
+*.exe binary
+*.epub binary
+*.pdf binary
+*.vsdx binary
+*.doc binary
