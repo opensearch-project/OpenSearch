@@ -69,18 +69,30 @@ public class DiscoveryNodeFilters {
         }
     };
 
-    public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
-        Map<String, String[]> bFilters = new HashMap<>();
+    /**
+     * Creates or updates filters returning a new {@link DiscoveryNodeFilters} object.
+     * If the new object has no filters, {@code null} is returned.
+     */
+    @Nullable
+    public static DiscoveryNodeFilters buildOrUpdateFromKeyValue(
+        final DiscoveryNodeFilters original,
+        final OpType opType,
+        final Map<String, String> filters
+    ) {
+        final DiscoveryNodeFilters updated;
+        if (original == null) {
+            updated = new DiscoveryNodeFilters(opType, new HashMap<>());
+        } else {
+            updated = new DiscoveryNodeFilters(original.opType, original.filters);
+        }
         for (Map.Entry<String, String> entry : filters.entrySet()) {
             String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
-            if (values.length > 0) {
-                bFilters.put(entry.getKey(), values);
-            }
+            updated.filters.compute(entry.getKey(), (k, v) -> values.length > 0 ? values : null);
         }
-        if (bFilters.isEmpty()) {
+        if (updated.filters.isEmpty()) {
             return null;
         }
-        return new DiscoveryNodeFilters(opType, bFilters);
+        return updated;
     }
 
     private final Map<String, String[]> filters;
@@ -126,25 +138,6 @@ public class DiscoveryNodeFilters {
             return null;
         } else {
             return new DiscoveryNodeFilters(original.opType, newFilters);
-        }
-    }
-
-    /**
-     * Updates filters returning a new {@link DiscoveryNodeFilters} object.
-     * If the new object has no filters, {@code null} is returned.
-     */
-    @Nullable
-    public static DiscoveryNodeFilters updateFromKeyValue(final DiscoveryNodeFilters original, final Map<String, String> updatedFilters) {
-        final DiscoveryNodeFilters existing = new DiscoveryNodeFilters(original.opType, original.filters);
-        for (final Map.Entry<String, String> entry : updatedFilters.entrySet()) {
-            final String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
-            existing.filters.compute(entry.getKey(), (k,v) -> values.length > 0 ? values : null);
-        }
-
-        if (existing.filters.size() == 0) {
-            return null;
-        } else {
-            return existing;
         }
     }
 

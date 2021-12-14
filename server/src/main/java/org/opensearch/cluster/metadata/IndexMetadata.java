@@ -1421,28 +1421,28 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (requireMap.isEmpty()) {
                 requireFilters = null;
             } else {
-                requireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
+                requireFilters = DiscoveryNodeFilters.buildOrUpdateFromKeyValue(null, AND, requireMap);
             }
             Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters includeFilters;
             if (includeMap.isEmpty()) {
                 includeFilters = null;
             } else {
-                includeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
+                includeFilters = DiscoveryNodeFilters.buildOrUpdateFromKeyValue(null, OR, includeMap);
             }
             Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters excludeFilters;
             if (excludeMap.isEmpty()) {
                 excludeFilters = null;
             } else {
-                excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
+                excludeFilters = DiscoveryNodeFilters.buildOrUpdateFromKeyValue(null, OR, excludeMap);
             }
             Map<String, String> initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters initialRecoveryFilters;
             if (initialRecoveryMap.isEmpty()) {
                 initialRecoveryFilters = null;
             } else {
-                initialRecoveryFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, initialRecoveryMap);
+                initialRecoveryFilters = DiscoveryNodeFilters.buildOrUpdateFromKeyValue(null, OR, initialRecoveryMap);
             }
             Version indexCreatedVersion = Version.indexCreated(settings);
             Version indexUpgradedVersion = settings.getAsVersion(IndexMetadata.SETTING_VERSION_UPGRADED, indexCreatedVersion);

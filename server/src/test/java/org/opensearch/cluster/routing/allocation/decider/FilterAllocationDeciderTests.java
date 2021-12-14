@@ -224,8 +224,14 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         assertEquals("node passes include/exclude/require filters", decision.getExplanation());
     }
 
-    private void filterSettingsUpdateHelper(final Settings initialSettings, final Type type1, final String explanation1,
-                                            final Settings updatedSettings, final Type type2, final String explanation2) {
+    private void filterSettingsUpdateHelper(
+        final Settings initialSettings,
+        final Type type1,
+        final String explanation1,
+        final Settings updatedSettings,
+        final Type type2,
+        final String explanation2
+    ) {
         ClusterSettings clusterSettings = new ClusterSettings(initialSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(initialSettings, clusterSettings);
         AllocationDeciders allocationDeciders = new AllocationDeciders(
@@ -242,11 +248,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );
-        ClusterState state = createInitialClusterState(
-            service,
-            Settings.EMPTY,
-            Settings.EMPTY
-        );
+        ClusterState state = createInitialClusterState(service, Settings.EMPTY, Settings.EMPTY);
         RoutingTable routingTable = state.routingTable();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
@@ -267,6 +269,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         assertEquals(decision.toString(), type2, decision.type());
         assertEquals(explanation2, decision.getExplanation());
     }
+
     public void testFilterUpdate1() {
         filterSettingsUpdateHelper(
             Settings.builder().put("cluster.routing.allocation.require.attr", "attr1").build(),
@@ -275,15 +278,15 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
             Settings.builder().put("cluster.routing.allocation.require.zone", "zone1").build(),
             Type.NO,
             "node does not match cluster setting [cluster.routing.allocation.require] filters [zone:\"zone1\",attr:\"attr1\"]"
-            );
+        );
     }
 
     public void testFilterUpdate2() {
         filterSettingsUpdateHelper(
             Settings.builder()
-            .put("cluster.routing.allocation.require.attr", "attr1")
-            .put("cluster.routing.allocation.require.zone", "zone1")
-            .build(),
+                .put("cluster.routing.allocation.require.attr", "attr1")
+                .put("cluster.routing.allocation.require.zone", "zone1")
+                .build(),
             Type.NO,
             "node does not match cluster setting [cluster.routing.allocation.require] filters [zone:\"zone1\",attr:\"attr1\"]",
             Settings.builder()
@@ -292,7 +295,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
                 .build(),
             Type.NO,
             "node does not match cluster setting [cluster.routing.allocation.require] filters [zone:\"zone1\"]"
-            );
+        );
     }
 
     public void testFilterUpdate3() {
