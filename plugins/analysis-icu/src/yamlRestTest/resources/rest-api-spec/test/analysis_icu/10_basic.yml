@@ -109,10 +109,10 @@
     - skip:
         version: " - 6.99.99"
         reason:  unicodeSetFilter deprecated in 7.0.0, replaced by unicode_set_filter
-        features: "warnings"
+        features: "allowed_warnings"
 
     - do:
-        warnings:
+        allowed_warnings:
           - "[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]"
         indices.create:
             index:  test
@@ -132,7 +132,7 @@
                                     type: icu_folding
                                     unicodeSetFilter: "[^â]"
     - do:
-        warnings:
+        allowed_warnings:
         - "[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]"
         indices.analyze:
           index:    test

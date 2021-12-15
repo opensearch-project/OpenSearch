@@ -106,10 +106,10 @@ public class DeprecationLogger {
     public class DeprecationLoggerBuilder {
 
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
-            OpenSearchLogMessage deprecationMessage = new DeprecatedMessage(key, HeaderWarning.getXOpaqueId(), msg, params);
-
-            logger.log(DEPRECATION, deprecationMessage);
-
+            DeprecatedMessage deprecationMessage = new DeprecatedMessage(key, HeaderWarning.getXOpaqueId(), msg, params);
+            if (!deprecationMessage.isAlreadyLogged()) {
+                logger.log(DEPRECATION, deprecationMessage);
+            }
             return this;
         }
     }

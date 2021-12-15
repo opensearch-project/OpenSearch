@@ -225,7 +225,7 @@
   - skip:
       version: " - 7.2.99"
       reason: "deprecation warnings only emitted on 7.3+"
-      features: warnings
+      features: allowed_warnings
 
   - do:
       index:
@@ -241,7 +241,7 @@
       indices.refresh: {}
 
   - do:
-      warnings:
+      allowed_warnings:
         - Deprecated field [size] used, expected [max_docs] instead
       update_by_query:
         index: twitter

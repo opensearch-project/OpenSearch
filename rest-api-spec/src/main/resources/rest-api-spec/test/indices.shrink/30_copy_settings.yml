@@ -3,7 +3,7 @@
   - skip:
       version: " - 6.9.99"
       reason: expects warnings that pre-7.0.0 will not send
-      features: [warnings, arbitrary_key]
+      features: [allowed_warnings, arbitrary_key]
 
   - do:
       nodes.info:
@@ -48,7 +48,7 @@
           settings:
             index.number_of_replicas: 0
             index.merge.scheduler.max_thread_count: 2
-      warnings:
+      allowed_warnings:
         - "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
 
   - do:

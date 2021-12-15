@@ -212,8 +212,8 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
             VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_2),
             false
         );
-        doTestCustomTokenizerDeprecation("nGram", "ngram", LegacyESVersion.V_7_6_0, true);
-        doTestCustomTokenizerDeprecation("edgeNGram", "edge_ngram", LegacyESVersion.V_7_6_0, true);
+        doTestCustomTokenizerDeprecation("nGram", "ngram", LegacyESVersion.V_7_6_0, false);
+        doTestCustomTokenizerDeprecation("edgeNGram", "edge_ngram", LegacyESVersion.V_7_6_0, false);
     }
 
     public void doTestPrebuiltTokenizerDeprecation(String deprecatedName, String replacement, Version version, boolean expectWarning)
