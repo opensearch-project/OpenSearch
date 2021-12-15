@@ -84,6 +84,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private NamedDomainObjectContainer<OpenSearchDistribution> distributionsContainer;
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
 
+    private static String customUrl;
+
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
@@ -105,7 +107,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         setupResolutionsContainer(project);
         setupDistributionContainer(project, dockerSupport);
-        setupDownloadServiceRepo(project);
         project.afterEvaluate(this::setupDistributions);
     }
 
@@ -138,7 +139,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         return (NamedDomainObjectContainer<DistributionResolution>) project.getExtensions().getByName(RESOLUTION_CONTAINER_NAME);
     }
 
-    // pkg private for tests
+    public static void setCustomTestDistributionUrl(String customTestDistributionUrl) {
+        customUrl = customTestDistributionUrl;
+    }
+
+    // pkg private for tests and set up Download Repository
     void setupDistributions(Project project) {
         for (OpenSearchDistribution distribution : distributionsContainer) {
             distribution.finalizeValues();
@@ -153,6 +158,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                 dependencies.add(distribution.getExtracted().getName(), distributionDependency.getExtractedNotation());
             }
         }
+        setupDownloadServiceRepo(project);
     }
 
     private DistributionDependency resolveDependencyNotation(Project p, OpenSearchDistribution distribution) {
@@ -195,16 +201,22 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
             return;
         }
-        addIvyRepo(
-            project,
-            DOWNLOAD_REPO_NAME,
-            "https://artifacts.opensearch.org",
-            FAKE_IVY_GROUP,
-            "/releases" + RELEASE_PATTERN_LAYOUT,
-            "/release-candidates" + RELEASE_PATTERN_LAYOUT
-        );
-
-        addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://artifacts.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP, SNAPSHOT_PATTERN_LAYOUT);
+        // checks if custom Url has been passed by user from plugins
+        if (customUrl != null && !customUrl.isEmpty()) {
+            addIvyRepo(project, DOWNLOAD_REPO_NAME, customUrl, FAKE_IVY_GROUP, "");
+            addIvyRepo(project, SNAPSHOT_REPO_NAME, customUrl, FAKE_SNAPSHOT_IVY_GROUP, "");
+            customUrl = null;
+        } else {
+            addIvyRepo(
+                project,
+                DOWNLOAD_REPO_NAME,
+                "https://artifacts.opensearch.org",
+                FAKE_IVY_GROUP,
+                "/releases" + RELEASE_PATTERN_LAYOUT,
+                "/release-candidates" + RELEASE_PATTERN_LAYOUT
+            );
+            addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://artifacts.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP, SNAPSHOT_PATTERN_LAYOUT);
+        }
 
         addIvyRepo2(project, DOWNLOAD_REPO_NAME_ES, "https://artifacts-no-kpi.elastic.co", FAKE_IVY_GROUP_ES);
         addIvyRepo2(project, SNAPSHOT_REPO_NAME_ES, "https://snapshots-no-kpi.elastic.co", FAKE_SNAPSHOT_IVY_GROUP_ES);
