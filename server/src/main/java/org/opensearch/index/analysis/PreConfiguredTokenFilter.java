@@ -184,7 +184,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                     } else {
                         DEPRECATION_LOGGER.deprecate(
-                            name(),
+                            name() + "_synonym_tokenfilters",
                             "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
                         );
                         return this;
@@ -211,7 +211,10 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                 if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
                     throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                 } else {
-                    DEPRECATION_LOGGER.deprecate(name(), "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0");
+                    DEPRECATION_LOGGER.deprecate(
+                        name() + "_synonym_tokenfilters",
+                        "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
+                    );
                     return this;
                 }
             }

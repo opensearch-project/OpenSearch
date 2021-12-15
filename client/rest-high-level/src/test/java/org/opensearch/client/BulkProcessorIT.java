@@ -84,6 +84,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BulkProcessorIT extends OpenSearchRestHighLevelClientTestCase {
 
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
+
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
         return BulkProcessor.builder(
             (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
@@ -95,7 +100,7 @@ public class BulkProcessorIT extends OpenSearchRestHighLevelClientTestCase {
         return BulkProcessor.builder(
             (request, bulkListener) -> highLevelClient().bulkAsync(
                 request,
-                expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE),
+                expectWarningsOnce(RestBulkAction.TYPES_DEPRECATION_MESSAGE),
                 bulkListener
             ),
             listener
@@ -506,11 +511,6 @@ public class BulkProcessorIT extends OpenSearchRestHighLevelClientTestCase {
             } else {
                 BytesArray data = bytesBulkRequest(localIndex, localType, i);
                 processor.add(data, globalIndex, globalType, globalPipeline, XContentType.JSON);
-
-                if (localType != null) {
-                    // If the payload contains types, parsing it into a bulk request results in a warning.
-                    assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
-                }
             }
             multiGetRequest.add(localIndex, Integer.toString(i));
         }

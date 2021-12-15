@@ -19,10 +19,10 @@
     - skip:
         version: " - 6.2.99"
         reason: deprecated in 6.3
-        features: "warnings"
+        features: "allowed_warnings"
 
     - do:
-        warnings:
+        allowed_warnings:
           - 'The [htmpStrip] char filter name is deprecated and will be removed in a future version. Please change the filter name to [html_strip] instead.'
         indices.create:
           index: test_deprecated_htmlstrip
@@ -41,7 +41,7 @@
                   analyzer: my_htmlStripWithCharfilter
 
     - do:
-        warnings:
+        allowed_warnings:
           - 'The [htmpStrip] char filter name is deprecated and will be removed in a future version. Please change the filter name to [html_strip] instead.'
         indices.analyze:
           index: test_deprecated_htmlstrip

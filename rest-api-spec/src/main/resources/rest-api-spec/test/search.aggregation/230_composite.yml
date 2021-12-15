@@ -268,10 +268,10 @@ setup:
   - skip:
       version: " - 7.1.99"
       reason:  calendar_interval introduced in 7.2.0
-      features: warnings
+      features: allowed_warnings
 
   - do:
-      warnings:
+      allowed_warnings:
         - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       search:
         rest_total_hits_as_int: true
@@ -300,7 +300,7 @@ setup:
   - match: { aggregations.test.buckets.1.doc_count: 1 }
 
   - do:
-        warnings:
+        allowed_warnings:
           - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
         search:
           rest_total_hits_as_int: true
