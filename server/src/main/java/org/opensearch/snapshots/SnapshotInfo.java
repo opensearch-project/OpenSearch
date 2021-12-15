@@ -98,8 +98,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
     private static final String USER_METADATA = "metadata";
 
-    private static final Version INCLUDE_GLOBAL_STATE_INTRODUCED = LegacyESVersion.V_6_2_0;
-
     private static final Comparator<SnapshotInfo> COMPARATOR = Comparator.comparing(SnapshotInfo::startTime)
         .thenComparing(SnapshotInfo::snapshotId);
 
@@ -395,9 +393,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         successfulShards = in.readVInt();
         shardFailures = Collections.unmodifiableList(in.readList(SnapshotShardFailure::new));
         version = in.readBoolean() ? Version.readVersion(in) : null;
-        if (in.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {
-            includeGlobalState = in.readOptionalBoolean();
-        }
+        includeGlobalState = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
             userMetadata = in.readMap();
         } else {
@@ -836,9 +832,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {
-            out.writeOptionalBoolean(includeGlobalState);
-        }
+        out.writeOptionalBoolean(includeGlobalState);
         if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
             out.writeMap(userMetadata);
             if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {

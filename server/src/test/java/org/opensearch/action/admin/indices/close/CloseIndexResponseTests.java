@@ -32,15 +32,10 @@
 
 package org.opensearch.action.admin.indices.close;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -49,7 +44,6 @@ import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.test.VersionUtils;
 import org.opensearch.transport.ActionNotFoundTransportException;
 
 import java.io.IOException;
@@ -58,10 +52,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.opensearch.test.VersionUtils.randomVersionBetween;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -179,57 +170,6 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                 + "\"reason\":\"No handler for action [test]\"}}]}}}}}",
             Strings.toString(closeIndexResponse)
         );
-    }
-
-    public void testBwcSerialization() throws Exception {
-        {
-            final CloseIndexResponse response = randomResponse();
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(
-                    randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0))
-                );
-                response.writeTo(out);
-
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(out.getVersion());
-                    final AcknowledgedResponse deserializedResponse = new AcknowledgedResponse(in);
-                    assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
-                }
-            }
-        }
-        {
-            final AcknowledgedResponse response = new AcknowledgedResponse(randomBoolean());
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                response.writeTo(out);
-
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(
-                        randomVersionBetween(random(), LegacyESVersion.V_6_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0))
-                    );
-                    final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
-                    assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
-                }
-            }
-        }
-        {
-            final CloseIndexResponse response = randomResponse();
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                Version version = randomVersionBetween(random(), LegacyESVersion.V_7_2_0, Version.CURRENT);
-                out.setVersion(version);
-                response.writeTo(out);
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(version);
-                    final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
-                    assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
-                    assertThat(deserializedResponse.isShardsAcknowledged(), equalTo(response.isShardsAcknowledged()));
-                    if (version.onOrAfter(LegacyESVersion.V_7_3_0)) {
-                        assertThat(deserializedResponse.getIndices(), hasSize(response.getIndices().size()));
-                    } else {
-                        assertThat(deserializedResponse.getIndices(), empty());
-                    }
-                }
-            }
-        }
     }
 
     private CloseIndexResponse randomResponse() {

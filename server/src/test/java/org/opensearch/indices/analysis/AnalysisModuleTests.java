@@ -148,10 +148,11 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
 
     public void testVersionedAnalyzers() throws Exception {
         String yaml = "/org/opensearch/index/analysis/test1.yml";
+        Version version = VersionUtils.randomVersion(random());
         Settings settings2 = Settings.builder()
             .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, LegacyESVersion.V_6_0_0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .build();
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
@@ -164,8 +165,8 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
 
         // analysis service has the expected version
         assertThat(indexAnalyzers.get("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(LegacyESVersion.V_6_0_0.luceneVersion, indexAnalyzers.get("standard").analyzer().getVersion());
-        assertEquals(LegacyESVersion.V_6_0_0.luceneVersion, indexAnalyzers.get("stop").analyzer().getVersion());
+        assertEquals(version.luceneVersion, indexAnalyzers.get("standard").analyzer().getVersion());
+        assertEquals(version.luceneVersion, indexAnalyzers.get("stop").analyzer().getVersion());
 
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
         assertEquals(org.apache.lucene.util.Version.fromBits(3, 6, 0), indexAnalyzers.get("custom7").analyzer().getVersion());

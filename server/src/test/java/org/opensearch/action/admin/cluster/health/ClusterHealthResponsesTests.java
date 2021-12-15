@@ -185,7 +185,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         );
 
         BytesStreamOutput out_lt_1_0 = new BytesStreamOutput();
-        Version old_version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_6_8_0);
+        Version old_version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_8_0);
         out_lt_1_0.setVersion(old_version);
         clusterHealth.writeTo(out_lt_1_0);
 

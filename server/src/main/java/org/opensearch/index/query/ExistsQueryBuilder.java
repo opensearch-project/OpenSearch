@@ -40,7 +40,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -172,10 +171,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             }
         }
 
-        if (context.indexVersionCreated().before(LegacyESVersion.V_6_1_0)) {
-            return newLegacyExistsQuery(context, fields);
-        }
-
         if (fields.size() == 1) {
             String field = fields.iterator().next();
             return newFieldExistsQuery(context, field);
@@ -184,22 +179,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
         for (String field : fields) {
             boolFilterBuilder.add(newFieldExistsQuery(context, field), BooleanClause.Occur.SHOULD);
-        }
-        return new ConstantScoreQuery(boolFilterBuilder.build());
-    }
-
-    private static Query newLegacyExistsQuery(QueryShardContext context, Collection<String> fields) {
-        // We create TermsQuery directly here rather than using FieldNamesFieldType.termsQuery()
-        // so we don't end up with deprecation warnings
-        if (fields.size() == 1) {
-            Query filter = newLegacyExistsQuery(context, fields.iterator().next());
-            return new ConstantScoreQuery(filter);
-        }
-
-        BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
-        for (String field : fields) {
-            Query filter = newLegacyExistsQuery(context, field);
-            boolFilterBuilder.add(filter, BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }

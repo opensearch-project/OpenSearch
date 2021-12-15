@@ -44,6 +44,7 @@ import org.opensearch.indices.analysis.PreBuiltAnalyzers;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -76,26 +77,24 @@ public class PreBuiltAnalyzerTests extends OpenSearchSingleNodeTestCase {
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
         assertThat(
             PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT),
-            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(LegacyESVersion.V_6_0_0))
+            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT.minimumIndexCompatibilityVersion()))
         );
     }
 
     public void testThatInstancesAreCachedAndReused() {
         assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT), PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
-        // same es version should be cached
-        assertSame(
-            PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_2_1),
-            PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_2_1)
-        );
+        // same opensearch version should be cached
+        Version v = VersionUtils.randomVersion(random());
+        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(v), PreBuiltAnalyzers.STANDARD.getAnalyzer(v));
         assertNotSame(
-            PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_0_0),
-            PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_0_1)
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT),
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT))
         );
 
         // Same Lucene version should be cached:
         assertSame(
-            PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.V_6_2_1),
-            PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.V_6_2_2)
+            PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.fromId(6020199)),
+            PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.fromId(6020299))
         );
     }
 

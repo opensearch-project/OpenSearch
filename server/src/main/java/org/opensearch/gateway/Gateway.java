@@ -42,7 +42,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.zen.ElectMasterService;
 import org.opensearch.index.Index;
 
 import java.util.Arrays;
@@ -56,8 +55,6 @@ public class Gateway {
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final int minimumMasterNodes;
-
     public Gateway(
         final Settings settings,
         final ClusterService clusterService,
@@ -65,7 +62,6 @@ public class Gateway {
     ) {
         this.clusterService = clusterService;
         this.listGatewayMetaState = listGatewayMetaState;
-        this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
@@ -73,7 +69,7 @@ public class Gateway {
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         final TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
-        final int requiredAllocation = Math.max(1, minimumMasterNodes);
+        final int requiredAllocation = 1;
 
         if (nodesState.hasFailures()) {
             for (final FailedNodeException failedNodeException : nodesState.failures()) {

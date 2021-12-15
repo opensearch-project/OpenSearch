@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
-import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -46,7 +45,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.discovery.zen.MasterFaultDetection;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -144,22 +142,6 @@ public class LeaderChecker {
             (request, channel, task) -> {
                 handleLeaderCheck(request);
                 channel.sendResponse(Empty.INSTANCE);
-            }
-        );
-
-        transportService.registerRequestHandler(
-            MasterFaultDetection.MASTER_PING_ACTION_NAME,
-            Names.SAME,
-            false,
-            false,
-            MasterFaultDetection.MasterPingRequest::new,
-            (request, channel, task) -> {
-                try {
-                    handleLeaderCheck(new LeaderCheckRequest(request.sourceNode));
-                } catch (CoordinationStateRejectedException e) {
-                    throw new MasterFaultDetection.ThisIsNotTheMasterYouAreLookingForException(e.getMessage());
-                }
-                channel.sendResponse(new MasterFaultDetection.MasterPingResponseResponse());
             }
         );
 
@@ -276,27 +258,10 @@ public class LeaderChecker {
 
             logger.trace("checking {} with [{}] = {}", leader, LEADER_CHECK_TIMEOUT_SETTING.getKey(), leaderCheckTimeout);
 
-            final String actionName;
-            final TransportRequest transportRequest;
-            if (Coordinator.isZen1Node(leader)) {
-                actionName = MasterFaultDetection.MASTER_PING_ACTION_NAME;
-                transportRequest = new MasterFaultDetection.MasterPingRequest(
-                    transportService.getLocalNode(),
-                    leader,
-                    ClusterName.CLUSTER_NAME_SETTING.get(settings)
-                );
-            } else {
-                actionName = LEADER_CHECK_ACTION_NAME;
-                transportRequest = new LeaderCheckRequest(transportService.getLocalNode());
-            }
-            // TODO lag detection:
-            // In the PoC, the leader sent its current version to the follower in the response to a LeaderCheck, so the follower
-            // could detect if it was lagging. We'd prefer this to be implemented on the leader, so the response is just
-            // TransportResponse.Empty here.
             transportService.sendRequest(
                 leader,
-                actionName,
-                transportRequest,
+                LEADER_CHECK_ACTION_NAME,
+                new LeaderCheckRequest(transportService.getLocalNode()),
                 TransportRequestOptions.builder().withTimeout(leaderCheckTimeout).withType(Type.PING).build(),
 
                 new TransportResponseHandler<TransportResponse.Empty>() {

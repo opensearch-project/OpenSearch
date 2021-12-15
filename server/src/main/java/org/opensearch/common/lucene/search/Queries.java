@@ -43,7 +43,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
@@ -88,11 +87,7 @@ public class Queries {
      * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
      */
     public static Query newNonNestedFilter(Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_6_1_0)) {
-            return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-        } else {
-            return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.FILTER).add(newNestedFilter(), Occur.MUST_NOT).build();
-        }
+        return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {

@@ -126,7 +126,11 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
     public void testFailUpgrade() {
         MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
         Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
-        Version indexUpgraded = VersionUtils.randomVersionBetween(random(), minCompat, VersionUtils.getPreviousVersion(Version.CURRENT));
+        Version indexUpgraded = VersionUtils.randomVersionBetween(
+            random(),
+            minCompat,
+            Version.max(minCompat, VersionUtils.getPreviousVersion(Version.CURRENT))
+        );
         Version indexCreated = LegacyESVersion.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
         final IndexMetadata metadata = newIndexMeta(
             "foo",
@@ -205,7 +209,7 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_CREATION_DATE, 1)
             .put(IndexMetadata.SETTING_INDEX_UUID, "BOOM")
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, LegacyESVersion.V_6_0_0_alpha1)
+            .put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT.minimumIndexCompatibilityVersion())
             .put(indexSettings)
             .build();
         return IndexMetadata.builder(name).settings(build).build();

@@ -333,10 +333,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         if (preserveClusterUponCompletion() == false) {
-            if (nodeVersions.stream().noneMatch(version -> version.before(LegacyESVersion.V_6_2_0))) {
-                // wait_for_no_initializing_shards added in 6.2
-                ensureNoInitializingShards();
-            }
+            ensureNoInitializingShards();
             wipeCluster();
             waitForClusterStateUpdatesToFinish();
             logIfThereAreRunningTasks();

@@ -57,6 +57,7 @@ test {
 
 thirdPartyAudit.ignoreMissingClasses(
   // classes are missing
+  'javax.jms.Message',
   'com.google.common.base.Splitter',
   'com.google.common.collect.Lists',
   'javax.servlet.ServletContextEvent',

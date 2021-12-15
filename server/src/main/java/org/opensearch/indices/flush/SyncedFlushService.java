@@ -699,11 +699,7 @@ public class SyncedFlushService implements IndexEventListener {
         PreSyncedFlushResponse(StreamInput in) throws IOException {
             super(in);
             commitId = new Engine.CommitId(in);
-            if (includeNumDocs(in.getVersion())) {
-                numDocs = in.readInt();
-            } else {
-                numDocs = UNKNOWN_NUM_DOCS;
-            }
+            numDocs = in.readInt();
             if (includeExistingSyncId(in.getVersion())) {
                 existingSyncId = in.readOptionalString();
             }
@@ -715,10 +711,6 @@ public class SyncedFlushService implements IndexEventListener {
             this.existingSyncId = existingSyncId;
         }
 
-        boolean includeNumDocs(Version version) {
-            return version.onOrAfter(LegacyESVersion.V_6_2_2);
-        }
-
         boolean includeExistingSyncId(Version version) {
             return version.onOrAfter(LegacyESVersion.V_6_3_0);
         }
@@ -726,9 +718,7 @@ public class SyncedFlushService implements IndexEventListener {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             commitId.writeTo(out);
-            if (includeNumDocs(out.getVersion())) {
-                out.writeInt(numDocs);
-            }
+            out.writeInt(numDocs);
             if (includeExistingSyncId(out.getVersion())) {
                 out.writeOptionalString(existingSyncId);
             }

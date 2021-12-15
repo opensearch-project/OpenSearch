@@ -34,7 +34,6 @@ package org.opensearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.Assertions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.ElectionStrategy;
@@ -51,7 +50,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.discovery.zen.ZenDiscovery;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.plugins.DiscoveryPlugin;
@@ -81,9 +79,7 @@ import static org.opensearch.node.Node.NODE_NAME_SETTING;
 public class DiscoveryModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
-    public static final String ZEN_DISCOVERY_TYPE = "legacy-zen-for-testing-only-do-not-use";
     public static final String ZEN2_DISCOVERY_TYPE = "zen";
-
     public static final String SINGLE_NODE_DISCOVERY_TYPE = "single-node";
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING = new Setting<>(
@@ -208,20 +204,6 @@ public class DiscoveryModule {
                 rerouteService,
                 electionStrategy,
                 nodeHealthService
-            );
-        } else if (Assertions.ENABLED && ZEN_DISCOVERY_TYPE.equals(discoveryType)) {
-            discovery = new ZenDiscovery(
-                settings,
-                threadPool,
-                transportService,
-                namedWriteableRegistry,
-                masterService,
-                clusterApplier,
-                clusterSettings,
-                seedHostsProvider,
-                allocationService,
-                joinValidators,
-                rerouteService
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

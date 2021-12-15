@@ -267,6 +267,13 @@ public class VersionUtils {
         return ALL_OPENSEARCH_VERSIONS.get(random.nextInt(ALL_OPENSEARCH_VERSIONS.size()));
     }
 
+    /**
+     * Return a random {@link LegacyESVersion} from all available legacy versions.
+     **/
+    public static LegacyESVersion randomLegacyVersion(Random random) {
+        return (LegacyESVersion) ALL_LEGACY_VERSIONS.get(random.nextInt(ALL_LEGACY_VERSIONS.size()));
+    }
+
     /** Returns the first released (e.g., patch version 0) {@link Version} of the last minor from the requested major version
      *  e.g., for version 1.0.0 this would be legacy version (7.10.0); the first release (patch 0), of the last
      *  minor (for 7.x that is minor version 10) for the desired major version (7)
@@ -336,5 +343,15 @@ public class VersionUtils {
      */
     public static Version randomIndexCompatibleVersion(Random random) {
         return randomVersionBetween(random, Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
+    }
+
+    /**
+     * Returns a random version index compatible with the given version, but not the given version.
+     */
+    public static Version randomPreviousCompatibleVersion(Random random, Version version) {
+        // TODO: change this to minimumCompatibilityVersion(), but first need to remove released/unreleased
+        // versions so getPreviousVerison returns the *actual* previous version. Otherwise eg 8.0.0 returns say 7.0.2 for previous,
+        // but 7.2.0 for minimum compat
+        return randomVersionBetween(random, version.minimumIndexCompatibilityVersion(), getPreviousVersion(version));
     }
 }

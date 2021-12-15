@@ -53,7 +53,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -487,12 +486,6 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
         assertTrue(t.v2());
         assertEquals(2, t.v1().clauses().size());
         assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
-        assertThat(t.v1().clauses().get(1).getQuery(), instanceOf(TermQuery.class));
-
-        t = fieldType.createCandidateQuery(indexReader, LegacyESVersion.V_6_0_0);
-        assertTrue(t.v2());
-        assertEquals(2, t.v1().clauses().size());
-        assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
         assertThat(t.v1().clauses().get(1).getQuery(), instanceOf(TermQuery.class));
     }
 

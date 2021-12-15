@@ -81,11 +81,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         super(in);
         targetIndexRequest = new CreateIndexRequest(in);
         sourceIndex = in.readString();
-        if (in.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
-            type = in.readEnum(ResizeType.class);
-        } else {
-            type = ResizeType.SHRINK; // BWC this used to be shrink only
-        }
+        type = in.readEnum(ResizeType.class);
         if (in.getVersion().before(LegacyESVersion.V_6_4_0)) {
             copySettings = null;
         } else {
@@ -128,12 +124,10 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         super.writeTo(out);
         targetIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
-        if (out.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
-            if (type == ResizeType.CLONE && out.getVersion().before(LegacyESVersion.V_7_4_0)) {
-                throw new IllegalArgumentException("can't send clone request to a node that's older than " + LegacyESVersion.V_7_4_0);
-            }
-            out.writeEnum(type);
+        if (type == ResizeType.CLONE && out.getVersion().before(LegacyESVersion.V_7_4_0)) {
+            throw new IllegalArgumentException("can't send clone request to a node that's older than " + LegacyESVersion.V_7_4_0);
         }
+        out.writeEnum(type);
         // noinspection StatementWithEmptyBody
         if (out.getVersion().before(LegacyESVersion.V_6_4_0)) {
 

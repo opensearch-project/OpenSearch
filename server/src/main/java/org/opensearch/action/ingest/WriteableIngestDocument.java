@@ -32,7 +32,6 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -45,9 +44,7 @@ import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.IngestDocument.Metadata;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -116,12 +113,6 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     WriteableIngestDocument(StreamInput in) throws IOException {
         Map<String, Object> sourceAndMetadata = in.readMap();
         Map<String, Object> ingestMetadata = in.readMap();
-        if (in.getVersion().before(LegacyESVersion.V_6_0_0_beta1)) {
-            ingestMetadata.computeIfPresent("timestamp", (k, o) -> {
-                Date date = (Date) o;
-                return date.toInstant().atZone(ZoneId.systemDefault());
-            });
-        }
         this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 

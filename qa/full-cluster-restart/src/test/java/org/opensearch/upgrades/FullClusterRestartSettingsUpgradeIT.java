@@ -58,7 +58,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {
 
     public void testRemoteClusterSettingsUpgraded() throws IOException {
-        assumeTrue("skip_unavailable did not exist until 6.1.0", getOldClusterVersion().onOrAfter(LegacyESVersion.V_6_1_0));
         assumeTrue("settings automatically upgraded since 6.5.0", getOldClusterVersion().before(LegacyESVersion.V_6_5_0));
         if (isRunningAgainstOldCluster()) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
@@ -91,7 +90,7 @@ public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRest
                         SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
                         equalTo(Collections.singletonList("localhost:9200")));
                 assertTrue(SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
-                assertEquals(String.valueOf(SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings)), 
+                assertEquals(String.valueOf(SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings)),
                                 "localhost:9200");
             }
 
@@ -118,7 +117,7 @@ public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRest
                         equalTo(Collections.singletonList("localhost:9200")));
                 assertFalse(SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
                 assertTrue(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
-                assertEquals(String.valueOf(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings)), 
+                assertEquals(String.valueOf(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings)),
                                 "localhost:9200");
             }
         }

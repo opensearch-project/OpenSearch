@@ -32,7 +32,6 @@
 
 package org.opensearch.analysis.common;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Tokenizer;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
@@ -40,8 +39,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.analysis.IndexAnalyzers;
-import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenizerFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
@@ -51,35 +48,6 @@ import java.io.IOException;
 import java.util.Map;
 
 public class CommonAnalysisPluginTests extends OpenSearchTestCase {
-
-    /**
-     * Check that the deprecated name "nGram" issues a deprecation warning for indices created since 6.0.0
-     */
-    public void testNGramDeprecationWarning() throws IOException {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(
-                IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(
-                    random(),
-                    LegacyESVersion.V_6_0_0,
-                    VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)
-                )
-            )
-            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
-            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.custom_analyzer.filter", "nGram")
-            .build();
-
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
-        }
-
-        assertWarnings(
-            "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                + "Please change the filter name to [ngram] instead."
-        );
-    }
 
     /**
      * Check that the deprecated name "nGram" throws an error since 7.0.0
@@ -107,40 +75,15 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
     }
 
     /**
-     * Check that the deprecated name "edgeNGram" issues a deprecation warning for indices created since 6.0.0
-     */
-    public void testEdgeNGramDeprecationWarning() throws IOException {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(
-                IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(
-                    random(),
-                    LegacyESVersion.V_6_4_0,
-                    VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)
-                )
-            )
-            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
-            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.custom_analyzer.filter", "edgeNGram")
-            .build();
-
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
-        }
-        assertWarnings(
-            "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                + "Please change the filter name to [edge_ngram] instead."
-        );
-    }
-
-    /**
      * Check that the deprecated name "edgeNGram" throws an error for indices created since 7.0.0
      */
     public void testEdgeNGramDeprecationError() throws IOException {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, null))
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT)
+            )
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "edgeNGram")
@@ -184,36 +127,6 @@ public class CommonAnalysisPluginTests extends OpenSearchTestCase {
                 + "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter",
             ex.getMessage()
         );
-    }
-
-    /**
-     * Check that the deprecated analyzer name "standard_html_strip" issues a deprecation warning for indices created since 6.5.0 until 7
-     */
-    public void testStandardHtmlStripAnalyzerDeprecationWarning() throws IOException {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(
-                IndexMetadata.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(
-                    random(),
-                    LegacyESVersion.V_6_0_0,
-                    VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)
-                )
-            )
-            .put("index.analysis.analyzer.custom_analyzer.type", "standard_html_strip")
-            .putList("index.analysis.analyzer.custom_analyzer.stopwords", "a", "b")
-            .build();
-
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            IndexAnalyzers analyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
-            Analyzer analyzer = analyzers.get("custom_analyzer");
-            assertNotNull(((NamedAnalyzer) analyzer).analyzer());
-            assertWarnings(
-                "Deprecated analyzer [standard_html_strip] used, "
-                    + "replace it with a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter"
-            );
-        }
     }
 
     /**

@@ -75,6 +75,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_1_1_0 = new Version(1010099, org.apache.lucene.util.Version.LUCENE_8_9_0);
     public static final Version V_1_1_1 = new Version(1010199, org.apache.lucene.util.Version.LUCENE_8_9_0);
     public static final Version V_1_2_0 = new Version(1020099, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version V_1_2_1 = new Version(1020199, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version V_1_2_2 = new Version(1020299, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_1_3_0 = new Version(1030099, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_2_0_0 = new Version(2000099, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version CURRENT = V_2_0_0;
@@ -175,6 +177,19 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         final Version cached = LegacyESVersion.stringToVersion.get(version);
         if (cached != null) {
             return cached;
+        }
+        {
+            // get major string; remove when creating OpenSearch 3.0
+            String[] parts = version.split("[.-]");
+            if (parts.length < 3 || parts.length > 4) {
+                throw new IllegalArgumentException(
+                    "the version needs to contain major, minor, and revision, and optionally the build: " + version
+                );
+            }
+            int major = Integer.parseInt(parts[0]);
+            if (major > 3) {
+                return LegacyESVersion.fromStringSlow(version);
+            }
         }
         return fromStringSlow(version);
     }
@@ -364,7 +379,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (major == 5) {
             bwcMajor = 2; // we jumped from 2 to 5
         } else if (major == 7 || major == 1) {
-            return LegacyESVersion.V_6_0_0_beta1;
+            return LegacyESVersion.fromId(6000026);
         } else if (major == 2) {
             return LegacyESVersion.V_7_0_0;
         } else {

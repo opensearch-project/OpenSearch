@@ -122,9 +122,6 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.discovery.Discovery;
-import org.opensearch.discovery.zen.ElectMasterService;
-import org.opensearch.discovery.zen.ZenDiscovery;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
@@ -200,7 +197,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.opensearch.client.Requests.syncedFlushRequest;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -217,7 +213,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -603,33 +598,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                         assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
 
                         final Set<String> transientKeys = new HashSet<>(metadata.transientSettings().keySet());
-                        if (isInternalCluster() && internalCluster().getAutoManageMinMasterNode()) {
-                            // this is set by the test infra
-                            transientKeys.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
-                        }
                         assertThat("test leaves transient cluster metadata behind", transientKeys, empty());
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
                     ensureClusterStateCanBeReadByNodeTool();
-                    if (isInternalCluster()) {
-                        // check no pending cluster states are leaked
-                        for (Discovery discovery : internalCluster().getInstances(Discovery.class)) {
-                            if (discovery instanceof ZenDiscovery) {
-                                final ZenDiscovery zenDiscovery = (ZenDiscovery) discovery;
-                                assertBusy(() -> {
-                                    final ClusterState[] states = zenDiscovery.pendingClusterStates();
-                                    assertThat(
-                                        zenDiscovery.clusterState().nodes().getLocalNode().getName()
-                                            + " still having pending states:\n"
-                                            + Stream.of(states).map(ClusterState::toString).collect(Collectors.joining("\n")),
-                                        states,
-                                        emptyArray()
-                                    );
-                                });
-                            }
-                        }
-                    }
                     beforeIndexDeletion();
                     cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
@@ -1825,9 +1798,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         boolean supportsDedicatedMasters() default true;
 
         /**
-         * Indicates whether the cluster automatically manages cluster bootstrapping and the removal of any master-eligible nodes as well
-         * as {@link ElectMasterService#DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING} if running the pre-7.0 cluster coordination
-         * implementation. If set to {@code false} then the tests must manage these things explicitly.
+         * Indicates whether the cluster automatically manages cluster bootstrapping. If set to {@code false} then the
+         * tests must manage these things explicitly.
          */
         boolean autoManageMasterNodes() default true;
 

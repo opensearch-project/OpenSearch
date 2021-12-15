@@ -709,7 +709,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "my_plugin",
             "desc",
             "1.0",
-            LegacyESVersion.V_6_0_0,
+            LegacyESVersion.fromId(6000099),
             "1.8",
             "FakePlugin",
             Collections.emptyList(),

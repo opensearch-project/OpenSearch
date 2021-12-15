@@ -58,7 +58,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.VersionUtils;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -528,32 +527,6 @@ public class ShardStateActionTests extends OpenSearchTestCase {
 
     private Exception getSimulatedFailure() {
         return new CorruptIndexException("simulated", (String) null);
-    }
-
-    public void testShardEntryBWCSerialize() throws Exception {
-        final Version bwcVersion = randomValueOtherThanMany(
-            version -> version.onOrAfter(LegacyESVersion.V_6_3_0),
-            () -> VersionUtils.randomVersion(random())
-        );
-        final ShardId shardId = new ShardId(randomRealisticUnicodeOfLengthBetween(10, 100), UUID.randomUUID().toString(), between(0, 1000));
-        final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
-        final String reason = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
-        try (StreamInput in = serialize(new StartedShardEntry(shardId, allocationId, 0L, reason), bwcVersion).streamInput()) {
-            in.setVersion(bwcVersion);
-            final FailedShardEntry failedShardEntry = new FailedShardEntry(in);
-            assertThat(failedShardEntry.shardId, equalTo(shardId));
-            assertThat(failedShardEntry.allocationId, equalTo(allocationId));
-            assertThat(failedShardEntry.message, equalTo(reason));
-            assertThat(failedShardEntry.failure, nullValue());
-            assertThat(failedShardEntry.markAsStale, equalTo(true));
-        }
-        try (StreamInput in = serialize(new FailedShardEntry(shardId, allocationId, 0L, reason, null, false), bwcVersion).streamInput()) {
-            in.setVersion(bwcVersion);
-            final StartedShardEntry startedShardEntry = new StartedShardEntry(in);
-            assertThat(startedShardEntry.shardId, equalTo(shardId));
-            assertThat(startedShardEntry.allocationId, equalTo(allocationId));
-            assertThat(startedShardEntry.message, equalTo(reason));
-        }
     }
 
     public void testFailedShardEntrySerialization() throws Exception {

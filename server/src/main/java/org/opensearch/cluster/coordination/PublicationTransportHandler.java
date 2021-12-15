@@ -54,13 +54,10 @@ import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.discovery.zen.PublishClusterStateAction;
-import org.opensearch.discovery.zen.PublishClusterStateStats;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BytesTransportRequest;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
@@ -69,7 +66,6 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -125,45 +121,12 @@ public class PublicationTransportHandler {
         );
 
         transportService.registerRequestHandler(
-            PublishClusterStateAction.SEND_ACTION_NAME,
-            ThreadPool.Names.GENERIC,
-            false,
-            false,
-            BytesTransportRequest::new,
-            (request, channel, task) -> {
-                handleIncomingPublishRequest(request);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            }
-        );
-
-        transportService.registerRequestHandler(
             COMMIT_STATE_ACTION_NAME,
             ThreadPool.Names.GENERIC,
             false,
             false,
             ApplyCommitRequest::new,
             (request, channel, task) -> handleApplyCommit.accept(request, transportCommitCallback(channel))
-        );
-
-        transportService.registerRequestHandler(
-            PublishClusterStateAction.COMMIT_ACTION_NAME,
-            ThreadPool.Names.GENERIC,
-            false,
-            false,
-            PublishClusterStateAction.CommitClusterStateRequest::new,
-            (request, channel, task) -> {
-                final Optional<ClusterState> matchingClusterState = Optional.ofNullable(lastSeenClusterState.get())
-                    .filter(cs -> cs.stateUUID().equals(request.stateUUID));
-                if (matchingClusterState.isPresent() == false) {
-                    throw new IllegalStateException("can't resolve cluster state with uuid" + " [" + request.stateUUID + "] to commit");
-                }
-                final ApplyCommitRequest applyCommitRequest = new ApplyCommitRequest(
-                    matchingClusterState.get().getNodes().getMasterNode(),
-                    matchingClusterState.get().term(),
-                    matchingClusterState.get().version()
-                );
-                handleApplyCommit.accept(applyCommitRequest, transportCommitCallback(channel));
-            }
         );
     }
 
@@ -408,19 +371,10 @@ public class PublicationTransportHandler {
             ActionListener<TransportResponse.Empty> listener
         ) {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
-            final String actionName;
-            final TransportRequest transportRequest;
-            if (Coordinator.isZen1Node(destination)) {
-                actionName = PublishClusterStateAction.COMMIT_ACTION_NAME;
-                transportRequest = new PublishClusterStateAction.CommitClusterStateRequest(newState.stateUUID());
-            } else {
-                actionName = COMMIT_STATE_ACTION_NAME;
-                transportRequest = applyCommitRequest;
-            }
             transportService.sendRequest(
                 destination,
-                actionName,
-                transportRequest,
+                COMMIT_STATE_ACTION_NAME,
+                applyCommitRequest,
                 stateRequestOptions,
                 new TransportResponseHandler<TransportResponse.Empty>() {
 
@@ -515,24 +469,7 @@ public class PublicationTransportHandler {
                         return ThreadPool.Names.GENERIC;
                     }
                 };
-                final String actionName;
-                final TransportResponseHandler<?> transportResponseHandler;
-                if (Coordinator.isZen1Node(destination)) {
-                    actionName = PublishClusterStateAction.SEND_ACTION_NAME;
-                    transportResponseHandler = responseHandler.wrap(
-                        empty -> new PublishWithJoinResponse(
-                            new PublishResponse(newState.term(), newState.version()),
-                            Optional.of(
-                                new Join(destination, transportService.getLocalNode(), newState.term(), newState.term(), newState.version())
-                            )
-                        ),
-                        in -> TransportResponse.Empty.INSTANCE
-                    );
-                } else {
-                    actionName = PUBLISH_STATE_ACTION_NAME;
-                    transportResponseHandler = responseHandler;
-                }
-                transportService.sendRequest(destination, actionName, request, stateRequestOptions, transportResponseHandler);
+                transportService.sendRequest(destination, PUBLISH_STATE_ACTION_NAME, request, stateRequestOptions, responseHandler);
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", destination), e);
                 listener.onFailure(e);
