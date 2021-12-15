@@ -84,7 +84,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private NamedDomainObjectContainer<OpenSearchDistribution> distributionsContainer;
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
 
-    private static String customUrl;
+    private static String distributionUrl;
 
     @Override
     public void apply(Project project) {
@@ -139,8 +139,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         return (NamedDomainObjectContainer<DistributionResolution>) project.getExtensions().getByName(RESOLUTION_CONTAINER_NAME);
     }
 
-    public static void setCustomTestDistributionUrl(String customTestDistributionUrl) {
-        customUrl = customTestDistributionUrl;
+    public static void setDistributionUrl(String distributionUrl) {
+        DistributionDownloadPlugin.distributionUrl = distributionUrl;
     }
 
     // pkg private for tests and set up Download Repository
@@ -202,10 +202,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             return;
         }
         // checks if custom Url has been passed by user from plugins
-        if (customUrl != null && !customUrl.isEmpty()) {
-            addIvyRepo(project, DOWNLOAD_REPO_NAME, customUrl, FAKE_IVY_GROUP, "");
-            addIvyRepo(project, SNAPSHOT_REPO_NAME, customUrl, FAKE_SNAPSHOT_IVY_GROUP, "");
-            customUrl = null;
+        if (distributionUrl != null && !distributionUrl.isEmpty()) {
+            addIvyRepo(project, DOWNLOAD_REPO_NAME, distributionUrl, FAKE_IVY_GROUP, "");
+            addIvyRepo(project, SNAPSHOT_REPO_NAME, distributionUrl, FAKE_SNAPSHOT_IVY_GROUP, "");
+            distributionUrl = null;
         } else {
             addIvyRepo(
                 project,

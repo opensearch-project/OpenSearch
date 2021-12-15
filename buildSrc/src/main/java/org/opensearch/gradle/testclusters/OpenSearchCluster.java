@@ -147,8 +147,8 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     // This method is called by plugins to override default Url
-    public static void setCustomTestDistributionUrl(String customTestDistributionUrl) {
-        DistributionDownloadPlugin.setCustomTestDistributionUrl(customTestDistributionUrl);
+    public static void setDistributionUrl(String distributionUrl) {
+        DistributionDownloadPlugin.setDistributionUrl(distributionUrl);
     }
 
     @Internal
