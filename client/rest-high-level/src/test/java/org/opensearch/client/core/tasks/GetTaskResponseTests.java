@@ -90,11 +90,24 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         long startTime = randomLong();
         long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
+        boolean cancelled = cancellable == true ? randomBoolean() : false;
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        return new TaskInfo(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
+        return new TaskInfo(
+            taskId,
+            type,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers
+        );
     }
 
     private static TaskId randomTaskId() {

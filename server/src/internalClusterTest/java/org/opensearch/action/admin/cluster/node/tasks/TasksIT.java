@@ -901,7 +901,19 @@ public class TasksIT extends OpenSearchIntegTestCase {
         TaskResultsService resultsService = internalCluster().getInstance(TaskResultsService.class);
         resultsService.storeResult(
             new TaskResult(
-                new TaskInfo(new TaskId("fake", 1), "test", "test", "", null, 0, 0, false, TaskId.EMPTY_TASK_ID, Collections.emptyMap()),
+                new TaskInfo(
+                    new TaskId("fake", 1),
+                    "test",
+                    "test",
+                    "",
+                    null,
+                    0,
+                    0,
+                    false,
+                    false,
+                    TaskId.EMPTY_TASK_ID,
+                    Collections.emptyMap()
+                ),
                 new RuntimeException("test")
             ),
             new ActionListener<Void>() {
