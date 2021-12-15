@@ -37,8 +37,8 @@ import java.util.Map;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.MapBuilder;
 
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A logger message used by {@link DeprecationLogger}.
@@ -46,8 +46,8 @@ import java.util.Set;
  */
 public class DeprecatedMessage extends OpenSearchLogMessage {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
-    private static Set<String> keys = new HashSet<>();
-    private String keyWithXOpaqueId;
+    private static final Set<String> keys = ConcurrentHashMap.newKeySet();
+    private final String keyWithXOpaqueId;
 
     public DeprecatedMessage(String key, String xOpaqueId, String messagePattern, Object... args) {
         super(fieldMap(key, xOpaqueId), messagePattern, args);
@@ -61,7 +61,7 @@ public class DeprecatedMessage extends OpenSearchLogMessage {
      * Otherwise, a warning can be logged by some test and the upcoming test can be impacted by it.
      */
     public static void resetDeprecatedMessageForTests() {
-        keys = new HashSet<>();
+        keys.clear();
     }
 
     private static Map<String, Object> fieldMap(String key, String xOpaqueId) {
@@ -76,10 +76,6 @@ public class DeprecatedMessage extends OpenSearchLogMessage {
     }
 
     public boolean isAlreadyLogged() {
-        if (keys.contains(this.keyWithXOpaqueId)) {
-            return true;
-        }
-        keys.add(this.keyWithXOpaqueId);
-        return false;
+        return !keys.add(keyWithXOpaqueId);
     }
 }

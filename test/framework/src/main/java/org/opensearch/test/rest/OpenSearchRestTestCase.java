@@ -103,6 +103,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -129,7 +130,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
     // This ensures that no matter in what order the tests run, the warning is asserted once.
-    private static Set<String> assertedWarnings = new HashSet<>();
+    private static Set<String> assertedWarnings = ConcurrentHashMap.newKeySet();
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -1271,15 +1272,9 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     protected static void performSyncedFlush(String indexName, boolean retryOnConflict) throws Exception {
         final Request request = new Request("POST", indexName + "/_flush/synced");
         final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
-        }
+        final Builder options = RequestOptions.DEFAULT.toBuilder();
+        options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
+        request.setOptions(options);
         // We have to spin a synced-flush request because we fire the global checkpoint sync for the last write operation.
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
         assertBusy(() -> {
