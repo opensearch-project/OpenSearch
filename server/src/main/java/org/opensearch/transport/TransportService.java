@@ -67,7 +67,6 @@ import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.ReportingService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.tasks.consumer.TaskStatsLogger;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -214,8 +213,6 @@ public class TransportService extends AbstractLifecycleComponent
         setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
         taskManager = createTaskManager(settings, threadPool, taskHeaders);
-        // Register task stats consumers
-        registerTaskStatConsumers();
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
@@ -270,10 +267,6 @@ public class TransportService extends AbstractLifecycleComponent
 
     void setTracerLogExclude(List<String> tracerLogExclude) {
         this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
-    }
-
-    private void registerTaskStatConsumers() {
-        taskManager.addTaskStatConsumer(new TaskStatsLogger());
     }
 
     @Override

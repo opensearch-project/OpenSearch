@@ -78,7 +78,7 @@ public class TaskStatsContext {
         return allStats;
     }
 
-    public static TaskStatsContext createTaskStatsContext(StatCollectorTask task) {
+    public static TaskStatsContext createTaskStatsContext(Task task) {
         return new TaskStatsContext(
             task.getId(),
             task.getType(),
@@ -86,7 +86,7 @@ public class TaskStatsContext {
             task.getDescription(),
             task.getStartTimeNanos(),
             task.getParentTaskId().toString(),
-            task.getStats()
+            task.getTotalResourceStats()
         );
 
     }

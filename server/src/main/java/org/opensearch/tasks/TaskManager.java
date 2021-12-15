@@ -57,7 +57,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.tasks.consumer.TaskStatConsumer;
+import org.opensearch.tasks.consumer.TaskSearchStatsLogger;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
@@ -75,6 +75,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -112,13 +113,16 @@ public class TaskManager implements ClusterStateApplier {
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
     /** Consumers that are notified of the stats */
-    private List<TaskStatConsumer> statConsumers;
+    private final List<Consumer<TaskStatsContext>> statsConsumers = new ArrayList<Consumer<TaskStatsContext>>() {
+        {
+            add(new TaskSearchStatsLogger());
+        }
+    };
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
-        this.statConsumers = new ArrayList<>();
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -207,11 +211,9 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
-        if (task instanceof StatCollectorTask) {
-            TaskStatsContext statsContext = TaskStatsContext.createTaskStatsContext((StatCollectorTask) task);
-            for (TaskStatConsumer consumer : statConsumers) {
-                consumer.taskStatConsumed(statsContext);
-            }
+        if (!task.getTotalResourceStats().isEmpty()) {
+            final TaskStatsContext statsContext = TaskStatsContext.createTaskStatsContext(task);
+            statsConsumers.forEach(consumer -> consumer.accept(statsContext));
         }
         if (task instanceof CancellableTask) {
             CancellableTaskHolder holder = cancellableTasks.remove(task.getId());
@@ -357,15 +359,6 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             return null;
         }
-    }
-
-    /**
-     * Register task stat consumer with task manager
-     *
-     * <p>The consumer is notified whenever an task is complete
-     */
-    public void addTaskStatConsumer(TaskStatConsumer statConsumer) {
-        statConsumers.add(statConsumer);
     }
 
     /**

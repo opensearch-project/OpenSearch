@@ -140,7 +140,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<
             FakeTaskStatus status = (FakeTaskStatus) ti.getStatus();
             assertEquals(status.code, taskInfo.getStatus().get("code"));
             assertEquals(status.status, taskInfo.getStatus().get("status"));
-            assertEquals(new HashMap<>(ti.getStatsInfo()), new HashMap<>(taskInfo.getStatsInfo()));
+            assertEquals(new HashMap<>(ti.getResourceStats()), new HashMap<>(taskInfo.getResourceStats()));
 
         }
 

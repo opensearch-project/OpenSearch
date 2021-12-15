@@ -59,7 +59,7 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         )
             .assertEqualsConsumer(this::assertEqualInstances)
             .assertToXContentEquivalence(true)
-            .randomFieldsExcludeFilter(field -> field.endsWith("headers") || field.endsWith("status") || field.endsWith("stats_info"))
+            .randomFieldsExcludeFilter(field -> field.endsWith("headers") || field.endsWith("status") || field.endsWith("resource_stats"))
             .test();
     }
 

@@ -142,7 +142,7 @@ public class TaskInfo {
         return status;
     }
 
-    public Map<String, Object> getStatsInfo() {
+    public Map<String, Object> getResourceStats() {
         return statsInfo;
     }
 
@@ -169,7 +169,7 @@ public class TaskInfo {
         parser.declareBoolean(TaskInfo::setCancellable, new ParseField("cancellable"));
         parser.declareString(TaskInfo::setParentTaskId, new ParseField("parent_task_id"));
         parser.declareObject(TaskInfo::setHeaders, (p, c) -> p.mapStrings(), new ParseField("headers"));
-        parser.declareObject(TaskInfo::setStatsInfo, (p, c) -> p.map(), new ParseField("stats_info"));
+        parser.declareObject(TaskInfo::setStatsInfo, (p, c) -> p.map(), new ParseField("resource_stats"));
         PARSER = (XContentParser p, Void v, String name) -> parser.parse(p, new TaskInfo(new TaskId(name)), null);
     }
 
@@ -188,7 +188,7 @@ public class TaskInfo {
             && Objects.equals(getParentTaskId(), taskInfo.getParentTaskId())
             && Objects.equals(status, taskInfo.status)
             && Objects.equals(getHeaders(), taskInfo.getHeaders())
-            && Objects.equals(getStatsInfo(), taskInfo.getStatsInfo());
+            && Objects.equals(getResourceStats(), taskInfo.getResourceStats());
     }
 
     @Override
@@ -204,7 +204,7 @@ public class TaskInfo {
             getParentTaskId(),
             status,
             getHeaders(),
-            getStatsInfo()
+            getResourceStats()
         );
     }
 
@@ -234,7 +234,7 @@ public class TaskInfo {
             + status
             + ", headers="
             + headers
-            + ", stats_info="
+            + ", resource_stats="
             + statsInfo
             + '}';
     }

@@ -9,8 +9,8 @@
 package org.opensearch.tasks;
 
 public enum TaskStatsType {
-    MEMORY("Memory"),
-    CPU("CPU");
+    MEMORY("memory"),
+    CPU("cpu");
 
     private final String value;
 

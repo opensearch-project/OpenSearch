@@ -125,7 +125,7 @@ public class RestTasksAction extends AbstractCatAction {
         table.addCell("timestamp", "alias:ts,hms,hhmmss;desc:start time in HH:MM:SS");
         table.addCell("running_time_ns", "default:false;alias:time;desc:running time ns");
         table.addCell("running_time", "default:true;alias:time;desc:running time");
-        table.addCell("stats_info", "default:false;desc:stats info of the task");
+        table.addCell("resource_stats", "default:false;desc:resource stats of the task");
 
         // Node info
         table.addCell("node_id", "default:false;alias:ni;desc:unique node id");
@@ -163,7 +163,7 @@ public class RestTasksAction extends AbstractCatAction {
         table.addCell(FORMATTER.format(Instant.ofEpochMilli(taskInfo.getStartTime())));
         table.addCell(taskInfo.getRunningTimeNanos());
         table.addCell(TimeValue.timeValueNanos(taskInfo.getRunningTimeNanos()));
-        table.addCell(taskInfo.getStatsInfo());
+        table.addCell(taskInfo.getResourceStats());
 
         // Node information. Note that the node may be null because it has left the cluster between when we got this response and now.
         table.addCell(fullId ? nodeId : Strings.substring(nodeId, 0, 4));

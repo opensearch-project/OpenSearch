@@ -77,8 +77,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // status, headers and stats_info hold arbitrary content, we can't inject random fields in them
-        return field -> "status".equals(field) || "headers".equals(field) || "stats_info".equals(field);
+        // status, headers and resource_stats hold arbitrary content, we can't inject random fields in them
+        return field -> "status".equals(field) || "headers".equals(field) || "resource_stats".equals(field);
     }
 
     @Override
@@ -97,7 +97,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancellable(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getStatsInfo()
+                    info.getResourceStats()
                 );
             case 1:
                 return new TaskInfo(
@@ -111,7 +111,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancellable(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getStatsInfo()
+                    info.getResourceStats()
                 );
             case 2:
                 return new TaskInfo(
@@ -125,7 +125,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancellable(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getStatsInfo()
+                    info.getResourceStats()
                 );
             case 3:
                 return new TaskInfo(
@@ -139,7 +139,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancellable(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getStatsInfo()
+                    info.getResourceStats()
                 );
             case 4:
                 Task.Status newStatus = randomValueOtherThan(info.getStatus(), TaskInfoTests::randomRawTaskStatus);
@@ -154,7 +154,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancellable(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getStatsInfo()
+                    info.getResourceStats()
                 );
             case 5:
                 return new TaskInfo(
@@ -168,7 +168,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancellable(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getStatsInfo()
+                    info.getResourceStats()
                 );
             case 6:
                 return new TaskInfo(
@@ -182,7 +182,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancellable(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getStatsInfo()
+                    info.getResourceStats()
                 );
             case 7:
                 return new TaskInfo(
@@ -196,7 +196,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancellable() == false,
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getStatsInfo()
+                    info.getResourceStats()
                 );
             case 8:
                 TaskId parentId = new TaskId(info.getParentTaskId().getNodeId() + randomAlphaOfLength(5), info.getParentTaskId().getId());
@@ -211,7 +211,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancellable(),
                     parentId,
                     info.getHeaders(),
-                    info.getStatsInfo()
+                    info.getResourceStats()
                 );
             case 9:
                 Map<String, String> headers = info.getHeaders();
@@ -232,14 +232,14 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancellable(),
                     info.getParentTaskId(),
                     headers,
-                    info.getStatsInfo()
+                    info.getResourceStats()
                 );
             case 10:
-                Map<String, Long> statsInfo = info.getStatsInfo();
+                Map<String, Long> statsInfo = info.getResourceStats();
                 if (statsInfo == null) {
                     statsInfo = new HashMap<>(1);
                 } else {
-                    statsInfo = new HashMap<>(info.getStatsInfo());
+                    statsInfo = new HashMap<>(info.getResourceStats());
                 }
                 statsInfo.put(TaskStatsType.MEMORY.toString(), randomLong());
                 return new TaskInfo(

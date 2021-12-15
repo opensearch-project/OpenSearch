@@ -39,8 +39,9 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Current task information
@@ -64,6 +65,10 @@ public class Task {
 
     private final Map<String, String> headers;
 
+    private final Map<String, TaskStatsUtil> activeResourceStats;
+
+    private final Map<String, Long> totalResourceStats;
+
     /**
      * The task's start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
      */
@@ -75,7 +80,18 @@ public class Task {
     private final long startTimeNanos;
 
     public Task(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
-        this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime(), headers);
+        this(
+            id,
+            type,
+            action,
+            description,
+            parentTask,
+            System.currentTimeMillis(),
+            System.nanoTime(),
+            headers,
+            new ConcurrentHashMap<>(),
+            new HashMap<>()
+        );
     }
 
     public Task(
@@ -86,7 +102,9 @@ public class Task {
         TaskId parentTask,
         long startTime,
         long startTimeNanos,
-        Map<String, String> headers
+        Map<String, String> headers,
+        Map<String, TaskStatsUtil> activeWorkers,
+        Map<String, Long> totalResourceStats
     ) {
         this.id = id;
         this.type = type;
@@ -96,17 +114,17 @@ public class Task {
         this.startTime = startTime;
         this.startTimeNanos = startTimeNanos;
         this.headers = headers;
+        this.activeResourceStats = activeWorkers;
+        this.totalResourceStats = totalResourceStats;
     }
 
     /**
      * Build a version of the task status you can throw over the wire and back
      * to the user.
      *
-     * @param localNodeId
-     *            the id of the node this task is running on
-     * @param detailed
-     *            should the information include detailed, potentially slow to
-     *            generate data?
+     * @param localNodeId the id of the node this task is running on
+     * @param detailed    should the information include detailed, potentially slow to
+     *                    generate data?
      */
     public final TaskInfo taskInfo(String localNodeId, boolean detailed) {
         String description = null;
@@ -133,7 +151,7 @@ public class Task {
             this instanceof CancellableTask,
             parentTask,
             headers,
-            this instanceof StatCollectorTask ? ((StatCollectorTask) this).getStats() : Collections.emptyMap()
+            totalResourceStats
         );
     }
 
@@ -194,6 +212,49 @@ public class Task {
      */
     public Status getStatus() {
         return null;
+    }
+
+    /**
+     * Returns resource consumption of active workers of the task
+     */
+    public Map<String, TaskStatsUtil> getActiveResourceStats() {
+        return activeResourceStats;
+    }
+
+    /**
+     * Returns total resource consumption of the task
+     */
+    public Map<String, Long> getTotalResourceStats() {
+        return totalResourceStats;
+    }
+
+    public void addOrUpdateResourceStats(
+        String workerName,
+        Thread.State threadState,
+        boolean isComplete,
+        TaskResourceMetric... taskResourceMetrics
+    ) {
+        TaskStatsUtil taskStatsUtil = activeResourceStats.get(workerName);
+        if (taskStatsUtil == null) {
+            taskStatsUtil = new TaskStatsUtil(threadState, taskResourceMetrics);
+            activeResourceStats.put(workerName, taskStatsUtil);
+        } else {
+            taskStatsUtil.setThreadState(threadState);
+            for (TaskResourceMetric taskResourceMetric : taskResourceMetrics) {
+                taskStatsUtil.updateStatsInfo(taskResourceMetric.getStatsType(), taskResourceMetric.getValue());
+            }
+        }
+        if (isComplete) {
+            // update total resource consumption before removing from active workers list
+            taskStatsUtil.getStatsInfo()
+                .forEach(
+                    (statsType, statsInfo) -> totalResourceStats.put(
+                        statsType.toString(),
+                        totalResourceStats.getOrDefault(statsType.toString(), 0L) + statsInfo.getTotalValue()
+                    )
+                );
+            activeResourceStats.remove(workerName);
+        }
     }
 
     /**

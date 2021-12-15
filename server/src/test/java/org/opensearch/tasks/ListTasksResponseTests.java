@@ -99,9 +99,9 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 + "      \"headers\" : {\n"
                 + "        \"foo\" : \"bar\"\n"
                 + "      },\n"
-                + "      \"stats_info\" : {\n"
-                + "        \"Memory\" : 100,\n"
-                + "        \"CPU\" : 100\n"
+                + "      \"resource_stats\" : {\n"
+                + "        \"memory\" : 100,\n"
+                + "        \"cpu\" : 100\n"
                 + "      }\n"
                 + "    }\n"
                 + "  ]\n"
@@ -136,8 +136,8 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // status, headers and stats_info hold arbitrary content, we can't inject random fields in them
-        return field -> field.endsWith("status") || field.endsWith("headers") || field.endsWith("stats_info");
+        // status, headers and resource_stats hold arbitrary content, we can't inject random fields in them
+        return field -> field.endsWith("status") || field.endsWith("headers") || field.endsWith("resource_stats");
     }
 
     @Override

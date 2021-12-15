@@ -45,7 +45,7 @@
             "type" : "object",
             "enabled" : false
           },
-          "stats_info": {
+          "resource_stats": {
             "type" : "object",
             "enabled" : false
           }

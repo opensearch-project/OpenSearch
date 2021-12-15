@@ -80,7 +80,7 @@ public class TaskTests extends OpenSearchTestCase {
         assertEquals(((Number) map.get("running_time_in_nanos")).longValue(), runningTime);
         assertEquals(map.get("cancellable"), cancellable);
         assertEquals(map.get("headers"), Collections.singletonMap("foo", "bar"));
-        assertEquals(map.get("stats_info"), stats);
+        assertEquals(map.get("resource_stats"), stats);
     }
 
 }

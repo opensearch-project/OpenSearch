@@ -84,7 +84,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     private final Map<String, String> headers;
 
-    private final Map<String, Long> statsInfo;
+    private final Map<String, Long> resourceStats;
 
     public TaskInfo(
         TaskId taskId,
@@ -97,7 +97,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         boolean cancellable,
         TaskId parentTaskId,
         Map<String, String> headers,
-        Map<String, Long> statsInfo
+        Map<String, Long> resourceStats
     ) {
         this.taskId = taskId;
         this.type = type;
@@ -109,7 +109,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         this.cancellable = cancellable;
         this.parentTaskId = parentTaskId;
         this.headers = headers;
-        this.statsInfo = statsInfo;
+        this.resourceStats = resourceStats;
     }
 
     /**
@@ -127,9 +127,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         parentTaskId = TaskId.readFromStream(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
         if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
-            statsInfo = in.readMap(StreamInput::readString, StreamInput::readLong);
+            resourceStats = in.readMap(StreamInput::readString, StreamInput::readLong);
         } else {
-            statsInfo = Collections.emptyMap();
+            resourceStats = Collections.emptyMap();
         }
     }
 
@@ -146,7 +146,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         parentTaskId.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
-            out.writeMap(statsInfo, StreamOutput::writeString, StreamOutput::writeLong);
+            out.writeMap(resourceStats, StreamOutput::writeString, StreamOutput::writeLong);
         }
     }
 
@@ -214,10 +214,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Returns the tasks stats information
+     * Returns the task resource information
      */
-    public Map<String, Long> getStatsInfo() {
-        return statsInfo;
+    public Map<String, Long> getResourceStats() {
+        return resourceStats;
     }
 
     @Override
@@ -246,9 +246,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             builder.field(attribute.getKey(), attribute.getValue());
         }
         builder.endObject();
-        if (statsInfo != null) {
-            builder.startObject("stats_info");
-            for (Map.Entry<String, Long> attribute : statsInfo.entrySet()) {
+        if (resourceStats != null) {
+            builder.startObject("resource_stats");
+            for (Map.Entry<String, Long> attribute : resourceStats.entrySet()) {
                 builder.field(attribute.getKey(), attribute.getValue());
             }
             builder.endObject();
@@ -278,10 +278,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             headers = Collections.emptyMap();
         }
         @SuppressWarnings("unchecked")
-        Map<String, Long> statsInfo = (Map<String, Long>) a[i++];
-        if (statsInfo == null) {
-            // This might happen if we are reading an old version of task info or if stats information is not present
-            statsInfo = Collections.emptyMap();
+        Map<String, Long> resourceStats = (Map<String, Long>) a[i++];
+        if (resourceStats == null) {
+            // This might happen if we are reading an old version of task info
+            resourceStats = Collections.emptyMap();
         }
         RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
         TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
@@ -296,7 +296,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             cancellable,
             parentTaskId,
             headers,
-            statsInfo
+            resourceStats
         );
     });
     static {
@@ -313,7 +313,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("stats_info"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("resource_stats"));
     }
 
     @Override
@@ -338,7 +338,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             && Objects.equals(cancellable, other.cancellable)
             && Objects.equals(status, other.status)
             && Objects.equals(headers, other.headers)
-            && Objects.equals(statsInfo, other.statsInfo);
+            && Objects.equals(resourceStats, other.resourceStats);
     }
 
     @Override
@@ -354,7 +354,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             cancellable,
             status,
             headers,
-            statsInfo
+            resourceStats
         );
     }
 }
