@@ -151,6 +151,6 @@ public class TaskTests extends OpenSearchTestCase {
                 Collections.singletonMap("foo", "bar")
             )
         );
-        assertEquals(e.getMessage(), "uncancellable task cannot be cancelled");
+        assertEquals(e.getMessage(), "task cannot be cancelled");
     }
 }

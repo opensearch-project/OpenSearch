@@ -100,7 +100,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         Map<String, String> headers
     ) {
         if (cancellable == false && cancelled == true) {
-            throw new IllegalArgumentException("uncancellable task cannot be cancelled");
+            throw new IllegalArgumentException("task cannot be cancelled");
         }
         this.taskId = taskId;
         this.type = type;
@@ -133,7 +133,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             cancelled = false;
         }
         if (cancellable == false && cancelled == true) {
-            throw new IllegalArgumentException("uncancellable task cannot be cancelled");
+            throw new IllegalArgumentException("task cannot be cancelled");
         }
         parentTaskId = TaskId.readFromStream(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
