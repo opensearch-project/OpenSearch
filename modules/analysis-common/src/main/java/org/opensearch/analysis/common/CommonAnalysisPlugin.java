@@ -200,9 +200,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> analyzers = new TreeMap<>();
         analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
-
-        // TODO remove in 8.0
-        analyzers.put("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
         analyzers.put("pattern", PatternAnalyzerProvider::new);
         analyzers.put("snowball", SnowballAnalyzerProvider::new);
 
@@ -265,7 +262,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             requiresAnalysisSettings((i, e, n, s) -> new ScriptedConditionTokenFilterFactory(i, n, s, scriptService.get()))
         );
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
-        filters.put("delimited_payload_filter", LegacyDelimitedPayloadTokenFilterFactory::new);
         filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
         filters.put("dictionary_decompounder", requiresAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
@@ -388,14 +384,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     @Override
     public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
         List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
-        // TODO remove in 8.0
-        analyzers.add(
-            new PreBuiltAnalyzerProviderFactory(
-                "standard_html_strip",
-                CachingStrategy.OPENSEARCH,
-                () -> new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET)
-            )
-        );
         analyzers.add(
             new PreBuiltAnalyzerProviderFactory(
                 "pattern",
@@ -462,16 +450,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
         List<PreConfiguredCharFilter> filters = new ArrayList<>();
         filters.add(PreConfiguredCharFilter.singleton("html_strip", false, HTMLStripCharFilter::new));
-        filters.add(PreConfiguredCharFilter.openSearchVersion("htmlStrip", false, (reader, version) -> {
-            if (version.onOrAfter(LegacyESVersion.V_6_3_0)) {
-                deprecationLogger.deprecate(
-                    "htmlStrip_deprecation",
-                    "The [htmpStrip] char filter name is deprecated and will be removed in a future version. "
-                        + "Please change the filter name to [html_strip] instead."
-                );
-            }
-            return new HTMLStripCharFilter(reader);
-        }));
         return filters;
     }
 
@@ -492,18 +470,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         );
         filters.add(PreConfiguredTokenFilter.singleton("czech_stem", false, CzechStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("decimal_digit", true, DecimalDigitFilter::new));
-        filters.add(PreConfiguredTokenFilter.openSearchVersion("delimited_payload_filter", false, (input, version) -> {
-            if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "[delimited_payload_filter] is not supported for new indices, use [delimited_payload] instead"
-                );
-            }
-            return new DelimitedPayloadTokenFilter(
-                input,
-                DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
-                DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER
-            );
-        }));
         filters.add(
             PreConfiguredTokenFilter.singleton(
                 "delimited_payload",
