@@ -83,6 +83,7 @@ public class DiscoveryNodeFilters {
         if (original == null) {
             updated = new DiscoveryNodeFilters(opType, new HashMap<>());
         } else {
+            assert opType == original.opType : "operation type should match with node filter parameter";
             updated = new DiscoveryNodeFilters(original.opType, original.filters);
         }
         for (Map.Entry<String, String> entry : filters.entrySet()) {

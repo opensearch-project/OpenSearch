@@ -344,6 +344,16 @@ public class DiscoveryNodeFiltersTests extends OpenSearchTestCase {
         assertThat(filters.match(node2), equalTo(true));
     }
 
+    public void testOpTypeMismatch() {
+        Settings settings = Settings.builder().put("xxx._id", "id1").build();
+        DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
+        try {
+            buildOrUpdateFromSettings(filters, AND, "xxx.", Settings.builder().put("xxx.name", "name2").build());
+        } catch (AssertionError error) {
+            assertEquals("operation type should match with node filter parameter", error.getMessage());
+        }
+    }
+
     private Settings shuffleSettings(Settings source) {
         Settings.Builder settings = Settings.builder();
         List<String> keys = new ArrayList<>(source.keySet());
