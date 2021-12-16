@@ -39,7 +39,6 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.Assertions;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.parsers.GeoWKTParser;
@@ -128,10 +127,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
     protected static Coordinate readFromStream(StreamInput in) throws IOException {
         double x = in.readDouble();
         double y = in.readDouble();
-        Double z = null;
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            z = in.readOptionalDouble();
-        }
+        Double z = in.readOptionalDouble();
         return z == null ? new Coordinate(x, y) : new Coordinate(x, y, z);
     }
 
@@ -146,9 +142,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
     protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
         out.writeDouble(coordinate.x);
         out.writeDouble(coordinate.y);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            out.writeOptionalDouble(Double.isNaN(coordinate.z) ? null : coordinate.z);
-        }
+        out.writeOptionalDouble(Double.isNaN(coordinate.z) ? null : coordinate.z);
     }
 
     @SuppressWarnings("unchecked")
