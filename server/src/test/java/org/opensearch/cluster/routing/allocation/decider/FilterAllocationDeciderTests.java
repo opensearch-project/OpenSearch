@@ -270,7 +270,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         assertEquals(explanation2, decision.getExplanation());
     }
 
-    public void testFilterUpdate1() {
+    public void testFilterUpdateAddNew() {
         filterSettingsUpdateHelper(
             Settings.builder().put("cluster.routing.allocation.require.attr", "attr1").build(),
             Type.NO,
@@ -281,7 +281,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         );
     }
 
-    public void testFilterUpdate2() {
+    public void testFilterUpdateRemovePartial() {
         filterSettingsUpdateHelper(
             Settings.builder()
                 .put("cluster.routing.allocation.require.attr", "attr1")
@@ -298,7 +298,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         );
     }
 
-    public void testFilterUpdate3() {
+    public void testFilterUpdateRemoveAll() {
         filterSettingsUpdateHelper(
             Settings.builder()
                 .put("cluster.routing.allocation.require.flag", "flag1")
