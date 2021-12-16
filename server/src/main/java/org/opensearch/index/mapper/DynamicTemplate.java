@@ -32,9 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -48,8 +45,6 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class DynamicTemplate implements ToXContentObject {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicTemplate.class);
 
     public enum MatchType {
         SIMPLE {
@@ -183,7 +178,7 @@ public class DynamicTemplate implements ToXContentObject {
         public abstract String defaultMappingType();
     }
 
-    public static DynamicTemplate parse(String name, Map<String, Object> conf, Version indexVersionCreated) throws MapperParsingException {
+    public static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
         String match = null;
         String pathMatch = null;
         String unmatch = null;
@@ -229,20 +224,18 @@ public class DynamicTemplate implements ToXContentObject {
 
         final MatchType matchType = MatchType.fromString(matchPattern);
 
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_6_3_0)) {
-            // Validate that the pattern
-            for (String regex : new String[] { pathMatch, match, pathUnmatch, unmatch }) {
-                if (regex == null) {
-                    continue;
-                }
-                try {
-                    matchType.matches(regex, "");
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException(
-                        "Pattern [" + regex + "] of type [" + matchType + "] is invalid. Cannot create dynamic template [" + name + "].",
-                        e
-                    );
-                }
+        // Validate the pattern
+        for (String regex : new String[] { pathMatch, match, pathUnmatch, unmatch }) {
+            if (regex == null) {
+                continue;
+            }
+            try {
+                matchType.matches(regex, "");
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Pattern [" + regex + "] of type [" + matchType + "] is invalid. Cannot create dynamic template [" + name + "].",
+                    e
+                );
             }
         }
 
