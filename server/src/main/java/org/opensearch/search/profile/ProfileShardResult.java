@@ -32,7 +32,6 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -50,20 +49,16 @@ public class ProfileShardResult implements Writeable {
 
     private final AggregationProfileShardResult aggProfileShardResult;
 
-    private long inboundNetworkTime;
-
-    private long outboundNetworkTime;
+    private NetworkTime networkTime;
 
     public ProfileShardResult(
         List<QueryProfileShardResult> queryProfileResults,
         AggregationProfileShardResult aggProfileShardResult,
-        long inboundNetworkTime,
-        long outboundNetworkTime
+        NetworkTime networkTime
     ) {
         this.aggProfileShardResult = aggProfileShardResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
-        this.inboundNetworkTime = inboundNetworkTime;
-        this.outboundNetworkTime = outboundNetworkTime;
+        this.networkTime = networkTime;
     }
 
     public ProfileShardResult(StreamInput in) throws IOException {
@@ -75,10 +70,7 @@ public class ProfileShardResult implements Writeable {
         }
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.aggProfileShardResult = new AggregationProfileShardResult(in);
-        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
-            this.inboundNetworkTime = in.readVLong();
-            this.outboundNetworkTime = in.readVLong();
-        }
+        this.networkTime = new NetworkTime(in);
     }
 
     @Override
@@ -88,10 +80,7 @@ public class ProfileShardResult implements Writeable {
             queryShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
-            out.writeVLong(inboundNetworkTime);
-            out.writeVLong(outboundNetworkTime);
-        }
+        networkTime.writeTo(out);
     }
 
     public List<QueryProfileShardResult> getQueryProfileResults() {
@@ -102,20 +91,13 @@ public class ProfileShardResult implements Writeable {
         return aggProfileShardResult;
     }
 
-    public long getInboundNetworkTime() {
-        return inboundNetworkTime;
+    public NetworkTime getNetworkTime() {
+        return networkTime;
     }
 
-    public void setInboundNetworkTime(long newTime) {
-        this.inboundNetworkTime = newTime;
-    }
-
-    public long getOutboundNetworkTime() {
-        return outboundNetworkTime;
-    }
-
-    public void setOutboundNetworkTime(long newTime) {
-        this.outboundNetworkTime = newTime;
+    public void setNetworkTime(NetworkTime newTime) {
+        networkTime.setInboundNetworkTime(newTime.getInboundNetworkTime());
+        networkTime.setOutboundNetworkTime(newTime.getOutboundNetworkTime());
     }
 
 }

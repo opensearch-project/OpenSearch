@@ -46,7 +46,12 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.*;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
 
 public class QueryProfilerIT extends OpenSearchIntegTestCase {
@@ -86,8 +91,8 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
             assertNotNull("Profile response element should not be null", resp.getProfileResults());
             assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
             for (Map.Entry<String, ProfileShardResult> shard : resp.getProfileResults().entrySet()) {
-                assertThat(shard.getValue().getInboundNetworkTime(), greaterThanOrEqualTo(0L));
-                assertThat(shard.getValue().getOutboundNetworkTime(), greaterThanOrEqualTo(0L));
+                assertThat(shard.getValue().getNetworkTime().getInboundNetworkTime(), greaterThanOrEqualTo(0L));
+                assertThat(shard.getValue().getNetworkTime().getOutboundNetworkTime(), greaterThanOrEqualTo(0L));
                 for (QueryProfileShardResult searchProfiles : shard.getValue().getQueryProfileResults()) {
                     for (ProfileResult result : searchProfiles.getQueryResults()) {
                         assertNotNull(result.getQueryName());

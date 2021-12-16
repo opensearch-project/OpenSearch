@@ -58,12 +58,12 @@ public class ProfilerSingleNodeNetworkTest extends OpenSearchSingleNodeTestCase 
             for (Map.Entry<String, ProfileShardResult> shard : resp.getProfileResults().entrySet()) {
                 assertThat(
                     "Profile response inbound network time should be 0 in single node clusters",
-                    shard.getValue().getInboundNetworkTime(),
+                    shard.getValue().getNetworkTime().getInboundNetworkTime(),
                     is(0L)
                 );
                 assertThat(
                     "Profile response outbound network time should be 0 in single node clusters",
-                    shard.getValue().getOutboundNetworkTime(),
+                    shard.getValue().getNetworkTime().getOutboundNetworkTime(),
                     is(0L)
                 );
             }

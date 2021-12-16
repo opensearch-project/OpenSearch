@@ -106,8 +106,8 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         for (String key : sortedKeys) {
             builder.startObject();
             builder.field(ID_FIELD, key);
-            builder.field(INBOUND_NETWORK_FIELD, shardResults.get(key).getInboundNetworkTime());
-            builder.field(OUTBOUND_NETWORK_FIELD, shardResults.get(key).getOutboundNetworkTime());
+            builder.field(INBOUND_NETWORK_FIELD, shardResults.get(key).getNetworkTime().getInboundNetworkTime());
+            builder.field(OUTBOUND_NETWORK_FIELD, shardResults.get(key).getNetworkTime().getOutboundNetworkTime());
             builder.startArray(SEARCHES_FIELD);
             ProfileShardResult profileShardResult = shardResults.get(key);
             for (QueryProfileShardResult result : profileShardResult.getQueryProfileResults()) {
@@ -178,10 +178,8 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
                 parser.skipChildren();
             }
         }
-        searchProfileResults.put(
-            id,
-            new ProfileShardResult(queryProfileResults, aggProfileShardResult, inboundNetworkTime, outboundNetworkTime)
-        );
+        NetworkTime networkTime = new NetworkTime(inboundNetworkTime, outboundNetworkTime);
+        searchProfileResults.put(id, new ProfileShardResult(queryProfileResults, aggProfileShardResult, networkTime));
     }
 
     /**
@@ -206,9 +204,11 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             queryResults.add(result);
         }
         AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
+        NetworkTime networkTime = new NetworkTime(0, 0);
         if (request != null) {
-            return new ProfileShardResult(queryResults, aggResults, request.getInboundNetworkTime(), request.getOutboundNetworkTime());
+            networkTime.setInboundNetworkTime(request.getInboundNetworkTime());
+            networkTime.setOutboundNetworkTime(request.getOutboundNetworkTime());
         }
-        return new ProfileShardResult(queryResults, aggResults, 0, 0);
+        return new ProfileShardResult(queryResults, aggResults, networkTime);
     }
 }
