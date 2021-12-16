@@ -51,10 +51,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         templateDef.put("mapping", Collections.singletonMap("store", true));
         templateDef.put("random_param", "random_value");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DynamicTemplate.parse("my_template", templateDef)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DynamicTemplate.parse("my_template", templateDef));
         assertEquals("Illegal dynamic template parameter: [random_param]", e.getMessage());
     }
 
@@ -63,10 +60,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         templateDef2.put("match_mapping_type", "text");
         templateDef2.put("mapping", Collections.singletonMap("store", true));
         // if a wrong match type is specified, we ignore the template
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DynamicTemplate.parse("my_template", templateDef2)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DynamicTemplate.parse("my_template", templateDef2));
         assertEquals(
             "No field type matched on [text], possible values are [object, string, long, double, boolean, date, binary]",
             e.getMessage()
