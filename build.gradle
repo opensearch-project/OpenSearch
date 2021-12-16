@@ -346,6 +346,15 @@ gradle.projectsEvaluated {
     if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
       integTest.mustRunAfter test
     }
+
+    project.tasks.withType(Test) { task ->
+      if (task != null) {
+        if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
+          task.jvmArgs += ["-Djava.security.manager=allow"]
+        }
+      }
+    }
+
     configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject
