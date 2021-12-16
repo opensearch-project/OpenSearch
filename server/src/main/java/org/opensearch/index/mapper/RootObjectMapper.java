@@ -207,7 +207,7 @@ public class RootObjectMapper extends ObjectMapper {
                     Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
                     String templateName = entry.getKey();
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
-                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams, parserContext.indexVersionCreated());
+                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
                     if (template != null) {
                         validateDynamicTemplate(parserContext, template);
                         templates.add(template);
