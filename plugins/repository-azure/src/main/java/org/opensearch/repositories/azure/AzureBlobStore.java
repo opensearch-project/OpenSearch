@@ -224,6 +224,8 @@ public class AzureBlobStore implements BlobStore {
 
             do {
                 // Fetch one page at a time, others are going to be fetched by continuation token
+                // TODO: reconsider reverting to simplified approach once https://github.com/Azure/azure-sdk-for-java/issues/26064
+                // gets addressed.
                 final Optional<PagedResponse<BlobItem>> pageOpt = blobContainer.listBlobs(listBlobsOptions, timeout())
                     .streamByPage(continuationToken)
                     .findFirst();
@@ -327,6 +329,8 @@ public class AzureBlobStore implements BlobStore {
 
             do {
                 // Fetch one page at a time, others are going to be fetched by continuation token
+                // TODO: reconsider reverting to simplified approach once https://github.com/Azure/azure-sdk-for-java/issues/26064
+                // gets addressed
                 final Optional<PagedResponse<BlobItem>> pageOpt = blobContainer.listBlobsByHierarchy("/", listBlobsOptions, timeout())
                     .streamByPage(continuationToken)
                     .findFirst();
@@ -372,6 +376,9 @@ public class AzureBlobStore implements BlobStore {
             String continuationToken = null;
 
             do {
+                // Fetch one page at a time, others are going to be fetched by continuation token
+                // TODO: reconsider reverting to simplified approach once https://github.com/Azure/azure-sdk-for-java/issues/26064
+                // gets addressed
                 final Optional<PagedResponse<BlobItem>> pageOpt = blobContainer.listBlobsByHierarchy("/", listBlobsOptions, timeout())
                     .streamByPage(continuationToken)
                     .findFirst();
