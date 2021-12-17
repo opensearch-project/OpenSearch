@@ -229,7 +229,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 BytesReference.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty scripts should no longer be used");
+        assertNoDeprecationWarnings();
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject().startObject("script").field("lang", "mustache").field("source", "").endObject().endObject();
@@ -240,7 +240,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 BytesReference.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty templates should no longer be used");
+        assertNoDeprecationWarnings();
     }
 
     public void testOldStyleDropped() throws IOException {

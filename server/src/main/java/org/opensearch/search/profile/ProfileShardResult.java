@@ -49,9 +49,16 @@ public class ProfileShardResult implements Writeable {
 
     private final AggregationProfileShardResult aggProfileShardResult;
 
-    public ProfileShardResult(List<QueryProfileShardResult> queryProfileResults, AggregationProfileShardResult aggProfileShardResult) {
+    private NetworkTime networkTime;
+
+    public ProfileShardResult(
+        List<QueryProfileShardResult> queryProfileResults,
+        AggregationProfileShardResult aggProfileShardResult,
+        NetworkTime networkTime
+    ) {
         this.aggProfileShardResult = aggProfileShardResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
+        this.networkTime = networkTime;
     }
 
     public ProfileShardResult(StreamInput in) throws IOException {
@@ -63,6 +70,7 @@ public class ProfileShardResult implements Writeable {
         }
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.aggProfileShardResult = new AggregationProfileShardResult(in);
+        this.networkTime = new NetworkTime(in);
     }
 
     @Override
@@ -72,6 +80,7 @@ public class ProfileShardResult implements Writeable {
             queryShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);
+        networkTime.writeTo(out);
     }
 
     public List<QueryProfileShardResult> getQueryProfileResults() {
@@ -81,4 +90,14 @@ public class ProfileShardResult implements Writeable {
     public AggregationProfileShardResult getAggregationProfileResults() {
         return aggProfileShardResult;
     }
+
+    public NetworkTime getNetworkTime() {
+        return networkTime;
+    }
+
+    public void setNetworkTime(NetworkTime newTime) {
+        networkTime.setInboundNetworkTime(newTime.getInboundNetworkTime());
+        networkTime.setOutboundNetworkTime(newTime.getOutboundNetworkTime());
+    }
+
 }

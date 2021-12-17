@@ -54,4 +54,19 @@ public class DeprecationLoggerTests extends OpenSearchTestCase {
 
         assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore + 1));
     }
+
+    public void testDuplicateLogMessages() {
+        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DeprecationLoggerTests.class);
+        deprecationLogger.deprecate("deprecated-message-1", "Deprecated message 1");
+        deprecationLogger.deprecate("deprecated-message-2", "Deprecated message 2");
+        deprecationLogger.deprecate("deprecated-message-3", "Deprecated message 3");
+        deprecationLogger.deprecate("deprecated-message-2", "Deprecated message 2");
+        deprecationLogger.deprecate("deprecated-message-1", "Deprecated message 1");
+        deprecationLogger.deprecate("deprecated-message-3", "Deprecated message 3");
+        deprecationLogger.deprecate("deprecated-message-1", "Deprecated message 1");
+        deprecationLogger.deprecate("deprecated-message-3", "Deprecated message 3");
+        deprecationLogger.deprecate("deprecated-message-2", "Deprecated message 2");
+        // assert that only unique warnings are logged
+        assertWarnings("Deprecated message 1", "Deprecated message 2", "Deprecated message 3");
+    }
 }

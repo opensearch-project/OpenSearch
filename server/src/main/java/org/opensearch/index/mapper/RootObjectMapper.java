@@ -207,7 +207,7 @@ public class RootObjectMapper extends ObjectMapper {
                     Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
                     String templateName = entry.getKey();
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
-                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams, parserContext.indexVersionCreated());
+                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
                     if (template != null) {
                         validateDynamicTemplate(parserContext, template);
                         templates.add(template);
@@ -449,7 +449,7 @@ public class RootObjectMapper extends ObjectMapper {
             } else {
                 deprecationMessage = message;
             }
-            DEPRECATION_LOGGER.deprecate("invalid_dynamic_template", deprecationMessage);
+            DEPRECATION_LOGGER.deprecate("invalid_dynamic_template_" + dynamicTemplate.getName(), deprecationMessage);
         }
     }
 

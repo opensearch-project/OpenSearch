@@ -79,6 +79,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      * test deprecation is logged if type is used in path
      */
     public void testTypeInPath() {
+        boolean assertWarnings = true;
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
@@ -89,7 +90,10 @@ public class RestGetSourceActionTests extends RestActionTestCase {
                     .build();
 
                 dispatchRequest(request);
-                assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+                if (assertWarnings) {
+                    assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+                    assertWarnings = false;
+                }
             }
         }
     }
@@ -98,6 +102,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      * test deprecation is logged if type is used as parameter
      */
     public void testTypeParameter() {
+        boolean assertWarnings = true;
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
         Map<String, String> params = new HashMap<>();
@@ -110,7 +115,10 @@ public class RestGetSourceActionTests extends RestActionTestCase {
                     .withParams(params)
                     .build();
                 dispatchRequest(request);
-                assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+                if (assertWarnings) {
+                    assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+                    assertWarnings = false;
+                }
             }
         }
     }

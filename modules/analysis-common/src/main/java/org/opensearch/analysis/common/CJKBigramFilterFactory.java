@@ -35,8 +35,6 @@ package org.opensearch.analysis.common;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -63,9 +61,6 @@ import java.util.Set;
  * In all cases, all non-CJK input is passed thru unmodified.
  */
 public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(CJKBigramFilterFactory.class);
-
     private final int flags;
     private final boolean outputUnigrams;
 
@@ -110,14 +105,7 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenFilterFactory getSynonymFilter() {
         if (outputUnigrams) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-            } else {
-                DEPRECATION_LOGGER.deprecate(
-                    "synonym_tokenfilters",
-                    "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
-                );
-            }
+            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         }
         return this;
     }

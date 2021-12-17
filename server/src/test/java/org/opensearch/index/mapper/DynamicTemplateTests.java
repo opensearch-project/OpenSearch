@@ -32,8 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -53,10 +51,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         templateDef.put("mapping", Collections.singletonMap("store", true));
         templateDef.put("random_param", "random_value");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DynamicTemplate.parse("my_template", templateDef, Version.CURRENT.minimumIndexCompatibilityVersion())
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DynamicTemplate.parse("my_template", templateDef));
         assertEquals("Illegal dynamic template parameter: [random_param]", e.getMessage());
     }
 
@@ -65,10 +60,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         templateDef2.put("match_mapping_type", "text");
         templateDef2.put("mapping", Collections.singletonMap("store", true));
         // if a wrong match type is specified, we ignore the template
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DynamicTemplate.parse("my_template", templateDef2, Version.CURRENT.minimumIndexCompatibilityVersion())
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DynamicTemplate.parse("my_template", templateDef2));
         assertEquals(
             "No field type matched on [text], possible values are [object, string, long, double, boolean, date, binary]",
             e.getMessage()
@@ -84,7 +76,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
             templateDef.put("mapping", Collections.singletonMap("store", true));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> DynamicTemplate.parse("my_template", templateDef, LegacyESVersion.V_6_3_0)
+                () -> DynamicTemplate.parse("my_template", templateDef)
             );
             assertEquals("Pattern [*a] of type [regex] is invalid. Cannot create dynamic template [my_template].", e.getMessage());
         }
@@ -94,7 +86,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "*");
         templateDef.put("mapping", Collections.singletonMap("store", true));
-        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT.minimumIndexCompatibilityVersion());
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         assertTrue(template.match("a.b", "b", randomFrom(XContentFieldType.values())));
     }
 
@@ -102,7 +94,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "string");
         templateDef.put("mapping", Collections.singletonMap("store", true));
-        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT.minimumIndexCompatibilityVersion());
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         assertTrue(template.match("a.b", "b", XContentFieldType.STRING));
         assertFalse(template.match("a.b", "b", XContentFieldType.BOOLEAN));
     }
@@ -112,7 +104,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "string");
         templateDef.put("mapping", Collections.singletonMap("store", true));
-        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT.minimumIndexCompatibilityVersion());
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         XContentBuilder builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"match_mapping_type\":\"string\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
@@ -122,7 +114,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         templateDef.put("match", "*name");
         templateDef.put("unmatch", "first_name");
         templateDef.put("mapping", Collections.singletonMap("store", true));
-        template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT.minimumIndexCompatibilityVersion());
+        template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
@@ -132,7 +124,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         templateDef.put("path_match", "*name");
         templateDef.put("path_unmatch", "first_name");
         templateDef.put("mapping", Collections.singletonMap("store", true));
-        template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT.minimumIndexCompatibilityVersion());
+        template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
@@ -142,7 +134,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         templateDef.put("match", "^a$");
         templateDef.put("match_pattern", "regex");
         templateDef.put("mapping", Collections.singletonMap("store", true));
-        template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT.minimumIndexCompatibilityVersion());
+        template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}", Strings.toString(builder));

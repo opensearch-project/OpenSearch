@@ -654,7 +654,7 @@ setup:
 
   - skip:
       reason:  _term order deprecated in 6.0, replaced by _key
-      features: "warnings"
+      features: "allowed_warnings"
 
   - do:
       index:
@@ -681,7 +681,7 @@ setup:
       search:
         rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "order" :  { "_term" : "desc" } } } } }
-      warnings:
+      allowed_warnings:
         - "Deprecated aggregation order key [_term] used, replaced by [_key]"
 
   - match: { hits.total: 3 }
