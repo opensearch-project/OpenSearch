@@ -121,6 +121,10 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final SearchActionListener<SearchPhaseResult> listener
     ) {
         ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt));
+        // update inbound network time with current time before sending request over n/w to data node
+        if (request != null) {
+            request.setInboundNetworkTime(System.currentTimeMillis());
+        }
         getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
     }
 

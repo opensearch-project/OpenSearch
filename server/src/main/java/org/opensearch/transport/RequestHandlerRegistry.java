@@ -36,6 +36,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
@@ -83,6 +84,12 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
             if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
+                if (request instanceof ShardSearchRequest) {
+                    // on receiving request, update the inbound network time to reflect time spent in transit over the network
+                    ((ShardSearchRequest) request).setInboundNetworkTime(
+                        Math.max(0, System.currentTimeMillis() - ((ShardSearchRequest) request).getInboundNetworkTime())
+                    );
+                }
                 final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
                 final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);

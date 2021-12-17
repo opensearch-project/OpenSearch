@@ -32,12 +32,6 @@
 
 package org.opensearch.search.query;
 
-import static java.util.Collections.emptyList;
-import static org.opensearch.common.lucene.Lucene.readTopDocs;
-import static org.opensearch.common.lucene.Lucene.writeTopDocs;
-
-import java.io.IOException;
-
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.LegacyESVersion;
@@ -54,8 +48,15 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.profile.NetworkTime;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.suggest.Suggest;
+
+import java.io.IOException;
+
+import static java.util.Collections.emptyList;
+import static org.opensearch.common.lucene.Lucene.readTopDocs;
+import static org.opensearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
 
@@ -245,6 +246,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
             throw new IllegalStateException("profile results already consumed");
         }
         ProfileShardResult result = profileShardResults;
+        NetworkTime newNetworkTime = new NetworkTime(
+            this.getShardSearchRequest().getInboundNetworkTime(),
+            this.getShardSearchRequest().getOutboundNetworkTime()
+        );
+        result.setNetworkTime(newNetworkTime);
         profileShardResults = null;
         return result;
     }
