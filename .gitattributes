@@ -1,8 +1,12 @@
 * text eol=lf
-*.bat text eol=crlf
+*.bat binary
 *.zip binary
 *.exe binary
 *.epub binary
 *.pdf binary
 *.vsdx binary
 *.doc binary
+*.bcfks binary
+*.crt binary
+*.p12 binary
+*.txt text=auto
