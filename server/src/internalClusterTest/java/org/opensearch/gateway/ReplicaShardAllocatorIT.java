@@ -33,7 +33,6 @@
 package org.opensearch.gateway;
 
 import org.opensearch.LegacyESVersion;
-import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -197,10 +196,6 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
                 .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
                 .collect(Collectors.toList())
         );
-        assertBusy(() -> {
-            SyncedFlushResponse syncedFlushResponse = client().admin().indices().prepareSyncedFlush(indexName).get();
-            assertThat(syncedFlushResponse.successfulShards(), equalTo(2));
-        });
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
         if (randomBoolean()) {
             indexRandom(
@@ -552,12 +547,6 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
         if (randomBoolean()) {
             client().admin().indices().prepareFlush(indexName).get();
         }
-        if (randomBoolean()) {
-            assertBusy(() -> {
-                SyncedFlushResponse syncedFlushResponse = client().admin().indices().prepareSyncedFlush(indexName).get();
-                assertThat(syncedFlushResponse.successfulShards(), equalTo(1));
-            });
-        }
         internalCluster().startDataOnlyNode();
         MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, source);
         Semaphore failRecovery = new Semaphore(1);
@@ -591,10 +580,11 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
         transportService.clearAllRules();
     }
 
-    private void ensureActivePeerRecoveryRetentionLeasesAdvanced(String indexName) throws Exception {
+    public static void ensureActivePeerRecoveryRetentionLeasesAdvanced(String indexName) throws Exception {
+        final ClusterService clusterService = internalCluster().clusterService();
         assertBusy(() -> {
             Index index = resolveIndex(indexName);
-            Set<String> activeRetentionLeaseIds = clusterService().state()
+            Set<String> activeRetentionLeaseIds = clusterService.state()
                 .routingTable()
                 .index(index)
                 .shard(0)

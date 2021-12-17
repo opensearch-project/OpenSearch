@@ -72,7 +72,6 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.indices.flush.SyncedFlushService;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
@@ -270,7 +269,6 @@ public class IndicesModule extends AbstractModule {
     protected void configure() {
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
-        bind(SyncedFlushService.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetadata.class).asEagerSingleton();
         bind(GlobalCheckpointSyncAction.class).asEagerSingleton();
         bind(TransportResyncReplicationAction.class).asEagerSingleton();

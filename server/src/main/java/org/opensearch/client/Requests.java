@@ -61,7 +61,6 @@ import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
@@ -272,17 +271,6 @@ public class Requests {
      */
     public static FlushRequest flushRequest(String... indices) {
         return new FlushRequest(indices);
-    }
-
-    /**
-     * Creates a synced flush indices request.
-     *
-     * @param indices The indices to sync flush. Use {@code null} or {@code _all} to execute against all indices
-     * @return The synced flush request
-     * @see org.opensearch.client.IndicesAdminClient#syncedFlush(SyncedFlushRequest)
-     */
-    public static SyncedFlushRequest syncedFlushRequest(String... indices) {
-        return new SyncedFlushRequest(indices);
     }
 
     /**

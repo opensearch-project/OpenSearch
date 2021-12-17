@@ -45,7 +45,6 @@ import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
@@ -744,33 +743,6 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             endpoint.add(String.join(",", indices));
         }
         endpoint.add("_flush");
-        Assert.assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
-        Assert.assertThat(request.getParameters(), equalTo(expectedParams));
-        Assert.assertThat(request.getEntity(), nullValue());
-        Assert.assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
-    }
-
-    public void testSyncedFlush() {
-        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
-        SyncedFlushRequest syncedFlushRequest;
-        if (OpenSearchTestCase.randomBoolean()) {
-            syncedFlushRequest = new SyncedFlushRequest(indices);
-        } else {
-            syncedFlushRequest = new SyncedFlushRequest();
-            syncedFlushRequest.indices(indices);
-        }
-        Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomIndicesOptions(
-            syncedFlushRequest::indicesOptions,
-            syncedFlushRequest::indicesOptions,
-            expectedParams
-        );
-        Request request = IndicesRequestConverters.flushSynced(syncedFlushRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indices != null && indices.length > 0) {
-            endpoint.add(String.join(",", indices));
-        }
-        endpoint.add("_flush/synced");
         Assert.assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
         Assert.assertThat(request.getEntity(), nullValue());

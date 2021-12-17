@@ -71,7 +71,6 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
-import org.opensearch.indices.flush.SyncedFlushService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchTestCase;
@@ -101,6 +100,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1269,28 +1269,70 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         return minVersion;
     }
 
-    protected static void performSyncedFlush(String indexName, boolean retryOnConflict) throws Exception {
-        final Request request = new Request("POST", indexName + "/_flush/synced");
-        final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
-        final Builder options = RequestOptions.DEFAULT.toBuilder();
-        options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
-        request.setOptions(options);
-        // We have to spin a synced-flush request because we fire the global checkpoint sync for the last write operation.
+    protected void syncedFlush(String indexName, boolean retryOnConflict) throws Exception {
+        // 8.0 kept in warning message for legacy purposes TODO: changge to 3.0
+        final List<String> deprecationMessages = Arrays.asList(
+            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+        );
+        final List<String> transitionMessages = Arrays.asList(
+            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version."
+        );
+        final WarningsHandler warningsHandler;
+        if (minimumNodeVersion().onOrAfter(Version.V_2_0_0)) {
+            warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
+        } else if (minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false;
+        } else if (nodeVersions.stream().anyMatch(n -> n.onOrAfter(Version.V_2_0_0))) {
+            warningsHandler = warnings -> warnings.isEmpty() == false && warnings.equals(transitionMessages) == false;
+        } else {
+            warningsHandler = warnings -> warnings.isEmpty() == false;
+        }
+        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
         assertBusy(() -> {
             try {
-                Response resp = client().performRequest(request);
                 if (retryOnConflict) {
-                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                    assertThat(result.get("failed"), equalTo(0));
+                    if (nodeVersions.stream().allMatch(v -> v.before(Version.V_2_0_0))) {
+                        final Request request = new Request("POST", indexName + "/_flush/synced");
+                        Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+                        optionsBuilder.setWarningsHandler(warningsHandler);
+                        request.setOptions(optionsBuilder);
+                        Response resp = client().performRequest(request);
+                        Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                        assertThat(result.get("failed"), equalTo(0));
+                    }
                 }
             } catch (ResponseException ex) {
-                assertThat(ex.getResponse().getStatusLine(), equalTo(HttpStatus.SC_CONFLICT));
                 if (retryOnConflict) {
-                    throw new AssertionError(ex); // cause assert busy to retry
+                    if (ex.getResponse().getStatusLine().getStatusCode() == RestStatus.CONFLICT.getStatus()
+                        && ex.getResponse().getWarnings().equals(transitionMessages)) {
+                        logger.info("a normal flush was performed instead");
+                    } else {
+                        throw new AssertionError(ex); // cause assert busy to retry
+                    }
                 }
             }
         });
+        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
+        ensureGlobalCheckpointSynced(indexName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void ensureGlobalCheckpointSynced(String index) throws Exception {
+        assertBusy(() -> {
+            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
+            shardStats.stream()
+                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
+                .filter(Objects::nonNull)
+                .forEach(seqNoStat -> {
+                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
+                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
+                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
+                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
+                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
+                });
+        }, 60, TimeUnit.SECONDS);
     }
 
     static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile(
