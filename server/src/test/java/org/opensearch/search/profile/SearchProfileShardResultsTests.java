@@ -69,9 +69,10 @@ public class SearchProfileShardResultsTests extends OpenSearchTestCase {
                 queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
             }
             AggregationProfileShardResult aggProfileShardResult = AggregationProfileShardResultTests.createTestItem(1);
+            NetworkTime networkTime = new NetworkTime(inboundTime, outboundTime);
             searchProfileResults.put(
                 randomAlphaOfLengthBetween(5, 10),
-                new ProfileShardResult(queryProfileResults, aggProfileShardResult, inboundTime, outboundTime)
+                new ProfileShardResult(queryProfileResults, aggProfileShardResult, networkTime)
             );
         }
         return new SearchProfileShardResults(searchProfileResults);
