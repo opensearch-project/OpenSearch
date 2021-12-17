@@ -179,7 +179,7 @@ public class BuildTests extends OpenSearchTestCase {
         );
         assertNotEquals(build, differentSnapshot);
 
-        Build differentVersion = new Build(build.type(), build.hash(), build.date(), build.isSnapshot(), "1.2.3", build.getDistribution());
+        Build differentVersion = new Build(build.type(), build.hash(), build.date(), build.isSnapshot(), "0.1.2", build.getDistribution());
         assertNotEquals(build, differentVersion);
     }
 
