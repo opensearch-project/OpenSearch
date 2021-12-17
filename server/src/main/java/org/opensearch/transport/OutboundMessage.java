@@ -31,7 +31,6 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -136,9 +135,7 @@ abstract class OutboundMessage extends NetworkMessage {
         @Override
         protected void writeVariableHeader(StreamOutput stream) throws IOException {
             super.writeVariableHeader(stream);
-            if (version.onOrAfter(LegacyESVersion.V_6_3_0)) {
-                stream.writeStringArray(features);
-            }
+            stream.writeStringArray(features);
             stream.writeString(action);
         }
 

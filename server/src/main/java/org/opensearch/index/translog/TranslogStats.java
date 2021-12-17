@@ -31,7 +31,6 @@
 
 package org.opensearch.index.translog;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -57,9 +56,7 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         translogSizeInBytes = in.readVLong();
         uncommittedOperations = in.readVInt();
         uncommittedSizeInBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            earliestLastModifiedAge = in.readVLong();
-        }
+        earliestLastModifiedAge = in.readVLong();
     }
 
     public TranslogStats(
@@ -152,8 +149,6 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         out.writeVLong(translogSizeInBytes);
         out.writeVInt(uncommittedOperations);
         out.writeVLong(uncommittedSizeInBytes);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            out.writeVLong(earliestLastModifiedAge);
-        }
+        out.writeVLong(earliestLastModifiedAge);
     }
 }

@@ -31,7 +31,6 @@
 
 package org.opensearch.persistent;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
@@ -83,11 +82,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             super(in);
             taskId = in.readString();
             taskName = in.readString();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-                params = in.readNamedWriteable(PersistentTaskParams.class);
-            } else {
-                params = in.readOptionalNamedWriteable(PersistentTaskParams.class);
-            }
+            params = in.readNamedWriteable(PersistentTaskParams.class);
         }
 
         public Request(String taskId, String taskName, PersistentTaskParams params) {
@@ -101,11 +96,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             super.writeTo(out);
             out.writeString(taskId);
             out.writeString(taskName);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-                out.writeNamedWriteable(params);
-            } else {
-                out.writeOptionalNamedWriteable(params);
-            }
+            out.writeNamedWriteable(params);
         }
 
         @Override
