@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.opensearch.LegacyESVersion.V_6_3_0;
+import static org.opensearch.LegacyESVersion.V_6_8_15;
 import static org.opensearch.LegacyESVersion.V_7_0_0;
 import static org.opensearch.test.VersionUtils.randomLegacyVersion;
 import static org.opensearch.VersionTests.isCompatible;
@@ -37,30 +37,30 @@ import static org.opensearch.VersionTests.isCompatible;
 public class LegacyESVersionTests extends OpenSearchTestCase {
 
     public void testVersionComparison() {
-        assertThat(V_6_3_0.before(V_7_0_0), is(true));
-        assertThat(V_6_3_0.before(V_6_3_0), is(false));
-        assertThat(V_7_0_0.before(V_6_3_0), is(false));
+        assertThat(V_6_8_15.before(V_7_0_0), is(true));
+        assertThat(V_6_8_15.before(V_6_8_15), is(false));
+        assertThat(V_7_0_0.before(V_6_8_15), is(false));
 
-        assertThat(V_6_3_0.onOrBefore(V_7_0_0), is(true));
-        assertThat(V_6_3_0.onOrBefore(V_6_3_0), is(true));
-        assertThat(V_7_0_0.onOrBefore(V_6_3_0), is(false));
+        assertThat(V_6_8_15.onOrBefore(V_7_0_0), is(true));
+        assertThat(V_6_8_15.onOrBefore(V_6_8_15), is(true));
+        assertThat(V_7_0_0.onOrBefore(V_6_8_15), is(false));
 
-        assertThat(V_6_3_0.after(V_7_0_0), is(false));
-        assertThat(V_6_3_0.after(V_6_3_0), is(false));
-        assertThat(V_7_0_0.after(V_6_3_0), is(true));
+        assertThat(V_6_8_15.after(V_7_0_0), is(false));
+        assertThat(V_6_8_15.after(V_6_8_15), is(false));
+        assertThat(V_7_0_0.after(V_6_8_15), is(true));
 
-        assertThat(V_6_3_0.onOrAfter(V_7_0_0), is(false));
-        assertThat(V_6_3_0.onOrAfter(V_6_3_0), is(true));
-        assertThat(V_7_0_0.onOrAfter(V_6_3_0), is(true));
+        assertThat(V_6_8_15.onOrAfter(V_7_0_0), is(false));
+        assertThat(V_6_8_15.onOrAfter(V_6_8_15), is(true));
+        assertThat(V_7_0_0.onOrAfter(V_6_8_15), is(true));
 
         assertTrue(LegacyESVersion.fromString("5.0.0-alpha2").onOrAfter(LegacyESVersion.fromString("5.0.0-alpha1")));
         assertTrue(LegacyESVersion.fromString("5.0.0").onOrAfter(LegacyESVersion.fromString("5.0.0-beta2")));
         assertTrue(LegacyESVersion.fromString("5.0.0-rc1").onOrAfter(LegacyESVersion.fromString("5.0.0-beta24")));
         assertTrue(LegacyESVersion.fromString("5.0.0-alpha24").before(LegacyESVersion.fromString("5.0.0-beta0")));
 
-        assertThat(V_6_3_0, is(lessThan(V_7_0_0)));
-        assertThat(V_6_3_0.compareTo(V_6_3_0), is(0));
-        assertThat(V_7_0_0, is(greaterThan(V_6_3_0)));
+        assertThat(V_6_8_15, is(lessThan(V_7_0_0)));
+        assertThat(V_6_8_15.compareTo(V_6_8_15), is(0));
+        assertThat(V_7_0_0, is(greaterThan(V_6_8_15)));
 
         // compare opensearch version to LegacyESVersion
         assertThat(Version.V_1_0_0.compareMajor(LegacyESVersion.V_7_0_0), is(0));
