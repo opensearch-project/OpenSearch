@@ -96,6 +96,11 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         assertEquals(distro.getType(), Type.ARCHIVE);
     }
 
+    public void testCustomDistributionUrl() {
+        Project project = createProject(null, false);
+        assertNull(project.findProperty("customDistributionUrl"));
+    }
+
     public void testPlatformDefault() {
         OpenSearchDistribution distro = checkDistro(createProject(null, false), "testdistro", "5.0.0", Type.ARCHIVE, null, true);
         assertEquals(distro.getPlatform(), OpenSearchDistribution.CURRENT_PLATFORM);

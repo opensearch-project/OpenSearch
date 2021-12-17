@@ -84,8 +84,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private NamedDomainObjectContainer<OpenSearchDistribution> distributionsContainer;
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
 
-    private static String distributionUrl;
-
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
@@ -139,11 +137,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         return (NamedDomainObjectContainer<DistributionResolution>) project.getExtensions().getByName(RESOLUTION_CONTAINER_NAME);
     }
 
-    public static void setDistributionUrl(String distributionUrl) {
-        DistributionDownloadPlugin.distributionUrl = distributionUrl;
-    }
-
-    // pkg private for tests and set up Download Repository
+    // pkg private for tests
     void setupDistributions(Project project) {
         for (OpenSearchDistribution distribution : distributionsContainer) {
             distribution.finalizeValues();
@@ -201,11 +195,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
             return;
         }
-        // checks if custom Url has been passed by user from plugins
-        if (distributionUrl != null && !distributionUrl.isEmpty()) {
-            addIvyRepo(project, DOWNLOAD_REPO_NAME, distributionUrl, FAKE_IVY_GROUP, "");
-            addIvyRepo(project, SNAPSHOT_REPO_NAME, distributionUrl, FAKE_SNAPSHOT_IVY_GROUP, "");
-            distributionUrl = null;
+        // checks if custom Distribution Url has been passed by user from plugins
+        if (project.findProperty("customDistributionUrl") != null) {
+            String customDistributionUrl = project.findProperty("customDistributionUrl").toString();
+            addIvyRepo(project, DOWNLOAD_REPO_NAME, customDistributionUrl, FAKE_IVY_GROUP, "");
+            addIvyRepo(project, SNAPSHOT_REPO_NAME, customDistributionUrl, FAKE_SNAPSHOT_IVY_GROUP, "");
         } else {
             addIvyRepo(
                 project,

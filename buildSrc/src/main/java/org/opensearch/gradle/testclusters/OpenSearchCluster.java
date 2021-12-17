@@ -36,7 +36,6 @@ import org.opensearch.gradle.Jdk;
 import org.opensearch.gradle.PropertyNormalization;
 import org.opensearch.gradle.ReaperService;
 import org.opensearch.gradle.http.WaitForHttpResource;
-import org.opensearch.gradle.DistributionDownloadPlugin;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -144,11 +143,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         // configure the cluster name eagerly
         newNode.defaultConfig.put("cluster.name", safeName(clusterName));
         this.nodes.add(newNode);
-    }
-
-    // This method is called by plugins to override default Url
-    public static void setDistributionUrl(String distributionUrl) {
-        DistributionDownloadPlugin.setDistributionUrl(distributionUrl);
     }
 
     @Internal
