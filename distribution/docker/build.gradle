@@ -155,6 +155,10 @@ opensearch_distributions {
 
 tasks.named("preProcessFixture").configure {
   dependsOn opensearch_distributions.docker
+  // always run the task, otherwise the folders won't be created
+  outputs.upToDateWhen { 
+    false 
+  }
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -261,4 +265,8 @@ subprojects { Project subProject ->
       dependsOn(exportTaskName)
     }
   }
+}
+
+tasks.named("composeUp").configure {
+  dependsOn preProcessFixture
 }
