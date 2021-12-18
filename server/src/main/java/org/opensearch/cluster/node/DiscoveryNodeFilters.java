@@ -69,18 +69,31 @@ public class DiscoveryNodeFilters {
         }
     };
 
-    public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
-        Map<String, String[]> bFilters = new HashMap<>();
+    /**
+     * Creates or updates filters returning a new {@link DiscoveryNodeFilters} object.
+     * If the new object has no filters, {@code null} is returned.
+     */
+    @Nullable
+    public static DiscoveryNodeFilters buildOrUpdateFromKeyValue(
+        final DiscoveryNodeFilters original,
+        final OpType opType,
+        final Map<String, String> filters
+    ) {
+        final DiscoveryNodeFilters updated;
+        if (original == null) {
+            updated = new DiscoveryNodeFilters(opType, new HashMap<>());
+        } else {
+            assert opType == original.opType : "operation type should match with node filter parameter";
+            updated = new DiscoveryNodeFilters(original.opType, original.filters);
+        }
         for (Map.Entry<String, String> entry : filters.entrySet()) {
             String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
-            if (values.length > 0) {
-                bFilters.put(entry.getKey(), values);
-            }
+            updated.filters.compute(entry.getKey(), (k, v) -> values.length > 0 ? values : null);
         }
-        if (bFilters.isEmpty()) {
+        if (updated.filters.isEmpty()) {
             return null;
         }
-        return new DiscoveryNodeFilters(opType, bFilters);
+        return updated;
     }
 
     private final Map<String, String[]> filters;

@@ -255,14 +255,20 @@ public class FilterAllocationDecider extends AllocationDecider {
     }
 
     private void setClusterRequireFilters(Map<String, String> filters) {
-        clusterRequireFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValue(AND, filters));
+        clusterRequireFilters = DiscoveryNodeFilters.trimTier(
+            DiscoveryNodeFilters.buildOrUpdateFromKeyValue(clusterRequireFilters, AND, filters)
+        );
     }
 
     private void setClusterIncludeFilters(Map<String, String> filters) {
-        clusterIncludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValue(OR, filters));
+        clusterIncludeFilters = DiscoveryNodeFilters.trimTier(
+            DiscoveryNodeFilters.buildOrUpdateFromKeyValue(clusterIncludeFilters, OR, filters)
+        );
     }
 
     private void setClusterExcludeFilters(Map<String, String> filters) {
-        clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValue(OR, filters));
+        clusterExcludeFilters = DiscoveryNodeFilters.trimTier(
+            DiscoveryNodeFilters.buildOrUpdateFromKeyValue(clusterExcludeFilters, OR, filters)
+        );
     }
 }
