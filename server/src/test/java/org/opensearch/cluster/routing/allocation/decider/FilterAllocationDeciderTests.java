@@ -224,6 +224,97 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         assertEquals("node passes include/exclude/require filters", decision.getExplanation());
     }
 
+    private void filterSettingsUpdateHelper(
+        final Settings initialSettings,
+        final Type type1,
+        final String explanation1,
+        final Settings updatedSettings,
+        final Type type2,
+        final String explanation2
+    ) {
+        ClusterSettings clusterSettings = new ClusterSettings(initialSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(initialSettings, clusterSettings);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
+            Arrays.asList(
+                filterAllocationDecider,
+                new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+                new ReplicaAfterPrimaryActiveAllocationDecider()
+            )
+        );
+        AllocationService service = new AllocationService(
+            allocationDeciders,
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        ClusterState state = createInitialClusterState(service, Settings.EMPTY, Settings.EMPTY);
+        RoutingTable routingTable = state.routingTable();
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
+        allocation.debugDecision(true);
+        Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            routingTable.index("idx").shard(0).shards().get(0),
+            state.getRoutingNodes().node("node2"),
+            allocation
+        );
+        assertEquals(decision.toString(), type1, decision.type());
+        assertEquals(explanation1, decision.getExplanation());
+
+        clusterSettings.applySettings(updatedSettings);
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            routingTable.index("idx").shard(0).shards().get(0),
+            state.getRoutingNodes().node("node2"),
+            allocation
+        );
+        assertEquals(decision.toString(), type2, decision.type());
+        assertEquals(explanation2, decision.getExplanation());
+    }
+
+    public void testFilterUpdateAddNew() {
+        filterSettingsUpdateHelper(
+            Settings.builder().put("cluster.routing.allocation.require.attr", "attr1").build(),
+            Type.NO,
+            "node does not match cluster setting [cluster.routing.allocation.require] filters [attr:\"attr1\"]",
+            Settings.builder().put("cluster.routing.allocation.require.zone", "zone1").build(),
+            Type.NO,
+            "node does not match cluster setting [cluster.routing.allocation.require] filters [zone:\"zone1\",attr:\"attr1\"]"
+        );
+    }
+
+    public void testFilterUpdateRemovePartial() {
+        filterSettingsUpdateHelper(
+            Settings.builder()
+                .put("cluster.routing.allocation.require.attr", "attr1")
+                .put("cluster.routing.allocation.require.zone", "zone1")
+                .build(),
+            Type.NO,
+            "node does not match cluster setting [cluster.routing.allocation.require] filters [zone:\"zone1\",attr:\"attr1\"]",
+            Settings.builder()
+                .put("cluster.routing.allocation.require.attr", "")
+                .put("cluster.routing.allocation.require._tier_preference", "hot")
+                .build(),
+            Type.NO,
+            "node does not match cluster setting [cluster.routing.allocation.require] filters [zone:\"zone1\"]"
+        );
+    }
+
+    public void testFilterUpdateRemoveAll() {
+        filterSettingsUpdateHelper(
+            Settings.builder()
+                .put("cluster.routing.allocation.require.flag", "flag1")
+                .put("cluster.routing.allocation.require.zone", "zone1")
+                .build(),
+            Type.NO,
+            "node does not match cluster setting [cluster.routing.allocation.require] filters [flag:\"flag1\",zone:\"zone1\"]",
+            Settings.builder()
+                .put("cluster.routing.allocation.require.flag", "")
+                .put("cluster.routing.allocation.require.zone", "")
+                .build(),
+            Type.YES,
+            "node passes include/exclude/require filters"
+        );
+    }
+
     private ClusterState createInitialClusterState(AllocationService service, Settings indexSettings) {
         return createInitialClusterState(service, indexSettings, Settings.EMPTY);
     }
