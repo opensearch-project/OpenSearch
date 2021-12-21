@@ -32,9 +32,7 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.common.logging.Loggers;
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
@@ -737,45 +735,43 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public void testFindPluginDirs() throws Exception {
         final Path plugins = createTempDir();
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        mockLogAppender.start();
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "[.test] warning",
-                "org.opensearch.plugins.PluginsService",
-                Level.WARN,
-                "Non-plugin file located in the plugins folder with the following name: [.DS_Store]"
-            )
-        );
-        final Logger testLogger = LogManager.getLogger(PluginsService.class);
-        Loggers.addAppender(testLogger, mockLogAppender);
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(PluginsService.class))) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "[.test] warning",
+                    "org.opensearch.plugins.PluginsService",
+                    Level.WARN,
+                    "Non-plugin file located in the plugins folder with the following name: [.DS_Store]"
+                )
+            );
 
-        final Path fake = plugins.resolve("fake");
-        Path testFile = plugins.resolve(".DS_Store");
-        Files.createFile(testFile);
+            final Path fake = plugins.resolve("fake");
+            Path testFile = plugins.resolve(".DS_Store");
+            Files.createFile(testFile);
 
-        PluginTestUtil.writePluginProperties(
-            fake,
-            "description",
-            "description",
-            "name",
-            "fake",
-            "version",
-            "1.0.0",
-            "opensearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "classname",
-            "test.DummyPlugin"
-        );
+            PluginTestUtil.writePluginProperties(
+                fake,
+                "description",
+                "description",
+                "name",
+                "fake",
+                "version",
+                "1.0.0",
+                "opensearch.version",
+                Version.CURRENT.toString(),
+                "java.version",
+                System.getProperty("java.specification.version"),
+                "classname",
+                "test.DummyPlugin"
+            );
 
-        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
-            Files.copy(jar, fake.resolve("plugin.jar"));
+            try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+                Files.copy(jar, fake.resolve("plugin.jar"));
+            }
+
+            assertThat(PluginsService.findPluginDirs(plugins), containsInAnyOrder(fake));
+            mockLogAppender.assertAllExpectationsMatched();
         }
-
-        assertThat(PluginsService.findPluginDirs(plugins), containsInAnyOrder(fake));
-        mockLogAppender.assertAllExpectationsMatched();
     }
 
     public void testExistingMandatoryClasspathPlugin() {
