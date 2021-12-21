@@ -968,9 +968,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             aliases.writeTo(out);
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-                rolloverInfos.writeTo(out);
-            }
+            rolloverInfos.writeTo(out);
             if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 out.writeBoolean(isSystem);
             }
@@ -1041,11 +1039,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Set<String> allocationIds = DiffableUtils.StringSetValueSerializer.getInstance().read(in, key);
             builder.putInSyncAllocationIds(key, allocationIds);
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            int rolloverAliasesSize = in.readVInt();
-            for (int i = 0; i < rolloverAliasesSize; i++) {
-                builder.putRolloverInfo(new RolloverInfo(in));
-            }
+        int rolloverAliasesSize = in.readVInt();
+        for (int i = 0; i < rolloverAliasesSize; i++) {
+            builder.putRolloverInfo(new RolloverInfo(in));
         }
         if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             builder.system(in.readBoolean());
@@ -1092,11 +1088,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeVInt(cursor.key);
             DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.value, out);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeVInt(rolloverInfos.size());
-            for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
-                cursor.value.writeTo(out);
-            }
+        out.writeVInt(rolloverInfos.size());
+        for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
+            cursor.value.writeTo(out);
         }
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);

@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -98,31 +97,17 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     private final boolean shardsAcknowledged;
 
     RolloverResponse(StreamInput in) throws IOException {
-        super(in, false, in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0));
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            oldIndex = in.readString();
-            newIndex = in.readString();
-            int conditionSize = in.readVInt();
-            conditionStatus = new HashMap<>(conditionSize);
-            for (int i = 0; i < conditionSize; i++) {
-                conditionStatus.put(in.readString(), in.readBoolean());
-            }
-            dryRun = in.readBoolean();
-            rolledOver = in.readBoolean();
-            shardsAcknowledged = in.readBoolean();
-        } else {
-            oldIndex = in.readString();
-            newIndex = in.readString();
-            int conditionSize = in.readVInt();
-            conditionStatus = new HashMap<>(conditionSize);
-            for (int i = 0; i < conditionSize; i++) {
-                conditionStatus.put(in.readString(), in.readBoolean());
-            }
-            dryRun = in.readBoolean();
-            rolledOver = in.readBoolean();
-            acknowledged = in.readBoolean();
-            shardsAcknowledged = in.readBoolean();
+        super(in, false);
+        oldIndex = in.readString();
+        newIndex = in.readString();
+        int conditionSize = in.readVInt();
+        conditionStatus = new HashMap<>(conditionSize);
+        for (int i = 0; i < conditionSize; i++) {
+            conditionStatus.put(in.readString(), in.readBoolean());
         }
+        dryRun = in.readBoolean();
+        rolledOver = in.readBoolean();
+        shardsAcknowledged = in.readBoolean();
     }
 
     public RolloverResponse(
@@ -185,31 +170,17 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            super.writeTo(out);
-            out.writeString(oldIndex);
-            out.writeString(newIndex);
-            out.writeVInt(conditionStatus.size());
-            for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeBoolean(entry.getValue());
-            }
-            out.writeBoolean(dryRun);
-            out.writeBoolean(rolledOver);
-            out.writeBoolean(shardsAcknowledged);
-        } else {
-            out.writeString(oldIndex);
-            out.writeString(newIndex);
-            out.writeVInt(conditionStatus.size());
-            for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeBoolean(entry.getValue());
-            }
-            out.writeBoolean(dryRun);
-            out.writeBoolean(rolledOver);
-            out.writeBoolean(acknowledged);
-            writeShardsAcknowledged(out);
+        super.writeTo(out);
+        out.writeString(oldIndex);
+        out.writeString(newIndex);
+        out.writeVInt(conditionStatus.size());
+        for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeBoolean(entry.getValue());
         }
+        out.writeBoolean(dryRun);
+        out.writeBoolean(rolledOver);
+        out.writeBoolean(shardsAcknowledged);
     }
 
     @Override

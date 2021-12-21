@@ -351,7 +351,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(updateSettingsRequest);
 
             Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
-            if (getOldClusterVersion().onOrAfter(LegacyESVersion.V_6_4_0) && getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
+            if (getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
                 shrinkIndexRequest.addParameter("copy_settings", "true");
             }
             shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
