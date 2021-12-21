@@ -37,7 +37,6 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.ClusterSettings;
@@ -268,12 +267,8 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
                     .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
                     .build()
             );
-            MockLogAppender appender = new MockLogAppender();
             final String traceLoggerName = "org.opensearch.http.HttpTracer";
-            try {
-                appender.start();
-                Loggers.addAppender(LogManager.getLogger(traceLoggerName), appender);
-
+            try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(traceLoggerName))) {
                 final String opaqueId = UUIDs.randomBase64UUID(random());
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation(
@@ -342,9 +337,6 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
 
                 transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel());
                 appender.assertAllExpectationsMatched();
-            } finally {
-                Loggers.removeAppender(LogManager.getLogger(traceLoggerName), appender);
-                appender.stop();
             }
         }
     }

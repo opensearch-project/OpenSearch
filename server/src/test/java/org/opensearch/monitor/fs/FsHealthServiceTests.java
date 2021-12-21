@@ -34,13 +34,11 @@ package org.opensearch.monitor.fs;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
@@ -158,12 +156,10 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         PathUtilsForTesting.installMock(fileSystem);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-
-        Logger logger = LogManager.getLogger(FsHealthService.class);
-        Loggers.addAppender(logger, mockAppender);
-        try (NodeEnvironment env = newNodeEnvironment()) {
+        try (
+            MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(FsHealthService.class));
+            NodeEnvironment env = newNodeEnvironment()
+        ) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             int counter = 0;
             for (Path path : env.nodeDataPaths()) {
@@ -183,8 +179,6 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
             PathUtilsForTesting.teardown();
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }
