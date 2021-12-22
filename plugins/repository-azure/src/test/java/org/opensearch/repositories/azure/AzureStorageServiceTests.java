@@ -218,18 +218,18 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         assertThat(azureStorageService.getBlobRequestTimeout("azure3"), is(Duration.ofSeconds(30)));
     }
 
-    public void testClientDefaultConnectionTimeout() {
+    public void testClientDefaultConnectTimeout() {
         final Settings settings = Settings.builder()
             .setSecureSettings(buildSecureSettings())
-            .put("azure.client.azure3.connection.timeout", "25s")
+            .put("azure.client.azure3.connect.timeout", "25s")
             .build();
         final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
-        final TimeValue timeout = mock.storageSettings.get("azure3").getConnectionTimeout();
+        final TimeValue timeout = mock.storageSettings.get("azure3").getConnectTimeout();
 
         assertThat(timeout, notNullValue());
         assertThat(timeout, equalTo(TimeValue.timeValueSeconds(25)));
-        assertThat(mock.storageSettings.get("azure2").getConnectionTimeout(), notNullValue());
-        assertThat(mock.storageSettings.get("azure2").getConnectionTimeout(), equalTo(TimeValue.timeValueSeconds(10)));
+        assertThat(mock.storageSettings.get("azure2").getConnectTimeout(), notNullValue());
+        assertThat(mock.storageSettings.get("azure2").getConnectTimeout(), equalTo(TimeValue.timeValueSeconds(10)));
     }
 
     public void testClientDefaultWriteTimeout() {

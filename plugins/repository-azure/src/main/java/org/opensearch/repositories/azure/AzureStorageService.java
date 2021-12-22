@@ -179,9 +179,9 @@ public class AzureStorageService implements AutoCloseable {
             clientBuilder.proxy(new ProxyOptions(type, (InetSocketAddress) proxy.address()));
         }
 
-        final TimeValue connectionTimeout = azureStorageSettings.getConnectionTimeout();
-        if (connectionTimeout != null) {
-            clientBuilder.connectTimeout(Duration.ofMillis(connectionTimeout.millis()));
+        final TimeValue connectTimeout = azureStorageSettings.getConnectTimeout();
+        if (connectTimeout != null) {
+            clientBuilder.connectTimeout(Duration.ofMillis(connectTimeout.millis()));
         }
 
         final TimeValue writeTimeout = azureStorageSettings.getWriteTimeout();

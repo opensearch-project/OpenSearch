@@ -106,9 +106,9 @@ final class AzureStorageSettings {
     );
 
     // See please NettyAsyncHttpClientBuilder#DEFAULT_CONNECT_TIMEOUT
-    public static final AffixSetting<TimeValue> CONNECTION_TIMEOUT_SETTING = Setting.affixKeySetting(
+    public static final AffixSetting<TimeValue> CONNECT_TIMEOUT_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
-        "connection.timeout",
+        "connect.timeout",
         (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Property.NodeScope),
         () -> ACCOUNT_SETTING,
         () -> KEY_SETTING
@@ -178,7 +178,7 @@ final class AzureStorageSettings {
     private final int maxRetries;
     private final Proxy proxy;
     private final LocationMode locationMode;
-    private final TimeValue connectionTimeout;
+    private final TimeValue connectTimeout;
     private final TimeValue writeTimeout;
     private final TimeValue readTimeout;
     private final TimeValue responseTimeout;
@@ -192,7 +192,7 @@ final class AzureStorageSettings {
         int maxRetries,
         Proxy proxy,
         LocationMode locationMode,
-        TimeValue connectionTimeout,
+        TimeValue connectTimeout,
         TimeValue writeTimeout,
         TimeValue readTimeout,
         TimeValue responseTimeout
@@ -204,7 +204,7 @@ final class AzureStorageSettings {
         this.maxRetries = maxRetries;
         this.proxy = proxy;
         this.locationMode = locationMode;
-        this.connectionTimeout = connectionTimeout;
+        this.connectTimeout = connectTimeout;
         this.writeTimeout = writeTimeout;
         this.readTimeout = readTimeout;
         this.responseTimeout = responseTimeout;
@@ -220,7 +220,7 @@ final class AzureStorageSettings {
         Proxy.Type proxyType,
         String proxyHost,
         Integer proxyPort,
-        TimeValue connectionTimeout,
+        TimeValue connectTimeout,
         TimeValue writeTimeout,
         TimeValue readTimeout,
         TimeValue responseTimeout
@@ -249,7 +249,7 @@ final class AzureStorageSettings {
             }
         }
         this.locationMode = LocationMode.PRIMARY_ONLY;
-        this.connectionTimeout = connectionTimeout;
+        this.connectTimeout = connectTimeout;
         this.writeTimeout = writeTimeout;
         this.readTimeout = readTimeout;
         this.responseTimeout = responseTimeout;
@@ -301,8 +301,8 @@ final class AzureStorageSettings {
         return locationMode;
     }
 
-    public TimeValue getConnectionTimeout() {
-        return connectionTimeout;
+    public TimeValue getConnectTimeout() {
+        return connectTimeout;
     }
 
     public TimeValue getWriteTimeout() {
@@ -326,7 +326,7 @@ final class AzureStorageSettings {
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxy=").append(proxy);
         sb.append(", locationMode='").append(locationMode).append('\'');
-        sb.append(", connectionTimeout='").append(connectionTimeout).append('\'');
+        sb.append(", connectTimeout='").append(connectTimeout).append('\'');
         sb.append(", writeTimeout='").append(writeTimeout).append('\'');
         sb.append(", readTimeout='").append(readTimeout).append('\'');
         sb.append(", responseTimeout='").append(responseTimeout).append('\'');
@@ -373,7 +373,7 @@ final class AzureStorageSettings {
                 getValue(settings, clientName, PROXY_TYPE_SETTING),
                 getValue(settings, clientName, PROXY_HOST_SETTING),
                 getValue(settings, clientName, PROXY_PORT_SETTING),
-                getValue(settings, clientName, CONNECTION_TIMEOUT_SETTING),
+                getValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
                 getValue(settings, clientName, WRITE_TIMEOUT_SETTING),
                 getValue(settings, clientName, READ_TIMEOUT_SETTING),
                 getValue(settings, clientName, RESPONSE_TIMEOUT_SETTING)
@@ -408,7 +408,7 @@ final class AzureStorageSettings {
                     entry.getValue().maxRetries,
                     entry.getValue().proxy,
                     locationMode,
-                    entry.getValue().connectionTimeout,
+                    entry.getValue().connectTimeout,
                     entry.getValue().writeTimeout,
                     entry.getValue().readTimeout,
                     entry.getValue().responseTimeout
