@@ -762,7 +762,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                 // Ensure that replicas don't relocate if primaries are being throttled and primary first is enabled
                 if (movePrimaryFirst && primariesThrottled && !shardRouting.primary()) {
-                    continue;
+                    break;
                 }
 
                 // Verify if the shard is allowed to move if outgoing recovery on the node hosting the primary shard

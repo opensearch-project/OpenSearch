@@ -1280,6 +1280,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * the first node, then the first shard of the second node, etc. until one shard from each node has been returned.
      * The iterator then resumes on the first node by returning the second shard and continues until all shards from
      * all the nodes have been returned.
+     * @param movePrimaryFirst if true, all primary shards are iterated over before iterating replica for any node
+     * @return iterator of shard routings
      */
     public Iterator<ShardRouting> nodeInterleavedShardIterator(boolean movePrimaryFirst) {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
@@ -1332,6 +1334,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     Iterator<ShardRouting> replicaIterator = replicaIterators.poll();
                     ShardRouting replicaShard = replicaIterator.next();
                     replicaIterators.offer(replicaIterator);
+
+                    assert !replicaShard.primary();
                     return replicaShard;
                 }
 
