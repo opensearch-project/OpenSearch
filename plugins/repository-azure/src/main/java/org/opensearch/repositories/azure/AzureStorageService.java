@@ -64,6 +64,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -176,6 +177,26 @@ public class AzureStorageService implements AutoCloseable {
                 .orElseThrow(() -> new IllegalArgumentException("Unsupported proxy type: " + proxy.type()));
 
             clientBuilder.proxy(new ProxyOptions(type, (InetSocketAddress) proxy.address()));
+        }
+
+        final TimeValue connectTimeout = azureStorageSettings.getConnectTimeout();
+        if (connectTimeout != null) {
+            clientBuilder.connectTimeout(Duration.ofMillis(connectTimeout.millis()));
+        }
+
+        final TimeValue writeTimeout = azureStorageSettings.getWriteTimeout();
+        if (writeTimeout != null) {
+            clientBuilder.writeTimeout(Duration.ofMillis(writeTimeout.millis()));
+        }
+
+        final TimeValue readTimeout = azureStorageSettings.getReadTimeout();
+        if (readTimeout != null) {
+            clientBuilder.readTimeout(Duration.ofMillis(readTimeout.millis()));
+        }
+
+        final TimeValue responseTimeout = azureStorageSettings.getResponseTimeout();
+        if (responseTimeout != null) {
+            clientBuilder.responseTimeout(Duration.ofMillis(responseTimeout.millis()));
         }
 
         builder.httpClient(clientBuilder.build());
