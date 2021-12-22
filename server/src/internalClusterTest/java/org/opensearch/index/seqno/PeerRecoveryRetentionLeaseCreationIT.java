@@ -31,7 +31,6 @@
 
 package org.opensearch.index.seqno;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
@@ -78,7 +77,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends OpenSearchIntegTestCas
                         // simulate a version which supports soft deletes (v6.5.0-and-later) with which this node is compatible
                         VersionUtils.randomVersionBetween(
                             random(),
-                            Version.max(Version.CURRENT.minimumIndexCompatibilityVersion(), LegacyESVersion.V_6_5_0),
+                            Version.max(Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT),
                             Version.CURRENT
                         )
                     )

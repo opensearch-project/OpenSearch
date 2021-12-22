@@ -69,7 +69,6 @@ import org.opensearch.index.query.GeoValidationMethod;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 
@@ -695,9 +694,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         // If we have a nestedSort we'll use that. Otherwise, use old style.
         if (nestedSort == null) {
             return resolveNested(context, nestedPath, nestedFilter);
-        }
-        if (context.indexVersionCreated().before(LegacyESVersion.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
-            throw new QueryShardException(context, "max_children is only supported on v6.5.0 or higher");
         }
         validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
         return resolveNested(context, nestedSort);
