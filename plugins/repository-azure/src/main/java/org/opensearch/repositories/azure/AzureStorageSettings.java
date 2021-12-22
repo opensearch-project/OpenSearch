@@ -97,6 +97,7 @@ final class AzureStorageSettings {
         () -> KEY_SETTING
     );
 
+    // The overall operation timeout
     public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "timeout",
