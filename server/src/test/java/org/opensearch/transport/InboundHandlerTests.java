@@ -34,7 +34,6 @@ package org.opensearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -46,7 +45,6 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -260,20 +258,16 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         // response so we must just close the connection on an error. To avoid the failure disappearing into a black hole we at least log
         // it.
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                InboundHandler.class.getCanonicalName(),
-                Level.WARN,
-                "could not send error response to handshake"
-            )
-        );
-        final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(InboundHandler.class))) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected message",
+                    InboundHandler.class.getCanonicalName(),
+                    Level.WARN,
+                    "could not send error response to handshake"
+                )
+            );
 
-        try {
             final AtomicBoolean isClosed = new AtomicBoolean();
             channel.addCloseListener(ActionListener.wrap(() -> assertTrue(isClosed.compareAndSet(false, true))));
 
@@ -293,28 +287,21 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             assertTrue(isClosed.get());
             assertNull(channel.getMessageCaptor().get());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
     public void testLogsSlowInboundProcessing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                InboundHandler.class.getCanonicalName(),
-                Level.WARN,
-                "handling inbound transport message "
-            )
-        );
-        final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(InboundHandler.class))) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected message",
+                    InboundHandler.class.getCanonicalName(),
+                    Level.WARN,
+                    "handling inbound transport message "
+                )
+            );
 
-        handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
-        try {
+            handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
             final Version remoteVersion = Version.CURRENT;
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(
@@ -336,9 +323,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             handler.inboundMessage(channel, requestMessage);
             assertNotNull(channel.getMessageCaptor().get());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
