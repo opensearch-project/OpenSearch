@@ -32,6 +32,7 @@
 
 package org.opensearch.upgrades;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {
 
     public void testRemoteClusterSettingsUpgraded() throws IOException {
+        assumeTrue("settings automatically upgraded since 6.5.0", getOldClusterVersion().before(LegacyESVersion.fromString("6.5.0")));
         if (isRunningAgainstOldCluster()) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
             try (XContentBuilder builder = jsonBuilder()) {
