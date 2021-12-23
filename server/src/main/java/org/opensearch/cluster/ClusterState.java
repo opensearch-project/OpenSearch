@@ -34,7 +34,6 @@ package org.opensearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -736,7 +735,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-        builder.minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0) ? in.readVInt() : -1;
+        builder.minimumMasterNodesOnPublishingMaster = in.readVInt();
         return builder.build();
     }
 
@@ -762,9 +761,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 out.writeNamedWriteable(cursor.value);
             }
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            out.writeVInt(minimumMasterNodesOnPublishingMaster);
-        }
+        out.writeVInt(minimumMasterNodesOnPublishingMaster);
     }
 
     private static class ClusterStateDiff implements Diff<ClusterState> {
@@ -812,7 +809,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0) ? in.readVInt() : -1;
+            minimumMasterNodesOnPublishingMaster = in.readVInt();
         }
 
         @Override
@@ -826,9 +823,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-                out.writeVInt(minimumMasterNodesOnPublishingMaster);
-            }
+            out.writeVInt(minimumMasterNodesOnPublishingMaster);
         }
 
         @Override

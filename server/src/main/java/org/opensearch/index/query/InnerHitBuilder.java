@@ -183,11 +183,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         size = in.readVInt();
         explain = in.readBoolean();
         version = in.readBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            seqNoAndPrimaryTerm = in.readBoolean();
-        } else {
-            seqNoAndPrimaryTerm = false;
-        }
+        seqNoAndPrimaryTerm = in.readBoolean();
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         docValueFields = in.readBoolean() ? in.readList(FieldAndFormat::new) : null;
@@ -224,9 +220,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeVInt(size);
         out.writeBoolean(explain);
         out.writeBoolean(version);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            out.writeBoolean(seqNoAndPrimaryTerm);
-        }
+        out.writeBoolean(seqNoAndPrimaryTerm);
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
 

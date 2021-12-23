@@ -51,7 +51,6 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.action.document.RestBulkAction;
-import org.opensearch.rest.action.document.RestGetAction;
 import org.opensearch.rest.action.document.RestIndexAction;
 import org.opensearch.rest.action.document.RestUpdateAction;
 import org.opensearch.rest.action.search.RestExplainAction;
@@ -109,7 +108,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @Before
     public void setType() {
-        type = getOldClusterVersion().before(LegacyESVersion.V_6_7_0) ? "doc" : "_doc";
+        type = "_doc";
     }
 
     public void testSearch() throws Exception {
@@ -633,9 +632,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         client().performRequest(updateRequest);
 
         Request getRequest = new Request("GET", "/" + index + "/" + typeName + "/" + docId);
-        if (getOldClusterVersion().before(LegacyESVersion.V_6_7_0)) {
-            getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
-        }
         Map<String, Object> getRsp = entityAsMap(client().performRequest(getRequest));
         Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
         assertTrue("doc does not contain 'foo' key: " + source, source.containsKey("foo"));
@@ -682,9 +678,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
 
         Request request = new Request("GET", docLocation);
-        if (getOldClusterVersion().before(LegacyESVersion.V_6_7_0)) {
-            request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
-        }
         assertThat(toStr(client().performRequest(request)), containsString(doc));
     }
 
@@ -1269,9 +1262,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String loadInfoDocument(String type) throws IOException {
         Request request = new Request("GET", "/info/" + this.type + "/" + index + "_" + type);
         request.addParameter("filter_path", "_source");
-        if (getOldClusterVersion().before(LegacyESVersion.V_6_7_0)) {
-            request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
-        }
         String doc = toStr(client().performRequest(request));
         Matcher m = Pattern.compile("\"value\":\"(.+)\"").matcher(doc);
         assertTrue(doc, m.find());
@@ -1352,9 +1342,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
-            if (getOldClusterVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
-            }
+            settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             createIndex(index, settings.build());
             ensureGreen(index);
             int committedDocs = randomIntBetween(100, 200);
@@ -1383,7 +1371,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Verifies that once all shard copies on the new version, we should turn off the translog retention for indices with soft-deletes.
      */
     public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
-        assumeTrue("requires soft-deletes and retention leases", getOldClusterVersion().onOrAfter(LegacyESVersion.V_6_7_0));
         if (isRunningAgainstOldCluster()) {
             createIndex(index, Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -1484,7 +1471,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
             getTasksIndex.addParameter("allow_no_indices", "false");
-            if (getOldClusterVersion().onOrAfter(LegacyESVersion.V_6_7_0) && getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
+            if (getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
                 getTasksIndex.addParameter("include_type_name", "false");
             }
 

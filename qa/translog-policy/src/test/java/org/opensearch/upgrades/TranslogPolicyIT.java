@@ -95,7 +95,7 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
 
     @Before
     public void setType() {
-        type = getOldClusterVersion().before(LegacyESVersion.V_6_7_0) ? "doc" : "_doc";
+        type = "_doc";
     }
 
     public void testEmptyIndex() throws Exception {

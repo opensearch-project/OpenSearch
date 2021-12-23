@@ -120,16 +120,8 @@ public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest 
         totalTranslogOps = in.readVInt();
         maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         maxSeqNoOfUpdatesOrDeletesOnPrimary = in.readZLong();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            retentionLeases = new RetentionLeases(in);
-        } else {
-            retentionLeases = RetentionLeases.EMPTY;
-        }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            mappingVersionOnPrimary = in.readVLong();
-        } else {
-            mappingVersionOnPrimary = Long.MAX_VALUE;
-        }
+        retentionLeases = new RetentionLeases(in);
+        mappingVersionOnPrimary = in.readVLong();
     }
 
     @Override
@@ -141,9 +133,7 @@ public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest 
         out.writeVInt(totalTranslogOps);
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            retentionLeases.writeTo(out);
-        }
+        retentionLeases.writeTo(out);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeVLong(mappingVersionOnPrimary);
         }

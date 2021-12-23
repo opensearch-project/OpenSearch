@@ -32,7 +32,6 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentParser;
@@ -97,15 +96,6 @@ public class TermsLookupTests extends OpenSearchTestCase {
                 assertEquals(deserializedLookup.hashCode(), termsLookup.hashCode());
                 assertNotSame(deserializedLookup, termsLookup);
             }
-        }
-
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(LegacyESVersion.V_6_7_0);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> termsLookup.writeTo(output));
-            assertEquals(
-                "Typeless [terms] lookup queries are not supported if any " + "node is running a version before 7.0.",
-                e.getMessage()
-            );
         }
     }
 

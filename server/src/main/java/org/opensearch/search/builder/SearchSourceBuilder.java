@@ -252,11 +252,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         timeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            seqNoAndPrimaryTerm = in.readOptionalBoolean();
-        } else {
-            seqNoAndPrimaryTerm = null;
-        }
+        seqNoAndPrimaryTerm = in.readOptionalBoolean();
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
@@ -322,9 +318,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalTimeValue(timeout);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            out.writeOptionalBoolean(seqNoAndPrimaryTerm);
-        }
+        out.writeOptionalBoolean(seqNoAndPrimaryTerm);
         out.writeNamedWriteableList(extBuilders);
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);

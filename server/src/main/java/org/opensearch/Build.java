@@ -246,12 +246,7 @@ public class Build {
         if (out.getVersion().before(Version.V_2_0_0)) {
             out.writeString("oss");
         }
-        final Type buildType;
-        if (out.getVersion().before(LegacyESVersion.V_6_7_0) && build.type() == Type.DOCKER) {
-            buildType = Type.TAR;
-        } else {
-            buildType = build.type();
-        }
+        final Type buildType = build.type();
         out.writeString(buildType.displayName());
         out.writeString(build.hash());
         out.writeString(build.date());

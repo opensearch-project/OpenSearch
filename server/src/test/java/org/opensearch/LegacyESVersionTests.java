@@ -282,7 +282,7 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
     public void testIsCompatible() {
         assertTrue(isCompatible(LegacyESVersion.V_6_8_0, LegacyESVersion.V_7_0_0));
         assertFalse(isCompatible(LegacyESVersion.fromString("6.6.0"), LegacyESVersion.V_7_0_0));
-        assertFalse(isCompatible(LegacyESVersion.V_6_7_0, LegacyESVersion.V_7_0_0));
+        assertFalse(isCompatible(LegacyESVersion.fromString("6.7.0"), LegacyESVersion.V_7_0_0));
 
         assertFalse(isCompatible(LegacyESVersion.fromId(5000099), LegacyESVersion.fromString("6.0.0")));
         assertFalse(isCompatible(LegacyESVersion.fromId(5000099), LegacyESVersion.fromString("7.0.0")));

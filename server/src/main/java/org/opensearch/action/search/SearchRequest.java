@@ -236,17 +236,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             preFilterShardSize = in.readVInt();
         }
         allowPartialSearchResults = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            localClusterAlias = in.readOptionalString();
-            if (localClusterAlias != null) {
-                absoluteStartMillis = in.readVLong();
-                finalReduce = in.readBoolean();
-            } else {
-                absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
-                finalReduce = true;
-            }
+        localClusterAlias = in.readOptionalString();
+        if (localClusterAlias != null) {
+            absoluteStartMillis = in.readVLong();
+            finalReduce = in.readBoolean();
         } else {
-            localClusterAlias = null;
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
@@ -279,12 +273,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeVInt(preFilterShardSize == null ? DEFAULT_BATCHED_REDUCE_SIZE : preFilterShardSize);
         }
         out.writeOptionalBoolean(allowPartialSearchResults);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            out.writeOptionalString(localClusterAlias);
-            if (localClusterAlias != null) {
-                out.writeVLong(absoluteStartMillis);
-                out.writeBoolean(finalReduce);
-            }
+        out.writeOptionalString(localClusterAlias);
+        if (localClusterAlias != null) {
+            out.writeVLong(absoluteStartMillis);
+            out.writeBoolean(finalReduce);
         }
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(ccsMinimizeRoundtrips);

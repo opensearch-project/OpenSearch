@@ -114,11 +114,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             in.readBoolean(); // updateAllTypes
         }
         concreteIndex = in.readOptionalWriteable(Index::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            origin = in.readOptionalString();
-        } else {
-            origin = null;
-        }
+        origin = in.readOptionalString();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             writeIndexOnly = in.readBoolean();
         }
@@ -376,9 +372,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             out.writeBoolean(true); // updateAllTypes
         }
         out.writeOptionalWriteable(concreteIndex);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            out.writeOptionalString(origin);
-        }
+        out.writeOptionalString(origin);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeBoolean(writeIndexOnly);
         }

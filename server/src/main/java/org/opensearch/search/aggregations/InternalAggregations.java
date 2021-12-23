@@ -108,7 +108,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
         final InternalAggregations res = from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
-        if (in.getVersion().before(LegacyESVersion.V_7_8_0) && in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_8_0)) {
             /*
              * Setting the pipeline tree source to null is here is correct but
              * only because we don't immediately pass the InternalAggregations
@@ -127,16 +127,12 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             if (pipelineTreeForBwcSerialization == null) {
                 mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
                 out.writeNamedWriteableList(getInternalAggregations());
-                if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-                    out.writeNamedWriteableList(emptyList());
-                }
+                out.writeNamedWriteableList(emptyList());
             } else {
                 PipelineAggregator.PipelineTree pipelineTree = pipelineTreeForBwcSerialization.get();
                 mergePipelineTreeForBWCSerialization(pipelineTree);
                 out.writeNamedWriteableList(getInternalAggregations());
-                if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-                    out.writeNamedWriteableList(pipelineTree.aggregators());
-                }
+                out.writeNamedWriteableList(pipelineTree.aggregators());
             }
         } else {
             out.writeNamedWriteableList(getInternalAggregations());

@@ -46,9 +46,6 @@ import java.lang.reflect.Field;
  */
 public class LegacyESVersion extends Version {
 
-    public static final LegacyESVersion V_6_7_0 = new LegacyESVersion(6070099, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final LegacyESVersion V_6_7_1 = new LegacyESVersion(6070199, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final LegacyESVersion V_6_7_2 = new LegacyESVersion(6070299, org.apache.lucene.util.Version.LUCENE_7_7_0);
     public static final LegacyESVersion V_6_8_0 = new LegacyESVersion(6080099, org.apache.lucene.util.Version.LUCENE_7_7_0);
     public static final LegacyESVersion V_6_8_1 = new LegacyESVersion(6080199, org.apache.lucene.util.Version.LUCENE_7_7_0);
     public static final LegacyESVersion V_6_8_2 = new LegacyESVersion(6080299, org.apache.lucene.util.Version.LUCENE_7_7_0);
