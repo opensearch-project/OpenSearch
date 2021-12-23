@@ -128,7 +128,7 @@ public abstract class AggregationScript implements ScorerAware {
      * <p>
      * The default implementation just calls {@code setNextVar("_value", value)} but
      * some engines might want to handle this differently for better performance.
-     * <p>
+     * </p>
      * @param value per-document value, typically a String, Long, or Double
      */
     public void setNextAggregationValue(Object value) {

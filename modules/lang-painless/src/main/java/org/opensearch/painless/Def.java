@@ -234,11 +234,12 @@ public final class Def {
      * <p>
      * A dynamic method call for variable {@code x} of type {@code def} looks like:
      * {@code x.method(args...)}
+     * </p>
      * <p>
      * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
      * until it finds a matching whitelisted method. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching method.
-     * <p>
+     * </p>
      * @param painlessLookup the whitelist
      * @param functions user defined functions and lambdas
      * @param constants available constants to be used if the method has the {@code InjectConstantAnnotation}
@@ -468,6 +469,7 @@ public final class Def {
      * <p>
      * A dynamic field load for variable {@code x} of type {@code def} looks like:
      * {@code y = x.field}
+     * </p>
      * <p>
      * The following field loads are allowed:
      * <ul>
@@ -482,7 +484,7 @@ public final class Def {
      * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
      * until it finds a matching whitelisted getter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching getter.
-     * <p>
+     * </p>
      * @param painlessLookup the whitelist
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
@@ -537,7 +539,7 @@ public final class Def {
      * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
      * until it finds a matching whitelisted setter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching setter.
-     * <p>
+     * </p>
      * @param painlessLookup the whitelist
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
