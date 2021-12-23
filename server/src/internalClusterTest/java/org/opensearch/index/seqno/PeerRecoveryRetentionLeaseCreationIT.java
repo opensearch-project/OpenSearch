@@ -74,12 +74,8 @@ public class PeerRecoveryRetentionLeaseCreationIT extends OpenSearchIntegTestCas
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(
                         IndexMetadata.SETTING_VERSION_CREATED,
-                        // simulate a version which supports soft deletes (v6.5.0-and-later) with which this node is compatible
-                        VersionUtils.randomVersionBetween(
-                            random(),
-                            Version.max(Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT),
-                            Version.CURRENT
-                        )
+                        // simulate a version which supports soft deletes with which this node is compatible
+                        VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT)
                     )
             )
         );
