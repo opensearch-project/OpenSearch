@@ -36,7 +36,6 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
 
@@ -55,11 +54,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
 
     ResyncReplicationRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            trimAboveSeqNo = in.readZLong();
-        } else {
-            trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
+        trimAboveSeqNo = in.readZLong();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
             maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         } else {
@@ -95,9 +90,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeZLong(trimAboveSeqNo);
-        }
+        out.writeZLong(trimAboveSeqNo);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
             out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         }

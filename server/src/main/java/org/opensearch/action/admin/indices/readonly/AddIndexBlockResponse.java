@@ -55,7 +55,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
     private final List<AddBlockResult> indices;
 
     AddIndexBlockResponse(StreamInput in) throws IOException {
-        super(in, true, true);
+        super(in, true);
         indices = unmodifiableList(in.readList(AddBlockResult::new));
     }
 

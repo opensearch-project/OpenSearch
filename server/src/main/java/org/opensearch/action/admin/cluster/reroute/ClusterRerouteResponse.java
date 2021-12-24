@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.reroute;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.allocation.RoutingExplanations;
@@ -53,15 +52,9 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
     private final RoutingExplanations explanations;
 
     ClusterRerouteResponse(StreamInput in) throws IOException {
-        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0));
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            state = ClusterState.readFrom(in, null);
-            explanations = RoutingExplanations.readFrom(in);
-        } else {
-            state = ClusterState.readFrom(in, null);
-            acknowledged = in.readBoolean();
-            explanations = RoutingExplanations.readFrom(in);
-        }
+        super(in);
+        state = ClusterState.readFrom(in, null);
+        explanations = RoutingExplanations.readFrom(in);
     }
 
     ClusterRerouteResponse(boolean acknowledged, ClusterState state, RoutingExplanations explanations) {
@@ -83,15 +76,9 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            super.writeTo(out);
-            state.writeTo(out);
-            RoutingExplanations.writeTo(explanations, out);
-        } else {
-            state.writeTo(out);
-            out.writeBoolean(acknowledged);
-            RoutingExplanations.writeTo(explanations, out);
-        }
+        super.writeTo(out);
+        state.writeTo(out);
+        RoutingExplanations.writeTo(explanations, out);
     }
 
     @Override

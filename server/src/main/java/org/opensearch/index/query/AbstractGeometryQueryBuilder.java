@@ -35,7 +35,6 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
@@ -204,11 +203,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             indexedShapeType = in.readOptionalString();
             indexedShapeIndex = in.readOptionalString();
             indexedShapePath = in.readOptionalString();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-                indexedShapeRouting = in.readOptionalString();
-            } else {
-                indexedShapeRouting = null;
-            }
+            indexedShapeRouting = in.readOptionalString();
         }
         relation = ShapeRelation.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
@@ -230,11 +225,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             out.writeOptionalString(indexedShapeType);
             out.writeOptionalString(indexedShapeIndex);
             out.writeOptionalString(indexedShapePath);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-                out.writeOptionalString(indexedShapeRouting);
-            } else if (indexedShapeRouting != null) {
-                throw new IllegalStateException("indexed shape routing cannot be serialized to older nodes");
-            }
+            out.writeOptionalString(indexedShapeRouting);
         }
         relation.writeTo(out);
         out.writeBoolean(ignoreUnmapped);

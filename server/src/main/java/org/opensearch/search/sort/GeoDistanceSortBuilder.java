@@ -189,9 +189,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         nestedPath = in.readOptionalString();
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         validation = GeoValidationMethod.readFromStream(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            ignoreUnmapped = in.readBoolean();
-        }
+        ignoreUnmapped = in.readBoolean();
     }
 
     @Override
@@ -206,9 +204,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         out.writeOptionalString(nestedPath);
         out.writeOptionalWriteable(nestedSort);
         validation.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeBoolean(ignoreUnmapped);
-        }
+        out.writeBoolean(ignoreUnmapped);
     }
 
     /**

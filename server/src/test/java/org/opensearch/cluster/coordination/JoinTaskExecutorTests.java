@@ -119,7 +119,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         }
 
         if (minNodeVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            Version oldMajor = LegacyESVersion.V_6_4_0.minimumCompatibilityVersion();
+            Version oldMajor = minNodeVersion.minimumCompatibilityVersion();
             expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 
