@@ -642,16 +642,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(2048, MetadataCreateIndexService.calculateNumRoutingShards(1024, Version.CURRENT));
         assertEquals(4096, MetadataCreateIndexService.calculateNumRoutingShards(2048, Version.CURRENT));
 
-        Version latestV6 = VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0);
         int numShards = randomIntBetween(1, 1000);
-        assertEquals(numShards, MetadataCreateIndexService.calculateNumRoutingShards(numShards, latestV6));
-        assertEquals(
-            numShards,
-            MetadataCreateIndexService.calculateNumRoutingShards(
-                numShards,
-                VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), latestV6)
-            )
-        );
 
         for (int i = 0; i < 1000; i++) {
             int randomNumShards = randomIntBetween(1, 10000);
