@@ -34,6 +34,7 @@ package org.opensearch.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
@@ -47,18 +48,20 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.env.Environment;
 import org.opensearch.http.HttpInfo;
+import org.opensearch.node.MockNode;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.transport.MockTransportClient;
-import org.opensearch.transport.TransportSettings;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.HTTP;
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.SETTINGS;
@@ -79,7 +82,8 @@ public final class ExternalTestCluster extends TestCluster {
     private static final AtomicInteger counter = new AtomicInteger();
     public static final String EXTERNAL_CLUSTER_PREFIX = "external_";
 
-    private final MockTransportClient client;
+    private final MockNode node;
+    private final Client client;
 
     private final InetSocketAddress[] httpAddresses;
 
@@ -91,16 +95,27 @@ public final class ExternalTestCluster extends TestCluster {
     public ExternalTestCluster(
         Path tempDir,
         Settings additionalSettings,
+        Function<Client, Client> clientWrapper,
+        String clusterName,
         Collection<Class<? extends Plugin>> pluginClasses,
         TransportAddress... transportAddresses
     ) {
         super(0);
+        this.clusterName = clusterName;
         Settings.Builder clientSettingsBuilder = Settings.builder()
             .put(additionalSettings)
-            .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
-            .put("client.transport.ignore_cluster_name", true)
-            .put(TransportSettings.PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
+            .put("node.master", false)
+            .put("node.data", false)
+            .put("node.ingest", false)
+            .put("node.name", EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
+            .put("cluster.name", clusterName)
+            .putList(
+                "discovery.seed_hosts",
+                Arrays.stream(transportAddresses).map(TransportAddress::toString).collect(Collectors.toList())
+            );
+        if (Environment.PATH_HOME_SETTING.exists(additionalSettings) == false) {
+            clientSettingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
+        }
         boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
 
         if (addMockTcpTransport) {
@@ -111,10 +126,13 @@ public final class ExternalTestCluster extends TestCluster {
                 pluginClasses.add(MockNioTransportPlugin.class);
             }
         }
+        pluginClasses = new ArrayList<>(pluginClasses);
+        pluginClasses.add(MockHttpTransport.TestPlugin.class);
         Settings clientSettings = clientSettingsBuilder.build();
-        MockTransportClient client = new MockTransportClient(clientSettings, pluginClasses);
+        MockNode node = new MockNode(clientSettings, pluginClasses);
+        Client client = clientWrapper.apply(node.client());
         try {
-            client.addTransportAddresses(transportAddresses);
+            node.start();
             NodesInfoResponse nodeInfos = client.admin()
                 .cluster()
                 .prepareNodesInfo()
@@ -122,7 +140,6 @@ public final class ExternalTestCluster extends TestCluster {
                 .addMetrics(SETTINGS.metricName(), HTTP.metricName())
                 .get();
             httpAddresses = new InetSocketAddress[nodeInfos.getNodes().size()];
-            this.clusterName = nodeInfos.getClusterName().value();
             int dataNodes = 0;
             int masterAndDataNodes = 0;
             for (int i = 0; i < nodeInfos.getNodes().size(); i++) {
@@ -138,11 +155,17 @@ public final class ExternalTestCluster extends TestCluster {
             this.numDataNodes = dataNodes;
             this.numMasterAndDataNodes = masterAndDataNodes;
             this.client = client;
+            this.node = node;
 
             logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
         } catch (Exception e) {
-            client.close();
-            throw e;
+            try {
+                client.close();
+                node.close();
+            } catch (IOException e1) {
+                e.addSuppressed(e1);
+            }
+            throw new OpenSearchException(e);
         }
     }
 
@@ -179,6 +202,7 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public void close() throws IOException {
         client.close();
+        node.close();
     }
 
     @Override
@@ -236,7 +260,7 @@ public final class ExternalTestCluster extends TestCluster {
 
     @Override
     public NamedWriteableRegistry getNamedWriteableRegistry() {
-        return client.getNamedWriteableRegistry();
+        return node.getNamedWriteableRegistry();
     }
 
     @Override

@@ -51,7 +51,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class FullRollingRestartIT extends OpenSearchIntegTestCase {
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {
         ClusterHealthResponse clusterHealth = requestBuilder.get();

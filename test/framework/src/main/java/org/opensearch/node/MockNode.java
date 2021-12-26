@@ -37,6 +37,7 @@ import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -238,5 +239,9 @@ public class MockNode extends Node {
     @Override
     protected void configureNodeAndClusterIdStateListener(ClusterService clusterService) {
         // do not configure this in tests as this is causing SetOnce to throw exceptions when jvm is used for multiple tests
+    }
+
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
     }
 }

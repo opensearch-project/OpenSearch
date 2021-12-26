@@ -51,7 +51,6 @@ import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.client.Client;
-import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
@@ -76,12 +75,10 @@ import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -116,7 +113,6 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
 import org.opensearch.node.Node.DiscoverySettings;
-import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.node.NodeService;
 import org.opensearch.node.NodeValidationException;
 import org.opensearch.plugins.Plugin;
@@ -126,7 +122,6 @@ import org.opensearch.search.SearchService;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.transport.MockTransportService;
-import org.opensearch.transport.MockTransportClient;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.TransportSettings;
 
@@ -171,7 +166,6 @@ import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 import static org.opensearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
 import static org.opensearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 import static org.opensearch.test.OpenSearchTestCase.assertBusy;
-import static org.opensearch.test.OpenSearchTestCase.getTestTransportType;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
 import static org.opensearch.test.NodeRoles.masterOnlyNode;
@@ -194,7 +188,7 @@ import static org.junit.Assert.fail;
  * The cluster supports randomized configuration such that nodes started in the cluster will
  * automatically load asserting services tracking resources like file handles or open searchers.
  * <p>
- * The Cluster is bound to a test lifecycle where tests must call {@link #beforeTest(java.util.Random, double)} and
+ * The Cluster is bound to a test lifecycle where tests must call {@link #beforeTest(java.util.Random)} and
  * {@link #afterTest()} to initialize and reset the cluster in order to be more reproducible. The term "more" relates
  * to the async nature of OpenSearch in combination with randomized testing. Once Threads and asynchronous calls
  * are involved reproducibility is very limited. This class should only be used through {@link OpenSearchIntegTestCase}.
@@ -813,7 +807,7 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized Client client() {
         ensureOpen();
         /* Randomly return a client to one of the nodes in the cluster */
-        return getOrBuildRandomNode().client(random);
+        return getOrBuildRandomNode().client();
     }
 
     /**
@@ -822,7 +816,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public Client dataNodeClient() {
         /* Randomly return a client to one of the nodes in the cluster */
-        return getRandomNodeAndClient(DATA_NODE_PREDICATE).client(random);
+        return getRandomNodeAndClient(DATA_NODE_PREDICATE).client();
     }
 
     /**
@@ -855,12 +849,12 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(NO_DATA_NO_MASTER_PREDICATE);
         if (randomNodeAndClient != null) {
-            return randomNodeAndClient.client(random);
+            return randomNodeAndClient.client();
         }
         int nodeId = nextNodeId.getAndIncrement();
         Settings settings = getSettings(nodeId, random.nextLong(), Settings.EMPTY);
         startCoordinatingOnlyNode(settings);
-        return getRandomNodeAndClient(NO_DATA_NO_MASTER_PREDICATE).client(random);
+        return getRandomNodeAndClient(NO_DATA_NO_MASTER_PREDICATE).client();
     }
 
     public synchronized String startCoordinatingOnlyNode(Settings settings) {
@@ -869,20 +863,12 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a transport client
-     */
-    public synchronized Client transportClient() {
-        // randomly return a transport client going to one of the nodes in the cluster
-        return getOrBuildRandomNode().transportClient();
-    }
-
-    /**
      * Returns a node client to a given node.
      */
     public Client client(String nodeName) {
         NodeAndClient nodeAndClient = nodes.get(nodeName);
         if (nodeAndClient != null) {
-            return nodeAndClient.client(random);
+            return nodeAndClient.client();
         }
         throw new AssertionError("No node found with name: [" + nodeName + "]");
     }
@@ -920,7 +906,6 @@ public final class InternalTestCluster extends TestCluster {
         private MockNode node;
         private final Settings originalNodeSettings;
         private Client nodeClient;
-        private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
         private final int nodeAndClientId;
@@ -952,16 +937,8 @@ public final class InternalTestCluster extends TestCluster {
             return DiscoveryNode.isMasterNode(node.settings());
         }
 
-        Client client(Random random) {
-            double nextDouble = random.nextDouble();
-            if (nextDouble < transportClientRatio) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("node.name"), false);
-                }
-                return getOrBuildTransportClient();
-            } else {
-                return getOrBuildNodeClient();
-            }
+        Client client() {
+            return getOrBuildNodeClient();
         }
 
         Client nodeClient() {
@@ -969,13 +946,6 @@ public final class InternalTestCluster extends TestCluster {
                 throw new RuntimeException("already closed");
             }
             return getOrBuildNodeClient();
-        }
-
-        Client transportClient() {
-            if (closed.get()) {
-                throw new RuntimeException("already closed");
-            }
-            return getOrBuildTransportClient();
         }
 
         private Client getOrBuildNodeClient() {
@@ -990,31 +960,10 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        private Client getOrBuildTransportClient() {
-            synchronized (InternalTestCluster.this) {
-                if (closed.get()) {
-                    throw new RuntimeException("already closed");
-                }
-                if (transportClient == null) {
-                    /* don't sniff client for now - doesn't work will all tests
-                     * since it might throw NoNodeAvailableException if nodes are
-                     * shut down. we first need support of transportClientRatio
-                     * as annotations or so */
-                    transportClient = new TransportClientFactory(
-                        nodeConfigurationSource.transportClientSettings(),
-                        baseDir,
-                        nodeConfigurationSource.transportClientPlugins()
-                    ).client(node, clusterName);
-                }
-                return clientWrapper.apply(transportClient);
-            }
-        }
-
         void resetClient() {
             if (closed.get() == false) {
-                Releasables.close(nodeClient, transportClient);
+                Releasables.close(nodeClient);
                 nodeClient = null;
-                transportClient = null;
             }
         }
 
@@ -1123,53 +1072,9 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    public static final String TRANSPORT_CLIENT_PREFIX = "transport_client_";
-
-    private static class TransportClientFactory {
-        private final Settings settings;
-        private final Path baseDir;
-        private final Collection<Class<? extends Plugin>> plugins;
-
-        TransportClientFactory(Settings settings, Path baseDir, Collection<Class<? extends Plugin>> plugins) {
-            this.settings = settings != null ? settings : Settings.EMPTY;
-            this.baseDir = baseDir;
-            this.plugins = plugins;
-        }
-
-        public Client client(Node node, String clusterName) {
-            TransportAddress addr = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
-            Settings nodeSettings = node.settings();
-            Builder builder = Settings.builder()
-                .put("client.transport.nodes_sampler_interval", "1s")
-                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
-                .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
-                .put("client.transport.sniff", false)
-                .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
-                .put("logger.level", nodeSettings.get("logger.level", "INFO"))
-                .put(settings);
-
-            if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
-                String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
-                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transportType);
-            } else {
-                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
-            }
-            /*
-             * The node.roles setting does not make sense for the transport client, filter it. If the transport client were not deprecated
-             * we would probably want to invest in infrastructure to mark a setting as not applicable to the transport client and then
-             * filter all such settings here.
-             */
-            final Settings finalSettings = builder.build().filter(k -> k.equals(NodeRoleSettings.NODE_ROLES_SETTING.getKey()) == false);
-            TransportClient client = new MockTransportClient(finalSettings, plugins);
-            client.addTransportAddress(addr);
-            return client;
-        }
-    }
-
     @Override
-    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException, InterruptedException {
-        super.beforeTest(random, transportClientRatio);
+    public synchronized void beforeTest(Random random) throws IOException, InterruptedException {
+        super.beforeTest(random);
         reset(true);
     }
 
@@ -2029,7 +1934,7 @@ public final class InternalTestCluster extends TestCluster {
         if (excludedNodeIds.isEmpty() == false) {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
-                Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client(random);
+                Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client();
                 client.execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
             } catch (InterruptedException | ExecutionException e) {
                 throw new AssertionError("unexpected", e);
@@ -2453,7 +2358,7 @@ public final class InternalTestCluster extends TestCluster {
 
                 @Override
                 public Client next() {
-                    return iterator.next().client(random);
+                    return iterator.next().client();
                 }
 
                 @Override

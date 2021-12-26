@@ -477,11 +477,11 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
         assertToXContentResponse(clearResponse, true, clearResponse.getNumFreed());
 
         assertRequestBuilderThrows(
-            internalCluster().transportClient().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
+            internalCluster().client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
             RestStatus.NOT_FOUND
         );
         assertRequestBuilderThrows(
-            internalCluster().transportClient().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
+            internalCluster().client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
             RestStatus.NOT_FOUND
         );
     }
@@ -530,10 +530,7 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
         ClearScrollResponse clearScrollResponse = client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
 
-        assertRequestBuilderThrows(
-            internalCluster().transportClient().prepareSearchScroll(searchResponse.getScrollId()),
-            RestStatus.NOT_FOUND
-        );
+        assertRequestBuilderThrows(internalCluster().client().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
     }
 
     public void testStringSortMissingAscTerminates() throws Exception {

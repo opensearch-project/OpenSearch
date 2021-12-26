@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests snapshot operations during disruptions.
  */
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     @Override
