@@ -1915,10 +1915,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         String blockedNode = blockNodeWithIndex(repo, index);
 
         logger.info("--> snapshot");
-        clusterAdmin().prepareCreateSnapshot(repo, snapshot).setWaitForCompletion(false).execute();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repo, snapshot);
 
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
+        awaitNumberOfSnapshotsInProgress(1);
 
         logger.info("--> removing primary shard that is being snapshotted");
         ClusterState clusterState = internalCluster().clusterService(internalCluster().getMasterName()).state();
@@ -1933,7 +1934,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         unblockNode(repo, blockedNode);
 
         logger.info("--> ensuring snapshot is aborted and the aborted shard was marked as failed");
-        SnapshotInfo snapshotInfo = waitForCompletion(repo, snapshot, TimeValue.timeValueSeconds(60));
+        SnapshotInfo snapshotInfo = snapshotFuture.get().getSnapshotInfo();
         assertEquals(1, snapshotInfo.shardFailures().size());
         assertEquals(0, snapshotInfo.shardFailures().get(0).shardId());
         assertThat(snapshotInfo.shardFailures().get(0).reason(), is("aborted"));
