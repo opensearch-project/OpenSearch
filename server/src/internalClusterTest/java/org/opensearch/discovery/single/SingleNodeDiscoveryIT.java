@@ -107,7 +107,7 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
                 Function.identity()
             )
         ) {
-            other.beforeTest(random(), 0);
+            other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             final ClusterState second = other.getInstance(ClusterService.class).state();
             assertThat(first.nodes().getSize(), equalTo(1));
@@ -174,7 +174,7 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
                     Function.identity()
                 )
             ) {
-                other.beforeTest(random(), 0);
+                other.beforeTest(random());
                 final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
                 assertThat(first.nodes().getSize(), equalTo(1));
                 assertBusy(() -> mockAppender.assertAllExpectationsMatched());

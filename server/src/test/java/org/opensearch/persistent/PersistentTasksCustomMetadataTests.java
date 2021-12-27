@@ -33,7 +33,6 @@ package org.opensearch.persistent;
 
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
-import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
@@ -80,7 +79,6 @@ import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 import static org.opensearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.opensearch.test.VersionUtils.allReleasedVersions;
 import static org.opensearch.test.VersionUtils.compatibleFutureVersion;
-import static org.opensearch.test.VersionUtils.getFirstVersion;
 import static org.opensearch.test.VersionUtils.getPreviousVersion;
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -307,12 +305,7 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(streamVersion);
         Set<String> features = new HashSet<>();
-        final boolean transportClient = randomBoolean();
-        if (transportClient) {
-            features.add(TransportClient.TRANSPORT_CLIENT_FEATURE);
-        }
-        // if a transport client, then it must have the feature otherwise we add the feature randomly
-        if (transportClient || randomBoolean()) {
+        if (randomBoolean()) {
             features.add("test");
         }
         out.setFeatures(features);
@@ -325,40 +318,6 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         );
 
         assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible_version")));
-    }
-
-    public void testFeatureSerialization() throws IOException {
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
-
-        Version minVersion = getFirstVersion();
-        tasks.addTask(
-            "test_compatible",
-            TestPersistentTasksExecutor.NAME,
-            new TestParams(
-                null,
-                randomVersionBetween(random(), minVersion, Version.CURRENT),
-                randomBoolean() ? Optional.empty() : Optional.of("existing")
-            ),
-            randomAssignment()
-        );
-        tasks.addTask(
-            "test_incompatible",
-            TestPersistentTasksExecutor.NAME,
-            new TestParams(null, randomVersionBetween(random(), minVersion, Version.CURRENT), Optional.of("non_existing")),
-            randomAssignment()
-        );
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.CURRENT);
-        Set<String> features = new HashSet<>();
-        features.add("existing");
-        features.add(TransportClient.TRANSPORT_CLIENT_FEATURE);
-        out.setFeatures(features);
-        tasks.build().writeTo(out);
-
-        PersistentTasksCustomMetadata read = new PersistentTasksCustomMetadata(
-            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())
-        );
-        assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible")));
     }
 
     public void testDisassociateDeadNodes_givenNoPersistentTasks() {

@@ -73,9 +73,4 @@ public abstract class NodeConfigurationSource {
         return Settings.EMPTY;
     }
 
-    /** Returns plugins that should be loaded in the transport client */
-    public Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.emptyList();
-    }
-
 }

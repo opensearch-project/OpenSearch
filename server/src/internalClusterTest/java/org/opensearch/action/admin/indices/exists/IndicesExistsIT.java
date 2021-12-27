@@ -44,7 +44,7 @@ import java.io.IOException;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 
-@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0, autoManageMasterNodes = false)
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public class IndicesExistsIT extends OpenSearchIntegTestCase {
 
     public void testIndexExistsWithBlocksInPlace() throws IOException {

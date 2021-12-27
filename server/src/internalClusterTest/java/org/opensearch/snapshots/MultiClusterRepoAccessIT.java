@@ -98,7 +98,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
             ),
             Function.identity()
         );
-        secondCluster.beforeTest(random(), 0);
+        secondCluster.beforeTest(random());
     }
 
     @After

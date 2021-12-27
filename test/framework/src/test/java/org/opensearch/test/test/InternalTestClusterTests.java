@@ -184,7 +184,6 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             bootstrapMasterNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
         }
         final int numClientNodes = randomIntBetween(0, 2);
-        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -202,11 +201,6 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
 
@@ -249,11 +243,11 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         try {
             {
                 Random random = new Random(seed);
-                cluster0.beforeTest(random, random.nextDouble());
+                cluster0.beforeTest(random);
             }
             {
                 Random random = new Random(seed);
-                cluster1.beforeTest(random, random.nextDouble());
+                cluster1.beforeTest(random);
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
             Iterator<Client> iterator1 = cluster1.getClients().iterator();
@@ -277,7 +271,6 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         final int maxNumDataNodes = 2;
         final int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
-        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -291,11 +284,6 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
         String nodePrefix = "test";
@@ -315,7 +303,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             Function.identity()
         );
         try {
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             final int originalMasterCount = cluster.numMasterNodes();
             final Map<String, Path[]> shardNodePaths = new HashMap<>();
             for (String name : cluster.getNodeNames()) {
@@ -348,7 +336,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             Files.createDirectories(newTestMarker);
             final String newNode3 = cluster.startNode(poorNodeDataPathSettings);
             assertThat(getNodePaths(cluster, newNode3)[0], equalTo(dataPath));
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             assertFileNotExists(newTestMarker); // the cluster should be reset for a new test, cleaning up the extra path we made
             assertFileNotExists(testMarker); // a new unknown node used this path, it should be cleaned
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
@@ -356,7 +344,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
                 assertThat("data paths for " + name + " changed", getNodePaths(cluster, name), equalTo(shardNodePaths.get(name)));
             }
 
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
             for (String name : cluster.getNodeNames()) {
                 assertThat("data paths for " + name + " changed", getNodePaths(cluster, name), equalTo(shardNodePaths.get(name)));
@@ -379,7 +367,6 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
 
-        String transportClient = getTestTransportType();
         InternalTestCluster cluster = new InternalTestCluster(
             randomLong(),
             baseDir,
@@ -404,18 +391,13 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
                 public Path nodeConfigPath(int nodeOrdinal) {
                     return null;
                 }
-
-                @Override
-                public Settings transportClientSettings() {
-                    return Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
-                }
             },
             0,
             "",
             mockPlugins(),
             Function.identity()
         );
-        cluster.beforeTest(random(), 0.0);
+        cluster.beforeTest(random());
         List<DiscoveryNodeRole> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false
@@ -474,7 +456,6 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
     }
 
     public void testTwoNodeCluster() throws Exception {
-        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -488,11 +469,6 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
         String nodePrefix = "test";
@@ -514,7 +490,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             Function.identity()
         );
         try {
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             switch (randomInt(2)) {
                 case 0:
                     cluster.stopRandomDataNode();

@@ -32,26 +32,17 @@
 package org.opensearch.transport.netty4;
 
 import org.opensearch.OpenSearchNetty4IntegTestCase;
-import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.opensearch.client.transport.TransportClient;
-import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.network.NetworkAddress;
-import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.junit.annotations.Network;
-import org.opensearch.transport.MockTransportClient;
-import org.opensearch.transport.Netty4Plugin;
 import org.opensearch.transport.TransportInfo;
 
-import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Locale;
 
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.TRANSPORT;
@@ -83,22 +74,6 @@ public class Netty4TransportMultiPortIntegrationIT extends OpenSearchNetty4Integ
             .put("transport.profiles.client1.publish_port", "4321")
             .put("transport.profiles.client1.reuse_address", true);
         return builder.build();
-    }
-
-    public void testThatTransportClientCanConnect() throws Exception {
-        Settings settings = Settings.builder()
-            .put("cluster.name", internalCluster().getClusterName())
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
-        // we have to test all the ports that the data node might be bound to
-        try (TransportClient transportClient = new MockTransportClient(settings, Arrays.asList(Netty4Plugin.class))) {
-            for (int i = 0; i <= 10; i++) {
-                transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName("127.0.0.1"), randomPort + i));
-            }
-            ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
-            assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
-        }
     }
 
     @Network
