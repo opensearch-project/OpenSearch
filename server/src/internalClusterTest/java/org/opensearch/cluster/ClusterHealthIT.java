@@ -374,7 +374,7 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
                     .prepareHealth()
                     .setWaitForEvents(Priority.LANGUID)
                     .setWaitForGreenStatus()
-                    .setMasterNodeTimeout(TimeValue.timeValueMinutes(1))
+                    .setMasterNodeTimeout(TimeValue.timeValueMinutes(2))
                     .execute()
             );
             internalCluster().restartNode(internalCluster().getMasterName(), InternalTestCluster.EMPTY_CALLBACK);
