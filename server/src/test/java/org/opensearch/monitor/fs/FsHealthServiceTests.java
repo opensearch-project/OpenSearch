@@ -230,7 +230,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             disruptFileSystemProvider.injectIODelay.set(false);
             waitUntil(
                 () -> fsHealthSrvc.getHealth().getStatus() == HEALTHY,
-                delayBetweenChecks + (3 * refreshInterval),
+                delayBetweenChecks + (4 * refreshInterval),
                 TimeUnit.MILLISECONDS
             );
             fsHealth = fsHealthSrvc.getHealth();
