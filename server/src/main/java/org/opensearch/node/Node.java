@@ -533,7 +533,7 @@ public class Node implements Closeable {
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
 
-            SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
+            SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
             List<BreakerSettings> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
                 .stream()
                 .map(plugin -> plugin.getCircuitBreaker(settings))
@@ -683,7 +683,6 @@ public class Node implements Closeable {
                 .collect(Collectors.toList());
 
             ActionModule actionModule = new ActionModule(
-                false,
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(),
@@ -701,7 +700,6 @@ public class Node implements Closeable {
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(
                 settings,
-                false,
                 pluginsService.filterPlugins(NetworkPlugin.class),
                 threadPool,
                 bigArrays,

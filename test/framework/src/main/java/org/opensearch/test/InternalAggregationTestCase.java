@@ -322,11 +322,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
      */
     protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         SearchPlugin plugin = registerPlugin();
-        SearchModule searchModule = new SearchModule(
-            Settings.EMPTY,
-            false,
-            plugin == null ? emptyList() : Collections.singletonList(plugin)
-        );
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, plugin == null ? emptyList() : Collections.singletonList(plugin));
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedWriteables());
 
         // Modules/plugins may have extra namedwriteables that are not added by agg specs

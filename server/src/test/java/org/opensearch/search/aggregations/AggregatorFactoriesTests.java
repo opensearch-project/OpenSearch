@@ -86,7 +86,7 @@ public class AggregatorFactoriesTests extends OpenSearchTestCase {
             .put("node.name", AbstractQueryTestCase.class.toString())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
-        xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, false, emptyList()).getNamedXContents());
+        xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, emptyList()).getNamedXContents());
     }
 
     public void testGetAggregatorFactories_returnsUnmodifiableList() {

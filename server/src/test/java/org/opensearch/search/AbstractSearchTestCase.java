@@ -74,7 +74,7 @@ public abstract class AbstractSearchTestCase extends OpenSearchTestCase {
         super.setUp();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
         searchExtPlugin = new TestSearchExtPlugin();
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.singletonList(searchExtPlugin));
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.singletonList(searchExtPlugin));
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());

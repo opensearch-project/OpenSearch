@@ -54,8 +54,8 @@ public class InternalSettingsPreparer {
     private static final String TEXT_PROMPT_VALUE = "${prompt.text}";
 
     /**
-     * Prepares settings for the transport client by gathering all
-     * opensearch system properties and setting defaults.
+     * TODO: Refactor this as transport client is removed and this used to prepare settings for the transport client by
+     * gathering all opensearch system properties and setting defaults.
      */
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();

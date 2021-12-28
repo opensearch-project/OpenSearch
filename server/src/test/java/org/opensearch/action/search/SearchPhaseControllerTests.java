@@ -121,9 +121,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(
-            new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables()
-        );
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 

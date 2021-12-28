@@ -347,7 +347,6 @@ import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.SearchScrollRequestBuilder;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.termvectors.MultiTermVectorsAction;
 import org.opensearch.action.termvectors.MultiTermVectorsRequest;
@@ -385,14 +384,12 @@ public abstract class AbstractClient implements Client {
     protected final Settings settings;
     private final ThreadPool threadPool;
     private final Admin admin;
-    private final ThreadedActionListener.Wrapper threadedWrapper;
 
     public AbstractClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);
         this.logger = LogManager.getLogger(this.getClass());
-        this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
     }
 
     @Override
@@ -429,7 +426,6 @@ public abstract class AbstractClient implements Client {
         Request request,
         ActionListener<Response> listener
     ) {
-        listener = threadedWrapper.wrap(listener);
         doExecute(action, request, listener);
     }
 
