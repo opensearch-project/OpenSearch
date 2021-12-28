@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class InternalAggregationsTests extends OpenSearchTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables()
+        new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables()
     );
 
     public void testReduceEmptyAggs() {

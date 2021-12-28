@@ -42,7 +42,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import static org.hamcrest.CoreMatchers.is;
 
 /**
- * Just an empty Node Start test to check eveything if fine when
+ * Just an empty Node Start test to check everything if fine when
  * starting.
  * This test requires AWS to run.
  */

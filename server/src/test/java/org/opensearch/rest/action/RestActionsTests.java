@@ -67,7 +67,7 @@ public class RestActionsTests extends OpenSearchTestCase {
 
     @BeforeClass
     public static void init() {
-        xContentRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
+        xContentRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
     }
 
     @AfterClass

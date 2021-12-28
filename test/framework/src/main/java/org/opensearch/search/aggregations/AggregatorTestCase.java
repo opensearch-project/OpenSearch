@@ -214,7 +214,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     public void initValuesSourceRegistry() {
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityPlugin());
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, plugins);
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 

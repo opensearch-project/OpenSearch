@@ -35,8 +35,6 @@ package org.opensearch.transport;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.Client;
-import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
@@ -210,45 +208,6 @@ public class TransportServiceHandshakeTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put("cluster.name", "test").build();
         NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
         NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT);
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            randomAlphaOfLength(10),
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            handleB.discoveryNode.getVersion()
-        );
-        ConnectTransportException ex = expectThrows(
-            ConnectTransportException.class,
-            () -> { handleA.transportService.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE); }
-        );
-        assertThat(ex.getMessage(), containsString("unexpected remote node"));
-        assertFalse(handleA.transportService.nodeConnected(discoveryNode));
-    }
-
-    public void testNodeConnectWithDifferentNodeIdSucceedsIfThisIsTransportClientOfSimpleNodeSampler() {
-        Settings.Builder settings = Settings.builder().put("cluster.name", "test");
-        Settings transportClientSettings = settings.put(Client.CLIENT_TYPE_SETTING_S.getKey(), TransportClient.CLIENT_TYPE).build();
-        NetworkHandle handleA = startServices("TS_A", transportClientSettings, Version.CURRENT);
-        NetworkHandle handleB = startServices("TS_B", settings.build(), Version.CURRENT);
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            randomAlphaOfLength(10),
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            handleB.discoveryNode.getVersion()
-        );
-
-        handleA.transportService.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE);
-        assertTrue(handleA.transportService.nodeConnected(discoveryNode));
-    }
-
-    public void testNodeConnectWithDifferentNodeIdFailsWhenSnifferTransportClient() {
-        Settings.Builder settings = Settings.builder().put("cluster.name", "test");
-        Settings transportClientSettings = settings.put(Client.CLIENT_TYPE_SETTING_S.getKey(), TransportClient.CLIENT_TYPE)
-            .put(TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), true)
-            .build();
-        NetworkHandle handleA = startServices("TS_A", transportClientSettings, Version.CURRENT);
-        NetworkHandle handleB = startServices("TS_B", settings.build(), Version.CURRENT);
         DiscoveryNode discoveryNode = new DiscoveryNode(
             randomAlphaOfLength(10),
             handleB.discoveryNode.getAddress(),
