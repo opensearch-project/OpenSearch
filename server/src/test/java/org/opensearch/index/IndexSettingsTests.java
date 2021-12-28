@@ -728,16 +728,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion).build();
             assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
         }
-        // disabled by default on the previous versions
-        {
-            Version prevVersion = VersionUtils.randomVersionBetween(
-                random(),
-                LegacyESVersion.V_6_5_0,
-                VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0)
-            );
-            Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), prevVersion).build();
-            assertFalse(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
-        }
     }
 
     public void testIgnoreTranslogRetentionSettingsIfSoftDeletesEnabled() {

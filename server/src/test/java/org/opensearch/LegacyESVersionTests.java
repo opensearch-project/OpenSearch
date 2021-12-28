@@ -142,7 +142,7 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
         assertThat(LegacyESVersion.fromString("5.3.0").minimumCompatibilityVersion(), equalTo(major5x));
 
         Version major56x = LegacyESVersion.fromString("5.6.0");
-        assertThat(LegacyESVersion.V_6_5_0.minimumCompatibilityVersion(), equalTo(major56x));
+        assertThat(LegacyESVersion.fromString("6.5.0").minimumCompatibilityVersion(), equalTo(major56x));
         assertThat(LegacyESVersion.fromString("6.3.1").minimumCompatibilityVersion(), equalTo(major56x));
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is

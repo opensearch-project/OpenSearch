@@ -31,8 +31,6 @@
 
 package org.opensearch.action.resync;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -55,11 +53,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     ResyncReplicationRequest(StreamInput in) throws IOException {
         super(in);
         trimAboveSeqNo = in.readZLong();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-            maxSeenAutoIdTimestampOnPrimary = in.readZLong();
-        } else {
-            maxSeenAutoIdTimestampOnPrimary = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
-        }
+        maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
     }
 
@@ -91,9 +85,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeZLong(trimAboveSeqNo);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-            out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
-        }
+        out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         out.writeArray(Translog.Operation::writeOperation, operations);
     }
 

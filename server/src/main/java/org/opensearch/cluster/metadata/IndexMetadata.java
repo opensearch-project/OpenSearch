@@ -909,16 +909,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             index = in.readString();
             routingNumShards = in.readInt();
             version = in.readLong();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-                mappingVersion = in.readVLong();
-            } else {
-                mappingVersion = 1;
-            }
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-                settingsVersion = in.readVLong();
-            } else {
-                settingsVersion = 1;
-            }
+            mappingVersion = in.readVLong();
+            settingsVersion = in.readVLong();
             if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
                 aliasesVersion = in.readVLong();
             } else {
@@ -952,12 +944,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeString(index);
             out.writeInt(routingNumShards);
             out.writeLong(version);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-                out.writeVLong(mappingVersion);
-            }
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-                out.writeVLong(settingsVersion);
-            }
+            out.writeVLong(mappingVersion);
+            out.writeVLong(settingsVersion);
             if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
                 out.writeVLong(aliasesVersion);
             }
@@ -998,16 +986,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static IndexMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-            builder.mappingVersion(in.readVLong());
-        } else {
-            builder.mappingVersion(1);
-        }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-            builder.settingsVersion(in.readVLong());
-        } else {
-            builder.settingsVersion(1);
-        }
+        builder.mappingVersion(in.readVLong());
+        builder.settingsVersion(in.readVLong());
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             builder.aliasesVersion(in.readVLong());
         } else {
@@ -1053,12 +1033,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-            out.writeVLong(mappingVersion);
-        }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-            out.writeVLong(settingsVersion);
-        }
+        out.writeVLong(mappingVersion);
+        out.writeVLong(settingsVersion);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeVLong(aliasesVersion);
         }
@@ -1074,14 +1050,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (ObjectCursor<AliasMetadata> cursor : aliases.values()) {
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-            out.writeVInt(customData.size());
-            for (final ObjectObjectCursor<String, DiffableStringMap> cursor : customData) {
-                out.writeString(cursor.key);
-                cursor.value.writeTo(out);
-            }
-        } else {
-            out.writeVInt(0);
+        out.writeVInt(customData.size());
+        for (final ObjectObjectCursor<String, DiffableStringMap> cursor : customData) {
+            out.writeString(cursor.key);
+            cursor.value.writeTo(out);
         }
         out.writeVInt(inSyncAllocationIds.size());
         for (IntObjectCursor<Set<String>> cursor : inSyncAllocationIds) {
@@ -1731,11 +1703,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_6_5_0)) {
-                assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
+            if (Assertions.ENABLED) {
+                assert mappingVersion : "mapping version should be present for indices";
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_6_5_0)) {
-                assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
+            if (Assertions.ENABLED) {
+                assert settingsVersion : "settings version should be present for indices";
             }
             if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_7_2_0)) {
                 assert aliasesVersion : "aliases version should be present for indices created on or after 7.2.0";

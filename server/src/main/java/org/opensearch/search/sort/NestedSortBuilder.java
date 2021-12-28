@@ -32,7 +32,6 @@
 
 package org.opensearch.search.sort;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -67,11 +66,7 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         path = in.readOptionalString();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-            maxChildren = in.readVInt();
-        } else {
-            maxChildren = Integer.MAX_VALUE;
-        }
+        maxChildren = in.readVInt();
     }
 
     public String getPath() {
@@ -113,9 +108,7 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         out.writeOptionalString(path);
         out.writeOptionalNamedWriteable(filter);
         out.writeOptionalWriteable(nestedSort);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_5_0)) {
-            out.writeVInt(maxChildren);
-        }
+        out.writeVInt(maxChildren);
     }
 
     @Override

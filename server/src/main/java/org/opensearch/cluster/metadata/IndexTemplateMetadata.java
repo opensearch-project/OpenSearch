@@ -33,7 +33,6 @@ package org.opensearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -224,14 +223,6 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             AliasMetadata aliasMd = new AliasMetadata(in);
             builder.putAlias(aliasMd);
         }
-        if (in.getVersion().before(LegacyESVersion.V_6_5_0)) {
-            // Previously we allowed custom metadata
-            int customSize = in.readVInt();
-            assert customSize == 0 : "expected no custom metadata";
-            if (customSize > 0) {
-                throw new IllegalStateException("unexpected custom metadata when none is supported");
-            }
-        }
         builder.version(in.readOptionalVInt());
         return builder.build();
     }
@@ -254,9 +245,6 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         out.writeVInt(aliases.size());
         for (ObjectCursor<AliasMetadata> cursor : aliases.values()) {
             cursor.value.writeTo(out);
-        }
-        if (out.getVersion().before(LegacyESVersion.V_6_5_0)) {
-            out.writeVInt(0);
         }
         out.writeOptionalVInt(version);
     }
