@@ -64,11 +64,6 @@ public abstract class ParentChildTestCase extends OpenSearchIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
-    @Override
     public Settings indexSettings() {
         Settings.Builder builder = Settings.builder()
             .put(super.indexSettings())

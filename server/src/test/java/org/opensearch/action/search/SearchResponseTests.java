@@ -83,7 +83,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
     }
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables()
+        new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables()
     );
     private AggregationsTests aggregationsTests = new AggregationsTests();
 

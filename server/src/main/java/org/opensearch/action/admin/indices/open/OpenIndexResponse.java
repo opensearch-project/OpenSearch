@@ -56,7 +56,7 @@ public class OpenIndexResponse extends ShardsAcknowledgedResponse {
     }
 
     public OpenIndexResponse(StreamInput in) throws IOException {
-        super(in, true, true);
+        super(in, true);
     }
 
     public OpenIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {

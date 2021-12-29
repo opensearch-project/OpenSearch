@@ -93,7 +93,6 @@ configure([
   project(":client:client-benchmark-noop-api-plugin"),
   project(":client:rest-high-level"),
   project(":client:test"),
-  project(":client:transport"),
   project(":distribution:tools:java-version-checker"),
   project(":distribution:tools:keystore-cli"),
   project(":distribution:tools:launchers"),

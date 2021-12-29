@@ -93,11 +93,6 @@ public class DiscoveryNodeRoleIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(AdditionalRolePlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(AdditionalRolePlugin.class);
-    }
-
     public void testDefaultHasAdditionalRole() {
         runTestNodeHasAdditionalRole(Settings.EMPTY);
     }

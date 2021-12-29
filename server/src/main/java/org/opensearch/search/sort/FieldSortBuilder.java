@@ -579,9 +579,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (nestedSort == null) {
             return resolveNested(context, nestedPath, nestedFilter);
         }
-        if (context.indexVersionCreated().before(LegacyESVersion.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
-            throw new QueryShardException(context, "max_children is only supported on v6.5.0 or higher");
-        }
         validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
         return resolveNested(context, nestedSort);
     }

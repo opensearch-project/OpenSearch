@@ -36,7 +36,6 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
-import org.opensearch.client.transport.TransportClient;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.concurrent.CountDownLatch;
@@ -72,11 +71,6 @@ public class ListenerActionIT extends OpenSearchIntegTestCase {
 
         latch.await();
 
-        boolean shouldBeThreaded = TransportClient.CLIENT_TYPE.equals(Client.CLIENT_TYPE_SETTING_S.get(client.settings()));
-        if (shouldBeThreaded) {
-            assertTrue(threadName.get().contains("listener"));
-        } else {
-            assertFalse(threadName.get().contains("listener"));
-        }
+        assertFalse(threadName.get().contains("listener"));
     }
 }

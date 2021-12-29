@@ -213,11 +213,11 @@ public class SearchModuleTests extends OpenSearchTestCase {
     }
 
     private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
-        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, singletonList(plugin)).getNamedXContents());
+        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin)).getNamedXContents());
     }
 
     public void testRegisterSuggester() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<SuggesterSpec<?>> getSuggesters() {
                 return singletonList(
@@ -314,7 +314,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
 
     public void testRegisterHighlighter() {
         CustomHighlighter customHighlighter = new CustomHighlighter();
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public Map<String, Highlighter> getHighlighters() {
                 return singletonMap("custom", customHighlighter);
@@ -332,7 +332,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
-        SearchModule module = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule module = new SearchModule(Settings.EMPTY, emptyList());
 
         Set<String> registeredNonDeprecated = module.getNamedXContents()
             .stream()
@@ -351,7 +351,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
     }
 
     public void testRegisterAggregation() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec("test", TestAggregationBuilder::new, TestAggregationBuilder::fromXContent));
@@ -371,7 +371,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
     }
 
     public void testRegisterPipelineAggregation() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(
@@ -398,7 +398,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
     }
 
     public void testRegisterRescorer() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<RescorerSpec<?>> getRescorers() {
                 return singletonList(new RescorerSpec<>("test", TestRescorerBuilder::new, TestRescorerBuilder::fromXContent));

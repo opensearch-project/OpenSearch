@@ -84,11 +84,6 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
         return Arrays.asList(TestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(TestPlugin.class);
-    }
-
     public static class Request extends ReplicationRequest<Request> {
         public Request(ShardId shardId) {
             super(shardId);

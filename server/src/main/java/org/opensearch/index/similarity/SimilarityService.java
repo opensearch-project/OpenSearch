@@ -333,7 +333,7 @@ public final class SimilarityService extends AbstractIndexComponent {
     private static void fail(Version indexCreatedVersion, String message) {
         if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
             throw new IllegalArgumentException(message);
-        } else if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_6_5_0)) {
+        } else {
             deprecationLogger.deprecate("similarity_failure", message);
         }
     }

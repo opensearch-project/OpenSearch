@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -93,7 +92,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
-            String key = in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0) ? in.readString() : in.readOptionalString();
+            String key = in.readString();
 
             BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
             BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
@@ -105,11 +104,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-                out.writeString(key);
-            } else {
-                out.writeOptionalString(key);
-            }
+            out.writeString(key);
             out.writeBoolean(from != null);
             if (from != null) {
                 out.writeBytesRef(from);

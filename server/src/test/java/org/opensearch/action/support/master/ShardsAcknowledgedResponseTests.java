@@ -50,26 +50,17 @@ public class ShardsAcknowledgedResponseTests extends OpenSearchTestCase {
         ShardsAcknowledgedResponse result = copyWriteable(
             testInstance,
             new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new TestImpl(in, true, true),
+            in -> new TestImpl(in, true),
             Version.CURRENT
         );
         assertThat(result.isAcknowledged(), is(true));
         assertThat(result.isShardsAcknowledged(), is(true));
-
-        result = copyWriteable(
-            testInstance,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new TestImpl(in, false, false),
-            Version.CURRENT
-        );
-        assertThat(result.isAcknowledged(), is(false));
-        assertThat(result.isShardsAcknowledged(), is(false));
     }
 
     private static class TestImpl extends ShardsAcknowledgedResponse {
 
-        private TestImpl(StreamInput in, boolean readShardsAcknowledged, boolean readAcknowledged) throws IOException {
-            super(in, readShardsAcknowledged, readAcknowledged);
+        private TestImpl(StreamInput in, boolean readShardsAcknowledged) throws IOException {
+            super(in, readShardsAcknowledged);
         }
 
         private TestImpl(boolean acknowledged, boolean shardsAcknowledged) {

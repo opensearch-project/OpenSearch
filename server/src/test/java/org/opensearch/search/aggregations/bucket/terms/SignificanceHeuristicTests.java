@@ -103,7 +103,7 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
         // read
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         StreamInput in = new InputStreamStreamInput(inBuffer);
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList()); // populates the registry through side effects
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList()); // populates the registry through side effects
         NamedWriteableRegistry registry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         in = new NamedWriteableAwareStreamInput(in, registry);
         in.setVersion(version);
@@ -549,6 +549,6 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
     }
 }

@@ -276,9 +276,7 @@ public class SuggestTests extends OpenSearchTestCase {
         final Suggest suggest = createTestItem();
         final Suggest bwcSuggest;
 
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables()
-        );
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(bwcVersion);

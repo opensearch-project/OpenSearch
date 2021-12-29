@@ -9,17 +9,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Load Excludes
-        run: |
-          LYCHEE_EXCLUDE=$(sed -e :a  -e 'N;s/\n/ /;ta' .lycheeexclude)
-          echo "LYCHEE_EXCLUDE=$LYCHEE_EXCLUDE" >> $GITHUB_ENV
-
       - name: lychee Link Checker
         id: lychee
-        uses: lycheeverse/lychee-action@master
+        uses: lycheeverse/lychee-action@v1.2.0
         with:
-          args: --accept=200,403,429 --exclude ${{ env.LYCHEE_EXCLUDE }} --exclude-mail "**/*.html" "**/*.md" "**/*.txt" "**/*.json"
+          args: --accept=200,403,429 --exclude-mail **/*.html **/*.md **/*.txt **/*.json --exclude-file .lychee.excludes
+          fail: true
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-      - name: Fail if there were link errors
-        run: exit ${{ steps.lychee.outputs.exit_code }}

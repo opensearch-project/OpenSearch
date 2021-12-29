@@ -72,11 +72,6 @@ public class FunctionScorePluginIT extends OpenSearchIntegTestCase {
         return Arrays.asList(CustomDistanceScorePlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(CustomDistanceScorePlugin.class);
-    }
-
     public void testPlugin() throws Exception {
         client().admin()
             .indices()
