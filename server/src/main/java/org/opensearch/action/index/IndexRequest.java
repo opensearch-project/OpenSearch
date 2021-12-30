@@ -167,13 +167,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             contentType = null;
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            ifSeqNo = in.readZLong();
-            ifPrimaryTerm = in.readVLong();
-        } else {
-            ifSeqNo = UNASSIGNED_SEQ_NO;
-            ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-        }
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             requireAlias = in.readBoolean();
         } else {
@@ -765,18 +760,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            out.writeZLong(ifSeqNo);
-            out.writeVLong(ifPrimaryTerm);
-        } else if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
-            assert false : "setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]";
-            throw new IllegalStateException(
-                "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. "
-                    + "Stream version ["
-                    + out.getVersion()
-                    + "]"
-            );
-        }
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
