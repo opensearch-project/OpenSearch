@@ -56,7 +56,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Matchers;
+import org.mockito.Mockito;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -81,7 +81,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsNull.nullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -459,6 +459,6 @@ public class SeedHostsResolverTests extends OpenSearchTestCase {
         assertThat(transportAddresses, hasSize(1)); // only one of the two is valid and will be used
         assertThat(transportAddresses.get(0).getAddress(), equalTo("127.0.0.1"));
         assertThat(transportAddresses.get(0).getPort(), equalTo(9301));
-        verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), Matchers.any(IllegalArgumentException.class));
+        verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), Mockito.any(IllegalArgumentException.class));
     }
 }

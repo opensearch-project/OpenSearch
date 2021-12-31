@@ -41,14 +41,14 @@ import org.joni.Matcher;
 import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class MatcherWatchdogTests extends OpenSearchTestCase {
 
@@ -100,7 +100,7 @@ public class MatcherWatchdogTests extends OpenSearchTestCase {
             (delay, command) -> threadPool.schedule(command, delay, TimeUnit.MILLISECONDS)
         );
         // Periodic action is not scheduled because no thread is registered
-        verifyZeroInteractions(threadPool);
+        verifyNoInteractions(threadPool);
         CompletableFuture<Runnable> commandFuture = new CompletableFuture<>();
         // Periodic action is scheduled because a thread is registered
         doAnswer(invocationOnMock -> {
@@ -115,7 +115,7 @@ public class MatcherWatchdogTests extends OpenSearchTestCase {
         watchdog.unregister(matcher);
         command.run();
         // Periodic action is not scheduled again because no thread is registered
-        verifyZeroInteractions(threadPool);
+        verifyNoInteractions(threadPool);
         watchdog.register(matcher);
         Thread otherThread = new Thread(() -> {
             Matcher otherMatcher = mock(Matcher.class);

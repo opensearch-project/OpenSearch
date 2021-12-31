@@ -53,10 +53,10 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.isNull;
-import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -252,7 +252,7 @@ public class SocketChannelContextTests extends OpenSearchTestCase {
         ByteBuffer[] buffers = { ByteBuffer.wrap(createMessage(10)) };
         context.sendMessage(buffers, listener);
 
-        verify(listener).accept(isNull(Void.class), any(ClosedChannelException.class));
+        verify(listener).accept(isNull(), any(ClosedChannelException.class));
     }
 
     public void testSendMessageFromDifferentThreadIsQueuedWithSelector() throws Exception {
