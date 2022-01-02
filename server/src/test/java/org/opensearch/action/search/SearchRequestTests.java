@@ -55,10 +55,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -115,28 +112,15 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         } else {
             assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         }
-        if (version.before(LegacyESVersion.V_6_7_0)) {
-            assertNull(deserializedRequest.getLocalClusterAlias());
-            assertAbsoluteStartMillisIsCurrentTime(deserializedRequest);
-            assertTrue(deserializedRequest.isFinalReduce());
-        } else {
-            assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
-            assertEquals(searchRequest.getAbsoluteStartMillis(), deserializedRequest.getAbsoluteStartMillis());
-            assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
-        }
+        assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
+        assertEquals(searchRequest.getAbsoluteStartMillis(), deserializedRequest.getAbsoluteStartMillis());
+        assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
 
         if (version.onOrAfter(Version.V_1_1_0)) {
             assertEquals(searchRequest.getCancelAfterTimeInterval(), deserializedRequest.getCancelAfterTimeInterval());
         } else {
             assertNull(deserializedRequest.getCancelAfterTimeInterval());
         }
-    }
-
-    private static void assertAbsoluteStartMillisIsCurrentTime(SearchRequest searchRequest) {
-        long before = System.currentTimeMillis();
-        long absoluteStartMillis = searchRequest.getOrCreateAbsoluteStartMillis();
-        long after = System.currentTimeMillis();
-        assertThat(absoluteStartMillis, allOf(greaterThanOrEqualTo(before), lessThanOrEqualTo(after)));
     }
 
     public void testIllegalArguments() {

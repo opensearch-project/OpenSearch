@@ -921,7 +921,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testSnapshotInProgressException() throws IOException {
         SnapshotInProgressException orig = new SnapshotInProgressException("boom");
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_7_0, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         SnapshotInProgressException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
     }

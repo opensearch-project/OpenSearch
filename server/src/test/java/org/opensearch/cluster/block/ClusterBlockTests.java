@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.block;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.ImmutableOpenMap;
@@ -60,7 +59,7 @@ public class ClusterBlockTests extends OpenSearchTestCase {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
             Version version = randomVersion(random());
-            ClusterBlock clusterBlock = randomClusterBlock(version);
+            ClusterBlock clusterBlock = randomClusterBlock();
 
             BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(version);
@@ -138,11 +137,7 @@ public class ClusterBlockTests extends OpenSearchTestCase {
     }
 
     private ClusterBlock randomClusterBlock() {
-        return randomClusterBlock(randomVersion(random()));
-    }
-
-    private ClusterBlock randomClusterBlock(final Version version) {
-        final String uuid = (version.onOrAfter(LegacyESVersion.V_6_7_0) && randomBoolean()) ? UUIDs.randomBase64UUID() : null;
+        final String uuid = randomBoolean() ? UUIDs.randomBase64UUID() : null;
         final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
         return new ClusterBlock(
             randomInt(),

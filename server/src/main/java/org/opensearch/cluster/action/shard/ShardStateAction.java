@@ -35,7 +35,6 @@ package org.opensearch.cluster.action.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
@@ -87,8 +86,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
 public class ShardStateAction {
 
@@ -819,11 +816,7 @@ public class ShardStateAction {
             super(in);
             shardId = new ShardId(in);
             allocationId = in.readString();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-                primaryTerm = in.readVLong();
-            } else {
-                primaryTerm = UNASSIGNED_PRIMARY_TERM;
-            }
+            primaryTerm = in.readVLong();
             this.message = in.readString();
         }
 
@@ -839,9 +832,7 @@ public class ShardStateAction {
             super.writeTo(out);
             shardId.writeTo(out);
             out.writeString(allocationId);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-                out.writeVLong(primaryTerm);
-            }
+            out.writeVLong(primaryTerm);
             out.writeString(message);
         }
 
