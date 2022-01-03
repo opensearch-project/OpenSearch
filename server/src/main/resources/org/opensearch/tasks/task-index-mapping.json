@@ -16,6 +16,9 @@
           "cancellable": {
             "type": "boolean"
           },
+          "cancelled": {
+            "type": "boolean"
+          },
           "id": {
             "type": "long"
           },

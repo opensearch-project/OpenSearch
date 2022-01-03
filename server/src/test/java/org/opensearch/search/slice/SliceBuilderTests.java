@@ -42,7 +42,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
@@ -358,21 +357,6 @@ public class SliceBuilderTests extends OpenSearchTestCase {
                 () -> builder.toFilter(null, createRequest(0), context, Version.CURRENT)
             );
             assertThat(exc.getMessage(), containsString("cannot load numeric doc values"));
-        }
-    }
-
-    public void testToFilterDeprecationMessage() throws IOException {
-        Directory dir = new ByteBuffersDirectory();
-        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
-            writer.commit();
-        }
-        try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context = createShardContext(LegacyESVersion.V_6_3_0, reader, "_uid", null, 1, 0);
-            SliceBuilder builder = new SliceBuilder("_uid", 5, 10);
-            Query query = builder.toFilter(null, createRequest(0), context, Version.CURRENT);
-            assertThat(query, instanceOf(TermsSliceQuery.class));
-            assertThat(builder.toFilter(null, createRequest(0), context, Version.CURRENT), equalTo(query));
-            assertWarnings("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
         }
     }
 

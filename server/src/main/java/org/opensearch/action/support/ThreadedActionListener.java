@@ -36,53 +36,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.opensearch.client.Client;
-import org.opensearch.client.transport.TransportClient;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.threadpool.ThreadPool;
-
-import java.util.concurrent.Future;
 
 /**
  * An action listener that wraps another action listener and threading its execution.
  */
 public final class ThreadedActionListener<Response> implements ActionListener<Response> {
-
-    /**
-     * Wrapper that can be used to automatically wrap a listener in a threaded listener if needed.
-     */
-    public static class Wrapper {
-
-        private final Logger logger;
-        private final ThreadPool threadPool;
-
-        private final boolean threadedListener;
-
-        public Wrapper(Logger logger, Settings settings, ThreadPool threadPool) {
-            this.logger = logger;
-            this.threadPool = threadPool;
-            // Should the action listener be threaded or not by default. Action listeners are automatically threaded for
-            // the transport client in order to make sure client side code is not executed on IO threads.
-            this.threadedListener = TransportClient.CLIENT_TYPE.equals(Client.CLIENT_TYPE_SETTING_S.get(settings));
-        }
-
-        public <Response> ActionListener<Response> wrap(ActionListener<Response> listener) {
-            if (threadedListener == false) {
-                return listener;
-            }
-            // if its a future, the callback is very lightweight (flipping a bit) so no need to wrap it
-            if (listener instanceof Future) {
-                return listener;
-            }
-            // already threaded...
-            if (listener instanceof ThreadedActionListener) {
-                return listener;
-            }
-            return new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener, false);
-        }
-    }
-
     private final Logger logger;
     private final ThreadPool threadPool;
     private final String executor;

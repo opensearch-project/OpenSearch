@@ -50,7 +50,8 @@ public class TaskTests extends OpenSearchTestCase {
         long taskId = randomIntBetween(0, 100000);
         long startTime = randomNonNegativeLong();
         long runningTime = randomNonNegativeLong();
-        boolean cancellable = randomBoolean();
+        boolean cancellable = false;
+        boolean cancelled = false;
         Map<String, Long> stats = new LinkedHashMap<String, Long>() {
             {
                 put(TaskStatsType.MEMORY.toString(), randomNonNegativeLong());
@@ -66,6 +67,7 @@ public class TaskTests extends OpenSearchTestCase {
             startTime,
             runningTime,
             cancellable,
+            cancelled,
             TaskId.EMPTY_TASK_ID,
             Collections.singletonMap("foo", "bar"),
             stats
@@ -79,8 +81,107 @@ public class TaskTests extends OpenSearchTestCase {
         assertEquals(((Number) map.get("start_time_in_millis")).longValue(), startTime);
         assertEquals(((Number) map.get("running_time_in_nanos")).longValue(), runningTime);
         assertEquals(map.get("cancellable"), cancellable);
+        assertEquals(map.get("cancelled"), cancelled);
         assertEquals(map.get("headers"), Collections.singletonMap("foo", "bar"));
         assertEquals(map.get("resource_stats"), stats);
     }
 
+    public void testCancellableOptionWhenCancelledTrue() {
+        String nodeId = randomAlphaOfLength(10);
+        long taskId = randomIntBetween(0, 100000);
+        long startTime = randomNonNegativeLong();
+        long runningTime = randomNonNegativeLong();
+        boolean cancellable = true;
+        boolean cancelled = true;
+        Map<String, Long> stats = new LinkedHashMap<String, Long>() {
+            {
+                put(TaskStatsType.MEMORY.toString(), randomNonNegativeLong());
+                put(TaskStatsType.CPU.toString(), randomNonNegativeLong());
+            }
+        };
+        TaskInfo taskInfo = new TaskInfo(
+            new TaskId(nodeId, taskId),
+            "test_type",
+            "test_action",
+            "test_description",
+            null,
+            startTime,
+            runningTime,
+            cancellable,
+            cancelled,
+            TaskId.EMPTY_TASK_ID,
+            Collections.singletonMap("foo", "bar"),
+            stats
+        );
+        String taskInfoString = taskInfo.toString();
+        Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
+        assertEquals(map.get("cancellable"), cancellable);
+        assertEquals(map.get("cancelled"), cancelled);
+    }
+
+    public void testCancellableOptionWhenCancelledFalse() {
+        String nodeId = randomAlphaOfLength(10);
+        long taskId = randomIntBetween(0, 100000);
+        long startTime = randomNonNegativeLong();
+        long runningTime = randomNonNegativeLong();
+        boolean cancellable = true;
+        boolean cancelled = false;
+        Map<String, Long> stats = new LinkedHashMap<String, Long>() {
+            {
+                put(TaskStatsType.MEMORY.toString(), randomNonNegativeLong());
+                put(TaskStatsType.CPU.toString(), randomNonNegativeLong());
+            }
+        };
+        TaskInfo taskInfo = new TaskInfo(
+            new TaskId(nodeId, taskId),
+            "test_type",
+            "test_action",
+            "test_description",
+            null,
+            startTime,
+            runningTime,
+            cancellable,
+            cancelled,
+            TaskId.EMPTY_TASK_ID,
+            Collections.singletonMap("foo", "bar"),
+            stats
+        );
+        String taskInfoString = taskInfo.toString();
+        Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
+        assertEquals(map.get("cancellable"), cancellable);
+        assertEquals(map.get("cancelled"), cancelled);
+    }
+
+    public void testNonCancellableOption() {
+        String nodeId = randomAlphaOfLength(10);
+        long taskId = randomIntBetween(0, 100000);
+        long startTime = randomNonNegativeLong();
+        long runningTime = randomNonNegativeLong();
+        boolean cancellable = false;
+        boolean cancelled = true;
+        Map<String, Long> stats = new LinkedHashMap<String, Long>() {
+            {
+                put(TaskStatsType.MEMORY.toString(), randomNonNegativeLong());
+                put(TaskStatsType.CPU.toString(), randomNonNegativeLong());
+            }
+        };
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TaskInfo(
+                new TaskId(nodeId, taskId),
+                "test_type",
+                "test_action",
+                "test_description",
+                null,
+                startTime,
+                runningTime,
+                cancellable,
+                cancelled,
+                TaskId.EMPTY_TASK_ID,
+                Collections.singletonMap("foo", "bar"),
+                stats
+            )
+        );
+        assertEquals(e.getMessage(), "task cannot be cancelled");
+    }
 }

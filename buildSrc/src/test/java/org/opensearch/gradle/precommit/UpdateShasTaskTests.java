@@ -91,9 +91,10 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
         getLicensesDir(project).mkdir();
         task.updateShas();
 
-        Path groovySha = Files.list(getLicensesDir(project).toPath()).findFirst().get();
-
-        assertTrue(groovySha.toFile().getName().startsWith("groovy-"));
+        assertTrue(
+            "Expected a sha file to exist with a name prefix of 'groovy-",
+            Files.list(getLicensesDir(project).toPath()).anyMatch(sha -> sha.toFile().getName().startsWith("groovy-"))
+        );
     }
 
     @Test

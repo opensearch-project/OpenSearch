@@ -80,6 +80,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     private final boolean cancellable;
 
+    private final boolean cancelled;
+
     private final TaskId parentTaskId;
 
     private final Map<String, String> headers;
@@ -95,10 +97,14 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         long startTime,
         long runningTimeNanos,
         boolean cancellable,
+        boolean cancelled,
         TaskId parentTaskId,
         Map<String, String> headers,
         Map<String, Long> resourceStats
     ) {
+        if (cancellable == false && cancelled == true) {
+            throw new IllegalArgumentException("task cannot be cancelled");
+        }
         this.taskId = taskId;
         this.type = type;
         this.action = action;
@@ -107,6 +113,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         this.startTime = startTime;
         this.runningTimeNanos = runningTimeNanos;
         this.cancellable = cancellable;
+        this.cancelled = cancelled;
         this.parentTaskId = parentTaskId;
         this.headers = headers;
         this.resourceStats = resourceStats;
@@ -124,6 +131,14 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         startTime = in.readLong();
         runningTimeNanos = in.readLong();
         cancellable = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            cancelled = in.readBoolean();
+        } else {
+            cancelled = false;
+        }
+        if (cancellable == false && cancelled == true) {
+            throw new IllegalArgumentException("task cannot be cancelled");
+        }
         parentTaskId = TaskId.readFromStream(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
         if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
@@ -143,6 +158,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         out.writeLong(startTime);
         out.writeLong(runningTimeNanos);
         out.writeBoolean(cancellable);
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            out.writeBoolean(cancelled);
+        }
         parentTaskId.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
@@ -200,6 +218,13 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
     }
 
     /**
+     * Returns true if the task has been cancelled
+     */
+    public boolean isCancelled() {
+        return cancelled;
+    }
+
+    /**
      * Returns the parent task id
      */
     public TaskId getParentTaskId() {
@@ -238,6 +263,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         builder.field("running_time_in_nanos", runningTimeNanos);
         builder.field("cancellable", cancellable);
+        builder.field("cancelled", cancelled);
         if (parentTaskId.isSet()) {
             builder.field("parent_task_id", parentTaskId.toString());
         }
@@ -270,6 +296,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         long startTime = (Long) a[i++];
         long runningTimeNanos = (Long) a[i++];
         boolean cancellable = (Boolean) a[i++];
+        boolean cancelled = a[i++] == Boolean.TRUE;
         String parentTaskIdString = (String) a[i++];
         @SuppressWarnings("unchecked")
         Map<String, String> headers = (Map<String, String>) a[i++];
@@ -294,6 +321,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             startTime,
             runningTimeNanos,
             cancellable,
+            cancelled,
             parentTaskId,
             headers,
             resourceStats
@@ -311,6 +339,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareLong(constructorArg(), new ParseField("start_time_in_millis"));
         PARSER.declareLong(constructorArg(), new ParseField("running_time_in_nanos"));
         PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField("cancelled"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("resource_stats"));
@@ -336,6 +365,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             && Objects.equals(runningTimeNanos, other.runningTimeNanos)
             && Objects.equals(parentTaskId, other.parentTaskId)
             && Objects.equals(cancellable, other.cancellable)
+            && Objects.equals(cancelled, other.cancelled)
             && Objects.equals(status, other.status)
             && Objects.equals(headers, other.headers)
             && Objects.equals(resourceStats, other.resourceStats);
@@ -352,6 +382,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             runningTimeNanos,
             parentTaskId,
             cancellable,
+            cancelled,
             status,
             headers,
             resourceStats

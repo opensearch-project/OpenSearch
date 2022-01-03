@@ -49,7 +49,6 @@ import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.bootstrap.BootstrapSettings;
 import org.opensearch.client.Client;
-import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.InternalClusterInfoService;
@@ -217,10 +216,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         new HashSet<>(
             Arrays.asList(
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-                TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL,
-                TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT,
-                TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME,
-                TransportClient.CLIENT_TRANSPORT_SNIFF,
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
                 BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
                 BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,

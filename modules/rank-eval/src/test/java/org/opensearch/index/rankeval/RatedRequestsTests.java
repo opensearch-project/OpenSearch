@@ -77,7 +77,7 @@ public class RatedRequestsTests extends OpenSearchTestCase {
     @BeforeClass
     public static void init() {
         xContentRegistry = new NamedXContentRegistry(
-            Stream.of(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents().stream())
+            Stream.of(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents().stream())
                 .flatMap(Function.identity())
                 .collect(toList())
         );

@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.stats;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
@@ -80,9 +79,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         dataPath = in.readString();
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-        }
+        retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
     }
 
     public ShardStats(
@@ -145,9 +142,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeString(dataPath);
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            out.writeOptionalWriteable(retentionLeaseStats);
-        }
+        out.writeOptionalWriteable(retentionLeaseStats);
     }
 
     @Override

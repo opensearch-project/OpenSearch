@@ -38,7 +38,6 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.lang.management.ManagementFactory;
@@ -109,8 +108,6 @@ public class SimpleThreadPoolIT extends OpenSearchIntegTestCase {
                 continue;
             }
             String nodePrefix = "("
-                + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX)
-                + ")?("
                 + Pattern.quote(OpenSearchIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
                 + "|"
                 + Pattern.quote(OpenSearchIntegTestCase.TEST_CLUSTER_NODE_PREFIX)

@@ -32,48 +32,34 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.client.Client;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.env.Environment;
+import org.mockito.Mockito;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.MockTransportClient;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SearchRequestBuilderTests extends OpenSearchTestCase {
-    private static Client client;
 
-    @BeforeClass
-    public static void initClient() {
-        // this client will not be hit by any request, but it needs to be a non null proper client
-        // that is why we create it but we don't add any transport address to it
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        client = new MockTransportClient(settings);
-    }
-
-    @AfterClass
-    public static void closeClient() {
-        client.close();
-        client = null;
+    private SearchRequestBuilder createBuilder() {
+        OpenSearchClient client = Mockito.mock(OpenSearchClient.class);
+        return new SearchRequestBuilder(client, SearchAction.INSTANCE);
     }
 
     public void testEmptySourceToString() {
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
+        SearchRequestBuilder searchRequestBuilder = createBuilder();
         assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().toString()));
     }
 
     public void testQueryBuilderQueryToString() {
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
+        SearchRequestBuilder searchRequestBuilder = createBuilder();
         searchRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
         assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).toString()));
     }
 
     public void testSearchSourceBuilderToString() {
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
+        SearchRequestBuilder searchRequestBuilder = createBuilder();
         searchRequestBuilder.setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
         assertThat(
             searchRequestBuilder.toString(),
@@ -82,8 +68,9 @@ public class SearchRequestBuilderTests extends OpenSearchTestCase {
     }
 
     public void testThatToStringDoesntWipeRequestSource() {
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch()
-            .setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
+        SearchRequestBuilder searchRequestBuilder = createBuilder().setSource(
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))
+        );
         String preToString = searchRequestBuilder.request().toString();
         assertThat(
             searchRequestBuilder.toString(),

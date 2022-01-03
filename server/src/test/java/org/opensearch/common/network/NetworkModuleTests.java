@@ -121,14 +121,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 return Collections.singletonMap("custom", custom);
             }
         };
-        NetworkModule module = newNetworkModule(settings, false, plugin);
-        assertFalse(module.isTransportClient());
+        NetworkModule module = newNetworkModule(settings, plugin);
         assertSame(custom, module.getTransportSupplier());
-
-        // check it works with transport only as well
-        module = newNetworkModule(settings, true, plugin);
-        assertSame(custom, module.getTransportSupplier());
-        assertTrue(module.isTransportClient());
     }
 
     public void testRegisterHttpTransport() {
@@ -138,7 +132,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             .build();
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
 
-        NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
+        NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
                 Settings settings,
@@ -155,11 +149,9 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             }
         });
         assertSame(custom, module.getHttpServerTransportSupplier());
-        assertFalse(module.isTransportClient());
 
         settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
-        NetworkModule newModule = newNetworkModule(settings, false);
-        assertFalse(newModule.isTransportClient());
+        NetworkModule newModule = newNetworkModule(settings);
         expectThrows(IllegalStateException.class, () -> newModule.getHttpServerTransportSupplier());
     }
 
@@ -173,7 +165,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         Supplier<Transport> customTransport = () -> null;  // content doesn't matter we check reference equality
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
-        NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
+        NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(
                 Settings settings,
@@ -216,7 +208,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
         Supplier<Transport> customTransport = () -> null;
-        NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
+        NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(
                 Settings settings,
@@ -273,7 +265,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 return actualHandler;
             }
         };
-        NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
+        NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
             @Override
             public List<TransportInterceptor> getTransportInterceptors(
                 NamedWriteableRegistry namedWriteableRegistry,
@@ -295,7 +287,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         assertSame(((NetworkModule.CompositeTransportInterceptor) transportInterceptor).transportInterceptors.get(0), interceptor);
 
         NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
-            newNetworkModule(settings, false, new NetworkPlugin() {
+            newNetworkModule(settings, new NetworkPlugin() {
                 @Override
                 public List<TransportInterceptor> getTransportInterceptors(
                     NamedWriteableRegistry namedWriteableRegistry,
@@ -309,10 +301,9 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         assertEquals("interceptor must not be null", nullPointerException.getMessage());
     }
 
-    private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {
+    private NetworkModule newNetworkModule(Settings settings, NetworkPlugin... plugins) {
         return new NetworkModule(
             settings,
-            transportClient,
             Arrays.asList(plugins),
             threadPool,
             null,

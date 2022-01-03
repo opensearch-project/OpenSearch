@@ -149,6 +149,7 @@ public class Task {
             startTime,
             System.nanoTime() - startTimeNanos,
             this instanceof CancellableTask,
+            this instanceof CancellableTask && ((CancellableTask) this).isCancelled(),
             parentTask,
             headers,
             totalResourceStats

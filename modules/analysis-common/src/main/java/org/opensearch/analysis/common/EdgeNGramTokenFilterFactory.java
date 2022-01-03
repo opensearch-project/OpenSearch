@@ -35,8 +35,6 @@ package org.opensearch.analysis.common;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -44,9 +42,6 @@ import org.opensearch.index.analysis.AbstractTokenFilterFactory;
 import org.opensearch.index.analysis.TokenFilterFactory;
 
 public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(EdgeNGramTokenFilterFactory.class);
-
     private final int minGram;
 
     private final int maxGram;
@@ -102,14 +97,6 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getSynonymFilter() {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-        } else {
-            DEPRECATION_LOGGER.deprecate(
-                "synonym_tokenfilters",
-                "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
-            );
-            return this;
-        }
+        throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 }

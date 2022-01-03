@@ -570,11 +570,4 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
         plugins.add(TaskPlugin.class);
         return plugins;
     }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.transportClientPlugins());
-        plugins.add(TaskPlugin.class);
-        return plugins;
-    }
 }

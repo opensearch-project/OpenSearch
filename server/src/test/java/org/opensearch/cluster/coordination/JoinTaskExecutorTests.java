@@ -54,7 +54,6 @@ import java.util.HashSet;
 import java.util.Map;
 
 import static org.mockito.Matchers.anyBoolean;
-import static org.opensearch.test.VersionUtils.getPreviousVersion;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomVersion;
@@ -108,7 +107,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
         final Version minNodeVersion = nodes.getMinNodeVersion();
         if (maxNodeVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            final Version tooLow = getPreviousVersion(maxNodeVersion.minimumCompatibilityVersion());
+            final Version tooLow = LegacyESVersion.fromString("6.7.0");
             expectThrows(IllegalStateException.class, () -> {
                 if (randomBoolean()) {
                     JoinTaskExecutor.ensureNodesCompatibility(tooLow, nodes);
@@ -119,7 +118,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         }
 
         if (minNodeVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            Version oldMajor = LegacyESVersion.V_6_4_0.minimumCompatibilityVersion();
+            Version oldMajor = minNodeVersion.minimumCompatibilityVersion();
             expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 

@@ -41,7 +41,6 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.DoubleComparator;
 import org.apache.lucene.util.BitSet;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
@@ -69,7 +68,6 @@ import org.opensearch.index.query.GeoValidationMethod;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 
@@ -189,9 +187,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         nestedPath = in.readOptionalString();
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         validation = GeoValidationMethod.readFromStream(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            ignoreUnmapped = in.readBoolean();
-        }
+        ignoreUnmapped = in.readBoolean();
     }
 
     @Override
@@ -206,9 +202,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         out.writeOptionalString(nestedPath);
         out.writeOptionalWriteable(nestedSort);
         validation.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeBoolean(ignoreUnmapped);
-        }
+        out.writeBoolean(ignoreUnmapped);
     }
 
     /**
@@ -699,9 +693,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         // If we have a nestedSort we'll use that. Otherwise, use old style.
         if (nestedSort == null) {
             return resolveNested(context, nestedPath, nestedFilter);
-        }
-        if (context.indexVersionCreated().before(LegacyESVersion.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
-            throw new QueryShardException(context, "max_children is only supported on v6.5.0 or higher");
         }
         validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
         return resolveNested(context, nestedSort);

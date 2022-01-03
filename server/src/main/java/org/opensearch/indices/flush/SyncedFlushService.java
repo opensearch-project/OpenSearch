@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -700,9 +699,7 @@ public class SyncedFlushService implements IndexEventListener {
             super(in);
             commitId = new Engine.CommitId(in);
             numDocs = in.readInt();
-            if (includeExistingSyncId(in.getVersion())) {
-                existingSyncId = in.readOptionalString();
-            }
+            existingSyncId = in.readOptionalString();
         }
 
         PreSyncedFlushResponse(Engine.CommitId commitId, int numDocs, String existingSyncId) {
@@ -711,17 +708,11 @@ public class SyncedFlushService implements IndexEventListener {
             this.existingSyncId = existingSyncId;
         }
 
-        boolean includeExistingSyncId(Version version) {
-            return version.onOrAfter(LegacyESVersion.V_6_3_0);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             commitId.writeTo(out);
             out.writeInt(numDocs);
-            if (includeExistingSyncId(out.getVersion())) {
-                out.writeOptionalString(existingSyncId);
-            }
+            out.writeOptionalString(existingSyncId);
         }
     }
 

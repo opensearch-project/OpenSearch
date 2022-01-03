@@ -62,7 +62,7 @@ public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase
         super.setUp();
 
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }

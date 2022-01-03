@@ -51,11 +51,12 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
@@ -152,7 +153,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         ClusterState state,
         ImmutableOpenMap<String, List<AliasMetadata>> aliasesMap
     ) {
-        List<String> systemIndicesNames = new ArrayList<>();
+        Set<String> systemIndicesNames = new HashSet<>();
         for (Iterator<String> it = aliasesMap.keysIt(); it.hasNext();) {
             String indexName = it.next();
             IndexMetadata index = state.metadata().index(indexName);
@@ -161,11 +162,13 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             }
         }
         if (systemIndicesNames.isEmpty() == false) {
-            deprecationLogger.deprecate(
-                "open_system_index_access",
-                "this request accesses system indices: {}, but in a future major version, direct access to system "
-                    + "indices will be prevented by default",
-                systemIndicesNames
+            systemIndicesNames.forEach(
+                systemIndexName -> deprecationLogger.deprecate(
+                    "open_system_index_access_" + systemIndexName,
+                    "this request accesses system indices: [{}], but in a future major version, direct access to system "
+                        + "indices will be prevented by default",
+                    systemIndexName
+                )
             );
         } else {
             checkSystemAliasAccess(request, systemIndices);

@@ -32,11 +32,15 @@
 package org.opensearch.test;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
@@ -47,32 +51,43 @@ import static org.hamcrest.MatcherAssert.assertThat;
 /**
  * Test appender that can be used to verify that certain events were logged correctly
  */
-public class MockLogAppender extends AbstractAppender {
+public class MockLogAppender extends AbstractAppender implements AutoCloseable {
 
     private static final String COMMON_PREFIX = System.getProperty("opensearch.logger.prefix", "org.opensearch.");
 
     private final List<LoggingExpectation> expectations;
+    private final List<Logger> loggers;
 
     /**
-     * Creates and starts a MockLogAppender. Generally preferred over using the constructor
-     * directly because adding an unstarted appender to the static logging context can cause
-     * difficult-to-identify errors in the tests and this method makes it impossible to do
-     * that.
+     * Creates an instance and adds it as an appender to the given Loggers. Upon
+     * closure, this instance will then remove itself from the Loggers it was added
+     * to. It is strongly recommended to use this class in a try-with-resources block
+     * to guarantee that it is properly removed from all Loggers. Since the logging
+     * state is static and therefore global within a JVM, it can cause unrelated
+     * tests to fail if, for example, they trigger a logging statement that tried to
+     * write to a closed MockLogAppender instance.
      */
-    public static MockLogAppender createStarted() throws IllegalAccessException {
-        final MockLogAppender appender = new MockLogAppender();
+    public static MockLogAppender createForLoggers(Logger... loggers) throws IllegalAccessException {
+        final MockLogAppender appender = new MockLogAppender(
+            RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null),
+            Collections.unmodifiableList(Arrays.asList(loggers))
+        );
         appender.start();
+        for (Logger logger : loggers) {
+            Loggers.addAppender(logger, appender);
+        }
         return appender;
     }
 
-    public MockLogAppender() throws IllegalAccessException {
-        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+    private MockLogAppender(RegexFilter filter, List<Logger> loggers) {
+        super("mock", filter, null);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
          * modification from #addExpectation.
          */
-        expectations = new CopyOnWriteArrayList<>();
+        this.expectations = new CopyOnWriteArrayList<>();
+        this.loggers = loggers;
     }
 
     public void addExpectation(LoggingExpectation expectation) {
@@ -90,6 +105,14 @@ public class MockLogAppender extends AbstractAppender {
         for (LoggingExpectation expectation : expectations) {
             expectation.assertMatched();
         }
+    }
+
+    @Override
+    public void close() {
+        for (Logger logger : loggers) {
+            Loggers.removeAppender(logger, this);
+        }
+        this.stop();
     }
 
     public interface LoggingExpectation {

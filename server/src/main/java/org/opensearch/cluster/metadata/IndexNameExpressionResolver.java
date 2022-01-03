@@ -365,11 +365,13 @@ public class IndexNameExpressionResolver {
                 .sorted() // reliable order for testing
                 .collect(Collectors.toList());
             if (resolvedSystemIndices.isEmpty() == false) {
-                deprecationLogger.deprecate(
-                    "open_system_index_access",
-                    "this request accesses system indices: {}, but in a future major version, direct access to system "
-                        + "indices will be prevented by default",
-                    resolvedSystemIndices
+                resolvedSystemIndices.forEach(
+                    systemIndexName -> deprecationLogger.deprecate(
+                        "open_system_index_access_" + systemIndexName,
+                        "this request accesses system indices: [{}], but in a future major version, direct access to system "
+                            + "indices will be prevented by default",
+                        systemIndexName
+                    )
                 );
             }
         }

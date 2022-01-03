@@ -80,6 +80,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.joda.JodaDeprecationPatterns;
+import org.opensearch.common.logging.DeprecatedMessage;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.HeaderWarningAppender;
 import org.opensearch.common.logging.LogConfigurator;
@@ -425,6 +426,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
+        // "clear" the deprecated message set for the next tests to run independently.
+        DeprecatedMessage.resetDeprecatedMessageForTests();
         logger.info("{}after test", getTestParamsForLogging());
     }
 
@@ -489,6 +492,15 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
                 Arrays.stream(warnings)
             ).toArray(String[]::new)
         );
+    }
+
+    /**
+     * Convenience method to assert same warnings for settings deprecations and general deprecation warnings
+     * are not logged again.
+     */
+    protected final void assertNoDeprecationWarnings() {
+        final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+        assertTrue("Found duplicate warnings logged", actualWarnings == null);
     }
 
     protected final void assertWarnings(String... expectedWarnings) {

@@ -33,7 +33,6 @@ package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.coordination.CoordinationState.VoteCollection;
@@ -197,9 +196,6 @@ public class ClusterFormationFailureHelper {
             }
 
             if (clusterState.getLastAcceptedConfiguration().isEmpty()) {
-
-                // TODO handle the case that there is a 6.x node around here, when rolling upgrades are supported
-
                 final String bootstrappingDescription;
 
                 if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
@@ -214,8 +210,7 @@ public class ClusterFormationFailureHelper {
 
                 return String.format(
                     Locale.ROOT,
-                    "master not discovered yet, this node has not previously joined a bootstrapped (v%d+) cluster, and %s: %s",
-                    LegacyESVersion.V_6_6_0.major + 1,
+                    "master not discovered yet, this node has not previously joined a bootstrapped cluster, and %s: %s",
                     bootstrappingDescription,
                     discoveryStateIgnoringQuorum
                 );

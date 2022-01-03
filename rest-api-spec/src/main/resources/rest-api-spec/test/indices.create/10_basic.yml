@@ -160,10 +160,10 @@
   - skip:
       version:  " - 7.5.99"
       reason:   "indices without soft deletes are deprecated in 7.6"
-      features: "warnings"
+      features: "allowed_warnings"
 
   - do:
-      warnings:
+      allowed_warnings:
         - Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions.
           Please do not specify value for setting [index.soft_deletes.enabled] of index [test_index].
       indices.create:

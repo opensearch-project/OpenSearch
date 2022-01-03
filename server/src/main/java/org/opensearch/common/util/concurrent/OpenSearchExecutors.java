@@ -90,7 +90,7 @@ public class OpenSearchExecutors {
             final int availableProcessors = Runtime.getRuntime().availableProcessors();
             if (value > availableProcessors) {
                 deprecationLogger.deprecate(
-                    "processors",
+                    "processors_" + name,
                     "setting [{}] to value [{}] which is more than available processors [{}] is deprecated",
                     name,
                     value,

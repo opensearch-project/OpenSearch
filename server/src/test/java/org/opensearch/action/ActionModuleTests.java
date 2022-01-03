@@ -126,7 +126,6 @@ public class ActionModuleTests extends OpenSearchTestCase {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
         ActionModule actionModule = new ActionModule(
-            false,
             settings.getSettings(),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
             settings.getIndexScopedSettings(),
@@ -183,7 +182,6 @@ public class ActionModuleTests extends OpenSearchTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
-                false,
                 settings.getSettings(),
                 new IndexNameExpressionResolver(threadPool.getThreadContext()),
                 settings.getIndexScopedSettings(),
@@ -233,7 +231,6 @@ public class ActionModuleTests extends OpenSearchTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
-                false,
                 settings.getSettings(),
                 new IndexNameExpressionResolver(threadPool.getThreadContext()),
                 settings.getIndexScopedSettings(),

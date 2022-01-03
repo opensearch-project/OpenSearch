@@ -65,11 +65,6 @@ public class RankEvalRequestIT extends OpenSearchIntegTestCase {
     private static final int RELEVANT_RATING_1 = 1;
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(RankEvalPlugin.class);
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(RankEvalPlugin.class);
     }

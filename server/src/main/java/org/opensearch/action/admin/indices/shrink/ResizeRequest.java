@@ -82,11 +82,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         targetIndexRequest = new CreateIndexRequest(in);
         sourceIndex = in.readString();
         type = in.readEnum(ResizeType.class);
-        if (in.getVersion().before(LegacyESVersion.V_6_4_0)) {
-            copySettings = null;
-        } else {
-            copySettings = in.readOptionalBoolean();
-        }
+        copySettings = in.readOptionalBoolean();
     }
 
     ResizeRequest() {}
@@ -128,12 +124,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
             throw new IllegalArgumentException("can't send clone request to a node that's older than " + LegacyESVersion.V_7_4_0);
         }
         out.writeEnum(type);
-        // noinspection StatementWithEmptyBody
-        if (out.getVersion().before(LegacyESVersion.V_6_4_0)) {
-
-        } else {
-            out.writeOptionalBoolean(copySettings);
-        }
+        out.writeOptionalBoolean(copySettings);
     }
 
     @Override

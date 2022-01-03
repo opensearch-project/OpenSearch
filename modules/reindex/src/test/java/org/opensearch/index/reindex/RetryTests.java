@@ -87,11 +87,6 @@ public class RetryTests extends OpenSearchIntegTestCase {
         return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class);
-    }
-
     /**
      * Lower the queue sizes to be small enough that bulk will time out and have to be retried.
      */

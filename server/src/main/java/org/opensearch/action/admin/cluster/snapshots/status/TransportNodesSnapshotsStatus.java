@@ -62,7 +62,7 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * Transport client that collects snapshot shard statuses from data nodes
+ * Transport action that collects snapshot shard statuses from data nodes
  */
 public class TransportNodesSnapshotsStatus extends TransportNodesAction<
     TransportNodesSnapshotsStatus.Request,

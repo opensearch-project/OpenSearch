@@ -86,7 +86,7 @@ setup:
 ---
 "date":
     - skip:
-        features: "warnings"
+        features: "allowed_warnings"
 
     - do:
         search:
@@ -179,7 +179,7 @@ setup:
 ---
 "long":
     - skip:
-        features: "warnings"
+        features: "allowed_warnings"
 
     - do:
         search:

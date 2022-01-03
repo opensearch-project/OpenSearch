@@ -95,6 +95,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime(),
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
+                    info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
                     info.getResourceStats()
@@ -109,6 +110,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime(),
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
+                    info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
                     info.getResourceStats()
@@ -123,6 +125,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime(),
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
+                    info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
                     info.getResourceStats()
@@ -137,6 +140,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime(),
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
+                    info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
                     info.getResourceStats()
@@ -152,6 +156,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime(),
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
+                    info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
                     info.getResourceStats()
@@ -166,6 +171,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime() + between(1, 100),
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
+                    info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
                     info.getResourceStats()
@@ -180,6 +186,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime(),
                     info.getRunningTimeNanos() + between(1, 100),
                     info.isCancellable(),
+                    info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
                     info.getResourceStats()
@@ -194,6 +201,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime(),
                     info.getRunningTimeNanos(),
                     info.isCancellable() == false,
+                    false,
                     info.getParentTaskId(),
                     info.getHeaders(),
                     info.getResourceStats()
@@ -209,6 +217,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime(),
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
+                    info.isCancelled(),
                     parentId,
                     info.getHeaders(),
                     info.getResourceStats()
@@ -230,6 +239,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime(),
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
+                    info.isCancelled(),
                     info.getParentTaskId(),
                     headers,
                     info.getResourceStats()
@@ -251,6 +261,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getStartTime(),
                     info.getRunningTimeNanos(),
                     info.isCancellable(),
+                    info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
                     statsInfo
@@ -269,6 +280,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         long startTime = randomLong();
         long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
+        boolean cancelled = cancellable == true ? randomBoolean() : false;
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
@@ -288,6 +300,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
             startTime,
             runningTimeNanos,
             cancellable,
+            cancelled,
             parentTaskId,
             headers,
             statsInfo
