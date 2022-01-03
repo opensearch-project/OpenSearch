@@ -79,7 +79,7 @@ public class TaskCancellationService {
     }
 
     void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
-        final TaskId taskId = task.taskInfo(localNodeId(), false).getTaskId();
+        final TaskId taskId = task.taskInfo(localNodeId(), false, false).getTaskId();
         if (task.shouldCancelChildrenOnCancellation()) {
             logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();

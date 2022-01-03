@@ -407,7 +407,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
         CancellableNodesRequest parentRequest = new CancellableNodesRequest("parent");
         final Task parentTask = taskManager.register("test", "test", parentRequest);
-        final TaskId parentTaskId = parentTask.taskInfo(testNodes[0].getNodeId(), false).getTaskId();
+        final TaskId parentTaskId = parentTask.taskInfo(testNodes[0].getNodeId(), false, false).getTaskId();
         taskManager.setBan(new TaskId(testNodes[0].getNodeId(), parentTask.getId()), "test");
         CancellableNodesRequest childRequest = new CancellableNodesRequest("child");
         childRequest.setParentTask(parentTaskId);

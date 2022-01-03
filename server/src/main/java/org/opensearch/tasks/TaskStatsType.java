@@ -9,17 +9,24 @@
 package org.opensearch.tasks;
 
 public enum TaskStatsType {
-    MEMORY("memory"),
-    CPU("cpu");
+    WORKER_STATS("worker_stats", false),
+    // Used for indicating certain operator resource consumption for each worker
+    OPERATOR_STATS("operator_stats", true);
 
-    private final String value;
+    private final String statsType;
+    private final boolean onlyForAnalysis;
 
-    TaskStatsType(String value) {
-        this.value = value;
+    TaskStatsType(String statsType, boolean onlyForAnalysis) {
+        this.statsType = statsType;
+        this.onlyForAnalysis = onlyForAnalysis;
+    }
+
+    public boolean isOnlyForAnalysis() {
+        return onlyForAnalysis;
     }
 
     @Override
     public String toString() {
-        return value;
+        return statsType;
     }
 }

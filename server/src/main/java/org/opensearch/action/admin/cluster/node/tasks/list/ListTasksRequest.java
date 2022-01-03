@@ -90,5 +90,4 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         this.waitForCompletion = waitForCompletion;
         return this;
     }
-
 }

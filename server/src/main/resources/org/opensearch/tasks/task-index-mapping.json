@@ -47,10 +47,6 @@
           "headers": {
             "type" : "object",
             "enabled" : false
-          },
-          "resource_stats": {
-            "type" : "object",
-            "enabled" : false
           }
         }
       },

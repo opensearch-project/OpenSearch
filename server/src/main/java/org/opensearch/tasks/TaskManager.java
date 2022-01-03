@@ -113,7 +113,7 @@ public class TaskManager implements ClusterStateApplier {
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
     /** Consumers that are notified of the stats */
-    private final List<Consumer<TaskStatsContext>> statsConsumers = new ArrayList<Consumer<TaskStatsContext>>() {
+    private final List<Consumer<Task>> statsConsumers = new ArrayList<Consumer<Task>>() {
         {
             add(new TaskSearchStatsLogger());
         }
@@ -211,9 +211,8 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
-        if (!task.getTotalResourceStats().isEmpty()) {
-            final TaskStatsContext statsContext = TaskStatsContext.createTaskStatsContext(task);
-            statsConsumers.forEach(consumer -> consumer.accept(statsContext));
+        if (!task.getResourceStats().isEmpty()) {
+            statsConsumers.forEach(consumer -> consumer.accept(task));
         }
         if (task instanceof CancellableTask) {
             CancellableTaskHolder holder = cancellableTasks.remove(task.getId());

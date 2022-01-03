@@ -9,12 +9,19 @@
 package org.opensearch.tasks;
 
 public class TaskStatsInfo {
+    private final TaskStats stats;
+    private final boolean absolute;
     private long startValue;
     private long endValue;
-    private int count;
 
-    public TaskStatsInfo(long startValue) {
-        this.startValue = startValue;
+    public TaskStatsInfo(TaskStats stats, long value, boolean absolute) {
+        this.stats = stats;
+        this.absolute = absolute;
+        if (absolute) {
+            this.endValue = value;
+        } else {
+            this.startValue = value;
+        }
     }
 
     public long getTotalValue() {
@@ -24,12 +31,20 @@ public class TaskStatsInfo {
         return 0L;
     }
 
-    public int getCount() {
-        return count;
-    }
-
     public void setEndValue(long value) {
         endValue = value;
-        count++;
+    }
+
+    public TaskStats getStats() {
+        return stats;
+    }
+
+    public boolean isAbsolute() {
+        return absolute;
+    }
+
+    @Override
+    public String toString() {
+        return String.valueOf(getTotalValue());
     }
 }

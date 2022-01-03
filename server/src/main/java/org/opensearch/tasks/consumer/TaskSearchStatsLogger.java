@@ -10,23 +10,23 @@ package org.opensearch.tasks.consumer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.tasks.TaskStatsContext;
+import org.opensearch.tasks.Task;
 
 import java.util.function.Consumer;
 
 /**
  * A simple listener that logs resource information of search tasks
  */
-public class TaskSearchStatsLogger implements Consumer<TaskStatsContext> {
-    private static final Logger LOGGER = LogManager.getLogger("search.fatlog");
+public class TaskSearchStatsLogger implements Consumer<Task> {
+    private static final Logger LOGGER = LogManager.getLogger("task.detailslog");
 
     /**
      * Called when task is unregistered and task has stats present.
      */
     @Override
-    public void accept(TaskStatsContext taskStatsContext) {
-        if (taskStatsContext.getAction().contains("search")) {
-            LOGGER.trace(new SearchFatLogMessage(taskStatsContext));
+    public void accept(Task task) {
+        if (task.getAction().contains("search")) {
+            LOGGER.info(new TaskDetailsMessage(task));
         }
     }
 }

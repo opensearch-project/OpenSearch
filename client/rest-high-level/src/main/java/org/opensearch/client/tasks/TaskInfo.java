@@ -57,7 +57,7 @@ public class TaskInfo {
     private TaskId parentTaskId;
     private final Map<String, Object> status = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
-    private final Map<String, Object> statsInfo = new HashMap<>();
+    private final Map<String, Object> resourceStats = new HashMap<>();
 
     public TaskInfo(TaskId taskId) {
         this.taskId = taskId;
@@ -151,12 +151,12 @@ public class TaskInfo {
         return status;
     }
 
-    public Map<String, Object> getResourceStats() {
-        return statsInfo;
+    void setResourceStats(Map<String, Object> resourceStats) {
+        this.resourceStats.putAll(resourceStats);
     }
 
-    void setStatsInfo(Map<String, Object> statsInfo) {
-        this.statsInfo.putAll(statsInfo);
+    public Map<String, Object> getResourceStats() {
+        return resourceStats;
     }
 
     private void noOpParse(Object s) {}
@@ -179,7 +179,7 @@ public class TaskInfo {
         parser.declareBoolean(TaskInfo::setCancelled, new ParseField("cancelled"));
         parser.declareString(TaskInfo::setParentTaskId, new ParseField("parent_task_id"));
         parser.declareObject(TaskInfo::setHeaders, (p, c) -> p.mapStrings(), new ParseField("headers"));
-        parser.declareObject(TaskInfo::setStatsInfo, (p, c) -> p.map(), new ParseField("resource_stats"));
+        parser.declareObject(TaskInfo::setResourceStats, (p, c) -> p.map(), new ParseField("resource_stats"));
         PARSER = (XContentParser p, Void v, String name) -> parser.parse(p, new TaskInfo(new TaskId(name)), null);
     }
 
@@ -249,7 +249,7 @@ public class TaskInfo {
             + ", headers="
             + headers
             + ", resource_stats="
-            + statsInfo
+            + resourceStats
             + '}';
     }
 }

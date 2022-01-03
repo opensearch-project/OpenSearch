@@ -61,14 +61,14 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
     @Override
     public synchronized void onTaskRegistered(Task task) {
         if (Regex.simpleMatch(actionMasks, task.getAction())) {
-            events.add(new Tuple<>(true, task.taskInfo(localNodeId, true)));
+            events.add(new Tuple<>(true, task.taskInfo(localNodeId, true, true)));
         }
     }
 
     @Override
     public synchronized void onTaskUnregistered(Task task) {
         if (Regex.simpleMatch(actionMasks, task.getAction())) {
-            events.add(new Tuple<>(false, task.taskInfo(localNodeId, true)));
+            events.add(new Tuple<>(false, task.taskInfo(localNodeId, true, true)));
         }
     }
 

@@ -343,7 +343,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             "local tasks [{}]",
             localTasks.values()
                 .stream()
-                .map(t -> Strings.toString(t.taskInfo(testNodes[0].getNodeId(), true)))
+                .map(t -> Strings.toString(t.taskInfo(testNodes[0].getNodeId(), true, true)))
                 .collect(Collectors.joining(","))
         );
         assertEquals(2, localTasks.size()); // all node tasks + 1 coordinating task

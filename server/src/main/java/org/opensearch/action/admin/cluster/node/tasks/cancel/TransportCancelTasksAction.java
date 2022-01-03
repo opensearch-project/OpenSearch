@@ -115,7 +115,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             cancellableTask,
             request.getReason(),
             request.waitForCompletion(),
-            ActionListener.map(listener, r -> cancellableTask.taskInfo(nodeId, false))
+            ActionListener.map(listener, r -> cancellableTask.taskInfo(nodeId, false, false))
         );
     }
 }

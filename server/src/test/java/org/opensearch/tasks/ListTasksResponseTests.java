@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -74,10 +75,14 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
             false,
             new TaskId("node1", 0),
             Collections.singletonMap("foo", "bar"),
-            Collections.unmodifiableMap(new HashMap<String, Long>() {
+            Collections.unmodifiableMap(new HashMap<String, Map<String, Long>>() {
                 {
-                    put(TaskStatsType.MEMORY.toString(), 100L);
-                    put(TaskStatsType.CPU.toString(), 100L);
+                    put("dummy-type1", new HashMap<String, Long>() {
+                        {
+                            put(TaskStats.MEMORY.toString(), 100L);
+                            put(TaskStats.CPU.toString(), 100L);
+                        }
+                    });
                 }
             })
         );
@@ -102,8 +107,10 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 + "        \"foo\" : \"bar\"\n"
                 + "      },\n"
                 + "      \"resource_stats\" : {\n"
-                + "        \"memory\" : 100,\n"
-                + "        \"cpu\" : 100\n"
+                + "        \"dummy-type1\" : {\n"
+                + "          \"cpu_time_in_nanos\" : 100,\n"
+                + "          \"memory_in_bytes\" : 100\n"
+                + "        }\n"
                 + "      }\n"
                 + "    }\n"
                 + "  ]\n"
@@ -139,7 +146,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // status, headers and resource_stats hold arbitrary content, we can't inject random fields in them
-        return field -> field.endsWith("status") || field.endsWith("headers") || field.endsWith("resource_stats");
+        return field -> field.endsWith("status") || field.endsWith("headers") || field.contains("resource_stats");
     }
 
     @Override

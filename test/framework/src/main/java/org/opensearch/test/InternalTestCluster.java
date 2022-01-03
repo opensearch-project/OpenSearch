@@ -2544,7 +2544,7 @@ public final class InternalTestCluster extends TestCluster {
                             String pendingTasks = taskManager.getTasks()
                                 .values()
                                 .stream()
-                                .map(t -> t.taskInfo(nodeAndClient.name, true).toString())
+                                .map(t -> t.taskInfo(nodeAndClient.name, true, true).toString())
                                 .collect(Collectors.joining(",", "[", "]"));
                             throw new AssertionError(
                                 "All incoming requests on node ["

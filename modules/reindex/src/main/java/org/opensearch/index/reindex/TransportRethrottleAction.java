@@ -123,7 +123,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
             }, listener::onFailure));
         } else {
             logger.debug("children of task [{}] are already finished, nothing to rethrottle", task.getId());
-            listener.onResponse(task.taskInfo(localNodeId, true));
+            listener.onResponse(task.taskInfo(localNodeId, true, false));
         }
     }
 
@@ -136,7 +136,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     ) {
         logger.debug("rethrottling local task [{}] to [{}] requests per second", task.getId(), newRequestsPerSecond);
         task.getWorkerState().rethrottle(newRequestsPerSecond);
-        listener.onResponse(task.taskInfo(localNodeId, true));
+        listener.onResponse(task.taskInfo(localNodeId, true, false));
     }
 
     @Override

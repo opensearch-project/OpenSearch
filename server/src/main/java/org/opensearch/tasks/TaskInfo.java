@@ -86,7 +86,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     private final Map<String, String> headers;
 
-    private final Map<String, Long> resourceStats;
+    private final Map<String, Map<String, Long>> resourceStats;
 
     public TaskInfo(
         TaskId taskId,
@@ -100,7 +100,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         boolean cancelled,
         TaskId parentTaskId,
         Map<String, String> headers,
-        Map<String, Long> resourceStats
+        Map<String, Map<String, Long>> resourceStats
     ) {
         if (cancellable == false && cancelled == true) {
             throw new IllegalArgumentException("task cannot be cancelled");
@@ -141,8 +141,11 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         parentTaskId = TaskId.readFromStream(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
-        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
-            resourceStats = in.readMap(StreamInput::readString, StreamInput::readLong);
+        if (in.getVersion().onOrAfter(Version.V_2_0_0) && in.readBoolean()) {
+            resourceStats = in.readMap(
+                StreamInput::readString,
+                input_stream -> input_stream.readMap(StreamInput::readString, StreamInput::readLong)
+            );
         } else {
             resourceStats = Collections.emptyMap();
         }
@@ -164,7 +167,14 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         parentTaskId.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
-            out.writeMap(resourceStats, StreamOutput::writeString, StreamOutput::writeLong);
+            out.writeBoolean(resourceStats != null);
+            if (resourceStats != null) {
+                out.writeMap(
+                    resourceStats,
+                    StreamOutput::writeString,
+                    (stream, stats) -> stream.writeMap(stats, StreamOutput::writeString, StreamOutput::writeLong)
+                );
+            }
         }
     }
 
@@ -241,7 +251,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
     /**
      * Returns the task resource information
      */
-    public Map<String, Long> getResourceStats() {
+    public Map<String, Map<String, Long>> getResourceStats() {
         return resourceStats;
     }
 
@@ -272,10 +282,14 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             builder.field(attribute.getKey(), attribute.getValue());
         }
         builder.endObject();
-        if (resourceStats != null) {
+        if (resourceStats != null && false == resourceStats.isEmpty()) {
             builder.startObject("resource_stats");
-            for (Map.Entry<String, Long> attribute : resourceStats.entrySet()) {
-                builder.field(attribute.getKey(), attribute.getValue());
+            for (Map.Entry<String, Map<String, Long>> resourceStatsEntry : resourceStats.entrySet()) {
+                builder.startObject(resourceStatsEntry.getKey());
+                for (Map.Entry<String, Long> attribute : resourceStatsEntry.getValue().entrySet()) {
+                    builder.field(attribute.getKey(), attribute.getValue());
+                }
+                builder.endObject();
             }
             builder.endObject();
         }
@@ -305,7 +319,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             headers = Collections.emptyMap();
         }
         @SuppressWarnings("unchecked")
-        Map<String, Long> resourceStats = (Map<String, Long>) a[i++];
+        Map<String, Map<String, Long>> resourceStats = (Map<String, Map<String, Long>>) a[i++];
         if (resourceStats == null) {
             // This might happen if we are reading an old version of task info
             resourceStats = Collections.emptyMap();

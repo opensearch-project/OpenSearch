@@ -78,12 +78,12 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // status, headers and resource_stats hold arbitrary content, we can't inject random fields in them
-        return field -> "status".equals(field) || "headers".equals(field) || "resource_stats".equals(field);
+        return field -> "status".equals(field) || "headers".equals(field) || field.contains("resource_stats");
     }
 
     @Override
     protected TaskInfo mutateInstance(TaskInfo info) {
-        switch (between(0, 9)) {
+        switch (between(0, 10)) {
             case 0:
                 TaskId taskId = new TaskId(info.getTaskId().getNodeId() + randomAlphaOfLength(5), info.getTaskId().getId());
                 return new TaskInfo(
@@ -245,13 +245,18 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getResourceStats()
                 );
             case 10:
-                Map<String, Long> statsInfo = info.getResourceStats();
-                if (statsInfo == null) {
-                    statsInfo = new HashMap<>(1);
+                Map<String, Map<String, Long>> resourceStats = info.getResourceStats();
+                if (resourceStats == null) {
+                    resourceStats = new HashMap<>(1);
                 } else {
-                    statsInfo = new HashMap<>(info.getResourceStats());
+                    resourceStats = new HashMap<>(info.getResourceStats());
                 }
-                statsInfo.put(TaskStatsType.MEMORY.toString(), randomLong());
+                resourceStats.put(randomAlphaOfLength(5), new HashMap<String, Long>() {
+                    {
+                        put(TaskStats.MEMORY.toString(), randomNonNegativeLong());
+                        put(TaskStats.CPU.toString(), randomNonNegativeLong());
+                    }
+                });
                 return new TaskInfo(
                     info.getTaskId(),
                     info.getType(),
@@ -264,7 +269,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    statsInfo
+                    resourceStats
                 );
             default:
                 throw new IllegalStateException();
@@ -277,18 +282,22 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         String action = randomAlphaOfLength(5);
         Task.Status status = randomBoolean() ? randomRawTaskStatus() : null;
         String description = randomBoolean() ? randomAlphaOfLength(5) : null;
-        long startTime = randomLong();
-        long runningTimeNanos = randomLong();
+        long startTime = randomNonNegativeLong();
+        long runningTimeNanos = randomNonNegativeLong();
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable == true ? randomBoolean() : false;
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        Map<String, Long> statsInfo = randomBoolean() ? Collections.emptyMap() : new HashMap<String, Long>() {
+        Map<String, Map<String, Long>> resourceStats = randomBoolean() ? Collections.emptyMap() : new HashMap<String, Map<String, Long>>() {
             {
-                put(TaskStatsType.MEMORY.toString(), randomNonNegativeLong());
-                put(TaskStatsType.CPU.toString(), randomNonNegativeLong());
+                put(randomAlphaOfLength(5), new HashMap<String, Long>() {
+                    {
+                        put(TaskStats.MEMORY.toString(), randomNonNegativeLong());
+                        put(TaskStats.CPU.toString(), randomNonNegativeLong());
+                    }
+                });
             }
         };
         return new TaskInfo(
@@ -303,7 +312,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
             cancelled,
             parentTaskId,
             headers,
-            statsInfo
+            resourceStats
         );
     }
 
