@@ -78,9 +78,9 @@ import static java.util.Collections.emptySet;
 import static org.opensearch.common.UUIDs.randomBase64UUID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.nullable;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

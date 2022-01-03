@@ -69,7 +69,7 @@ import java.io.IOException;
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.lucene.BytesRefs.toBytesRef;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

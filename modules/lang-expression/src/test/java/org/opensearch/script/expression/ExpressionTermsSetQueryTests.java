@@ -46,8 +46,8 @@ import org.opensearch.script.TermsSetQueryScript;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -73,7 +73,7 @@ public class ExpressionTermsSetQueryTests extends OpenSearchTestCase {
 
         IndexNumericFieldData fieldData = mock(IndexNumericFieldData.class);
         when(fieldData.getFieldName()).thenReturn("field");
-        when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
+        when(fieldData.load(any())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
         lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData, null);
