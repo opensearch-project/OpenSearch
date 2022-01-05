@@ -1,4 +1,4 @@
-OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses randomness in the tests, that can be set using a seed, the following is a cheatsheet of options for running the tests for OpenSearch.
+OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses randomness in the tests, that can be set using a seed. The following is a cheatsheet of options for running the tests for OpenSearch.
 
 - [Requirements](#requirements)
 - [Creating packages](#creating-packages)
@@ -64,7 +64,7 @@ In order to run OpenSearch from source without building a package, you can run i
 
 ### Launching and debugging from an IDE
 
-**NOTE:** If you have imported the project into IntelliJ according to the instructions in [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md#importing-the-project-into-intellij-idea), then a debug run configuration named **Debug OpenSearch** will be created for you and configured appropriately.
+**NOTE:** If you have imported the project into IntelliJ according to the instructions in [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md#intellij-idea), then a debug run configuration named **Debug OpenSearch** will be created for you and configured appropriately.
 
 To run OpenSearch in debug mode,
 
@@ -178,7 +178,7 @@ Change the logging level of OpenSearch (not Gradle)
 
     ./gradlew test -Dtests.opensearch.logger.level=DEBUG
 
-Print all the logging output from the test runs to the commandline even if tests are passing.
+Print all the logging output from the test runs to the command line even if tests are passing.
 
     ./gradlew test -Dtests.output=true
 
