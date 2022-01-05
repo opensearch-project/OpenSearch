@@ -37,7 +37,7 @@ if (BuildParams.inFipsJvm) {
     }
     File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
     def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.1')
-    def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.9')
+    def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.12.2')
 
     pluginManager.withPlugin('java') {
       TaskProvider<ExportOpenSearchBuildResourcesTask> fipsResourcesTask = project.tasks.register('fipsResources', ExportOpenSearchBuildResourcesTask)
