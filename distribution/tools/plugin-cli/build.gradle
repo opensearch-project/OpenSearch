@@ -35,8 +35,8 @@ archivesBaseName = 'opensearch-plugin-cli'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:opensearch-cli")
-  api "org.bouncycastle:bcpg-fips:1.0.4"
-  api "org.bouncycastle:bc-fips:1.0.2"
+  api "org.bouncycastle:bcpg-fips:1.0.5.1"
+  api "org.bouncycastle:bc-fips:1.0.2.1"
   testImplementation project(":test:framework")
   testImplementation 'com.google.jimfs:jimfs:1.1'
   testRuntimeOnly 'com.google.guava:guava:30.1.1-jre'
