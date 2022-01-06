@@ -270,7 +270,7 @@ Please follow these formatting guidelines:
 
 ### Editor / IDE Support
 
-IntelliJ IDEs can [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/) the same settings file, and / or use the [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
+IntelliJ IDEs can [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/) the [settings file](buildSrc/formatterConfig.xml), and / or use the [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
 plugin.
 
 You can also tell Spotless to [format a specific file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files) from the command line.
