@@ -41,7 +41,7 @@ import org.junit.Before;
 
 import static org.opensearch.search.lookup.LeafDocLookup.TYPES_DEPRECATION_MESSAGE;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,7 +56,7 @@ public class LeafDocLookupTests extends OpenSearchTestCase {
 
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("field");
-        when(fieldType.valueForDisplay(anyObject())).then(returnsFirstArg());
+        when(fieldType.valueForDisplay(any())).then(returnsFirstArg());
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType("_type")).thenReturn(fieldType);
@@ -91,7 +91,7 @@ public class LeafDocLookupTests extends OpenSearchTestCase {
 
         IndexFieldData<?> fieldData = mock(IndexFieldData.class);
         when(fieldData.getFieldName()).thenReturn("field");
-        doReturn(leafFieldData).when(fieldData).load(anyObject());
+        doReturn(leafFieldData).when(fieldData).load(any());
 
         return fieldData;
     }

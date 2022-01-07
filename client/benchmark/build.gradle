@@ -48,13 +48,7 @@ dependencies {
   api project(":client:rest")
   // bottleneck should be the client, not OpenSearch
   api project(path: ':client:client-benchmark-noop-api-plugin')
-  // for transport client
   api project(":server")
-  api project(":client:transport")
-  api project(':modules:transport-netty4')
-  api project(':modules:reindex')
-  api project(':modules:lang-mustache')
-  api project(':modules:percolator')
 }
 
 // No licenses for our benchmark deps (we don't ship benchmarks)

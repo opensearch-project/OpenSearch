@@ -43,6 +43,7 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.settings.SettingsModule;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -215,6 +216,62 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(timeoutSettings);
         assertThat(azureStorageService.getBlobRequestTimeout("azure1"), nullValue());
         assertThat(azureStorageService.getBlobRequestTimeout("azure3"), is(Duration.ofSeconds(30)));
+    }
+
+    public void testClientDefaultConnectTimeout() {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure3.connect.timeout", "25s")
+            .build();
+        final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
+        final TimeValue timeout = mock.storageSettings.get("azure3").getConnectTimeout();
+
+        assertThat(timeout, notNullValue());
+        assertThat(timeout, equalTo(TimeValue.timeValueSeconds(25)));
+        assertThat(mock.storageSettings.get("azure2").getConnectTimeout(), notNullValue());
+        assertThat(mock.storageSettings.get("azure2").getConnectTimeout(), equalTo(TimeValue.timeValueSeconds(10)));
+    }
+
+    public void testClientDefaultWriteTimeout() {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure3.write.timeout", "85s")
+            .build();
+        final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
+        final TimeValue timeout = mock.storageSettings.get("azure3").getWriteTimeout();
+
+        assertThat(timeout, notNullValue());
+        assertThat(timeout, equalTo(TimeValue.timeValueSeconds(85)));
+        assertThat(mock.storageSettings.get("azure2").getWriteTimeout(), notNullValue());
+        assertThat(mock.storageSettings.get("azure2").getWriteTimeout(), equalTo(TimeValue.timeValueSeconds(60)));
+    }
+
+    public void testClientDefaultReadTimeout() {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure3.read.timeout", "120s")
+            .build();
+        final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
+        final TimeValue timeout = mock.storageSettings.get("azure3").getReadTimeout();
+
+        assertThat(timeout, notNullValue());
+        assertThat(timeout, equalTo(TimeValue.timeValueSeconds(120)));
+        assertThat(mock.storageSettings.get("azure2").getReadTimeout(), notNullValue());
+        assertThat(mock.storageSettings.get("azure2").getReadTimeout(), equalTo(TimeValue.timeValueSeconds(60)));
+    }
+
+    public void testClientDefaultResponseTimeout() {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure3.response.timeout", "1ms")
+            .build();
+        final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
+        final TimeValue timeout = mock.storageSettings.get("azure3").getResponseTimeout();
+
+        assertThat(timeout, notNullValue());
+        assertThat(timeout, equalTo(TimeValue.timeValueMillis(1)));
+        assertThat(mock.storageSettings.get("azure2").getResponseTimeout(), notNullValue());
+        assertThat(mock.storageSettings.get("azure2").getResponseTimeout(), equalTo(TimeValue.timeValueSeconds(60)));
     }
 
     public void testGetSelectedClientNoTimeout() {

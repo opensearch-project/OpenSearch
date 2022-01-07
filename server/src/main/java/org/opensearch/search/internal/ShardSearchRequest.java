@@ -252,18 +252,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         clusterAlias = in.readOptionalString();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             allowPartialSearchResults = in.readBoolean();
-        } else if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            allowPartialSearchResults = in.readOptionalBoolean();
         } else {
             allowPartialSearchResults = false;
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            indexRoutings = in.readStringArray();
-            preference = in.readOptionalString();
-        } else {
-            indexRoutings = Strings.EMPTY_ARRAY;
-            preference = null;
-        }
+        indexRoutings = in.readStringArray();
+        preference = in.readOptionalString();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             canReturnNullResponseIfMatchNoDocs = in.readBoolean();
             bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
@@ -335,14 +328,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         out.writeOptionalString(clusterAlias);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(allowPartialSearchResults);
-        } else if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            out.writeOptionalBoolean(allowPartialSearchResults);
         }
         if (asKey == false) {
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-                out.writeStringArray(indexRoutings);
-                out.writeOptionalString(preference);
-            }
+            out.writeStringArray(indexRoutings);
+            out.writeOptionalString(preference);
         }
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) && asKey == false) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);

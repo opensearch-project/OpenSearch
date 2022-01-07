@@ -32,7 +32,6 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.common.Strings;
@@ -153,15 +152,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            opensearchVersion = Version.readVersion(in);
-            javaVersion = in.readString();
-        } else {
-            // the plugin must have the version of whichever node we are talking to, since this is enforced on startup
-            opensearchVersion = in.getVersion();
-            // this might not be true, but it is not important, we just need something here for bwc that is a valid java version string
-            javaVersion = "1.8";
-        }
+        this.opensearchVersion = Version.readVersion(in);
+        this.javaVersion = in.readString();
         this.classname = in.readString();
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
             customFolderName = in.readString();
@@ -170,13 +162,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.fromId(6000027)) && in.getVersion().before(LegacyESVersion.V_6_3_0)) {
-            /*
-             * Legacy versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
-             * serialized into the plugin info. Therefore, we have to read and ignore this value from the stream.
-             */
-            in.readBoolean();
-        }
     }
 
     @Override
@@ -184,10 +169,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            Version.writeVersion(opensearchVersion, out);
-            out.writeString(javaVersion);
-        }
+        Version.writeVersion(opensearchVersion, out);
+        out.writeString(javaVersion);
         out.writeString(classname);
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             if (customFolderName != null) {
@@ -198,13 +181,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
-        if (out.getVersion().before(LegacyESVersion.V_6_3_0)) {
-            /*
-             * Elasticsearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
-             * serialized into the plugin info. Therefore, we have to write out a value for this boolean.
-             */
-            out.writeBoolean(false);
-        }
     }
 
     /**
@@ -293,10 +269,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     );
                     throw new IllegalArgumentException(message);
             }
-        }
-
-        if (opensearchVersion.before(LegacyESVersion.V_6_3_0) && opensearchVersion.onOrAfter(LegacyESVersion.fromId(6000027))) {
-            propsMap.remove("requires.keystore");
         }
 
         if (propsMap.isEmpty() == false) {

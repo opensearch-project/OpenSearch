@@ -62,8 +62,8 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
 
     private final boolean shardsAcknowledged;
 
-    protected ShardsAcknowledgedResponse(StreamInput in, boolean readShardsAcknowledged, boolean readAcknowledged) throws IOException {
-        super(in, readAcknowledged);
+    protected ShardsAcknowledgedResponse(StreamInput in, boolean readShardsAcknowledged) throws IOException {
+        super(in);
         if (readShardsAcknowledged) {
             this.shardsAcknowledged = in.readBoolean();
         } else {

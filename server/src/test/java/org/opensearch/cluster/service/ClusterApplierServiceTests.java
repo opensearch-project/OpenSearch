@@ -34,7 +34,6 @@ package org.opensearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -47,7 +46,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -131,36 +129,32 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
 
     @TestLogging(value = "org.opensearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")
     public void testClusterStateUpdateLogging() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test1",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.DEBUG,
-                "*processing [test1]: took [1s] no change in cluster state"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test2",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.TRACE,
-                "*failed to execute cluster state applier in [2s]*"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test3",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.DEBUG,
-                "*processing [test3]: took [0s] no change in cluster state*"
-            )
-        );
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ClusterApplierService.class))) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test1",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*processing [test1]: took [1s] no change in cluster state"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test2",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "*failed to execute cluster state applier in [2s]*"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test3",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*processing [test3]: took [0s] no change in cluster state*"
+                )
+            );
 
-        Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
-        Loggers.addAppender(clusterLogger, mockAppender);
-        try {
             clusterApplierService.currentTimeOverride = threadPool.relativeTimeInMillis();
             clusterApplierService.runOnApplierThread(
                 "test1",
@@ -198,46 +192,39 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
                 }
             });
             assertBusy(mockAppender::assertAllExpectationsMatched);
-        } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
     @TestLogging(value = "org.opensearch.cluster.service:WARN", reason = "to ensure that we log cluster state events on WARN level")
     public void testLongClusterStateUpdateLogging() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "test1 shouldn't see because setting is too low",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.WARN,
-                "*cluster state applier task [test1] took [*] which is above the warn threshold of *"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test2",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.WARN,
-                "*cluster state applier task [test2] took [32s] which is above the warn threshold of [*]: "
-                    + "[running task [test2]] took [*"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test4",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.WARN,
-                "*cluster state applier task [test3] took [34s] which is above the warn threshold of [*]: "
-                    + "[running task [test3]] took [*"
-            )
-        );
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ClusterApplierService.class))) {
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "test1 shouldn't see because setting is too low",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*cluster state applier task [test1] took [*] which is above the warn threshold of *"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test2",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*cluster state applier task [test2] took [32s] which is above the warn threshold of [*]: "
+                        + "[running task [test2]] took [*"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test4",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*cluster state applier task [test3] took [34s] which is above the warn threshold of [*]: "
+                        + "[running task [test3]] took [*"
+                )
+            );
 
-        Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
-        Loggers.addAppender(clusterLogger, mockAppender);
-        try {
             final CountDownLatch latch = new CountDownLatch(4);
             final CountDownLatch processedFirstTask = new CountDownLatch(1);
             clusterApplierService.currentTimeOverride = threadPool.relativeTimeInMillis();
@@ -301,11 +288,8 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
                 }
             });
             latch.await();
-        } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
-            mockAppender.stop();
+            mockAppender.assertAllExpectationsMatched();
         }
-        mockAppender.assertAllExpectationsMatched();
     }
 
     public void testLocalNodeMasterListenerCallbacks() {

@@ -66,7 +66,7 @@ import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.mockito.Matchers;
+import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -137,7 +137,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         );
         final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
         MappedFieldType ft = mock(MappedFieldType.class);
-        when(ft.fielddataBuilder(Matchers.any(), Matchers.any())).thenAnswer(invocationOnMock -> {
+        when(ft.fielddataBuilder(Mockito.any(), Mockito.any())).thenAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             Supplier<SearchLookup> searchLookup = (Supplier<SearchLookup>) invocationOnMock.getArguments()[1];
             searchLookupSetOnce.set(searchLookup);

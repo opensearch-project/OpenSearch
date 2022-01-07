@@ -314,8 +314,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         return new HttpChannelHandler(this, handlingSettings);
     }
 
-    static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
-    static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-http-server-channel");
+    static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-channel");
+    static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-server-channel");
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 

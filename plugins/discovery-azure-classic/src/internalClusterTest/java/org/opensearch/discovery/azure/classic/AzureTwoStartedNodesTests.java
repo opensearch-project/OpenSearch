@@ -38,7 +38,7 @@ import org.opensearch.cloud.azure.classic.management.AzureComputeService.Managem
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0, numClientNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCase {
 
     public void testTwoNodesShouldRunUsingPrivateOrPublicIp() {

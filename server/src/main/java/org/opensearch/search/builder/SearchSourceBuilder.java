@@ -78,7 +78,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
@@ -219,19 +218,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        if (in.getVersion().before(LegacyESVersion.V_6_4_0)) {
-            List<String> dvFields = (List<String>) in.readGenericValue();
-            if (dvFields == null) {
-                docValueFields = null;
-            } else {
-                docValueFields = dvFields.stream().map(field -> new FieldAndFormat(field, null)).collect(Collectors.toList());
-            }
+        if (in.readBoolean()) {
+            docValueFields = in.readList(FieldAndFormat::new);
         } else {
-            if (in.readBoolean()) {
-                docValueFields = in.readList(FieldAndFormat::new);
-            } else {
-                docValueFields = null;
-            }
+            docValueFields = null;
         }
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         from = in.readVInt();
@@ -262,11 +252,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         timeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            seqNoAndPrimaryTerm = in.readOptionalBoolean();
-        } else {
-            seqNoAndPrimaryTerm = null;
-        }
+        seqNoAndPrimaryTerm = in.readOptionalBoolean();
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
@@ -292,13 +278,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
-        if (out.getVersion().before(LegacyESVersion.V_6_4_0)) {
-            out.writeGenericValue(docValueFields == null ? null : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
-        } else {
-            out.writeBoolean(docValueFields != null);
-            if (docValueFields != null) {
-                out.writeList(docValueFields);
-            }
+        out.writeBoolean(docValueFields != null);
+        if (docValueFields != null) {
+            out.writeList(docValueFields);
         }
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeVInt(from);
@@ -336,9 +318,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalTimeValue(timeout);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            out.writeOptionalBoolean(seqNoAndPrimaryTerm);
-        }
+        out.writeOptionalBoolean(seqNoAndPrimaryTerm);
         out.writeNamedWriteableList(extBuilders);
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);

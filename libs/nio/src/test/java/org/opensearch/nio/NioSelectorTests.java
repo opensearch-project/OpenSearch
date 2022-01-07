@@ -51,10 +51,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.isNull;
-import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -325,7 +325,7 @@ public class NioSelectorTests extends OpenSearchTestCase {
             selector.close();
             selector.queueWrite(new FlushReadyWrite(channelContext, buffers, listener));
         });
-        verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
+        verify(listener).accept(isNull(), any(ClosedSelectorException.class));
     }
 
     public void testQueueWriteChannelIsClosed() throws Exception {
@@ -336,7 +336,7 @@ public class NioSelectorTests extends OpenSearchTestCase {
         selector.preSelect();
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
-        verify(listener).accept(isNull(Void.class), any(ClosedChannelException.class));
+        verify(listener).accept(isNull(), any(ClosedChannelException.class));
     }
 
     public void testQueueWriteChannelIsUnregistered() throws Exception {
@@ -347,7 +347,7 @@ public class NioSelectorTests extends OpenSearchTestCase {
         selector.preSelect();
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
-        verify(listener).accept(isNull(Void.class), any(IllegalStateException.class));
+        verify(listener).accept(isNull(), any(IllegalStateException.class));
     }
 
     public void testQueueWriteSuccessful() throws Exception {
@@ -508,7 +508,7 @@ public class NioSelectorTests extends OpenSearchTestCase {
 
         selector.cleanupAndCloseChannels();
 
-        verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
+        verify(listener).accept(isNull(), any(ClosedSelectorException.class));
         verify(eventHandler).handleClose(channelContext);
         verify(eventHandler).handleClose(unregisteredContext);
     }

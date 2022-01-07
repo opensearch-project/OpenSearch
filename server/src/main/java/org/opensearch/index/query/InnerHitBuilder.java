@@ -61,7 +61,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.opensearch.common.xcontent.XContentParser.Token.END_OBJECT;
 
@@ -184,24 +183,10 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         size = in.readVInt();
         explain = in.readBoolean();
         version = in.readBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            seqNoAndPrimaryTerm = in.readBoolean();
-        } else {
-            seqNoAndPrimaryTerm = false;
-        }
+        seqNoAndPrimaryTerm = in.readBoolean();
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
-        if (in.getVersion().before(LegacyESVersion.V_6_4_0)) {
-            @SuppressWarnings("unchecked")
-            List<String> fieldList = (List<String>) in.readGenericValue();
-            if (fieldList == null) {
-                docValueFields = null;
-            } else {
-                docValueFields = fieldList.stream().map(field -> new FieldAndFormat(field, null)).collect(Collectors.toList());
-            }
-        } else {
-            docValueFields = in.readBoolean() ? in.readList(FieldAndFormat::new) : null;
-        }
+        docValueFields = in.readBoolean() ? in.readList(FieldAndFormat::new) : null;
         if (in.readBoolean()) {
             int size = in.readVInt();
             scriptFields = new HashSet<>(size);
@@ -218,9 +203,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             }
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
-        }
+        this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
 
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             if (in.readBoolean()) {
@@ -237,18 +220,13 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeVInt(size);
         out.writeBoolean(explain);
         out.writeBoolean(version);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-            out.writeBoolean(seqNoAndPrimaryTerm);
-        }
+        out.writeBoolean(seqNoAndPrimaryTerm);
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
-        if (out.getVersion().before(LegacyESVersion.V_6_4_0)) {
-            out.writeGenericValue(docValueFields == null ? null : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
-        } else {
-            out.writeBoolean(docValueFields != null);
-            if (docValueFields != null) {
-                out.writeList(docValueFields);
-            }
+
+        out.writeBoolean(docValueFields != null);
+        if (docValueFields != null) {
+            out.writeList(docValueFields);
         }
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
@@ -269,9 +247,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             }
         }
         out.writeOptionalWriteable(highlightBuilder);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeOptionalWriteable(innerCollapseBuilder);
-        }
+        out.writeOptionalWriteable(innerCollapseBuilder);
 
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);

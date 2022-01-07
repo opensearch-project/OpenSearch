@@ -58,27 +58,6 @@ public class IngestStatsTests extends OpenSearchTestCase {
         assertIngestStats(ingestStats, serializedStats, true, true);
     }
 
-    public void testReadLegacyStream() throws IOException {
-        IngestStats.Stats totalStats = new IngestStats.Stats(50, 100, 200, 300);
-        List<IngestStats.PipelineStat> pipelineStats = createPipelineStats();
-
-        // legacy output logic
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_6_5_0));
-        totalStats.writeTo(out);
-        out.writeVInt(pipelineStats.size());
-        for (IngestStats.PipelineStat pipelineStat : pipelineStats) {
-            out.writeString(pipelineStat.getPipelineId());
-            pipelineStat.getStats().writeTo(out);
-        }
-
-        StreamInput in = out.bytes().streamInput();
-        in.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_6_5_0));
-        IngestStats serializedStats = new IngestStats(in);
-        IngestStats expectedStats = new IngestStats(totalStats, pipelineStats, Collections.emptyMap());
-        assertIngestStats(expectedStats, serializedStats, false, true);
-    }
-
     public void testBWCIngestProcessorTypeStats() throws IOException {
         IngestStats.Stats totalStats = new IngestStats.Stats(50, 100, 200, 300);
         List<IngestStats.PipelineStat> pipelineStats = createPipelineStats();

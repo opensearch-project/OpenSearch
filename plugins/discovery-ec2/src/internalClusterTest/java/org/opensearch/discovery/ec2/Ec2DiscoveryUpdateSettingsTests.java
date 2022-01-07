@@ -42,11 +42,11 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import static org.hamcrest.CoreMatchers.is;
 
 /**
- * Just an empty Node Start test to check eveything if fine when
+ * Just an empty Node Start test to check everything if fine when
  * starting.
  * This test requires AWS to run.
  */
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
     public void testMinimumMasterNodesStart() {
         Settings nodeSettings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "ec2").build();

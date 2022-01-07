@@ -157,8 +157,8 @@ import static java.util.Collections.singletonMap;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -214,7 +214,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     public void initValuesSourceRegistry() {
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityPlugin());
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, plugins);
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 
@@ -395,7 +395,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
              * close their sub-aggregations. This is fairly similar to what the production code does. */
             releasables.add((Releasable) invocation.getArguments()[0]);
             return null;
-        }).when(searchContext).addReleasable(anyObject());
+        }).when(searchContext).addReleasable(any());
         return searchContext;
     }
 

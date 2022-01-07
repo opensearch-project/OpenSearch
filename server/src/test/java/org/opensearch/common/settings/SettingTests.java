@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.ByteSizeUnit;
@@ -1479,32 +1478,26 @@ public class SettingTests extends OpenSearchTestCase {
         );
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message",
-                "org.opensearch.common.settings.IndexScopedSettings",
-                Level.INFO,
-                "updating [index.refresh_interval] from [20s] to [10s]"
-            ) {
-                @Override
-                public boolean innerMatch(LogEvent event) {
-                    return event.getMarker().getName().equals(" [index1]");
-                }
-            }
-        );
-        mockLogAppender.start();
         final Logger logger = LogManager.getLogger(IndexScopedSettings.class);
-        try {
-            Loggers.addAppender(logger, mockLogAppender);
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(logger)) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "message",
+                    "org.opensearch.common.settings.IndexScopedSettings",
+                    Level.INFO,
+                    "updating [index.refresh_interval] from [20s] to [10s]"
+                ) {
+                    @Override
+                    public boolean innerMatch(LogEvent event) {
+                        return event.getMarker().getName().equals(" [index1]");
+                    }
+                }
+            );
             settings.updateIndexMetadata(
                 newIndexMeta("index1", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build())
             );
 
             mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 }

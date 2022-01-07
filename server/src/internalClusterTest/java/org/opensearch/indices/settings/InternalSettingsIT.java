@@ -51,11 +51,6 @@ public class InternalSettingsIT extends OpenSearchIntegTestCase {
         return Collections.singleton(InternalOrPrivateSettingsPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(InternalOrPrivateSettingsPlugin.class);
-    }
-
     public void testSetInternalIndexSettingOnCreate() {
         final Settings settings = Settings.builder().put("index.internal", "internal").build();
         createIndex("index", settings);

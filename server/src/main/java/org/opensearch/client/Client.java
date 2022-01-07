@@ -90,11 +90,9 @@ import java.util.Map;
  * simply returns an {@link org.opensearch.action.ActionFuture}, while the second accepts an
  * {@link ActionListener}.
  * <p>
- * A client can either be retrieved from a {@link org.opensearch.node.Node} started, or connected remotely
- * to one or more nodes using {@link org.opensearch.client.transport.TransportClient}.
+ * A client can be retrieved from a started {@link org.opensearch.node.Node}.
  *
  * @see org.opensearch.node.Node#client()
- * @see org.opensearch.client.transport.TransportClient
  */
 public interface Client extends OpenSearchClient, Releasable {
 

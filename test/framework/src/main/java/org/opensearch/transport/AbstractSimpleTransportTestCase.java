@@ -34,6 +34,7 @@ package org.opensearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
@@ -51,7 +52,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkUtils;
@@ -1202,10 +1202,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 .build()
         );
 
-        MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.opensearch.transport.TransportService.tracer"), appender);
+        final Logger logger = LogManager.getLogger("org.opensearch.transport.TransportService.tracer");
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
             final String requestSent = ".*\\[internal:test].*sent to.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation requestSentExpectation = new MockLogAppender.PatternSeenEventExpectation(
                 "sent request",
@@ -1291,9 +1289,6 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             future.txGet();
 
             assertBusy(appender::assertAllExpectationsMatched);
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.opensearch.transport.TransportService.tracer"), appender);
-            appender.stop();
         }
     }
 

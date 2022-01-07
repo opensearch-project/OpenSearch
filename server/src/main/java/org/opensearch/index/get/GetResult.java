@@ -90,13 +90,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         index = in.readString();
         type = in.readOptionalString();
         id = in.readString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            seqNo = in.readZLong();
-            primaryTerm = in.readVLong();
-        } else {
-            seqNo = UNASSIGNED_SEQ_NO;
-            primaryTerm = UNASSIGNED_PRIMARY_TERM;
-        }
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
         version = in.readLong();
         exists = in.readBoolean();
         if (exists) {
@@ -449,10 +444,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         out.writeString(index);
         out.writeOptionalString(type);
         out.writeString(id);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            out.writeZLong(seqNo);
-            out.writeVLong(primaryTerm);
-        }
+        out.writeZLong(seqNo);
+        out.writeVLong(primaryTerm);
         out.writeLong(version);
         out.writeBoolean(exists);
         if (exists) {

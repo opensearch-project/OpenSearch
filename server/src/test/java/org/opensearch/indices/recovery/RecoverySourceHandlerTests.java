@@ -133,10 +133,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -655,7 +654,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
@@ -740,7 +739,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             freed.set(false);
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> freed.set(true));
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
 
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();

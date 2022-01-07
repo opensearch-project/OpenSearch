@@ -35,7 +35,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -143,14 +142,10 @@ public class SettingsFilterTests extends OpenSearchTestCase {
     private void assertExpectedLogMessages(Consumer<Logger> consumer, MockLogAppender.LoggingExpectation... expectations)
         throws IllegalAccessException {
         Logger testLogger = LogManager.getLogger("org.opensearch.test");
-        MockLogAppender appender = MockLogAppender.createStarted();
-        Loggers.addAppender(testLogger, appender);
-        try {
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(testLogger)) {
             Arrays.stream(expectations).forEach(appender::addExpectation);
             consumer.accept(testLogger);
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(testLogger, appender);
         }
     }
 

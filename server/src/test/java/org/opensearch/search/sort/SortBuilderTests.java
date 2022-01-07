@@ -63,7 +63,7 @@ public class SortBuilderTests extends OpenSearchTestCase {
 
     @BeforeClass
     public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 

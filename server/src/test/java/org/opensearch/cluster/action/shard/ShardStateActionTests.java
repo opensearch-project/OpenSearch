@@ -34,7 +34,6 @@ package org.opensearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
@@ -570,11 +569,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
             final StartedShardEntry deserialized = new StartedShardEntry(in);
             assertThat(deserialized.shardId, equalTo(shardId));
             assertThat(deserialized.allocationId, equalTo(allocationId));
-            if (version.onOrAfter(LegacyESVersion.V_6_7_0)) {
-                assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
-            } else {
-                assertThat(deserialized.primaryTerm, equalTo(0L));
-            }
+            assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
         }
     }

@@ -328,7 +328,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and "
+                "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
                     + "[cluster.initial_master_nodes] is empty on this node: have discovered []; "
                     + "discovery will continue using [] from hosts providers and ["
                     + localNode
@@ -348,7 +348,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and "
+                "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
                     + "[cluster.initial_master_nodes] is empty on this node: have discovered []; "
                     + "discovery will continue using ["
                     + otherAddress
@@ -370,7 +370,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and "
+                "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
                     + "[cluster.initial_master_nodes] is empty on this node: have discovered ["
                     + otherNode
                     + "]; "
@@ -391,7 +391,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and "
+                "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
                     + "this node must discover master-eligible nodes [other] to bootstrap a cluster: have discovered []; "
                     + "discovery will continue using [] from hosts providers and ["
                     + localNode

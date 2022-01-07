@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -91,9 +90,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
             source = null;
         }
 
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            id = in.readString();
-        }
+        id = in.readString();
     }
 
     GetStoredScriptResponse(String id, StoredScriptSource source) {
@@ -144,9 +141,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
             out.writeBoolean(true);
             source.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeString(id);
-        }
+        out.writeString(id);
     }
 
     @Override

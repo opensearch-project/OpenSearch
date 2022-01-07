@@ -262,6 +262,98 @@ public class DiscoveryNodeFiltersTests extends OpenSearchTestCase {
         assertTrue(filters.match(node));
     }
 
+    public void testAndNodeFiltersUpdate() {
+        Settings settings = Settings.builder().put("xxx._id", "id1").build();
+        DiscoveryNodeFilters filters = buildFromSettings(AND, "xxx.", settings);
+
+        final DiscoveryNode node1 = new DiscoveryNode(
+            "name1",
+            "id1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+        assertThat(filters.match(node1), equalTo(true));
+
+        final DiscoveryNode node2 = new DiscoveryNode(
+            "name2",
+            "id2",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+        assertThat(filters.match(node2), equalTo(false));
+
+        filters = buildOrUpdateFromSettings(filters, AND, "xxx.", Settings.builder().put("xxx.name", "name2").build());
+        assertThat(filters.match(node1), equalTo(false));
+        assertThat(filters.match(node2), equalTo(false));
+
+        filters = buildOrUpdateFromSettings(filters, AND, "xxx.", Settings.builder().put("xxx._id", "").build());
+        assertThat(filters.match(node1), equalTo(false));
+        assertThat(filters.match(node2), equalTo(true));
+
+        filters = buildOrUpdateFromSettings(filters, AND, "xxx.", Settings.builder().put("xxx.name", "name1").build());
+        assertThat(filters.match(node1), equalTo(true));
+        assertThat(filters.match(node2), equalTo(false));
+
+        filters = buildOrUpdateFromSettings(filters, AND, "xxx.", Settings.builder().put("xxx.name", "").put("xxx._id", "id2").build());
+        assertThat(filters.match(node1), equalTo(false));
+        assertThat(filters.match(node2), equalTo(true));
+    }
+
+    public void testOrNodeFiltersUpdate() {
+        Settings settings = Settings.builder().put("xxx._id", "id1").build();
+        DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
+
+        final DiscoveryNode node1 = new DiscoveryNode(
+            "name1",
+            "id1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+        assertThat(filters.match(node1), equalTo(true));
+
+        final DiscoveryNode node2 = new DiscoveryNode(
+            "name2",
+            "id2",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+        assertThat(filters.match(node2), equalTo(false));
+
+        filters = buildOrUpdateFromSettings(filters, OR, "xxx.", Settings.builder().put("xxx.name", "name2").build());
+        assertThat(filters.match(node1), equalTo(true));
+        assertThat(filters.match(node2), equalTo(true));
+
+        filters = buildOrUpdateFromSettings(filters, OR, "xxx.", Settings.builder().put("xxx._id", "").build());
+        assertThat(filters.match(node1), equalTo(false));
+        assertThat(filters.match(node2), equalTo(true));
+
+        filters = buildOrUpdateFromSettings(filters, OR, "xxx.", Settings.builder().put("xxx.name", "name1").build());
+        assertThat(filters.match(node1), equalTo(true));
+        assertThat(filters.match(node2), equalTo(false));
+
+        filters = buildOrUpdateFromSettings(filters, OR, "xxx.", Settings.builder().put("xxx.name", "name1,name2").build());
+        assertThat(filters.match(node1), equalTo(true));
+        assertThat(filters.match(node2), equalTo(true));
+    }
+
+    public void testOpTypeMismatch() {
+        Settings settings = Settings.builder().put("xxx._id", "id1").build();
+        DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
+        try {
+            buildOrUpdateFromSettings(filters, AND, "xxx.", Settings.builder().put("xxx.name", "name2").build());
+        } catch (AssertionError error) {
+            assertEquals("operation type should match with node filter parameter", error.getMessage());
+        }
+    }
+
     private Settings shuffleSettings(Settings source) {
         Settings.Builder settings = Settings.builder();
         List<String> keys = new ArrayList<>(source.keySet());
@@ -273,7 +365,16 @@ public class DiscoveryNodeFiltersTests extends OpenSearchTestCase {
     }
 
     public static DiscoveryNodeFilters buildFromSettings(DiscoveryNodeFilters.OpType opType, String prefix, Settings settings) {
+        return buildOrUpdateFromSettings(null, opType, prefix, settings);
+    }
+
+    public static DiscoveryNodeFilters buildOrUpdateFromSettings(
+        DiscoveryNodeFilters filters,
+        DiscoveryNodeFilters.OpType opType,
+        String prefix,
+        Settings settings
+    ) {
         Setting.AffixSetting<String> setting = Setting.prefixKeySetting(prefix, key -> Setting.simpleString(key));
-        return DiscoveryNodeFilters.buildFromKeyValue(opType, setting.getAsMap(settings));
+        return DiscoveryNodeFilters.buildOrUpdateFromKeyValue(filters, opType, setting.getAsMap(settings));
     }
 }

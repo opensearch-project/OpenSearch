@@ -51,7 +51,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -77,8 +76,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -568,18 +567,11 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
         IncrementalClusterStateWriter incrementalClusterStateWriter,
         MockLogAppender.LoggingExpectation expectation
     ) throws IllegalAccessException, WriteStateException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(expectation);
         Logger classLogger = LogManager.getLogger(IncrementalClusterStateWriter.class);
-        Loggers.addAppender(classLogger, mockAppender);
-
-        try {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(classLogger)) {
+            mockAppender.addExpectation(expectation);
             incrementalClusterStateWriter.updateClusterState(clusterState);
-        } finally {
-            Loggers.removeAppender(classLogger, mockAppender);
-            mockAppender.stop();
+            mockAppender.assertAllExpectationsMatched();
         }
-        mockAppender.assertAllExpectationsMatched();
     }
 }

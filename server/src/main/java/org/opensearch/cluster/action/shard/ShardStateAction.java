@@ -35,7 +35,6 @@ package org.opensearch.cluster.action.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
@@ -87,8 +86,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
 public class ShardStateAction {
 
@@ -566,11 +563,7 @@ public class ShardStateAction {
             primaryTerm = in.readVLong();
             message = in.readString();
             failure = in.readException();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-                markAsStale = in.readBoolean();
-            } else {
-                markAsStale = true;
-            }
+            markAsStale = in.readBoolean();
         }
 
         public FailedShardEntry(
@@ -605,9 +598,7 @@ public class ShardStateAction {
             out.writeVLong(primaryTerm);
             out.writeString(message);
             out.writeException(failure);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-                out.writeBoolean(markAsStale);
-            }
+            out.writeBoolean(markAsStale);
         }
 
         @Override
@@ -825,19 +816,8 @@ public class ShardStateAction {
             super(in);
             shardId = new ShardId(in);
             allocationId = in.readString();
-            if (in.getVersion().before(LegacyESVersion.V_6_3_0)) {
-                primaryTerm = in.readVLong();
-                assert primaryTerm == UNASSIGNED_PRIMARY_TERM : "shard is only started by itself: primary term [" + primaryTerm + "]";
-            } else if (in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-                primaryTerm = in.readVLong();
-            } else {
-                primaryTerm = UNASSIGNED_PRIMARY_TERM;
-            }
+            primaryTerm = in.readVLong();
             this.message = in.readString();
-            if (in.getVersion().before(LegacyESVersion.V_6_3_0)) {
-                final Exception ex = in.readException();
-                assert ex == null : "started shard must not have failure [" + ex + "]";
-            }
         }
 
         public StartedShardEntry(final ShardId shardId, final String allocationId, final long primaryTerm, final String message) {
@@ -852,15 +832,8 @@ public class ShardStateAction {
             super.writeTo(out);
             shardId.writeTo(out);
             out.writeString(allocationId);
-            if (out.getVersion().before(LegacyESVersion.V_6_3_0)) {
-                out.writeVLong(0L);
-            } else if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-                out.writeVLong(primaryTerm);
-            }
+            out.writeVLong(primaryTerm);
             out.writeString(message);
-            if (out.getVersion().before(LegacyESVersion.V_6_3_0)) {
-                out.writeException(null);
-            }
         }
 
         @Override

@@ -64,8 +64,8 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
 
         // compare opensearch version to LegacyESVersion
         assertThat(Version.V_1_0_0.compareMajor(LegacyESVersion.V_7_0_0), is(0));
-        assertThat(Version.V_1_0_0.compareMajor(LegacyESVersion.V_6_3_0), is(1));
-        assertThat(LegacyESVersion.V_6_3_0.compareMajor(Version.V_1_0_0), is(-1));
+        assertThat(Version.V_1_0_0.compareMajor(LegacyESVersion.fromString("6.3.0")), is(1));
+        assertThat(LegacyESVersion.fromString("6.3.0").compareMajor(Version.V_1_0_0), is(-1));
     }
 
     public void testMin() {
@@ -142,8 +142,8 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
         assertThat(LegacyESVersion.fromString("5.3.0").minimumCompatibilityVersion(), equalTo(major5x));
 
         Version major56x = LegacyESVersion.fromString("5.6.0");
-        assertThat(LegacyESVersion.V_6_5_0.minimumCompatibilityVersion(), equalTo(major56x));
-        assertThat(LegacyESVersion.V_6_3_1.minimumCompatibilityVersion(), equalTo(major56x));
+        assertThat(LegacyESVersion.fromString("6.5.0").minimumCompatibilityVersion(), equalTo(major56x));
+        assertThat(LegacyESVersion.fromString("6.3.1").minimumCompatibilityVersion(), equalTo(major56x));
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
@@ -281,8 +281,8 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
 
     public void testIsCompatible() {
         assertTrue(isCompatible(LegacyESVersion.V_6_8_0, LegacyESVersion.V_7_0_0));
-        assertFalse(isCompatible(LegacyESVersion.V_6_6_0, LegacyESVersion.V_7_0_0));
-        assertFalse(isCompatible(LegacyESVersion.V_6_7_0, LegacyESVersion.V_7_0_0));
+        assertFalse(isCompatible(LegacyESVersion.fromString("6.6.0"), LegacyESVersion.V_7_0_0));
+        assertFalse(isCompatible(LegacyESVersion.fromString("6.7.0"), LegacyESVersion.V_7_0_0));
 
         assertFalse(isCompatible(LegacyESVersion.fromId(5000099), LegacyESVersion.fromString("6.0.0")));
         assertFalse(isCompatible(LegacyESVersion.fromId(5000099), LegacyESVersion.fromString("7.0.0")));

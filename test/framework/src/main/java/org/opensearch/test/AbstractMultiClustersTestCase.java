@@ -135,7 +135,7 @@ public abstract class AbstractMultiClustersTestCase extends OpenSearchTestCase {
                 mockPlugins,
                 Function.identity()
             );
-            cluster.beforeTest(random(), 0);
+            cluster.beforeTest(random());
             clusters.put(clusterAlias, cluster);
         }
         clusterGroup = new ClusterGroup(clusters);

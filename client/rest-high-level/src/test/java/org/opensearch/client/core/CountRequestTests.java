@@ -81,7 +81,7 @@ public class CountRequestTests extends AbstractRequestTestCase<CountRequest, Que
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
     }
 
     public void testIllegalArguments() {

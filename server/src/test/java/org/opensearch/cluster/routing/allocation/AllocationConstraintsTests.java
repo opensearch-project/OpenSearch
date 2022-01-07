@@ -13,7 +13,7 @@ import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocat
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 
-import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

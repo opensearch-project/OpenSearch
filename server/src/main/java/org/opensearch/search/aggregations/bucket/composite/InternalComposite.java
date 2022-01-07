@@ -117,6 +117,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         if (afterKey != null) {
             afterKey.writeTo(out);
         }
+
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
             out.writeBoolean(earlyTerminated);
         }

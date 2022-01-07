@@ -91,16 +91,16 @@ import java.util.function.BiConsumer;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportBulkActionIngestTests extends OpenSearchTestCase {
@@ -295,7 +295,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         bulkRequest.add(indexRequest);
         action.execute(null, bulkRequest, ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); }));
         assertTrue(action.isExecuted);
-        verifyZeroInteractions(ingestService);
+        verifyNoInteractions(ingestService);
     }
 
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
@@ -307,7 +307,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
         );
         assertTrue(action.isExecuted);
-        verifyZeroInteractions(ingestService);
+        verifyNoInteractions(ingestService);
     }
 
     public void testIngestLocal() throws Exception {
@@ -355,7 +355,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 
     public void testSingleItemBulkActionIngestLocal() throws Exception {
@@ -390,7 +390,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 
     public void testIngestSystemLocal() throws Exception {
@@ -438,7 +438,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 
     public void testIngestForward() throws Exception {
@@ -599,7 +599,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 
     public void testDoExecuteCalledTwiceCorrectly() throws Exception {
@@ -639,7 +639,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         assertTrue(action.isExecuted);
         assertTrue(action.indexCreated); // now the index is created since we skipped the ingest node path.
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 
     public void testNotFindDefaultPipelineFromTemplateMatches() {
@@ -653,7 +653,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             failureCalled.set(true);
         }));
         assertEquals(IngestService.NOOP_PIPELINE_NAME, indexRequest.getPipeline());
-        verifyZeroInteractions(ingestService);
+        verifyNoInteractions(ingestService);
 
     }
 
@@ -789,6 +789,6 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 }

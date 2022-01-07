@@ -263,11 +263,6 @@ public class IndicesOptions implements ToXContentFragment {
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         EnumSet<Option> options = this.options;
-        // never write this out to a pre 6.6 version
-        if (out.getVersion().before(LegacyESVersion.V_6_6_0) && options.contains(Option.IGNORE_THROTTLED)) {
-            options = EnumSet.copyOf(options);
-            options.remove(Option.IGNORE_THROTTLED);
-        }
         out.writeEnumSet(options);
         if (out.getVersion().before(LegacyESVersion.V_7_7_0) && expandWildcards.contains(WildcardStates.HIDDEN)) {
             final EnumSet<WildcardStates> states = EnumSet.copyOf(expandWildcards);
