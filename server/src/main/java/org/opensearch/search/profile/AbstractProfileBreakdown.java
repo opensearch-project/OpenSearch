@@ -69,16 +69,9 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     }
 
     /**
-     * Return a timing count breakdown.
-     */
-    public final Map<String, Long> toBreakdownMap() {
-        return doBuildBreakdownMap();
-    }
-
-    /**
      * Build a timing count breakdown for current instance
      */
-    protected Map<String, Long> doBuildBreakdownMap() {
+    public Map<String, Long> toBreakdownMap() {
         return buildBreakdownMap(this);
     }
 

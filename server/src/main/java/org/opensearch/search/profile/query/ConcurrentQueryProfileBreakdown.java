@@ -41,7 +41,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     }
 
     @Override
-    protected Map<String, Long> doBuildBreakdownMap() {
+    public Map<String, Long> toBreakdownMap() {
         final Map<String, Long> map = new HashMap<>(buildBreakdownMap(this));
 
         for (final AbstractProfileBreakdown<QueryTimingType> context : contexts.values()) {
