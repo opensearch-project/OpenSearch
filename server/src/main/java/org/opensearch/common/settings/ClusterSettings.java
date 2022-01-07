@@ -339,23 +339,16 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
-                RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                 SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
                 RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
-                RemoteClusterService.SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
                 RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
-                RemoteClusterService.SEARCH_REMOTE_NODE_ATTRIBUTE,
                 RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
-                RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS,
                 RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
                 RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
                 RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
                 ProxyConnectionStrategy.PROXY_ADDRESS,
                 ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
                 ProxyConnectionStrategy.SERVER_NAME,
-                SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS,
-                SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY,
-                SniffConnectionStrategy.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER,
                 ProxyConnectionStrategy.SERVER_NAME,
                 SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
                 SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
@@ -577,12 +570,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         )
     );
 
-    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(
-        Arrays.asList(
-            SniffConnectionStrategy.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
-            SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER,
-            RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER
-        )
-    );
+    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 
 }
