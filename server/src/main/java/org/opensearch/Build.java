@@ -214,8 +214,7 @@ public class Build {
         // TODO - clean this up when OSS flavor is removed in all of the code base
         // (Integ test zip still write OSS as distribution)
         // See issue: https://github.com/opendistro-for-elasticsearch/search/issues/159
-        // todo change to V_1_3_0 after backporting
-        if (in.getVersion().before(Version.V_2_0_0)) {
+        if (in.getVersion().before(Version.V_1_3_0)) {
             String flavor = in.readString();
         }
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
@@ -242,8 +241,7 @@ public class Build {
         // The following block is kept for existing BWS tests to pass.
         // TODO - clean up this code when we remove all v6 bwc tests.
         // TODO - clean this up when OSS flavor is removed in all of the code base
-        // todo change to V_1_3_0 after backporting
-        if (out.getVersion().before(Version.V_2_0_0)) {
+        if (out.getVersion().before(Version.V_1_3_0)) {
             out.writeString("oss");
         }
         final Type buildType = build.type();
