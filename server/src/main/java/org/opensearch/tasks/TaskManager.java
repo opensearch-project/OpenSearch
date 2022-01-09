@@ -48,6 +48,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
@@ -84,6 +85,8 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_
  * Task Manager service for keeping track of currently running tasks on the nodes
  */
 public class TaskManager implements ClusterStateApplier {
+
+    public static final String TASK_ID = "TASK_ID";
 
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
@@ -448,6 +451,28 @@ public class TaskManager implements ClusterStateApplier {
         throw new OpenSearchTimeoutException("Timed out waiting for completion of [{}]", task);
     }
 
+    /**
+     * Adds Task Id in the ThreadContext.
+     *
+     * Stashes the existing ThreadContext and preserves all the existing ThreadContext's data in the new ThreadContext
+     * as well.
+     *
+     * @param task for which Task Id needs to be added in ThreadContext.
+     *
+     * @return StoredContext reference to restore the ThreadContext from which we created a new one.
+     * Caller can call context.restore() to get the existing ThreadContext back.
+     */
+    public ThreadContext.StoredContext addTaskIdInThreadContext(@Nullable Task task) {
+        if (task == null) {
+            return () -> {};
+        }
+
+        ThreadContext threadContext = threadPool.getThreadContext();
+        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
+        threadContext.putTransient(TASK_ID, task.getId());
+        return storedContext;
+    }
+
     private static class CancellableTaskHolder {
         private final CancellableTask task;
         private boolean finished = false;
@@ -467,7 +492,8 @@ public class TaskManager implements ClusterStateApplier {
                     assert cancellationListeners == null;
                     toRun = listener;
                 } else {
-                    toRun = () -> {};
+                    toRun = () -> {
+                    };
                     if (listener != null) {
                         if (cancellationListeners == null) {
                             cancellationListeners = new ArrayList<>();
@@ -571,7 +597,8 @@ public class TaskManager implements ClusterStateApplier {
                     assert childTaskCompletedListeners == null;
                     toRun = onChildTasksCompleted;
                 } else {
-                    toRun = () -> {};
+                    toRun = () -> {
+                    };
                     if (childTaskCompletedListeners == null) {
                         childTaskCompletedListeners = new ArrayList<>();
                     }
@@ -603,7 +630,9 @@ public class TaskManager implements ClusterStateApplier {
                 final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
                 assert removedTracker == tracker;
                 cancelTasksOnChannelClosed(tracker.drainTasks());
-            }, e -> { assert false : new AssertionError("must not be here", e); }));
+            }, e -> {
+                assert false : new AssertionError("must not be here", e);
+            }));
         }
         return () -> tracker.removeTask(task);
     }
@@ -657,7 +686,8 @@ public class TaskManager implements ClusterStateApplier {
                 @Override
                 protected void doRun() {
                     for (CancellableTask task : tasks) {
-                        cancelTaskAndDescendants(task, "channel was closed", false, ActionListener.wrap(() -> {}));
+                        cancelTaskAndDescendants(task, "channel was closed", false, ActionListener.wrap(() -> {
+                        }));
                     }
                 }
             });
