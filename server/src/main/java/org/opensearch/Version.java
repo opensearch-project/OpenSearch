@@ -329,15 +329,20 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     protected Version computeMinCompatVersion() {
-        if (major == 1) {
-            return LegacyESVersion.V_6_8_0;
+        if (major == 1 || major == 7) {
+            // we don't have LegacyESVersion.V_6 constants, so set it to its last minor
+            return LegacyESVersion.fromId(6080099);
         } else if (major == 2) {
             return LegacyESVersion.V_7_10_0;
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
-            return Version.fromId(5060099);
-        } else if (major >= 7) {
-            // all major versions from 7 onwards are compatible with last minor series of the previous major
+            return LegacyESVersion.fromId(5060099);
+        }
+        /*
+         * TODO - uncomment this logic from OpenSearch version 3 onwards
+         *
+        else if (major >= 3) {
+            // all major versions from 3 onwards are compatible with last minor series of the previous major
             Version bwcVersion = null;
 
             for (int i = DeclaredVersionsHolder.DECLARED_VERSIONS.size() - 1; i >= 0; i--) {
@@ -351,6 +356,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             }
             return bwcVersion == null ? this : bwcVersion;
         }
+         */
 
         return Version.min(this, fromId(maskId((int) major * 1000000 + 0 * 10000 + 99)));
     }

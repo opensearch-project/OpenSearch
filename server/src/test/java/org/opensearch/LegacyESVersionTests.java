@@ -25,7 +25,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.opensearch.LegacyESVersion.V_6_8_15;
 import static org.opensearch.LegacyESVersion.V_7_0_0;
 import static org.opensearch.test.VersionUtils.randomLegacyVersion;
 import static org.opensearch.VersionTests.isCompatible;
@@ -37,6 +36,7 @@ import static org.opensearch.VersionTests.isCompatible;
 public class LegacyESVersionTests extends OpenSearchTestCase {
 
     public void testVersionComparison() {
+        Version V_6_8_15 = LegacyESVersion.fromString("6.8.15");
         assertThat(V_6_8_15.before(V_7_0_0), is(true));
         assertThat(V_6_8_15.before(V_6_8_15), is(false));
         assertThat(V_7_0_0.before(V_6_8_15), is(false));
@@ -59,7 +59,6 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
         assertTrue(LegacyESVersion.fromString("5.0.0-alpha24").before(LegacyESVersion.fromString("5.0.0-beta0")));
 
         assertThat(V_6_8_15, is(lessThan(V_7_0_0)));
-        assertThat(V_6_8_15.compareTo(V_6_8_15), is(0));
         assertThat(V_7_0_0, is(greaterThan(V_6_8_15)));
 
         // compare opensearch version to LegacyESVersion
@@ -147,7 +146,8 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
-        LegacyESVersion lastVersion = LegacyESVersion.V_6_8_0; // TODO: remove this once min compat version is a constant instead of method
+        Version lastVersion = LegacyESVersion.fromString("6.8.0"); // TODO: remove this once min compat version is a constant instead of
+                                                                   // method
         assertEquals(lastVersion.major, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion().major);
         assertEquals(
             "did you miss to bump the minor in Version#minimumCompatibilityVersion()",
@@ -280,7 +280,7 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
     }
 
     public void testIsCompatible() {
-        assertTrue(isCompatible(LegacyESVersion.V_6_8_0, LegacyESVersion.V_7_0_0));
+        assertTrue(isCompatible(LegacyESVersion.fromString("6.8.0"), LegacyESVersion.V_7_0_0));
         assertFalse(isCompatible(LegacyESVersion.fromString("6.6.0"), LegacyESVersion.V_7_0_0));
         assertFalse(isCompatible(LegacyESVersion.fromString("6.7.0"), LegacyESVersion.V_7_0_0));
 

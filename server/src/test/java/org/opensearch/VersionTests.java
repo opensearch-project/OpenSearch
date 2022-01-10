@@ -204,7 +204,7 @@ public class VersionTests extends OpenSearchTestCase {
 
     /** test opensearch min wire compatibility */
     public void testOpenSearchMinCompatVersion() {
-        Version opensearchVersion = VersionUtils.randomOpenSearchVersion(random());
+        Version opensearchVersion = Version.CURRENT;
         // opensearch 1.x minCompat is Legacy 6.8.0
         // opensearch 2.x minCompat is Legacy 7.10.0
         // opensearch 3.x minCompat is 1.{last minor version}.0

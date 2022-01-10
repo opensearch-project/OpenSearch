@@ -52,7 +52,6 @@ import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.loadDocIdAndVersion;
@@ -216,17 +215,8 @@ public class VersionsTests extends OpenSearchTestCase {
     }
 
     public void testLuceneVersionOnUnknownVersions() {
-        List<Version> allVersions = VersionUtils.allVersions();
-
-        // should have the same Lucene version as the latest 6.x version
-        Version version = LegacyESVersion.fromString("6.88.50");
-        assertEquals(
-            allVersions.get(Collections.binarySearch(allVersions, LegacyESVersion.V_7_0_0) - 1).luceneVersion,
-            version.luceneVersion
-        );
-
         // between two known versions, should use the lucene version of the previous version
-        version = LegacyESVersion.fromString("7.10.50");
+        Version version = LegacyESVersion.fromString("7.10.50");
         assertEquals(VersionUtils.getPreviousVersion(Version.fromString("7.10.3")).luceneVersion, version.luceneVersion);
 
         // too old version, major should be the oldest supported lucene version minus 1
