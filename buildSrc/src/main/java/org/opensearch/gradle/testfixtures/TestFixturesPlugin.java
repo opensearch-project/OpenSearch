@@ -155,15 +155,19 @@ public class TestFixturesPlugin implements Plugin<Project> {
             maybeSkipTask(dockerSupport, buildFixture);
 
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
-            composeExtension.setUseComposeFiles(Collections.singletonList(DOCKER_COMPOSE_YML));
-            composeExtension.setRemoveContainers(true);
+            composeExtension.getUseComposeFiles().set(Collections.singletonList(DOCKER_COMPOSE_YML));
+            composeExtension.getRemoveContainers().set(true);
+
+            // Increase the Docker Compose HTTP timeout to 120 sec (the default is 60)
+            final Integer timeout = ext.has("dockerComposeHttpTimeout") ? (Integer) ext.get("dockerComposeHttpTimeout") : 120;
+            composeExtension.getEnvironment().put("COMPOSE_HTTP_TIMEOUT", timeout);
 
             Optional<String> dockerCompose = List.of(DOCKER_COMPOSE_BINARIES)
                 .stream()
                 .filter(path -> project.file(path).exists())
                 .findFirst();
 
-            composeExtension.setExecutable(dockerCompose.isPresent() ? dockerCompose.get() : "/usr/bin/docker");
+            composeExtension.getExecutable().set(dockerCompose.isPresent() ? dockerCompose.get() : "/usr/bin/docker");
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
@@ -207,7 +211,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 (name, host) -> task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
             );
         }));
-
     }
 
     private void maybeSkipTasks(TaskContainer tasks, Provider<DockerSupportService> dockerSupport, Class<? extends DefaultTask> taskClass) {
