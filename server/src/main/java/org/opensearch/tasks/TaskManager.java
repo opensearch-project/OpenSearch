@@ -492,8 +492,7 @@ public class TaskManager implements ClusterStateApplier {
                     assert cancellationListeners == null;
                     toRun = listener;
                 } else {
-                    toRun = () -> {
-                    };
+                    toRun = () -> {};
                     if (listener != null) {
                         if (cancellationListeners == null) {
                             cancellationListeners = new ArrayList<>();
@@ -597,8 +596,7 @@ public class TaskManager implements ClusterStateApplier {
                     assert childTaskCompletedListeners == null;
                     toRun = onChildTasksCompleted;
                 } else {
-                    toRun = () -> {
-                    };
+                    toRun = () -> {};
                     if (childTaskCompletedListeners == null) {
                         childTaskCompletedListeners = new ArrayList<>();
                     }
@@ -630,9 +628,7 @@ public class TaskManager implements ClusterStateApplier {
                 final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
                 assert removedTracker == tracker;
                 cancelTasksOnChannelClosed(tracker.drainTasks());
-            }, e -> {
-                assert false : new AssertionError("must not be here", e);
-            }));
+            }, e -> { assert false : new AssertionError("must not be here", e); }));
         }
         return () -> tracker.removeTask(task);
     }
@@ -686,8 +682,7 @@ public class TaskManager implements ClusterStateApplier {
                 @Override
                 protected void doRun() {
                     for (CancellableTask task : tasks) {
-                        cancelTaskAndDescendants(task, "channel was closed", false, ActionListener.wrap(() -> {
-                        }));
+                        cancelTaskAndDescendants(task, "channel was closed", false, ActionListener.wrap(() -> {}));
                     }
                 }
             });
