@@ -40,6 +40,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 
 import java.io.IOException;
@@ -53,9 +54,9 @@ import java.util.Set;
 public final class ProfileWeight extends Weight {
 
     private final Weight subQueryWeight;
-    private final QueryProfileBreakdown profile;
+    private final ContextualProfileBreakdown<QueryTimingType> profile;
 
-    public ProfileWeight(Query query, Weight subQueryWeight, QueryProfileBreakdown profile) throws IOException {
+    public ProfileWeight(Query query, Weight subQueryWeight, ContextualProfileBreakdown<QueryTimingType> profile) throws IOException {
         super(query);
         this.subQueryWeight = subQueryWeight;
         this.profile = profile;
@@ -72,7 +73,7 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-        Timer timer = profile.getTimer(QueryTimingType.BUILD_SCORER);
+        Timer timer = profile.context(context).getTimer(QueryTimingType.BUILD_SCORER);
         timer.start();
         final ScorerSupplier subQueryScorerSupplier;
         try {
@@ -91,7 +92,7 @@ public final class ProfileWeight extends Weight {
             public Scorer get(long loadCost) throws IOException {
                 timer.start();
                 try {
-                    return new ProfileScorer(weight, subQueryScorerSupplier.get(loadCost), profile);
+                    return new ProfileScorer(weight, subQueryScorerSupplier.get(loadCost), profile.context(context));
                 } finally {
                     timer.stop();
                 }
