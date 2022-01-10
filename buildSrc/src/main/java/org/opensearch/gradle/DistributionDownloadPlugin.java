@@ -195,11 +195,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
             return;
         }
+        Object customDistributionUrl = project.findProperty("customDistributionUrl");
         // checks if custom Distribution Url has been passed by user from plugins
-        if (project.findProperty("customDistributionUrl") != null) {
-            String customDistributionUrl = project.findProperty("customDistributionUrl").toString();
-            addIvyRepo(project, DOWNLOAD_REPO_NAME, customDistributionUrl, FAKE_IVY_GROUP, "");
-            addIvyRepo(project, SNAPSHOT_REPO_NAME, customDistributionUrl, FAKE_SNAPSHOT_IVY_GROUP, "");
+        if (customDistributionUrl != null) {
+            addIvyRepo(project, DOWNLOAD_REPO_NAME, customDistributionUrl.toString(), FAKE_IVY_GROUP, "");
+            addIvyRepo(project, SNAPSHOT_REPO_NAME, customDistributionUrl.toString(), FAKE_SNAPSHOT_IVY_GROUP, "");
         } else {
             addIvyRepo(
                 project,

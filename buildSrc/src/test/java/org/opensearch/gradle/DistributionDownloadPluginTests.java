@@ -96,9 +96,15 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         assertEquals(distro.getType(), Type.ARCHIVE);
     }
 
-    public void testCustomDistributionUrl() {
+    public void testCustomDistributionUrlForNull() {
         Project project = createProject(null, false);
         assertNull(project.findProperty("customDistributionUrl"));
+    }
+
+    public void testCustomDistributionUrl() {
+        Project project = createProject(null, false);
+        project.getExtensions().getExtraProperties().set("customDistributionUrl", "https://artifacts.opensearch.org");
+        assertEquals(project.property("customDistributionUrl").toString(), "https://artifacts.opensearch.org");
     }
 
     public void testPlatformDefault() {
