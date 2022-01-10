@@ -39,7 +39,6 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
-import org.opensearch.client.WarningFailureException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.common.Booleans;
@@ -1110,13 +1109,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", listSnapshotResponse));
 
         // Remove the routing setting and template so we can test restoring them.
-        try {
-            Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
-            clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
-            client().performRequest(clearRoutingFromSettings);
-        } catch (WarningFailureException e) {
-            throw e;
-        }
+        Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
+        clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
+        client().performRequest(clearRoutingFromSettings);
         client().performRequest(new Request("DELETE", "/_template/test_template"));
 
         // Restore

@@ -34,7 +34,6 @@ package org.opensearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.GroupedActionListener;
@@ -46,7 +45,6 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -81,50 +79,24 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     private final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
-    static {
-        // remove search.remote.* settings in 8.0.0
-        assert Version.CURRENT.major < 8;
-    }
-
-    public static final Setting<TimeValue> SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "search.remote.initial_connect_timeout",
-        TimeValue.timeValueSeconds(30),
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
-    );
-
     /**
      * The initial connect timeout for remote cluster connections
      */
     public static final Setting<TimeValue> REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "cluster.remote.initial_connect_timeout",
-        SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING, // the default needs to be thirty seconds when fallback is removed
+        TimeValue.timeValueSeconds(30),
         Setting.Property.NodeScope
-    );
-
-    public static final Setting<String> SEARCH_REMOTE_NODE_ATTRIBUTE = Setting.simpleString(
-        "search.remote.node.attr",
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
     );
 
     /**
      * The name of a node attribute to select nodes that should be connected to in the remote cluster.
      * For instance a node can be configured with {@code node.attr.gateway: true} in order to be eligible as a gateway node between
-     * clusters. In that case {@code search.remote.node.attr: gateway} can be used to filter out other nodes in the remote cluster.
+     * clusters. In that case {@code cluster.remote.node.attr: gateway} can be used to filter out other nodes in the remote cluster.
      * The value of the setting is expected to be a boolean, {@code true} for nodes that can become gateways, {@code false} otherwise.
      */
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString(
         "cluster.remote.node.attr",
-        SEARCH_REMOTE_NODE_ATTRIBUTE, // no default is needed when fallback is removed, use simple string which gives empty
         Setting.Property.NodeScope
-    );
-
-    public static final Setting<Boolean> SEARCH_ENABLE_REMOTE_CLUSTERS = Setting.boolSetting(
-        "search.remote.connect",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
     );
 
     /**
@@ -134,44 +106,15 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     public static final Setting<Boolean> ENABLE_REMOTE_CLUSTERS = Setting.boolSetting(
         "cluster.remote.connect",
-        SEARCH_ENABLE_REMOTE_CLUSTERS, // the default needs to be true when fallback is removed
+        true,
         Setting.Property.Deprecated,
         Setting.Property.NodeScope
     );
 
-    public static final Setting.AffixSetting<Boolean> SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE = Setting.affixKeySetting(
-        "search.remote.",
-        "skip_unavailable",
-        key -> boolSetting(key, false, Setting.Property.Deprecated, Setting.Property.Dynamic, Setting.Property.NodeScope)
-    );
-
-    public static final SettingUpgrader<Boolean> SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER = new SettingUpgrader<Boolean>() {
-
-        @Override
-        public Setting<Boolean> getSetting() {
-            return SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;
-        }
-
-        @Override
-        public String getKey(final String key) {
-            return key.replaceFirst("^search", "cluster");
-        }
-
-    };
-
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE = Setting.affixKeySetting(
         "cluster.remote.",
         "skip_unavailable",
-        (ns, key) -> boolSetting(
-            key,
-            // the default needs to be false when fallback is removed
-            "_na_".equals(key)
-                ? SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(key)
-                : SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSetting(key.replaceAll("^cluster", "search")),
-            new RemoteConnectionEnabled<>(ns, key),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
-        )
+        (ns, key) -> boolSetting(key, false, new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
@@ -308,7 +251,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public void listenForUpdates(ClusterSettings clusterSettings) {
         super.listenForUpdates(clusterSettings);
         clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
-        clusterSettings.addAffixUpdateConsumer(SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
     }
 
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
