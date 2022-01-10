@@ -468,7 +468,12 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         ThreadContext threadContext = threadPool.getThreadContext();
-        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
+
+        if (threadContext.getTransient(TASK_ID) != null) {
+            logger.warn("Task Id already present in the thread context. Overwriting");
+        }
+
+        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true, Collections.singletonList(TASK_ID));
         threadContext.putTransient(TASK_ID, task.getId());
         return storedContext;
     }
