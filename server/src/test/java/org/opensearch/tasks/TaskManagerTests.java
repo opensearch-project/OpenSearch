@@ -39,6 +39,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -64,6 +65,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
+import static org.opensearch.tasks.TaskManager.TASK_ID;
 
 public class TaskManagerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
@@ -89,6 +91,36 @@ public class TaskManagerTests extends OpenSearchTestCase {
             total += times.next().millis();
         }
         assertEquals(600000L, total);
+    }
+
+    public void testAddTaskIdToThreadContext() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        final Task task = taskManager.register("transport", "test", new CancellableRequest("1"));
+        String key = "KEY";
+        String value = "VALUE";
+
+        // Prepare thread context
+        threadPool.getThreadContext().putHeader(key, value);
+        threadPool.getThreadContext().putTransient(key, value);
+        threadPool.getThreadContext().addResponseHeader(key, value);
+
+        ThreadContext.StoredContext storedContext = taskManager.addTaskIdInThreadContext(task);
+
+        // All headers should be preserved and Task Id should also be included in thread context
+        verifyThreadContextFixedHeaders(key, value);
+        assertEquals((long) threadPool.getThreadContext().getTransient(TASK_ID), task.getId());
+
+        storedContext.restore();
+
+        // Post restore only task id should be removed from the thread context
+        verifyThreadContextFixedHeaders(key, value);
+        assertNull(threadPool.getThreadContext().getTransient(TASK_ID));
+    }
+
+    private void verifyThreadContextFixedHeaders(String key, String value) {
+        assertEquals(threadPool.getThreadContext().getHeader(key), value);
+        assertEquals(threadPool.getThreadContext().getTransient(key), value);
+        assertEquals(threadPool.getThreadContext().getResponseHeaders().get(key).get(0), value);
     }
 
     public void testTrackingChannelTask() throws Exception {
