@@ -122,7 +122,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 
-        final Version minGoodVersion = maxNodeVersion.major == minNodeVersion.major ?
+        final Version minGoodVersion = maxNodeVersion.compareMajor(minNodeVersion) == 0 ?
         // we have to stick with the same major
             minNodeVersion : maxNodeVersion.minimumCompatibilityVersion();
         final Version justGood = randomVersionBetween(random(), minGoodVersion, maxCompatibleVersion(minNodeVersion));
