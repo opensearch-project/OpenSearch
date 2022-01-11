@@ -370,6 +370,9 @@ public class BwcVersions {
             .stream()
             .flatMap(Collection::stream)
             .filter(each -> unreleased.contains(each) == false)
+            // this is to make sure we only consider OpenSearch versions
+            // TODO remove this filter once legacy ES versions are no longer supported
+            .filter(v -> v.onOrAfter("1.0.0"))
             .collect(Collectors.toList());
     }
 
