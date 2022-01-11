@@ -716,14 +716,14 @@ public class BwcVersionsTests extends GradleUnitTestCase {
     }
 
     public void testCompareToAuthoritative() {
-        List<String> listOfVersions = asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0", "8.0.0");
-        List<Version> authoritativeReleasedVersions = Stream.of("7.0.0", "7.0.1", "7.1.0")
+        List<String> listOfVersions = asList("1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.2.0", "1.3.0", "2.0.0");
+        List<Version> authoritativeReleasedVersions = Stream.of("1.0.0", "1.0.1", "1.1.0")
             .map(Version::fromString)
             .collect(Collectors.toList());
 
         BwcVersions vc = new BwcVersions(
             listOfVersions.stream().map(this::formatVersionToLine).collect(Collectors.toList()),
-            Version.fromString("8.0.0")
+            Version.fromString("2.0.0")
         );
         vc.compareToAuthoritative(authoritativeReleasedVersions);
     }
@@ -744,11 +744,11 @@ public class BwcVersionsTests extends GradleUnitTestCase {
     }
 
     public void testCompareToAuthoritativeNotReallyRelesed() {
-        List<String> listOfVersions = asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0", "8.0.0");
-        List<Version> authoritativeReleasedVersions = Stream.of("7.0.0", "7.0.1").map(Version::fromString).collect(Collectors.toList());
+        List<String> listOfVersions = asList("1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.2.0", "1.3.0", "2.0.0");
+        List<Version> authoritativeReleasedVersions = Stream.of("1.0.0", "1.0.1").map(Version::fromString).collect(Collectors.toList());
         BwcVersions vc = new BwcVersions(
             listOfVersions.stream().map(this::formatVersionToLine).collect(Collectors.toList()),
-            Version.fromString("8.0.0")
+            Version.fromString("2.0.0")
         );
         expectedEx.expect(IllegalStateException.class);
         expectedEx.expectMessage("not really released");
