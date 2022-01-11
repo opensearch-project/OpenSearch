@@ -3461,22 +3461,7 @@ public class TranslogTests extends OpenSearchTestCase {
         expectThrows(
             TranslogCorruptedException.class,
             IndexFormatTooOldException.class,
-            () -> Checkpoint.read(getDataPath("/org/opensearch/index/checkpoint/v1.ckp.binary"))
-        );
-        assertThat(
-            Checkpoint.read(getDataPath("/org/opensearch/index/checkpoint/v2.ckp.binary")),
-            equalTo(
-                new Checkpoint(
-                    -1312746831014894010L,
-                    44230819,
-                    4168771208509507653L,
-                    6217263213205155568L,
-                    8590850694628654668L,
-                    3768575734506660560L,
-                    1476009383806516272L,
-                    SequenceNumbers.UNASSIGNED_SEQ_NO
-                )
-            )
+            () -> Checkpoint.read(getDataPath("/org/opensearch/index/checkpoint/v2.ckp.binary"))
         );
     }
 
