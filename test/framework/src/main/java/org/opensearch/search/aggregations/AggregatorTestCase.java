@@ -175,16 +175,16 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     protected ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
-    private static List<String> TYPE_TEST_BLACKLIST;
+    private static List<String> TYPE_TEST_DENYLIST;
 
     static {
-        List<String> blacklist = new ArrayList<>();
-        blacklist.add(ObjectMapper.CONTENT_TYPE); // Cannot aggregate objects
-        blacklist.add(GeoShapeFieldMapper.CONTENT_TYPE); // Cannot aggregate geoshapes (yet)
-        blacklist.add(ObjectMapper.NESTED_CONTENT_TYPE); // TODO support for nested
-        blacklist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
-        blacklist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
-        TYPE_TEST_BLACKLIST = blacklist;
+        List<String> denylist = new ArrayList<>();
+        denylist.add(ObjectMapper.CONTENT_TYPE); // Cannot aggregate objects
+        denylist.add(GeoShapeFieldMapper.CONTENT_TYPE); // Cannot aggregate geoshapes (yet)
+        denylist.add(ObjectMapper.NESTED_CONTENT_TYPE); // TODO support for nested
+        denylist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
+        denylist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
+        TYPE_TEST_DENYLIST = denylist;
     }
 
     /**
@@ -713,11 +713,11 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * A method that allows implementors to specifically blacklist particular field types (based on their content_name).
+     * A method that allows implementors to specifically denylist particular field types (based on their content_name).
      * This is needed in some areas where the ValuesSourceType is not granular enough, for example integer values
      * vs floating points, or `keyword` bytes vs `binary` bytes (which are not searchable)
      *
-     * This is a blacklist instead of an allowlist because there are vastly more field types than ValuesSourceTypes,
+     * This is a denylist instead of an allowlist because there are vastly more field types than ValuesSourceTypes,
      * and it's expected that these unsupported cases are exceptional rather than common
      */
     protected List<String> unsupportedMappedFieldTypes() {
@@ -748,7 +748,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         for (Map.Entry<String, Mapper.TypeParser> mappedType : mapperRegistry.getMapperParsers().entrySet()) {
 
             // Some field types should not be tested, or require more work and are not ready yet
-            if (TYPE_TEST_BLACKLIST.contains(mappedType.getKey())) {
+            if (TYPE_TEST_DENYLIST.contains(mappedType.getKey())) {
                 continue;
             }
 
