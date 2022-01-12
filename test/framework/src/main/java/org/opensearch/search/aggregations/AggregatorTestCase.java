@@ -717,7 +717,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * This is needed in some areas where the ValuesSourceType is not granular enough, for example integer values
      * vs floating points, or `keyword` bytes vs `binary` bytes (which are not searchable)
      *
-     * This is a blacklist instead of a whitelist because there are vastly more field types than ValuesSourceTypes,
+     * This is a blacklist instead of an allowlist because there are vastly more field types than ValuesSourceTypes,
      * and it's expected that these unsupported cases are exceptional rather than common
      */
     protected List<String> unsupportedMappedFieldTypes() {

@@ -64,7 +64,7 @@ dependencies {
   api "joda-time:joda-time:${versions.joda}"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell
+  // and allowlist this hack in JarHell
   api 'javax.xml.bind:jaxb-api:2.2.2'
 
   testImplementation project(':test:fixtures:s3-fixture')
