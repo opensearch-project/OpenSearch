@@ -53,7 +53,7 @@ class OpenSearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
             }
 
             repositories {
-                jcenter()
+                mavenCentral()
             }
 
             dependencies {
