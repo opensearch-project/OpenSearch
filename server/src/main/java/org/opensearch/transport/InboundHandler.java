@@ -234,32 +234,19 @@ public class InboundHandler {
                     final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
                     assert reg != null;
 
-                    try {
-                        final T request = reg.newRequest(stream);
-                        request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
-                        checkStreamIsFullyConsumed(requestId, action, stream);
+                    final T request = newRequest(requestId, action, stream, reg);
+                    request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                    checkStreamIsFullyConsumed(requestId, action, stream);
 
-                        final String executor = reg.getExecutor();
-                        if (ThreadPool.Names.SAME.equals(executor)) {
-                            try {
-                                reg.processMessageReceived(request, transportChannel);
-                            } catch (Exception e) {
-                                sendErrorResponse(reg.getAction(), transportChannel, e);
-                            }
-                        } else {
-                            threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
+                    final String executor = reg.getExecutor();
+                    if (ThreadPool.Names.SAME.equals(executor)) {
+                        try {
+                            reg.processMessageReceived(request, transportChannel);
+                        } catch (Exception e) {
+                            sendErrorResponse(reg.getAction(), transportChannel, e);
                         }
-                    } catch (EOFException e) {
-                        // Another favor of (de)serialization issues is when stream contains less bytes than
-                        // the request handler needs to deserialize the payload.
-                        throw new IllegalStateException(
-                            "Message fully read (request) but more data is expected for requestId ["
-                                + requestId
-                                + "], action ["
-                                + action
-                                + "]; resetting",
-                            e
-                        );
+                    } else {
+                        threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
                     }
                 }
             } catch (Exception e) {
@@ -268,7 +255,49 @@ public class InboundHandler {
         }
     }
 
+    /**
+     * Creates new request instance out of input stream. Throws IllegalStateException if the end of
+     * the stream was reached before the request is fully deserialized from the stream.
+     * @param <T> transport request type
+     * @param requestId request identifier
+     * @param action action name
+     * @param stream stream
+     * @param reg request handler registry
+     * @return new request instance
+     * @throws IOException IOException
+     * @throws IllegalStateException IllegalStateException
+     */
+    private <T extends TransportRequest> T newRequest(
+        final long requestId,
+        final String action,
+        final StreamInput stream,
+        final RequestHandlerRegistry<T> reg
+    ) throws IOException {
+        try {
+            return reg.newRequest(stream);
+        } catch (final EOFException e) {
+            // Another favor of (de)serialization issues is when stream contains less bytes than
+            // the request handler needs to deserialize the payload.
+            throw new IllegalStateException(
+                "Message fully read (request) but more data is expected for requestId ["
+                    + requestId
+                    + "], action ["
+                    + action
+                    + "]; resetting",
+                e
+            );
+        }
+    }
+
+    /**
+     * Checks if the stream is fully consumed and throws the exceptions if that is not the case.
+     * @param requestId request identifier
+     * @param action action name
+     * @param stream stream
+     * @throws IOException IOException
+     */
     private void checkStreamIsFullyConsumed(final long requestId, final String action, final StreamInput stream) throws IOException {
+        // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
         final int nextByte = stream.read();
 
         // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
@@ -285,6 +314,14 @@ public class InboundHandler {
         }
     }
 
+    /**
+     * Checks if the stream is fully consumed and throws the exceptions if that is not the case.
+     * @param requestId request identifier
+     * @param handler response handler
+     * @param stream stream
+     * @param error "true" if response represents error, "false" otherwise
+     * @throws IOException IOException
+     */
     private void checkStreamIsFullyConsumed(
         final long requestId,
         final TransportResponseHandler<?> handler,
