@@ -237,21 +237,8 @@ public class InboundHandler {
                     try {
                         final T request = reg.newRequest(stream);
                         request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                        checkStreamIsFullyConsumed(requestId, action, stream);
 
-                        // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
-                        final int nextByte = stream.read();
-                        // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
-                        if (nextByte != -1) {
-                            throw new IllegalStateException(
-                                "Message not fully read (request) for requestId ["
-                                    + requestId
-                                    + "], action ["
-                                    + action
-                                    + "], available ["
-                                    + stream.available()
-                                    + "]; resetting"
-                            );
-                        }
                         final String executor = reg.getExecutor();
                         if (ThreadPool.Names.SAME.equals(executor)) {
                             try {
@@ -281,6 +268,47 @@ public class InboundHandler {
         }
     }
 
+    private void checkStreamIsFullyConsumed(final long requestId, final String action, final StreamInput stream) throws IOException {
+        final int nextByte = stream.read();
+
+        // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
+        if (nextByte != -1) {
+            throw new IllegalStateException(
+                "Message not fully read (request) for requestId ["
+                    + requestId
+                    + "], action ["
+                    + action
+                    + "], available ["
+                    + stream.available()
+                    + "]; resetting"
+            );
+        }
+    }
+
+    private void checkStreamIsFullyConsumed(
+        final long requestId,
+        final TransportResponseHandler<?> handler,
+        final StreamInput stream,
+        final boolean error
+    ) throws IOException {
+        if (stream != EMPTY_STREAM_INPUT) {
+            // Check the entire message has been read
+            final int nextByte = stream.read();
+            // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
+            if (nextByte != -1) {
+                throw new IllegalStateException(
+                    "Message not fully read (response) for requestId ["
+                        + requestId
+                        + "], handler ["
+                        + handler
+                        + "], error ["
+                        + error
+                        + "]; resetting"
+                );
+            }
+        }
+    }
+
     private static void sendErrorResponse(String actionName, TransportChannel transportChannel, Exception e) {
         try {
             transportChannel.sendResponse(e);
@@ -300,23 +328,7 @@ public class InboundHandler {
         try {
             response = handler.read(stream);
             response.remoteAddress(new TransportAddress(remoteAddress));
-
-            if (stream != EMPTY_STREAM_INPUT) {
-                // Check the entire message has been read
-                final int nextByte = stream.read();
-                // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
-                if (nextByte != -1) {
-                    throw new IllegalStateException(
-                        "Message not fully read (response) for requestId ["
-                            + requestId
-                            + "], handler ["
-                            + handler
-                            + "], error ["
-                            + false
-                            + "]; resetting"
-                    );
-                }
-            }
+            checkStreamIsFullyConsumed(requestId, handler, stream, false);
         } catch (Exception e) {
             final Exception serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",
@@ -346,21 +358,7 @@ public class InboundHandler {
         Exception error;
         try {
             error = stream.readException();
-
-            // Check the entire message has been read
-            final int nextByte = stream.read();
-            // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
-            if (nextByte != -1) {
-                throw new IllegalStateException(
-                    "Message not fully read (response) for requestId ["
-                        + requestId
-                        + "], handler ["
-                        + handler
-                        + "], error ["
-                        + true
-                        + "]; resetting"
-                );
-            }
+            checkStreamIsFullyConsumed(requestId, handler, stream, true);
         } catch (Exception e) {
             error = new TransportSerializationException(
                 "Failed to deserialize exception response from stream for handler [" + handler + "]",
