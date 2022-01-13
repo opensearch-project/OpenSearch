@@ -290,10 +290,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         final String propType = propsMap.remove("type");
         final Type type;
-        if (opensearchVersion.onOrAfter(Version.V_2_0_0)) {
-            if (propType == null) {
-                throw new IllegalArgumentException("property [type] is missing for plugin [" + name + "]");
-            }
+        if (opensearchVersion.onOrAfter(Version.V_2_0_0) && propType != null) {
             type = propType.equals("independent") ? Type.INDEPENDENT : Type.LEGACY;
         } else {
             type = Type.LEGACY;
