@@ -27,6 +27,9 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
     private static final Logger logger = LogManager.getLogger(PluginsOrchestrator.class);
     private final Path pluginsv2Path;
 
+    /*
+     * TODO: Check if pluginsDirectory exists
+     */
     public PluginsOrchestrator(
         Settings settings,
         String pluginsDirectory
