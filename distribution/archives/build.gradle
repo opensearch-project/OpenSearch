@@ -95,10 +95,24 @@ distribution_archives {
     }
   }
 
+  darwinArm64Tar {
+    archiveClassifier = 'darwin-arm64'
+    content {
+      archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', true)
+    }
+  }
+
   noJdkDarwinTar {
     archiveClassifier = 'no-jdk-darwin-x64'
     content {
       archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', false)
+    }
+  }
+
+  noJdkDarwinArm64Tar {
+    archiveClassifier = 'no-jdk-darwin-arm64'
+    content {
+      archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', false)
     }
   }
 
