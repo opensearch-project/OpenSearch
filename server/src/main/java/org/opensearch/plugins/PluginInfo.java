@@ -59,6 +59,11 @@ import java.util.stream.Collectors;
  */
 public class PluginInfo implements Writeable, ToXContentObject {
 
+    enum Type {
+        LEGACY,
+        INDEPENDENT
+    }
+
     public static final String OPENSEARCH_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String OPENSEARCH_PLUGIN_POLICY = "plugin-security.policy";
 
@@ -71,6 +76,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String customFolderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+    private final Type type;
 
     /**
      * Construct plugin info.
@@ -94,7 +100,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String classname,
         String customFolderName,
         List<String> extendedPlugins,
-        boolean hasNativeController
+        boolean hasNativeController,
+        Type type
     ) {
         this.name = name;
         this.description = description;
@@ -105,6 +112,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = customFolderName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
+        this.type = type;
     }
 
     /**
@@ -138,7 +146,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             null /* customFolderName */,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            Type.LEGACY /* plugin Type */
         );
     }
 
@@ -162,6 +171,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            type = in.readEnum(Type.class);
+        } else {
+            type = Type.LEGACY;
+        }
     }
 
     @Override
@@ -181,6 +195,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            out.writeEnum(type);
+        }
     }
 
     /**
@@ -271,6 +288,17 @@ public class PluginInfo implements Writeable, ToXContentObject {
             }
         }
 
+        final String propType = propsMap.remove("type");
+        final Type type;
+        if (opensearchVersion.onOrAfter(Version.V_2_0_0)) {
+            if (propType == null) {
+                throw new IllegalArgumentException("property [type] is missing for plugin [" + name + "]");
+            }
+            type = propType.equals("independent") ? Type.INDEPENDENT : Type.LEGACY;
+        } else {
+            type = Type.LEGACY;
+        }
+
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
@@ -284,7 +312,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             customFolderName,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            type
         );
     }
 
