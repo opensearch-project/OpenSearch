@@ -147,7 +147,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 pluginClass.getName(),
                 null,
                 Collections.emptyList(),
-                false
+                false,
+                PluginInfo.Type.LEGACY
             );
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
