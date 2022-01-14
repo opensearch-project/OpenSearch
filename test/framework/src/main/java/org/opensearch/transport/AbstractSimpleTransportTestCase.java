@@ -2226,10 +2226,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.STATE
             );
             try (Transport.Connection connection = serviceA.openConnection(node, builder.build())) {
-                // OpenSearch [1.0:2.0) in bwc mode should only "upgrade" to Legacy v7.10.2
+                // OpenSearch [1.0:3.0) in bwc mode should only "upgrade" to Legacy v7.10.2
                 assertEquals(
                     connection.getVersion(),
-                    version.onOrAfter(Version.V_1_0_0) && version.before(Version.V_2_0_0) ? LegacyESVersion.V_7_10_2 : version
+                    version.onOrAfter(Version.V_1_0_0) && version.before(Version.fromId(3000099 ^ Version.MASK))
+                        ? LegacyESVersion.V_7_10_2
+                        : version
                 );
             }
         }
@@ -2275,7 +2277,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
-                assertEquals(Version.V_2_0_0, connection.getVersion());
+                // OpenSearch sends a handshake version spoofed as Legacy version 7_10_2
+                // todo change for OpenSearch 3.0.0 when Legacy compatibility is removed
+                assertEquals(LegacyESVersion.V_7_10_2, connection.getVersion());
             }
         }
     }
