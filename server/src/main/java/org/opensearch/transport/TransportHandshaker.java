@@ -64,7 +64,7 @@ final class TransportHandshaker {
     private final HandshakeRequestSender handshakeRequestSender;
 
     // @todo remove in 3.0.0
-    private static final Version V_3_0_0 = Version.fromId(3000099 ^ Version.MASK);
+    static final Version V_3_0_0 = Version.fromId(3000099 ^ Version.MASK);
 
     TransportHandshaker(Version version, ThreadPool threadPool, HandshakeRequestSender handshakeRequestSender) {
         this.version = version;
