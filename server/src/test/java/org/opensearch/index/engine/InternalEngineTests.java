@@ -6972,63 +6972,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testOpenSoftDeletesIndexWithSoftDeletesDisabled() throws Exception {
-        try (Store store = createStore()) {
-            Path translogPath = createTempDir();
-            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-            final IndexSettings softDeletesEnabled = IndexSettingsModule.newIndexSettings(
-                IndexMetadata.builder(defaultSettings.getIndexMetadata())
-                    .settings(
-                        Settings.builder().put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    )
-                    .build()
-            );
-            final List<DocIdSeqNoAndSource> docs;
-            try (
-                InternalEngine engine = createEngine(
-                    config(softDeletesEnabled, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get)
-                )
-            ) {
-                List<Engine.Operation> ops = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
-                applyOperations(engine, ops);
-                engine.syncTranslog(); // to advance persisted checkpoint
-                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
-                engine.flush();
-                docs = getDocIds(engine, true);
-            }
-            final IndexSettings softDeletesDisabled = IndexSettingsModule.newIndexSettings(
-                IndexMetadata.builder(defaultSettings.getIndexMetadata())
-                    .settings(
-                        Settings.builder().put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
-                    )
-                    .build()
-            );
-            EngineConfig config = config(softDeletesDisabled, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get);
-            try (InternalEngine engine = createEngine(config)) {
-                assertThat(getDocIds(engine, true), equalTo(docs));
-            }
-        }
-    }
-
-    public void testRequireSoftDeletesWhenAccessingChangesSnapshot() throws Exception {
-        try (Store store = createStore()) {
-            final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-                IndexMetadata.builder(defaultSettings.getIndexMetadata())
-                    .settings(
-                        Settings.builder().put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
-                    )
-                    .build()
-            );
-            try (InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))) {
-                AssertionError error = expectThrows(
-                    AssertionError.class,
-                    () -> engine.newChangesSnapshot("test", createMapperService("test"), 0, randomNonNegativeLong(), randomBoolean())
-                );
-                assertThat(error.getMessage(), containsString("does not have soft-deletes enabled"));
-            }
-        }
-    }
-
     void assertLuceneOperations(InternalEngine engine, long expectedAppends, long expectedUpdates, long expectedDeletes) {
         String message = "Lucene operations mismatched;"
             + " appends [actual:"
@@ -7375,10 +7318,6 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testDeleteFailureSoftDeletesEnabled() throws IOException {
         runTestDeleteFailure(true, (engine, op) -> {});
-    }
-
-    public void testDeleteFailureSoftDeletesDisabled() throws IOException {
-        runTestDeleteFailure(false, (engine, op) -> {});
     }
 
     private void runTestDeleteFailure(

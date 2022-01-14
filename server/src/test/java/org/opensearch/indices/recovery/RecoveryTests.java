@@ -41,6 +41,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
@@ -68,6 +69,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -156,7 +158,10 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
          * - index #5
          * - If flush and the translog retention disabled, delete #1 will be removed while index #0 is still retained and replayed.
          */
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_2_0_0))
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
+            .build();
         try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
             // create out of order delete and index op on replica
