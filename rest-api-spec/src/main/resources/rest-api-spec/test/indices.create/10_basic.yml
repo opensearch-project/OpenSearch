@@ -155,16 +155,3 @@
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "The mapping definition cannot be nested under a type [_doc] unless include_type_name is set to true." }
 
----
-"Create index without soft deletes":
-  - skip:
-      version:  " - 7.9.99"
-      reason:   "indices without soft deletes is no longer supported"
-
-  - do:
-      catch: /illegal_argument_exception/
-      indices.create:
-        index: test_index
-        body:
-          settings:
-            soft_deletes.enabled: false
