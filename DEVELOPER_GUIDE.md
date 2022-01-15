@@ -7,6 +7,7 @@
       - [Runtime JDK](#runtime-jdk)
       - [Windows](#windows)
       - [Docker](#docker)
+    - [Build](#build)
     - [Run Tests](#run-tests)
     - [Run OpenSearch](#run-opensearch)
   - [Use an Editor](#use-an-editor)
@@ -81,6 +82,22 @@ On Windows, set `_JAVA_OPTIONS: -Xmx4096M`. You may also need to set `LongPathsE
 Download and install [Docker](https://docs.docker.com/install/), required for building OpenSearch artifacts, and executing certain test suites.
 
 On Windows, [use Docker Desktop 3.6](https://docs.docker.com/desktop/windows/release-notes/3.x/). See [OpenSearch#1425](https://github.com/opensearch-project/OpenSearch/issues/1425) for workarounds and issues with Docker Desktop 4.1.1.
+
+### Build
+
+To build all distributions of OpenSearch, run:
+
+```
+./gradlew assemble
+```
+
+To build a distribution to run on your local platform, run:
+
+```
+./gradlew localDistro
+```
+
+All distributions built will be under `distributions/archives`.
 
 ### Run Tests
 
@@ -270,7 +287,7 @@ Please follow these formatting guidelines:
 
 ### Editor / IDE Support
 
-IntelliJ IDEs can [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/) the same settings file, and / or use the [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
+IntelliJ IDEs can [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/) the [settings file](buildSrc/formatterConfig.xml), and / or use the [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
 plugin.
 
 You can also tell Spotless to [format a specific file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files) from the command line.
