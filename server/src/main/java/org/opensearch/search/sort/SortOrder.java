@@ -35,6 +35,7 @@ package org.opensearch.search.sort;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;
 import java.util.Comparator;
