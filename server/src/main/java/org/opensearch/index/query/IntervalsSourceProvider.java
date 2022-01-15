@@ -637,17 +637,20 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private final String pattern;
         private final String analyzer;
         private final String useField;
+        private final Integer maxExpansions;
 
-        public Wildcard(String pattern, String analyzer, String useField) {
+        public Wildcard(String pattern, String analyzer, String useField, Integer maxExpansions) {
             this.pattern = pattern;
             this.analyzer = analyzer;
             this.useField = useField;
+            this.maxExpansions = (maxExpansions != null && maxExpansions > 0) ? maxExpansions : null;
         }
 
         public Wildcard(StreamInput in) throws IOException {
             this.pattern = in.readString();
             this.analyzer = in.readOptionalString();
             this.useField = in.readOptionalString();
+            this.maxExpansions = in.readOptionalVInt();
         }
 
         @Override
@@ -665,11 +668,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                     analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
                 }
                 BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
-                source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm));
+                IntervalsSource wildcardSource = maxExpansions == null
+                    ? Intervals.wildcard(normalizedTerm)
+                    : Intervals.wildcard(normalizedTerm, maxExpansions);
+                source = Intervals.fixField(useField, wildcardSource);
             } else {
                 checkPositions(fieldType);
                 BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
-                source = Intervals.wildcard(normalizedTerm);
+                source = maxExpansions == null ? Intervals.wildcard(normalizedTerm) : Intervals.wildcard(normalizedTerm, maxExpansions);
             }
             return source;
         }
@@ -694,12 +700,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             Wildcard wildcard = (Wildcard) o;
             return Objects.equals(pattern, wildcard.pattern)
                 && Objects.equals(analyzer, wildcard.analyzer)
-                && Objects.equals(useField, wildcard.useField);
+                && Objects.equals(useField, wildcard.useField)
+                && Objects.equals(maxExpansions, wildcard.maxExpansions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pattern, analyzer, useField);
+            return Objects.hash(pattern, analyzer, useField, maxExpansions);
         }
 
         @Override
@@ -712,6 +719,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeString(pattern);
             out.writeOptionalString(analyzer);
             out.writeOptionalString(useField);
+            out.writeOptionalVInt(maxExpansions);
         }
 
         @Override
@@ -724,6 +732,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 builder.field("use_field", useField);
             }
+            if (maxExpansions != null) {
+                builder.field("max_expansions", maxExpansions);
+            }
             builder.endObject();
             return builder;
         }
@@ -732,12 +743,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             String term = (String) args[0];
             String analyzer = (String) args[1];
             String useField = (String) args[2];
-            return new Wildcard(term, analyzer, useField);
+            Integer maxExpansions = (Integer) args[3];
+            return new Wildcard(term, analyzer, useField, maxExpansions);
         });
         static {
             PARSER.declareString(constructorArg(), new ParseField("pattern"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField("max_expansions"));
         }
 
         public static Wildcard fromXContent(XContentParser parser) throws IOException {
@@ -754,6 +767,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         String getUseField() {
             return useField;
+        }
+
+        Integer getMaxExpansions() {
+            return maxExpansions;
         }
     }
 
