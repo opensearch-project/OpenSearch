@@ -11,6 +11,7 @@ package org.opensearch.plugins;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -27,9 +28,6 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
     private static final Logger logger = LogManager.getLogger(PluginsOrchestrator.class);
     private final Path pluginsv2Path;
 
-    /*
-     * TODO: Check if pluginsDirectory exists
-     */
     public PluginsOrchestrator(
         Settings settings,
         String pluginsDirectory
@@ -66,6 +64,9 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
      */
     private void pluginsDiscovery(Path pluginsDirectory) throws IOException {
         logger.info("PluginsDirectory :" + pluginsDirectory.toString());
+        if (!FileSystemUtils.isAccessibleDirectory(pluginsDirectory, logger)) {
+            return;
+        }
         final Set<PluginInfo> pluginInfoSet = new HashSet<>();
         for (final Path plugin : PluginsService.findPluginDirs(pluginsDirectory)) {
             try {

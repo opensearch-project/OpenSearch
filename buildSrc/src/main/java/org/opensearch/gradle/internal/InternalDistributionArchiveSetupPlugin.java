@@ -179,6 +179,13 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
             t.setDirMode(0755);
         });
 
+        File pluginsv2Dir = new File(project.getBuildDir(), "pluginsv2-hack/pluginsv2");
+        project.getExtensions().add("pluginsv2Dir", pluginsv2Dir);
+        project.getTasks().register("createPluginsv2Dir", EmptyDirTask.class, t -> {
+            t.setDir(pluginsv2Dir);
+            t.setDirMode(0755);
+        });
+
         File jvmOptionsDir = new File(project.getBuildDir(), "jvm-options-hack/jvm.options.d");
         project.getExtensions().add("jvmOptionsDir", jvmOptionsDir);
         project.getTasks().register("createJvmOptionsDir", EmptyDirTask.class, t -> {

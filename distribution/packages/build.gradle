@@ -89,6 +89,7 @@ void addProcessFilesTask(String type, boolean jdk) {
       mkdir "${packagingFiles}/var/log/opensearch"
       mkdir "${packagingFiles}/var/lib/opensearch"
       mkdir "${packagingFiles}/usr/share/opensearch/plugins"
+      mkdir "${packagingFiles}/usr/share/opensearch/pluginsv2"
 
       // bare empty dir for /etc/opensearch and /etc/opensearch/jvm.options.d
       mkdir "${packagingFiles}/opensearch"
@@ -284,6 +285,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     copyEmptyDir('/var/log/opensearch', 'opensearch', 'opensearch', 02750)
     copyEmptyDir('/var/lib/opensearch', 'opensearch', 'opensearch', 02750)
     copyEmptyDir('/usr/share/opensearch/plugins', 'root', 'root', 0755)
+    copyEmptyDir('/usr/share/opensearch/pluginsv2', 'root', 'root', 0755)
 
     into '/usr/share/opensearch'
     with noticeFile(jdk)

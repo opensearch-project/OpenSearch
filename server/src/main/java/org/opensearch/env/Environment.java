@@ -91,6 +91,8 @@ public class Environment {
 
     private final Path pluginsFile;
 
+    private final Path pluginsv2File;
+
     private final Path modulesFile;
 
     private final Path sharedDataFile;
@@ -135,6 +137,7 @@ public class Environment {
         tmpFile = Objects.requireNonNull(tmpPath);
 
         pluginsFile = homeFile.resolve("plugins");
+        pluginsv2File = homeFile.resolve("pluginsv2");
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
         if (nodeLocalStorage) {
@@ -305,6 +308,10 @@ public class Environment {
 
     public Path pluginsFile() {
         return pluginsFile;
+    }
+
+    public Path pluginsv2File() {
+        return pluginsv2File;
     }
 
     public Path binFile() {

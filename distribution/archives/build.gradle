@@ -65,6 +65,18 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
           pluginsDir.getParent()
         }
       }
+      into('') {
+        from {
+          dirMode 0755
+          pluginsDir.getParent()
+        }
+      }
+      into('') {
+        from {
+          dirMode 0755
+          pluginsv2Dir.getParent()
+        }
+      }
       from(rootProject.projectDir) {
         include 'README.md'
       }

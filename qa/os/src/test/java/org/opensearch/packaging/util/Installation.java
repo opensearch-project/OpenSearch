@@ -53,6 +53,7 @@ public class Installation {
     public final Path data;
     public final Path logs;
     public final Path plugins;
+    public final Path pluginsv2;
     public final Path modules;
     public final Path pidDir;
     public final Path envFile;
@@ -65,6 +66,7 @@ public class Installation {
         Path data,
         Path logs,
         Path plugins,
+        Path pluginsv2,
         Path modules,
         Path pidDir,
         Path envFile
@@ -79,6 +81,7 @@ public class Installation {
         this.data = data;
         this.logs = logs;
         this.plugins = plugins;
+        this.pluginsv2 = pluginsv2;
         this.modules = modules;
         this.pidDir = pidDir;
         this.envFile = envFile;
@@ -93,6 +96,7 @@ public class Installation {
             home.resolve("data"),
             home.resolve("logs"),
             home.resolve("plugins"),
+            home.resolve("pluginsv2"),
             home.resolve("modules"),
             null,
             null
@@ -113,6 +117,7 @@ public class Installation {
             Paths.get("/var/lib/opensearch"),
             Paths.get("/var/log/opensearch"),
             Paths.get("/usr/share/opensearch/plugins"),
+            Paths.get("/usr/share/opensearch/pluginsv2"),
             Paths.get("/usr/share/opensearch/modules"),
             Paths.get("/var/run/opensearch"),
             envFile
@@ -129,6 +134,7 @@ public class Installation {
             Paths.get(root + "/data"),
             Paths.get(root + "/logs"),
             Paths.get(root + "/plugins"),
+            Paths.get(root + "/pluginsv2"),
             Paths.get(root + "/modules"),
             null,
             null

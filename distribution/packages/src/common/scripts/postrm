@@ -65,6 +65,12 @@ if [ "$REMOVE_DIRS" = "true" ]; then
         echo " OK"
     fi
 
+    if [ -d /usr/share/opensearch/pluginsv2 ]; then
+            echo -n "Deleting plugins directory..."
+            rm -rf /usr/share/opensearch/pluginsv2
+            echo " OK"
+        fi
+
     # plugins may have contained bin files
     if [ -d /usr/share/opensearch/bin ]; then
         echo -n "Deleting plugin bin directories..."
