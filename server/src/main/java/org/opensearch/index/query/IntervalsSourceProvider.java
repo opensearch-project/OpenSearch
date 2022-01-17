@@ -40,6 +40,7 @@ import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.NamedWriteable;
@@ -650,7 +651,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.pattern = in.readString();
             this.analyzer = in.readOptionalString();
             this.useField = in.readOptionalString();
-            this.maxExpansions = in.readOptionalVInt();
+            if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+                this.maxExpansions = in.readOptionalVInt();
+            } else {
+                this.maxExpansions = null;
+            }
         }
 
         @Override
@@ -719,7 +724,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeString(pattern);
             out.writeOptionalString(analyzer);
             out.writeOptionalString(useField);
-            out.writeOptionalVInt(maxExpansions);
+            if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+                out.writeOptionalVInt(maxExpansions);
+            }
         }
 
         @Override
