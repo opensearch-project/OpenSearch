@@ -27,6 +27,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+import org.opensearch.gradle.info.BuildParams
+ 
 apply plugin: "opensearch.publish"
 
 dependencies {
@@ -52,3 +55,10 @@ forbiddenPatterns {
   exclude '**/*.p12'
   exclude '**/*.jks'
 }
+
+tasks.test {
+    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+        jvmArgs += ["--add-opens", "java.base/java.security.cert=ALL-UNNAMED"]
+    }
+}
+
