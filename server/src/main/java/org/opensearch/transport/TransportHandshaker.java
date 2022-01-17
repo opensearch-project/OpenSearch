@@ -63,6 +63,9 @@ final class TransportHandshaker {
     private final ThreadPool threadPool;
     private final HandshakeRequestSender handshakeRequestSender;
 
+    // @todo remove in 3.0.0
+    static final Version V_3_0_0 = Version.fromId(3000099 ^ Version.MASK);
+
     TransportHandshaker(Version version, ThreadPool threadPool, HandshakeRequestSender handshakeRequestSender) {
         this.version = version;
         this.threadPool = threadPool;
@@ -131,8 +134,9 @@ final class TransportHandshaker {
         // 1. if remote node is 7.x, then StreamInput version would be 6.8.0
         // 2. if remote node is 6.8 then it would be 5.6.0
         // 3. if remote node is OpenSearch 1.x then it would be 6.7.99
-        if ((this.version.onOrAfter(Version.V_1_0_0) && this.version.before(Version.V_2_0_0))
+        if ((this.version.onOrAfter(Version.V_1_0_0) && this.version.before(V_3_0_0))
             && (stream.getVersion().equals(LegacyESVersion.fromId(6080099)) || stream.getVersion().equals(Version.fromId(5060099)))) {
+            // send 7.10.2 in response to ensure compatibility w/ Legacy 7.10.x nodes for rolling upgrade support
             channel.sendResponse(new HandshakeResponse(LegacyESVersion.V_7_10_2));
         } else {
             channel.sendResponse(new HandshakeResponse(this.version));
