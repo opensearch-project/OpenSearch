@@ -333,7 +333,8 @@ public class ReadOnlyEngine extends Engine {
         MapperService mapperService,
         long fromSeqNo,
         long toSeqNo,
-        boolean requiredFullRange) {
+        boolean requiredFullRange
+    ) {
         return newEmptySnapshot();
     }
 

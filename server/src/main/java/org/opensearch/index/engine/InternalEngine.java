@@ -860,8 +860,10 @@ public class InternalEngine extends Engine {
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
                     status = OpVsLuceneDocStatus.OP_NEWER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
-                    assert localCheckpointTracker.hasProcessed(op.seqNo())
-                        : "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
+                    assert localCheckpointTracker.hasProcessed(op.seqNo()) : "local checkpoint tracker is not updated seq_no="
+                        + op.seqNo()
+                        + " id="
+                        + op.id();
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
@@ -1493,9 +1495,15 @@ public class InternalEngine extends Engine {
                 }
                 if (plan.deleteFromLucene) {
                     numDocDeletes.inc();
-                    versionMap.putDeleteUnderLock(delete.uid().bytes(),
-                        new DeleteVersionValue(plan.versionOfDeletion, delete.seqNo(), delete.primaryTerm(),
-                            engineConfig.getThreadPool().relativeTimeInMillis()));
+                    versionMap.putDeleteUnderLock(
+                        delete.uid().bytes(),
+                        new DeleteVersionValue(
+                            plan.versionOfDeletion,
+                            delete.seqNo(),
+                            delete.primaryTerm(),
+                            engineConfig.getThreadPool().relativeTimeInMillis()
+                        )
+                    );
                 }
             }
             if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
@@ -1648,8 +1656,9 @@ public class InternalEngine extends Engine {
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
             tombstone.version().setLongValue(plan.versionOfDeletion);
             final ParseContext.Document doc = tombstone.docs().get(0);
-            assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
-                "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
+            assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null : "Delete tombstone document but _tombstone field is not set ["
+                + doc
+                + " ]";
             doc.add(softDeletesField);
             if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                 indexWriter.addDocument(doc);
@@ -2520,9 +2529,15 @@ public class InternalEngine extends Engine {
         MergePolicy mergePolicy = config().getMergePolicy();
         // always configure soft-deletes field so an engine with soft-deletes disabled can open a Lucene index with soft-deletes.
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
-        mergePolicy = new RecoverySourcePruneMergePolicy(SourceFieldMapper.RECOVERY_SOURCE_NAME, softDeletesPolicy::getRetentionQuery,
-            new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, softDeletesPolicy::getRetentionQuery,
-                new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)));
+        mergePolicy = new RecoverySourcePruneMergePolicy(
+            SourceFieldMapper.RECOVERY_SOURCE_NAME,
+            softDeletesPolicy::getRetentionQuery,
+            new SoftDeletesRetentionMergePolicy(
+                Lucene.SOFT_DELETES_FIELD,
+                softDeletesPolicy::getRetentionQuery,
+                new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
+            )
+        );
         boolean shuffleForcedMerge = Booleans.parseBoolean(System.getProperty("opensearch.shuffle_forced_merge", Boolean.TRUE.toString()));
         if (shuffleForcedMerge) {
             // We wrap the merge policy for all indices even though it is mostly useful for time-based indices
