@@ -102,7 +102,6 @@ import java.util.stream.IntStream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
-import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.opensearch.index.shard.IndexShardTests.getEngineFromShard;
 import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -1416,12 +1415,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
                 // we flush before the snapshot such that we have to process the segments_N files plus the .del file
-                if (INDEX_SOFT_DELETES_SETTING.get(settings)) {
-                    // soft-delete generates DV files.
-                    assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
-                } else {
-                    assertThat(status.getStats().getProcessedFileCount(), equalTo(2));
-                }
+                // soft-delete generates DV files.
+                assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
             }
         }
     }

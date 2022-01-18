@@ -929,13 +929,11 @@ public class MetadataCreateIndexService {
          * that will be used to create this index.
          */
         shardLimitValidator.validateShardLimit(indexSettings, currentState);
-        if (indexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-            DEPRECATION_LOGGER.deprecate(
-                "soft_deletes_disabled",
-                "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. "
-                    + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
-                    + request.index()
-                    + "]."
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) == false
+            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings).onOrAfter(Version.V_2_0_0)) {
+            throw new IllegalArgumentException(
+                "Creating indices with soft-deletes disabled is no longer supported. "
+                    + "Please do not specify a value for setting [index.soft_deletes.enabled]."
             );
         }
         validateTranslogRetentionSettings(indexSettings);
