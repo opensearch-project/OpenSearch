@@ -256,6 +256,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final AtomicInteger openScrollContexts = new AtomicInteger();
     private final String sessionId = UUIDs.randomBase64UUID();
+    private final Executor indexSearcherExecutor;
 
     public SearchService(
         ClusterService clusterService,
@@ -263,9 +264,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ThreadPool threadPool,
         ScriptService scriptService,
         BigArrays bigArrays,
+        QueryPhase queryPhase,
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        Executor indexSearcherExecutor
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -274,13 +277,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
-        this.queryPhase = new QueryPhase();
+        this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
             settings,
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
         );
+        this.indexSearcherExecutor = indexSearcherExecutor;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -884,7 +888,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 fetchPhase,
                 lowLevelCancellation,
                 clusterService.state().nodes().getMinNodeVersion(),
-                validate
+                validate,
+                indexSearcherExecutor
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
