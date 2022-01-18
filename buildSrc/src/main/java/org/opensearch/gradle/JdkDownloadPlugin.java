@@ -46,7 +46,7 @@ import org.gradle.api.attributes.Attribute;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
-
+    public static final String VENDOR_ADOPTIUM = "adoptium";
     public static final String VENDOR_ADOPTOPENJDK = "adoptopenjdk";
     public static final String VENDOR_OPENJDK = "openjdk";
 
@@ -108,7 +108,25 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         String repoUrl;
         String artifactPattern;
 
-        if (jdk.getVendor().equals(VENDOR_ADOPTOPENJDK)) {
+        if (jdk.getVendor().equals(VENDOR_ADOPTIUM)) {
+            repoUrl = "https://github.com/adoptium/temurin" + jdk.getMajor() + "-binaries/releases/download/";
+            // JDK updates are suffixed with 'U' (fe OpenJDK17U), whereas GA releases are not (fe OpenJDK17).
+            // To distinguish between those, the GA releases have only major version component (fe 17+32),
+            // the updates always have minor/patch components (fe 17.0.1+12), checking for the presence of
+            // version separator '.' should be enough.
+            artifactPattern = "jdk-"
+                + jdk.getBaseVersion()
+                + "+"
+                + jdk.getBuild()
+                + "/OpenJDK"
+                + jdk.getMajor()
+                + (jdk.getBaseVersion().contains(".") ? "U" : "")
+                + "-jdk_[classifier]_[module]_hotspot_"
+                + jdk.getBaseVersion()
+                + "_"
+                + jdk.getBuild()
+                + ".[ext]";
+        } else if (jdk.getVendor().equals(VENDOR_ADOPTOPENJDK)) {
             repoUrl = "https://api.adoptopenjdk.net/v3/binary/version/";
             if (jdk.getMajor().equals("8")) {
                 // legacy pattern for JDK 8
@@ -167,7 +185,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     private static String dependencyNotation(Jdk jdk) {
         String platformDep = jdk.getPlatform().equals("darwin") || jdk.getPlatform().equals("mac")
-            ? (jdk.getVendor().equals(VENDOR_ADOPTOPENJDK) ? "mac" : "osx")
+            ? (jdk.getVendor().equals(VENDOR_OPENJDK) ? "osx" : "mac")
             : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
 
