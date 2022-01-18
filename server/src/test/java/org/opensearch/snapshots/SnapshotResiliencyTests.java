@@ -196,6 +196,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
@@ -1977,9 +1978,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     threadPool,
                     scriptService,
                     bigArrays,
+                    new QueryPhase(),
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
-                    new NoneCircuitBreakerService()
+                    new NoneCircuitBreakerService(),
+                    null
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),
