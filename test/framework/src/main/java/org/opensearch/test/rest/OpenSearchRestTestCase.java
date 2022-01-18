@@ -1270,46 +1270,38 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected void syncedFlush(String indexName, boolean retryOnConflict) throws Exception {
+        final Request request = new Request("POST", indexName + "/_flush/synced");
+        final Builder options = RequestOptions.DEFAULT.toBuilder();
         // 8.0 kept in warning message for legacy purposes TODO: changge to 3.0
-        final List<String> deprecationMessages = Arrays.asList(
+        final List<String> warningMessage = Arrays.asList(
             "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
         );
-        final List<String> transitionMessages = Arrays.asList(
+        final List<String> expectedWarnings = Arrays.asList(
             "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version."
         );
-        final WarningsHandler warningsHandler;
-        if (minimumNodeVersion().onOrAfter(Version.V_2_0_0)) {
-            warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
-        } else if (minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false;
-        } else if (nodeVersions.stream().anyMatch(n -> n.onOrAfter(Version.V_2_0_0))) {
-            warningsHandler = warnings -> warnings.isEmpty() == false && warnings.equals(transitionMessages) == false;
-        } else {
-            warningsHandler = warnings -> warnings.isEmpty() == false;
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_2_0_0))) {
+            options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
+            options.setWarningsHandler(
+                warnings -> warnings.isEmpty() == false
+                    && warnings.equals(expectedWarnings) == false
+                    && warnings.equals(warningMessage) == false
+            );
         }
+        request.setOptions(options);
         // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
         assertBusy(() -> {
             try {
+                Response resp = client().performRequest(request);
                 if (retryOnConflict) {
-                    if (nodeVersions.stream().allMatch(v -> v.before(Version.V_2_0_0))) {
-                        final Request request = new Request("POST", indexName + "/_flush/synced");
-                        Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-                        optionsBuilder.setWarningsHandler(warningsHandler);
-                        request.setOptions(optionsBuilder);
-                        Response resp = client().performRequest(request);
-                        Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                        assertThat(result.get("failed"), equalTo(0));
-                    }
+                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                    assertThat(result.get("failed"), equalTo(0));
                 }
             } catch (ResponseException ex) {
+                assertThat(ex.getResponse().getStatusLine(), equalTo(HttpStatus.SC_CONFLICT));
                 if (retryOnConflict) {
-                    if (ex.getResponse().getStatusLine().getStatusCode() == RestStatus.CONFLICT.getStatus()
-                        && ex.getResponse().getWarnings().equals(transitionMessages)) {
-                        logger.info("a normal flush was performed instead");
-                    } else {
-                        throw new AssertionError(ex); // cause assert busy to retry
-                    }
+                    throw new AssertionError(ex); // cause assert busy to retry
                 }
             }
         });

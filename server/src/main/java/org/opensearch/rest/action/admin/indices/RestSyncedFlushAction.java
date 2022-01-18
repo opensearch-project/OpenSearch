@@ -57,7 +57,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestSyncedFlushAction extends BaseRestHandler {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestSyncedFlushAction.class.getClass());
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestSyncedFlushAction.class);
 
     @Override
     public List<Route> routes() {
