@@ -1374,7 +1374,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
         if (mapper == null
             || mapper.documentMapper() == null
-            || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
             || (engine instanceof InternalEngine) == false) {
             return;
         }
@@ -1397,8 +1396,12 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         final long globalCheckpoint = EngineTestCase.getTranslog(engine).getLastSyncedGlobalCheckpoint();
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
         final long seqNoForRecovery;
-        try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
-            seqNoForRecovery = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+        if (engine.config().getIndexSettings().isSoftDeleteEnabled()) {
+            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+                seqNoForRecovery = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+            }
+        } else {
+            seqNoForRecovery = engine.getMinRetainedSeqNo();
         }
         final long minSeqNoToRetain = Math.min(seqNoForRecovery, globalCheckpoint + 1 - retainedOps);
         for (Translog.Operation translogOp : translogOps) {
