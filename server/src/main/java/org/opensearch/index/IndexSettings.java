@@ -503,6 +503,16 @@ public final class IndexSettings {
         Setting.Property.IndexScope
     );
 
+    /**
+     * Used to specify if the index should use segment replication. If false, document replication is used.
+     */
+    public static final Setting<Boolean> INDEX_SEGMENT_REPLICATION_SETTING = Setting.boolSetting(
+        "index.replication.segment_replication",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
