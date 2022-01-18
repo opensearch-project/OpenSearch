@@ -403,6 +403,15 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         secondSuccessFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
         Thread.sleep(25);
 
+        assertBusy(
+            () -> {
+                assertEquals(
+                    coordinatingShardTracker.getCoordinatingOperationTracker().getPerformanceTracker().getTotalOutstandingRequests(),
+                    2
+                );
+            }
+        );
+
         // This request breaches the threshold and hence will be rejected
         expectThrows(OpenSearchRejectedExecutionException.class, () -> client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
 
