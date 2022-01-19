@@ -645,6 +645,14 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
                 IndexingPressureService.class,
                 coordinatingOnlyNode
             ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
+            assertBusy(
+                () -> {
+                    assertEquals(
+                        coordinatingShardTracker.getCoordinatingOperationTracker().getPerformanceTracker().getTotalOutstandingRequests(),
+                        2
+                    );
+                }
+            );
             expectThrows(OpenSearchRejectedExecutionException.class, () -> client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
             assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
             assertEquals(
@@ -657,6 +665,14 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
             ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
                 .getShardIndexingPressure()
                 .getShardIndexingPressureTracker(shardId);
+            assertBusy(
+                () -> {
+                    assertEquals(
+                        primaryShardTracker.getCoordinatingOperationTracker().getPerformanceTracker().getTotalOutstandingRequests(),
+                        2
+                    );
+                }
+            );
             expectThrows(OpenSearchRejectedExecutionException.class, () -> client(primaryName).bulk(bulkRequest).actionGet());
             assertEquals(1, primaryShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
             assertEquals(
