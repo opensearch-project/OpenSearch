@@ -82,6 +82,7 @@ import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalMax;
@@ -586,6 +587,84 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(0, result.getBuckets().size());
             assertNull(result.afterKey());
         });
+
+        // sort ascending, null bucket is first, same as default.
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missingBucket(true)
+                .missingOrder(MissingOrder.FIRST);
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
+        }, (result) -> {
+            assertEquals(4, result.getBuckets().size());
+            assertEquals("{keyword=d}", result.afterKey().toString());
+            assertEquals("{keyword=null}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{keyword=a}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(1).getDocCount());
+            assertEquals("{keyword=c}", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(2).getDocCount());
+            assertEquals("{keyword=d}", result.getBuckets().get(3).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(3).getDocCount());
+        });
+
+        // sort ascending, null bucket is last.
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missingBucket(true)
+                .missingOrder(MissingOrder.LAST);
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
+        }, (result) -> {
+            assertEquals(4, result.getBuckets().size());
+            assertEquals("{keyword=null}", result.afterKey().toString());
+            assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(1).getDocCount());
+            assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            assertEquals("{keyword=null}", result.getBuckets().get(3).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(3).getDocCount());
+        });
+
+        // sort descending, null bucket is last, same as default
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missingBucket(true)
+                .missingOrder(MissingOrder.LAST)
+                .order(SortOrder.DESC);
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
+        }, (result) -> {
+            assertEquals(4, result.getBuckets().size());
+            assertEquals("{keyword=null}", result.afterKey().toString());
+            assertEquals("{keyword=null}", result.getBuckets().get(3).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(3).getDocCount());
+            assertEquals("{keyword=a}", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(2).getDocCount());
+            assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(1).getDocCount());
+            assertEquals("{keyword=d}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+        });
+
+        // sort descending, null bucket is first
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missingBucket(true)
+                .missingOrder(MissingOrder.FIRST)
+                .order(SortOrder.DESC);
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
+        }, (result) -> {
+            assertEquals(4, result.getBuckets().size());
+            assertEquals("{keyword=a}", result.afterKey().toString());
+            assertEquals("{keyword=null}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            assertEquals("{keyword=c}", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(2).getDocCount());
+            assertEquals("{keyword=a}", result.getBuckets().get(3).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(3).getDocCount());
+        });
     }
 
     public void testWithKeywordMissingAfter() throws Exception {
@@ -901,14 +980,14 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
             Arrays.asList(
-                createDocument("keyword", "a", "long", 100L),
+                createDocument("double", 0d, "keyword", "a", "long", 100L),
                 createDocument("double", 0d),
-                createDocument("keyword", "c", "long", 100L),
-                createDocument("keyword", "a", "long", 0L),
-                createDocument("keyword", "d", "long", 10L),
-                createDocument("keyword", "c"),
-                createDocument("keyword", "c", "long", 100L),
-                createDocument("long", 100L),
+                createDocument("double", 0d, "keyword", "c", "long", 100L),
+                createDocument("double", 0d, "keyword", "a", "long", 0L),
+                createDocument("double", 0d, "keyword", "d", "long", 10L),
+                createDocument("double", 0d, "keyword", "c"),
+                createDocument("double", 0d, "keyword", "c", "long", 100L),
+                createDocument("double", 0d, "long", 100L),
                 createDocument("double", 0d)
             )
         );
@@ -959,6 +1038,112 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=d, long=10}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            }
+        );
+
+        // keyword null bucket is last, long null bucket is last
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("double")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).missingOrder(MissingOrder.LAST),
+                    new TermsValuesSourceBuilder("long").field("long").missingBucket(true).missingOrder(MissingOrder.LAST)
+                )
+            ),
+            (result) -> {
+                assertEquals(7, result.getBuckets().size());
+                assertEquals("{keyword=null, long=null}", result.afterKey().toString());
+                assertEquals("{keyword=null, long=null}", result.getBuckets().get(6).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(6).getDocCount());
+                assertEquals("{keyword=null, long=100}", result.getBuckets().get(5).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(5).getDocCount());
+            }
+        );
+
+        // keyword null bucket is last, long null bucket is first
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("double")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).missingOrder(MissingOrder.LAST),
+                    new TermsValuesSourceBuilder("long").field("long").missingBucket(true).missingOrder(MissingOrder.FIRST)
+                )
+            ),
+            (result) -> {
+                assertEquals(7, result.getBuckets().size());
+                assertEquals("{keyword=null, long=100}", result.afterKey().toString());
+                assertEquals("{keyword=null, long=100}", result.getBuckets().get(6).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(6).getDocCount());
+                assertEquals("{keyword=null, long=null}", result.getBuckets().get(5).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(5).getDocCount());
+            }
+        );
+
+        // asc, null bucket is last, search after non null value
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("double")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).missingOrder(MissingOrder.LAST))
+            ).aggregateAfter(createAfterKey("keyword", "c")),
+            (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=null}", result.afterKey().toString());
+                assertEquals("{keyword=d}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=null}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(3L, result.getBuckets().get(1).getDocCount());
+            }
+        );
+
+        // desc, null bucket is last, search after non null value
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("double")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
+                        .order(SortOrder.DESC)
+                )
+            ).aggregateAfter(createAfterKey("keyword", "c")),
+            (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=null}", result.afterKey().toString());
+                assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=null}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(3L, result.getBuckets().get(1).getDocCount());
+            }
+        );
+
+        // keyword null bucket is last, long null bucket is last
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("double")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).missingOrder(MissingOrder.LAST),
+                    new TermsValuesSourceBuilder("long").field("long").missingBucket(true).missingOrder(MissingOrder.LAST)
+                )
+            ).aggregateAfter(createAfterKey("keyword", "c", "long", null)),
+            (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=null, long=null}", result.afterKey().toString());
+                assertEquals("{keyword=d, long=10}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=null, long=100}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=null, long=null}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
             }
         );
     }
@@ -1715,6 +1900,240 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
                 assertEquals("{histo=0.9, keyword=d}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(2).getDocCount());
+            }
+        );
+    }
+
+    public void testWithHistogramBucketMissing() throws IOException {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("price", 50L, "long", 1L),
+                createDocument("price", 60L, "long", 2L),
+                createDocument("price", 70L, "long", 3L),
+                createDocument("price", 62L, "long", 4L),
+                createDocument("long", 5L)
+            )
+        );
+
+        // asc, null bucket is first
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("price").field("price")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .interval(10)
+                )
+            ),
+            (result) -> {
+                assertEquals(4, result.getBuckets().size());
+                assertEquals("{price=70.0}", result.afterKey().toString());
+                assertEquals("{price=null}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{price=50.0}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{price=60.0}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{price=70.0}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            }
+        );
+
+        // asc, null bucket is first, after 50.0
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("price").field("price")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .interval(10)
+                )
+            ).aggregateAfter(createAfterKey("price", 60.0d)),
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{price=70.0}", result.afterKey().toString());
+                assertEquals("{price=70.0}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            }
+        );
+
+        // asc, null bucket is first, after null
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("price").field("price")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .interval(10)
+                )
+            ).aggregateAfter(createAfterKey("price", null)),
+            (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{price=70.0}", result.afterKey().toString());
+                assertEquals("{price=50.0}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{price=60.0}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{price=70.0}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            }
+        );
+
+        // asc, null bucket is last
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("price").field("price")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
+                        .interval(10)
+                )
+            ),
+            (result) -> {
+                assertEquals(4, result.getBuckets().size());
+                assertEquals("{price=null}", result.afterKey().toString());
+                assertEquals("{price=50.0}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{price=60.0}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{price=70.0}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{price=null}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            }
+        );
+
+        // asc, null bucket is last, after 70.0
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("price").field("price")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
+                        .interval(10)
+                )
+            ).aggregateAfter(createAfterKey("price", 70.0)),
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{price=null}", result.afterKey().toString());
+                assertEquals("{price=null}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            }
+        );
+
+        // desc, null bucket is first
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("price").field("price")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .order(SortOrder.DESC)
+                        .interval(10)
+                )
+            ),
+            (result) -> {
+                assertEquals(4, result.getBuckets().size());
+                assertEquals("{price=50.0}", result.afterKey().toString());
+                assertEquals("{price=null}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{price=70.0}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{price=60.0}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{price=50.0}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            }
+        );
+
+        // desc, null bucket is first, after 60.0
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("price").field("price")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .order(SortOrder.DESC)
+                        .interval(10)
+                )
+            ).aggregateAfter(createAfterKey("price", 60.0)),
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{price=50.0}", result.afterKey().toString());
+                assertEquals("{price=50.0}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            }
+        );
+
+        // desc, null bucket is last
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("price").field("price")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
+                        .order(SortOrder.DESC)
+                        .interval(10)
+                )
+            ),
+            (result) -> {
+                assertEquals(4, result.getBuckets().size());
+                assertEquals("{price=null}", result.afterKey().toString());
+                assertEquals("{price=70.0}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{price=60.0}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{price=50.0}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{price=null}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            }
+        );
+
+        // desc, null bucket is last, after 50.0
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("price").field("price")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
+                        .order(SortOrder.DESC)
+                        .interval(10)
+                )
+            ).aggregateAfter(createAfterKey("price", 50.0)),
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{price=null}", result.afterKey().toString());
+                assertEquals("{price=null}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
             }
         );
     }

@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -39,6 +40,7 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -48,6 +50,8 @@ import org.opensearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
+
+import static org.opensearch.search.aggregations.bucket.missing.MissingOrder.fromString;
 
 /**
  * A {@link ValuesSource} builder for {@link CompositeAggregationBuilder}
@@ -59,6 +63,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     private Script script = null;
     private ValueType userValueTypeHint = null;
     private boolean missingBucket = false;
+    private MissingOrder missingOrder = MissingOrder.DEFAULT;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
 
@@ -76,6 +81,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
         this.missingBucket = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            this.missingOrder = MissingOrder.readFromStream(in);
+        }
         this.order = SortOrder.readFromStream(in);
         this.format = in.readOptionalString();
     }
@@ -95,6 +103,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             userValueTypeHint.writeTo(out);
         }
         out.writeBoolean(missingBucket);
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            missingOrder.writeTo(out);
+        }
         order.writeTo(out);
         out.writeOptionalString(format);
         innerWriteTo(out);
@@ -120,6 +131,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (format != null) {
             builder.field("format", format);
         }
+        if (!MissingOrder.isDefault(missingOrder)) {
+            builder.field("missing_order", missingOrder.toString());
+        }
         builder.field("order", order);
         doXContentBody(builder, params);
         builder.endObject();
@@ -142,6 +156,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             && Objects.equals(script, that.script())
             && Objects.equals(userValueTypeHint, that.userValuetypeHint())
             && Objects.equals(missingBucket, that.missingBucket())
+            && Objects.equals(missingOrder, that.missingOrder())
             && Objects.equals(order, that.order())
             && Objects.equals(format, that.format());
     }
@@ -224,6 +239,25 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      */
     public boolean missingBucket() {
         return missingBucket;
+    }
+
+    /**
+     * Sets the {@link MissingOrder} to use to order missing value.
+     */
+    public AB missingOrder(MissingOrder missingOrder) {
+        this.missingOrder = missingOrder;
+        return (AB) this;
+    }
+
+    public MissingOrder missingOrder(String missingOrder) {
+        return fromString(missingOrder);
+    }
+
+    /**
+     * Missing value order. {@link MissingOrder}.
+     */
+    public MissingOrder missingOrder() {
+        return missingOrder;
     }
 
     /**
