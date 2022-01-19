@@ -14,11 +14,10 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.function.Predicate;
+import java.util.Locale;
 
 /**
  * Composite Aggregation Missing bucket order.
- *
  */
 public enum MissingOrder implements Writeable {
     /**
@@ -26,22 +25,18 @@ public enum MissingOrder implements Writeable {
      */
     FIRST {
         @Override
-        public <T, U> int compare(
-            Provider<T> left, Predicate<T> leftIsMissing, Provider<U> right, Predicate<U> rightIsMissing, int reverseMul) {
-            if (leftIsMissing.test(left.get())) {
-                return rightIsMissing.test(right.get()) ? -1 : 0;
-            } else if (rightIsMissing.test(right.get())) {
+        public int compare(Provider<Boolean> leftIsMissing, Provider<Boolean> rightIsMissing, int reverseMul) {
+            if (leftIsMissing.get()) {
+                return rightIsMissing.get() ? 0 : -1;
+            } else if (rightIsMissing.get()) {
                 return 1;
             }
             return MISSING_ORDER_UNKNOWN;
         }
 
-//        @Override public MissingOrder reverseOrder() {
-//            return LAST;
-//        }
-
-        @Override public String toString() {
-            return "_first";
+        @Override
+        public String toString() {
+            return "first";
         }
     },
 
@@ -50,24 +45,18 @@ public enum MissingOrder implements Writeable {
      */
     LAST {
         @Override
-        public <T, U> int compare(
-            Provider<T> left, Predicate<T> leftIsMissing, Provider<U> right, Predicate<U> rightIsMissing, int reverseMul) {
-            if (leftIsMissing.test(left.get())) {
-                return rightIsMissing.test(right.get()) ? 1 : 0;
-            } else if (rightIsMissing.test(right.get())) {
+        public int compare(Provider<Boolean> leftIsMissing, Provider<Boolean> rightIsMissing, int reverseMul) {
+            if (leftIsMissing.get()) {
+                return rightIsMissing.get() ? 0 : 1;
+            } else if (rightIsMissing.get()) {
                 return -1;
             }
             return MISSING_ORDER_UNKNOWN;
         }
 
-//        @Override
-//        public MissingOrder reverseOrder() {
-//            return FIRST;
-//        }
-
         @Override
         public String toString() {
-            return "_last";
+            return "last";
         }
     },
 
@@ -76,45 +65,20 @@ public enum MissingOrder implements Writeable {
      */
     DEFAULT {
         @Override
-        public <T, U> int compare(
-            Provider<T> left, Predicate<T> leftIsMissing, Provider<U> right, Predicate<U> rightIsMissing, int reverseMul) {
-            if (leftIsMissing.test(left.get())) {
-                return rightIsMissing.test(right.get()) ? -1 * reverseMul : 0;
-            } else if (rightIsMissing.test(right.get())) {
+        public int compare(Provider<Boolean> leftIsMissing, Provider<Boolean> rightIsMissing, int reverseMul) {
+            if (leftIsMissing.get()) {
+                return rightIsMissing.get() ? 0 : -1 * reverseMul;
+            } else if (rightIsMissing.get()) {
                 return reverseMul;
             }
             return MISSING_ORDER_UNKNOWN;
         }
-//
-//        @Override public int compareToAnyValue(int reverseMul) {
-//            return -1 * reverseMul;
-//        }
-//
-//        @Override public MissingOrder reverseOrder() {
-//            return DEFAULT_REVERSE;
-//        }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "default";
         }
     };
-
-    /**
-     * Default: ASC missing first / DESC missing last
-     */
-//    DEFAULT_REVERSE {
-//        @Override public int compareToAnyValue(int reverseMul) {
-//            return reverseMul;
-//        }
-//
-//        @Override public MissingOrder reverseOrder() {
-//            return DEFAULT;
-//        }
-//
-//        @Override public String toString() {
-//            return "default reverse";
-//        }
-//    };
 
     private static int MISSING_ORDER_UNKNOWN = Integer.MIN_VALUE;
 
@@ -122,25 +86,22 @@ public enum MissingOrder implements Writeable {
         return in.readEnum(MissingOrder.class);
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(this);
     }
 
-    public static boolean isDefault(MissingOrder order) {return order == DEFAULT;}
+    public static boolean isDefault(MissingOrder order) {
+        return order == DEFAULT;
+    }
 
-    // Todo
-    public static MissingOrder fromString(String op) {
-        return DEFAULT;
+    public static MissingOrder fromString(String order) {
+        return valueOf(order.toUpperCase(Locale.ROOT));
     }
 
     public static boolean unknownOrder(int v) {
         return v == MISSING_ORDER_UNKNOWN;
     }
 
-//    public abstract int compareToAnyValue(int reverseMul);
-
-//    public abstract MissingOrder reverseOrder();
-
-    public abstract <T, U> int compare(
-        Provider<T> left, Predicate<T> leftIsMissing, Provider<U> right, Predicate<U> rightIsMissing, int reverseMul);
+    public abstract int compare(Provider<Boolean> leftIsMissing, Provider<Boolean> rightIsMissing, int reverseMul);
 }

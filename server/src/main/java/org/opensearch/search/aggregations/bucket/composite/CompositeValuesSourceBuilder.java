@@ -51,6 +51,8 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
 
+import static org.opensearch.search.aggregations.bucket.missing.MissingOrder.fromString;
+
 /**
  * A {@link ValuesSource} builder for {@link CompositeAggregationBuilder}
  */
@@ -245,6 +247,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     public AB missingOrder(MissingOrder missingOrder) {
         this.missingOrder = missingOrder;
         return (AB) this;
+    }
+
+    public MissingOrder missingOrder(String missingOrder) {
+        return fromString(missingOrder);
     }
 
     /**

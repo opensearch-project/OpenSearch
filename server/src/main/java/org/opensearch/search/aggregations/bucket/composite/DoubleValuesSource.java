@@ -47,7 +47,6 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * A {@link SingleDimensionValuesSource} for doubles.
@@ -92,7 +91,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     int compare(int from, int to) {
         if (missingBucket) {
-            int result = missingOrder.compare(() -> bits.get(from), l -> l == false, () -> bits.get(to), r -> r == false, reverseMul);
+            int result = missingOrder.compare(() -> bits.get(from) == false, () -> bits.get(to) == false, reverseMul);
             if (!MissingOrder.unknownOrder(result)) {
                 return result;
             }
@@ -103,7 +102,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     int compareCurrent(int slot) {
         if (missingBucket) {
-            int result = missingOrder.compare(() -> missingCurrentValue, l -> l, () -> bits.get(slot), r -> r == false, reverseMul);
+            int result = missingOrder.compare(() -> missingCurrentValue, () -> bits.get(slot) == false, reverseMul);
             if (!MissingOrder.unknownOrder(result)) {
                 return result;
             }
@@ -114,7 +113,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     int compareCurrentWithAfter() {
         if (missingBucket) {
-            int result = missingOrder.compare(() -> missingCurrentValue, l -> l, () -> afterValue, Objects::isNull, reverseMul);
+            int result = missingOrder.compare(() -> missingCurrentValue, () -> afterValue == null, reverseMul);
             if (!MissingOrder.unknownOrder(result)) {
                 return result;
             }

@@ -46,6 +46,8 @@ import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
+import static org.opensearch.search.aggregations.bucket.missing.MissingOrder.LAST;
+
 /**
  * A source that can record and compare values of similar type.
  */
@@ -172,8 +174,11 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * Returns true if a {@link SortedDocsProducer} should be used to optimize the execution.
      */
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
-        if (fieldType == null || (missingBucket && afterValue == null) || fieldType.isSearchable() == false ||
-        // inverse of the natural order
+        if (fieldType == null
+            || (missingBucket && (afterValue == null || reverseMul == 1 && missingOrder == LAST))
+            || fieldType.isSearchable() == false
+            ||
+            // inverse of the natural order
             reverseMul == -1) {
             return false;
         }

@@ -90,7 +90,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     int compare(int from, int to) {
         if (missingBucket) {
-            int result = missingOrder.compare(() -> values.get(from), l -> l == -1, () -> values.get(to), r -> r == -1, reverseMul);
+            int result = missingOrder.compare(() -> values.get(from) == -1, () -> values.get(to) == -1, reverseMul);
             if (!MissingOrder.unknownOrder(result)) {
                 return result;
             }
@@ -101,7 +101,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     int compareCurrent(int slot) {
         if (missingBucket) {
-            int result = missingOrder.compare(() -> currentValue, l -> l == -1, () -> values.get(slot), r -> r == -1, reverseMul);
+            int result = missingOrder.compare(() -> currentValue == -1, () -> values.get(slot) == -1, reverseMul);
             if (!MissingOrder.unknownOrder(result)) {
                 return result;
             }
@@ -112,7 +112,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     int compareCurrentWithAfter() {
         if (missingBucket) {
-            int result = missingOrder.compare(() -> currentValue, l -> l == -1, () -> afterValueGlobalOrd, r -> r == -1, reverseMul);
+            int result = missingOrder.compare(() -> currentValue == -1, () -> afterValueGlobalOrd == -1, reverseMul);
             if (!MissingOrder.unknownOrder(result)) {
                 return result;
             }
