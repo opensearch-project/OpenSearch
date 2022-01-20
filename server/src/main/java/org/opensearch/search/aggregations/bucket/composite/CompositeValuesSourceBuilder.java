@@ -249,8 +249,12 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         return (AB) this;
     }
 
-    public MissingOrder missingOrder(String missingOrder) {
-        return fromString(missingOrder);
+    /**
+     * Sets the {@link MissingOrder} to use to order missing value.
+     * @param missingOrder "first", "last" or "default".
+     */
+    public AB missingOrder(String missingOrder) {
+        return missingOrder(fromString(missingOrder));
     }
 
     /**
@@ -320,6 +324,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected abstract ValuesSourceType getDefaultValuesSourceType();
 
     public final CompositeValuesSourceConfig build(QueryShardContext queryShardContext) throws IOException {
+        if (missingBucket == false && missingOrder != MissingOrder.DEFAULT) {
+            throw new IllegalArgumentException("missing_order required missing_bucket is true");
+        }
         ValuesSourceConfig config = ValuesSourceConfig.resolve(
             queryShardContext,
             userValueTypeHint,
