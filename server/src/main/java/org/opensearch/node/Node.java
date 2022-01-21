@@ -406,7 +406,7 @@ public class Node implements Closeable {
                 initialEnvironment.pluginsFile(),
                 classpathPlugins
             );
-            this.pluginsOrchestrator = new PluginsOrchestrator(tmpSettings, "pluginsv2");
+            this.pluginsOrchestrator = new PluginsOrchestrator(tmpSettings, initialEnvironment.pluginsv2File());
             final Settings settings = pluginsService.updatedSettings();
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)

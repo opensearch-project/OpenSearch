@@ -325,7 +325,8 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "dummyclass",
             "c",
             Collections.singletonList("foo"),
-            randomBoolean()
+            randomBoolean(),
+            PluginInfo.Type.LEGACY
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);

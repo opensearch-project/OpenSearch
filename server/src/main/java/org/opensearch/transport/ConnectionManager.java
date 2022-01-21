@@ -54,7 +54,8 @@ public interface ConnectionManager extends Closeable {
         ActionListener<Void> listener
     ) throws ConnectTransportException;
 
-    void connectToPlugin(ConnectionProfile connectionProfile, ConnectionValidator connectionValidator, ActionListener<Void> listener) throws ConnectTransportException;
+    // void connectToPlugin(ConnectionProfile connectionProfile, ConnectionValidator connectionValidator, ActionListener<Void> listener)
+    // throws ConnectTransportException;
 
     Transport.Connection getConnection(DiscoveryNode node);
 

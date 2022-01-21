@@ -189,10 +189,10 @@ public class ClusterConnectionManager implements ConnectionManager {
         }));
     }
 
-    @Override
+    /*@Override
     public void connectToPlugin(ConnectionProfile connectionProfile, ConnectionValidator connectionValidator, ActionListener<Void> listener) throws ConnectTransportException {
 
-    }
+    }*/
 
     /**
      * Returns a connection for the given node if the node is connected.

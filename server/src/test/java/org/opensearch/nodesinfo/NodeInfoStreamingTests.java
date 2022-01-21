@@ -177,7 +177,6 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
                         VersionUtils.randomVersion(random()),
                         "1.8",
                         randomAlphaOfLengthBetween(3, 10),
-                        name,
                         Collections.emptyList(),
                         randomBoolean()
                     )
@@ -195,7 +194,6 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
                         VersionUtils.randomVersion(random()),
                         "1.8",
                         randomAlphaOfLengthBetween(3, 10),
-                        name,
                         Collections.emptyList(),
                         randomBoolean()
                     )
