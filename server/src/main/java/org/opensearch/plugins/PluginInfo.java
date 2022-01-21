@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
  */
 public class PluginInfo implements Writeable, ToXContentObject {
 
-    enum Type {
+    public enum Type {
         LEGACY,
         INDEPENDENT
     }
