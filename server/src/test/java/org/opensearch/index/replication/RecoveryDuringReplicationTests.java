@@ -51,7 +51,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
@@ -129,74 +128,6 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             docs += shards.indexDocs(randomInt(20));
             releaseRecovery.countDown();
             recoveryFuture.get();
-
-            shards.assertAllEqual(docs);
-        }
-    }
-
-    public void testRecoveryOfDisconnectedReplica() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
-        try (ReplicationGroup shards = createGroup(1, settings)) {
-            shards.startAll();
-            int docs = shards.indexDocs(randomInt(50));
-            shards.flush();
-            final IndexShard originalReplica = shards.getReplicas().get(0);
-            for (int i = 0; i < randomInt(2); i++) {
-                final int indexedDocs = shards.indexDocs(randomInt(5));
-                docs += indexedDocs;
-
-                final boolean flush = randomBoolean();
-                if (flush) {
-                    originalReplica.flush(new FlushRequest());
-                }
-            }
-
-            // simulate a background global checkpoint sync at which point we expect the global checkpoint to advance on the replicas
-            shards.syncGlobalCheckpoint();
-            long globalCheckpointOnReplica = originalReplica.getLastSyncedGlobalCheckpoint();
-            Optional<SequenceNumbers.CommitInfo> safeCommitOnReplica = originalReplica.store()
-                .findSafeIndexCommit(globalCheckpointOnReplica);
-            assertTrue(safeCommitOnReplica.isPresent());
-            shards.removeReplica(originalReplica);
-
-            final int missingOnReplica = shards.indexDocs(randomInt(5));
-            docs += missingOnReplica;
-
-            final boolean translogTrimmed;
-            if (randomBoolean()) {
-                shards.flush();
-                translogTrimmed = randomBoolean();
-                if (translogTrimmed) {
-                    final Translog translog = getTranslog(shards.getPrimary());
-                    translog.getDeletionPolicy().setRetentionAgeInMillis(0);
-                    translog.trimUnreferencedReaders();
-                }
-            } else {
-                translogTrimmed = false;
-            }
-            originalReplica.close("disconnected", false);
-            IOUtils.close(originalReplica.store());
-            final IndexShard recoveredReplica = shards.addReplicaWithExistingPath(
-                originalReplica.shardPath(),
-                originalReplica.routingEntry().currentNodeId()
-            );
-            shards.recoverReplica(recoveredReplica);
-            if (translogTrimmed && missingOnReplica > 0) {
-                // replica has something to catch up with, but since we trimmed the primary translog, we should fall back to full recovery
-                assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-            } else {
-                assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), empty());
-                assertThat(
-                    recoveredReplica.recoveryState().getTranslog().recoveredOperations(),
-                    equalTo(Math.toIntExact(docs - 1 - safeCommitOnReplica.get().localCheckpoint))
-                );
-                assertThat(
-                    recoveredReplica.recoveryState().getTranslog().totalLocal(),
-                    equalTo(Math.toIntExact(globalCheckpointOnReplica - safeCommitOnReplica.get().localCheckpoint))
-                );
-            }
-
-            docs += shards.indexDocs(randomInt(5));
 
             shards.assertAllEqual(docs);
         }
