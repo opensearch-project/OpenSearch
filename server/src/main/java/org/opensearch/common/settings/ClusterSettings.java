@@ -519,6 +519,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                 Node.BREAKER_TYPE_KEY,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_SETTING,
                 IndexGraveyard.SETTING_MAX_TOMBSTONES,
                 PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
                 EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
