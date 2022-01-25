@@ -1436,9 +1436,9 @@ public class InternalEngine extends Engine {
 
     private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
         if (docs.size() > 1) {
-            indexWriter.softUpdateDocuments(uid, docs);
+            indexWriter.softUpdateDocuments(uid, docs, softDeletesField);
         } else {
-            indexWriter.softUpdateDocument(uid, docs.get(0));
+            indexWriter.softUpdateDocument(uid, docs.get(0), softDeletesField);
         }
         numDocUpdates.inc(docs.size());
     }
