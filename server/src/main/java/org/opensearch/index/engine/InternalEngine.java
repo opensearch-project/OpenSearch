@@ -1485,24 +1485,24 @@ public class InternalEngine extends Engine {
 
                 if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
                     deleteResult = deleteInLucene(delete, plan);
+                    if (plan.deleteFromLucene) {
+                        numDocDeletes.inc();
+                        versionMap.putDeleteUnderLock(
+                            delete.uid().bytes(),
+                            new DeleteVersionValue(
+                                plan.versionOfDeletion,
+                                delete.seqNo(),
+                                delete.primaryTerm(),
+                                engineConfig.getThreadPool().relativeTimeInMillis()
+                            )
+                        );
+                    }
                 } else {
                     deleteResult = new DeleteResult(
                         plan.versionOfDeletion,
                         delete.primaryTerm(),
                         delete.seqNo(),
                         plan.currentlyDeleted == false
-                    );
-                }
-                if (plan.deleteFromLucene) {
-                    numDocDeletes.inc();
-                    versionMap.putDeleteUnderLock(
-                        delete.uid().bytes(),
-                        new DeleteVersionValue(
-                            plan.versionOfDeletion,
-                            delete.seqNo(),
-                            delete.primaryTerm(),
-                            engineConfig.getThreadPool().relativeTimeInMillis()
-                        )
                     );
                 }
             }
