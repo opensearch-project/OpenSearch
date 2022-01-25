@@ -3969,9 +3969,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Here we are testing that a fully deleted segment should be dropped and its memory usage is freed.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        primary.updateGlobalCheckpointForShard(
-            primary.routingEntry().allocationId().getId(),
-            primary.getLastSyncedGlobalCheckpoint());
+        primary.updateGlobalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.getLastSyncedGlobalCheckpoint());
         primary.syncRetentionLeases();
         primary.sync();
         flushShard(primary);
