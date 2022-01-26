@@ -651,7 +651,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.pattern = in.readString();
             this.analyzer = in.readOptionalString();
             this.useField = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
                 this.maxExpansions = in.readOptionalVInt();
             } else {
                 this.maxExpansions = null;
@@ -724,7 +724,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeString(pattern);
             out.writeOptionalString(analyzer);
             out.writeOptionalString(useField);
-            if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
                 out.writeOptionalVInt(maxExpansions);
             }
         }
