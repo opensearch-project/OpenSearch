@@ -3258,42 +3258,37 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexDoc(indexShard, "_doc", id);
             }
             // Need to update and sync the global checkpoint and the retention leases for the soft-deletes retention MergePolicy.
-            if (indexShard.indexSettings.isSoftDeleteEnabled()) {
-                final long newGlobalCheckpoint = indexShard.getLocalCheckpoint();
-                if (indexShard.routingEntry().primary()) {
-                    indexShard.updateLocalCheckpointForShard(
-                        indexShard.routingEntry().allocationId().getId(),
-                        indexShard.getLocalCheckpoint()
-                    );
-                    indexShard.updateGlobalCheckpointForShard(
-                        indexShard.routingEntry().allocationId().getId(),
-                        indexShard.getLocalCheckpoint()
-                    );
-                    indexShard.syncRetentionLeases();
-                } else {
-                    indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
+            final long newGlobalCheckpoint = indexShard.getLocalCheckpoint();
+            if (indexShard.routingEntry().primary()) {
+                indexShard.updateLocalCheckpointForShard(indexShard.routingEntry().allocationId().getId(), indexShard.getLocalCheckpoint());
+                indexShard.updateGlobalCheckpointForShard(
+                    indexShard.routingEntry().allocationId().getId(),
+                    indexShard.getLocalCheckpoint()
+                );
+                indexShard.syncRetentionLeases();
+            } else {
+                indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
 
-                    final RetentionLeases retentionLeases = indexShard.getRetentionLeases();
-                    indexShard.updateRetentionLeasesOnReplica(
-                        new RetentionLeases(
-                            retentionLeases.primaryTerm(),
-                            retentionLeases.version() + 1,
-                            retentionLeases.leases()
-                                .stream()
-                                .map(
-                                    lease -> new RetentionLease(
-                                        lease.id(),
-                                        newGlobalCheckpoint + 1,
-                                        lease.timestamp(),
-                                        ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE
-                                    )
+                final RetentionLeases retentionLeases = indexShard.getRetentionLeases();
+                indexShard.updateRetentionLeasesOnReplica(
+                    new RetentionLeases(
+                        retentionLeases.primaryTerm(),
+                        retentionLeases.version() + 1,
+                        retentionLeases.leases()
+                            .stream()
+                            .map(
+                                lease -> new RetentionLease(
+                                    lease.id(),
+                                    newGlobalCheckpoint + 1,
+                                    lease.timestamp(),
+                                    ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE
                                 )
-                                .collect(Collectors.toList())
-                        )
-                    );
-                }
-                indexShard.sync();
+                            )
+                            .collect(Collectors.toList())
+                    )
+                );
             }
+            indexShard.sync();
             // flush the buffered deletes
             final FlushRequest flushRequest = new FlushRequest();
             flushRequest.force(false);
@@ -3974,12 +3969,10 @@ public class IndexShardTests extends IndexShardTestCase {
         // Here we are testing that a fully deleted segment should be dropped and its memory usage is freed.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            primary.updateGlobalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.getLastSyncedGlobalCheckpoint());
-            primary.syncRetentionLeases();
-            primary.sync();
-            flushShard(primary);
-        }
+        primary.updateGlobalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.getLastSyncedGlobalCheckpoint());
+        primary.syncRetentionLeases();
+        primary.sync();
+        flushShard(primary);
         primary.refresh("force refresh");
 
         ss = primary.segmentStats(randomBoolean(), randomBoolean());

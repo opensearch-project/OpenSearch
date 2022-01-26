@@ -41,6 +41,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -184,7 +185,6 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
     private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
-    private final boolean softDeleteEnabled;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
@@ -262,7 +262,6 @@ public class InternalEngine extends Engine {
                 });
                 assert translog.getGeneration() != null;
                 this.translog = translog;
-                this.softDeleteEnabled = engineConfig.getIndexSettings().isSoftDeleteEnabled();
                 this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy = new CombinedDeletionPolicy(
                     logger,
@@ -305,7 +304,7 @@ public class InternalEngine extends Engine {
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
-            if (softDeleteEnabled && localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
+            if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
                 try (Searcher searcher = acquireSearcher("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL)) {
                     restoreVersionMapAndCheckpointTracker(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
                 } catch (IOException e) {
@@ -621,7 +620,6 @@ public class InternalEngine extends Engine {
         long startingSeqNo
     ) throws IOException {
         if (historySource == HistorySource.INDEX) {
-            ensureSoftDeletesEnabled();
             return newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
         } else {
             return getTranslog().newSnapshot(startingSeqNo, Long.MAX_VALUE);
@@ -639,7 +637,6 @@ public class InternalEngine extends Engine {
         long startingSeqNo
     ) throws IOException {
         if (historySource == HistorySource.INDEX) {
-            ensureSoftDeletesEnabled();
             try (
                 Translog.Snapshot snapshot = newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false)
             ) {
@@ -863,8 +860,10 @@ public class InternalEngine extends Engine {
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
                     status = OpVsLuceneDocStatus.OP_NEWER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
-                    assert localCheckpointTracker.hasProcessed(op.seqNo())
-                        || softDeleteEnabled == false : "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
+                    assert localCheckpointTracker.hasProcessed(op.seqNo()) : "local checkpoint tracker is not updated seq_no="
+                        + op.seqNo()
+                        + " id="
+                        + op.id();
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
@@ -1147,7 +1146,7 @@ public class InternalEngine extends Engine {
             versionMap.enforceSafeAccess();
             final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.version());
+                plan = IndexingStrategy.processAsStaleOp(index.version());
             } else {
                 plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version(), 0);
             }
@@ -1324,7 +1323,6 @@ public class InternalEngine extends Engine {
     }
 
     private void addStaleDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
-        assert softDeleteEnabled : "Add history documents but soft-deletes is disabled";
         for (ParseContext.Document doc : docs) {
             doc.add(softDeletesField); // soft-deleted every document before adding to Lucene
         }
@@ -1402,8 +1400,8 @@ public class InternalEngine extends Engine {
             return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, versionForIndexing, 0, null);
         }
 
-        static IndexingStrategy processAsStaleOp(boolean addStaleOpToLucene, long versionForIndexing) {
-            return new IndexingStrategy(false, false, false, addStaleOpToLucene, versionForIndexing, 0, null);
+        static IndexingStrategy processAsStaleOp(long versionForIndexing) {
+            return new IndexingStrategy(false, false, false, true, versionForIndexing, 0, null);
         }
 
         static IndexingStrategy failAsTooManyDocs(Exception e) {
@@ -1437,18 +1435,10 @@ public class InternalEngine extends Engine {
     }
 
     private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
-        if (softDeleteEnabled) {
-            if (docs.size() > 1) {
-                indexWriter.softUpdateDocuments(uid, docs, softDeletesField);
-            } else {
-                indexWriter.softUpdateDocument(uid, docs.get(0), softDeletesField);
-            }
+        if (docs.size() > 1) {
+            indexWriter.softUpdateDocuments(uid, docs, softDeletesField);
         } else {
-            if (docs.size() > 1) {
-                indexWriter.updateDocuments(uid, docs);
-            } else {
-                indexWriter.updateDocument(uid, docs.get(0));
-            }
+            indexWriter.softUpdateDocument(uid, docs.get(0), softDeletesField);
         }
         numDocUpdates.inc(docs.size());
     }
@@ -1495,6 +1485,18 @@ public class InternalEngine extends Engine {
 
                 if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
                     deleteResult = deleteInLucene(delete, plan);
+                    if (plan.deleteFromLucene) {
+                        numDocDeletes.inc();
+                        versionMap.putDeleteUnderLock(
+                            delete.uid().bytes(),
+                            new DeleteVersionValue(
+                                plan.versionOfDeletion,
+                                delete.seqNo(),
+                                delete.primaryTerm(),
+                                engineConfig.getThreadPool().relativeTimeInMillis()
+                            )
+                        );
+                    }
                 } else {
                     deleteResult = new DeleteResult(
                         plan.versionOfDeletion,
@@ -1577,7 +1579,7 @@ public class InternalEngine extends Engine {
         } else {
             final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                plan = DeletionStrategy.processAsStaleOp(softDeleteEnabled, delete.version());
+                plan = DeletionStrategy.processAsStaleOp(delete.version());
             } else {
                 plan = DeletionStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, delete.version(), 0);
             }
@@ -1649,37 +1651,19 @@ public class InternalEngine extends Engine {
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {
-            if (softDeleteEnabled) {
-                final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
-                assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
-                tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
-                tombstone.version().setLongValue(plan.versionOfDeletion);
-                final ParseContext.Document doc = tombstone.docs().get(0);
-                assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null : "Delete tombstone document but _tombstone field is not set ["
-                    + doc
-                    + " ]";
-                doc.add(softDeletesField);
-                if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
-                    indexWriter.addDocument(doc);
-                } else {
-                    indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
-                }
-            } else if (plan.currentlyDeleted == false) {
-                // any exception that comes from this is a either an ACE or a fatal exception there
-                // can't be any document failures coming from this
-                indexWriter.deleteDocuments(delete.uid());
-            }
-            if (plan.deleteFromLucene) {
-                numDocDeletes.inc();
-                versionMap.putDeleteUnderLock(
-                    delete.uid().bytes(),
-                    new DeleteVersionValue(
-                        plan.versionOfDeletion,
-                        delete.seqNo(),
-                        delete.primaryTerm(),
-                        engineConfig.getThreadPool().relativeTimeInMillis()
-                    )
-                );
+            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
+            assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
+            tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
+            tombstone.version().setLongValue(plan.versionOfDeletion);
+            final ParseContext.Document doc = tombstone.docs().get(0);
+            assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null : "Delete tombstone document but _tombstone field is not set ["
+                + doc
+                + " ]";
+            doc.add(softDeletesField);
+            if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
+                indexWriter.addDocument(doc);
+            } else {
+                indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
             }
             return new DeleteResult(plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
         } catch (final Exception ex) {
@@ -1759,8 +1743,8 @@ public class InternalEngine extends Engine {
             return new DeletionStrategy(false, false, currentlyDeleted, versionOfDeletion, 0, null);
         }
 
-        static DeletionStrategy processAsStaleOp(boolean addStaleOpToLucene, long versionOfDeletion) {
-            return new DeletionStrategy(false, addStaleOpToLucene, false, versionOfDeletion, 0, null);
+        static DeletionStrategy processAsStaleOp(long versionOfDeletion) {
+            return new DeletionStrategy(false, true, false, versionOfDeletion, 0, null);
         }
 
         static DeletionStrategy failAsTooManyDocs(Exception e) {
@@ -1817,7 +1801,7 @@ public class InternalEngine extends Engine {
                 );
             } else {
                 markSeqNoAsSeen(noOp.seqNo());
-                if (softDeleteEnabled && hasBeenProcessedBefore(noOp) == false) {
+                if (hasBeenProcessedBefore(noOp) == false) {
                     try {
                         final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
                         tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
@@ -2545,17 +2529,15 @@ public class InternalEngine extends Engine {
         MergePolicy mergePolicy = config().getMergePolicy();
         // always configure soft-deletes field so an engine with soft-deletes disabled can open a Lucene index with soft-deletes.
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
-        if (softDeleteEnabled) {
-            mergePolicy = new RecoverySourcePruneMergePolicy(
-                SourceFieldMapper.RECOVERY_SOURCE_NAME,
+        mergePolicy = new RecoverySourcePruneMergePolicy(
+            SourceFieldMapper.RECOVERY_SOURCE_NAME,
+            softDeletesPolicy::getRetentionQuery,
+            new SoftDeletesRetentionMergePolicy(
+                Lucene.SOFT_DELETES_FIELD,
                 softDeletesPolicy::getRetentionQuery,
-                new SoftDeletesRetentionMergePolicy(
-                    Lucene.SOFT_DELETES_FIELD,
-                    softDeletesPolicy::getRetentionQuery,
-                    new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
-                )
-            );
-        }
+                new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
+            )
+        );
         boolean shuffleForcedMerge = Booleans.parseBoolean(System.getProperty("opensearch.shuffle_forced_merge", Boolean.TRUE.toString()));
         if (shuffleForcedMerge) {
             // We wrap the merge policy for all indices even though it is mostly useful for time-based indices
@@ -2753,9 +2735,7 @@ public class InternalEngine extends Engine {
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
-                if (softDeleteEnabled) {
-                    commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
-                }
+                commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
                 final String currentForceMergeUUID = forceMergeUUID;
                 if (currentForceMergeUUID != null) {
                     commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
@@ -2922,13 +2902,6 @@ public class InternalEngine extends Engine {
         return numDocUpdates.count();
     }
 
-    private void ensureSoftDeletesEnabled() {
-        if (softDeleteEnabled == false) {
-            assert false : "index " + shardId.getIndex() + " does not have soft-deletes enabled";
-            throw new IllegalStateException("index " + shardId.getIndex() + " does not have soft-deletes enabled");
-        }
-    }
-
     @Override
     public Translog.Snapshot newChangesSnapshot(
         String source,
@@ -2953,7 +2926,6 @@ public class InternalEngine extends Engine {
         long toSeqNo,
         boolean requiredFullRange
     ) throws IOException {
-        ensureSoftDeletesEnabled();
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
@@ -2984,7 +2956,6 @@ public class InternalEngine extends Engine {
     public boolean hasCompleteOperationHistory(String reason, HistorySource historySource, MapperService mapperService, long startingSeqNo)
         throws IOException {
         if (historySource == HistorySource.INDEX) {
-            ensureSoftDeletesEnabled();
             return getMinRetainedSeqNo() <= startingSeqNo;
         } else {
             final long currentLocalCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
@@ -3010,14 +2981,12 @@ public class InternalEngine extends Engine {
      * Operations whose seq# are at least this value should exist in the Lucene index.
      */
     public final long getMinRetainedSeqNo() {
-        ensureSoftDeletesEnabled();
         return softDeletesPolicy.getMinRetainedSeqNo();
     }
 
     @Override
     public Closeable acquireHistoryRetentionLock(HistorySource historySource) {
         if (historySource == HistorySource.INDEX) {
-            ensureSoftDeletesEnabled();
             return softDeletesPolicy.acquireRetentionLock();
         } else {
             return translog.acquireRetentionLock();
@@ -3035,15 +3004,14 @@ public class InternalEngine extends Engine {
         return commitData;
     }
 
-    private final class AssertingIndexWriter extends IndexWriter {
+    private static class AssertingIndexWriter extends IndexWriter {
         AssertingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);
         }
 
         @Override
-        public long deleteDocuments(Term... terms) throws IOException {
-            assert softDeleteEnabled == false : "Call #deleteDocuments but soft-deletes is enabled";
-            return super.deleteDocuments(terms);
+        public long updateDocuments(Term delTerm, Iterable<? extends Iterable<? extends IndexableField>> docs) {
+            throw new AssertionError("must not hard update documents");
         }
 
         @Override
