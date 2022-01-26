@@ -57,7 +57,6 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.CharFilterFactory;
 import org.opensearch.index.analysis.CustomAnalyzer;
 import org.opensearch.index.analysis.IndexAnalyzers;
-import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.PreConfiguredCharFilter;
 import org.opensearch.index.analysis.PreConfiguredTokenFilter;
 import org.opensearch.index.analysis.PreConfiguredTokenizer;
@@ -139,11 +138,13 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
     public void testSimpleConfigurationJson() throws IOException {
         Settings settings = loadFromClasspath("/org/opensearch/index/analysis/test1.json");
         testSimpleConfiguration(settings);
+        assertWarnings("Setting [version] on analysis [custom7] is deprecated, no longer used, and will be removed in a future version.");
     }
 
     public void testSimpleConfigurationYaml() throws IOException {
         Settings settings = loadFromClasspath("/org/opensearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
+        assertWarnings("Setting [version] on analysis [custom7] is deprecated, no longer used, and will be removed in a future version.");
     }
 
     public void testVersionedAnalyzers() throws Exception {
@@ -157,19 +158,8 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
 
-        // registry always has the current version
-        assertThat(newRegistry.getAnalyzer("default"), is(instanceOf(NamedAnalyzer.class)));
-        NamedAnalyzer defaultNamedAnalyzer = (NamedAnalyzer) newRegistry.getAnalyzer("default");
-        assertThat(defaultNamedAnalyzer.analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(Version.CURRENT.luceneVersion, defaultNamedAnalyzer.analyzer().getVersion());
-
-        // analysis service has the expected version
-        assertThat(indexAnalyzers.get("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(version.luceneVersion, indexAnalyzers.get("standard").analyzer().getVersion());
-        assertEquals(version.luceneVersion, indexAnalyzers.get("stop").analyzer().getVersion());
-
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(org.apache.lucene.util.Version.fromBits(3, 6, 0), indexAnalyzers.get("custom7").analyzer().getVersion());
+        assertWarnings("Setting [version] on analysis [custom7] is deprecated, no longer used, and will be removed in a future version.");
     }
 
     private void testSimpleConfiguration(Settings settings) throws IOException {
