@@ -137,7 +137,7 @@ public class CompositeValuesSourceConfig {
     }
 
     /**
-     * If true, an explicit `null bucket represents documents with missing values.
+     * Return the {@link MissingOrder} for the config.
      */
     MissingOrder missingOrder() {
         return missingOrder;

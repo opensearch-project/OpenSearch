@@ -111,7 +111,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     int compare(int from, int to) {
         if (missingBucket) {
             int result = missingOrder.compare(() -> bits.get(from) == false, () -> bits.get(to) == false, reverseMul);
-            if (!MissingOrder.unknownOrder(result)) {
+            if (MissingOrder.unknownOrder(result) == false) {
                 return result;
             }
         }
@@ -122,7 +122,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     int compareCurrent(int slot) {
         if (missingBucket) {
             int result = missingOrder.compare(() -> missingCurrentValue, () -> bits.get(slot) == false, reverseMul);
-            if (!MissingOrder.unknownOrder(result)) {
+            if (MissingOrder.unknownOrder(result) == false) {
                 return result;
             }
         }
@@ -133,7 +133,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     int compareCurrentWithAfter() {
         if (missingBucket) {
             int result = missingOrder.compare(() -> missingCurrentValue, () -> Objects.isNull(afterValue), reverseMul);
-            if (!MissingOrder.unknownOrder(result)) {
+            if (MissingOrder.unknownOrder(result) == false) {
                 return result;
             }
         }

@@ -92,7 +92,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     int compare(int from, int to) {
         if (missingBucket) {
             int result = missingOrder.compare(() -> bits.get(from) == false, () -> bits.get(to) == false, reverseMul);
-            if (!MissingOrder.unknownOrder(result)) {
+            if (MissingOrder.unknownOrder(result) == false) {
                 return result;
             }
         }
@@ -103,7 +103,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     int compareCurrent(int slot) {
         if (missingBucket) {
             int result = missingOrder.compare(() -> missingCurrentValue, () -> bits.get(slot) == false, reverseMul);
-            if (!MissingOrder.unknownOrder(result)) {
+            if (MissingOrder.unknownOrder(result) == false) {
                 return result;
             }
         }
@@ -114,7 +114,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     int compareCurrentWithAfter() {
         if (missingBucket) {
             int result = missingOrder.compare(() -> missingCurrentValue, () -> afterValue == null, reverseMul);
-            if (!MissingOrder.unknownOrder(result)) {
+            if (MissingOrder.unknownOrder(result) == false) {
                 return result;
             }
         }

@@ -80,6 +80,8 @@ public enum MissingOrder implements Writeable {
         }
     };
 
+    public static final String NAME = "missing_order";
+
     private static int MISSING_ORDER_UNKNOWN = Integer.MIN_VALUE;
 
     public static MissingOrder readFromStream(StreamInput in) throws IOException {

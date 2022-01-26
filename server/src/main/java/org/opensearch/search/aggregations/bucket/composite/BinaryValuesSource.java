@@ -105,7 +105,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     int compare(int from, int to) {
         if (missingBucket) {
             int result = missingOrder.compare(() -> Objects.isNull(values.get(from)), () -> Objects.isNull(values.get(to)), reverseMul);
-            if (!MissingOrder.unknownOrder(result)) {
+            if (MissingOrder.unknownOrder(result) == false) {
                 return result;
             }
         }
@@ -116,7 +116,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     int compareCurrent(int slot) {
         if (missingBucket) {
             int result = missingOrder.compare(() -> Objects.isNull(currentValue), () -> Objects.isNull(values.get(slot)), reverseMul);
-            if (!MissingOrder.unknownOrder(result)) {
+            if (MissingOrder.unknownOrder(result) == false) {
                 return result;
             }
         }
@@ -127,7 +127,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     int compareCurrentWithAfter() {
         if (missingBucket) {
             int result = missingOrder.compare(() -> Objects.isNull(currentValue), () -> Objects.isNull(afterValue), reverseMul);
-            if (!MissingOrder.unknownOrder(result)) {
+            if (MissingOrder.unknownOrder(result) == false) {
                 return result;
             }
         }

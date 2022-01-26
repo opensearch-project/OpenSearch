@@ -131,8 +131,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (format != null) {
             builder.field("format", format);
         }
-        if (!MissingOrder.isDefault(missingOrder)) {
-            builder.field("missing_order", missingOrder.toString());
+        if (MissingOrder.isDefault(missingOrder) == false) {
+            builder.field(MissingOrder.NAME, missingOrder.toString());
         }
         builder.field("order", order);
         doXContentBody(builder, params);
@@ -325,7 +325,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     public final CompositeValuesSourceConfig build(QueryShardContext queryShardContext) throws IOException {
         if (missingBucket == false && missingOrder != MissingOrder.DEFAULT) {
-            throw new IllegalArgumentException("missing_order required missing_bucket is true");
+            throw new IllegalArgumentException(MissingOrder.NAME + " require missing_bucket is true");
         }
         ValuesSourceConfig config = ValuesSourceConfig.resolve(
             queryShardContext,
