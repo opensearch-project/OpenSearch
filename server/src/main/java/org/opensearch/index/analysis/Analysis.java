@@ -98,8 +98,10 @@ public class Analysis {
         // check for explicit version on the specific analyzer component
         String sVersion = settings.get("version");
         if (sVersion != null) {
-            DEPRECATION_LOGGER.deprecate("analyzer.version",
-                "Setting [version] on analysis [" + name + "] is deprecated, no longer used, and will be removed in a future version.");
+            DEPRECATION_LOGGER.deprecate(
+                "analyzer.version",
+                "Setting [version] on analysis [" + name + "] is deprecated, no longer used, and will be removed in a future version."
+            );
         }
     }
 
