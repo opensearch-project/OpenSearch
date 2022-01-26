@@ -986,9 +986,8 @@ public class MetadataCreateIndexService {
                 routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
             }
         } else {
-            assert IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(
-                indexSettings
-            ) == false : "index.number_of_routing_shards should not be present on the target index on resize";
+            assert IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings) == false
+                : "index.number_of_routing_shards should not be present on the target index on resize";
             routingNumShards = sourceMetadata.getRoutingNumShards();
         }
         return routingNumShards;

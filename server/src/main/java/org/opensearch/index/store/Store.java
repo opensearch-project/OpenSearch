@@ -1095,9 +1095,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 Collections.unmodifiableList(different),
                 Collections.unmodifiableList(missing)
             );
-            assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN)
-                ? 1
-                : 0) : "some files are missing recoveryDiff size: ["
+            assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) ? 1 : 0)
+                : "some files are missing recoveryDiff size: ["
                     + recoveryDiff.size()
                     + "] metadata size: ["
                     + this.metadata.size()

@@ -644,10 +644,8 @@ public class RecoverySourceHandler {
 
                 createRetentionLeaseStep.whenComplete(retentionLease -> {
                     final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
-                    assert retentionLease == null
-                        || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint : retentionLease
-                            + " vs "
-                            + lastKnownGlobalCheckpoint;
+                    assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
+                        : retentionLease + " vs " + lastKnownGlobalCheckpoint;
                     // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
                     // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
                     // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on

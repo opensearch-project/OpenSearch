@@ -346,22 +346,16 @@ public class RetentionLeaseIT extends OpenSearchIntegTestCase {
                     )
                 );
             }
-            assertBusy(
-                () -> {
-                    // check all retention leases have been synced to all replicas
-                    for (final ShardRouting replicaShard : clusterService().state()
-                        .routingTable()
-                        .index("index")
-                        .shard(0)
-                        .replicaShards()) {
-                        final String replicaShardNodeId = replicaShard.currentNodeId();
-                        final String replicaShardNodeName = clusterService().state().nodes().get(replicaShardNodeId).getName();
-                        final IndexShard replica = internalCluster().getInstance(IndicesService.class, replicaShardNodeName)
-                            .getShardOrNull(new ShardId(resolveIndex("index"), 0));
-                        assertThat(replica.getRetentionLeases(), equalTo(primary.getRetentionLeases()));
-                    }
+            assertBusy(() -> {
+                // check all retention leases have been synced to all replicas
+                for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
+                    final String replicaShardNodeId = replicaShard.currentNodeId();
+                    final String replicaShardNodeName = clusterService().state().nodes().get(replicaShardNodeId).getName();
+                    final IndexShard replica = internalCluster().getInstance(IndicesService.class, replicaShardNodeName)
+                        .getShardOrNull(new ShardId(resolveIndex("index"), 0));
+                    assertThat(replica.getRetentionLeases(), equalTo(primary.getRetentionLeases()));
                 }
-            );
+            });
         }
     }
 

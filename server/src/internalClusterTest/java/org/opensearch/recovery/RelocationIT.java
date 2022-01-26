@@ -810,8 +810,8 @@ public class RelocationIT extends OpenSearchIntegTestCase {
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
                     logger.debug("corrupting [{}] to {}. file name: [{}]", action, connection.getNode(), chunkRequest.name());
-                    assert chunkRequest.content().toBytesRef().bytes == chunkRequest.content()
-                        .toBytesRef().bytes : "no internal reference!!";
+                    assert chunkRequest.content().toBytesRef().bytes == chunkRequest.content().toBytesRef().bytes
+                        : "no internal reference!!";
                     byte[] array = chunkRequest.content().toBytesRef().bytes;
                     array[0] = (byte) ~array[0]; // flip one byte in the content
                     corruptionCount.countDown();

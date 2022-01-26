@@ -448,8 +448,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchShardTask task,
         ActionListener<SearchPhaseResult> listener
     ) {
-        assert request.canReturnNullResponseIfMatchNoDocs() == false
-            || request.numberOfShards() > 1 : "empty responses require more than one shard";
+        assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
+            : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
             @Override
