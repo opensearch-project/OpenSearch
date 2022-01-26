@@ -36,6 +36,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 
 import java.io.IOException;
@@ -53,7 +54,7 @@ final class ProfileScorer extends Scorer {
     private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
         setMinCompetitiveScoreTimer;
 
-    ProfileScorer(ProfileWeight w, Scorer scorer, QueryProfileBreakdown profile) throws IOException {
+    ProfileScorer(ProfileWeight w, Scorer scorer, AbstractProfileBreakdown<QueryTimingType> profile) throws IOException {
         super(w);
         this.scorer = scorer;
         this.profileWeight = w;

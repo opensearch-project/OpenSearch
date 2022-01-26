@@ -32,12 +32,9 @@
 
 package org.opensearch.common.rounding;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.joda.time.DateTimeZone;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.VersionUtils;
-import org.joda.time.DateTimeZone;
 
 import java.time.ZoneOffset;
 
@@ -47,31 +44,6 @@ public class RoundingDuelTests extends OpenSearchTestCase {
 
     // dont include nano/micro seconds as rounding would become zero then and throw an exception
     private static final String[] ALLOWED_TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m" };
-
-    public void testSerialization() throws Exception {
-        org.opensearch.common.Rounding.DateTimeUnit randomDateTimeUnit = randomFrom(org.opensearch.common.Rounding.DateTimeUnit.values());
-        org.opensearch.common.Rounding rounding;
-        boolean oldNextRoundingValueWorks;
-        if (randomBoolean()) {
-            rounding = org.opensearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build();
-            oldNextRoundingValueWorks = true;
-        } else {
-            rounding = org.opensearch.common.Rounding.builder(timeValue()).timeZone(ZoneOffset.UTC).build();
-            oldNextRoundingValueWorks = false;
-        }
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_0_0));
-        rounding.writeTo(output);
-
-        Rounding roundingJoda = Rounding.Streams.read(output.bytes().streamInput());
-        org.opensearch.common.Rounding roundingJavaTime = org.opensearch.common.Rounding.read(output.bytes().streamInput());
-
-        int randomInt = randomIntBetween(1, 1_000_000_000);
-        assertThat(roundingJoda.round(randomInt), is(roundingJavaTime.round(randomInt)));
-        if (oldNextRoundingValueWorks) {
-            assertThat(roundingJoda.nextRoundingValue(randomInt), is(roundingJavaTime.nextRoundingValue(randomInt)));
-        }
-    }
 
     public void testDuellingImplementations() {
         org.opensearch.common.Rounding.DateTimeUnit randomDateTimeUnit = randomFrom(org.opensearch.common.Rounding.DateTimeUnit.values());

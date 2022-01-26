@@ -50,7 +50,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -77,65 +76,17 @@ import static org.opensearch.common.settings.Setting.intSetting;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
-    static {
-        // remove search.remote.* settings in 8.0.0
-        assert Version.CURRENT.major < 8;
-    }
-
-    public static final Setting.AffixSetting<List<String>> SEARCH_REMOTE_CLUSTERS_SEEDS = Setting.affixKeySetting(
-        "search.remote.",
-        "seeds",
-        key -> Setting.listSetting(key, Collections.emptyList(), s -> {
-            parsePort(s);
-            return s;
-        }, Setting.Property.Deprecated, Setting.Property.Dynamic, Setting.Property.NodeScope)
-    );
-
-    public static final SettingUpgrader<List<String>> SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER = new SettingUpgrader<List<String>>() {
-
-        @Override
-        public Setting<List<String>> getSetting() {
-            return SEARCH_REMOTE_CLUSTERS_SEEDS;
-        }
-
-        @Override
-        public String getKey(final String key) {
-            return key.replaceFirst("^search", "cluster");
-        }
-
-    };
-
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
      */
     public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
         "cluster.remote.",
         "seeds",
-        (ns, key) -> Setting.listSetting(
-            key,
-            // the default needs to be emptyList() when fallback is removed
-            SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(ns),
-            s -> {
-                // validate seed address
-                parsePort(s);
-                return s;
-            },
-            s -> SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(ns).get(s),
-            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
-        )
-    );
-
-    public static final Setting.AffixSetting<String> SEARCH_REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
-        "search.remote.",
-        "proxy",
-        key -> Setting.simpleString(key, s -> {
-            if (Strings.hasLength(s)) {
-                parsePort(s);
-            }
-        }, Setting.Property.Deprecated, Setting.Property.Dynamic, Setting.Property.NodeScope),
-        () -> REMOTE_CLUSTER_SEEDS
+        (ns, key) -> Setting.listSetting(key, Collections.emptyList(), s -> {
+            // validate seed address
+            parsePort(s);
+            return s;
+        }, new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF), Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
     /**
@@ -151,16 +102,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             if (Strings.hasLength(s)) {
                 parsePort(s);
             }
-        }), SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(ns), Setting.Property.Dynamic, Setting.Property.NodeScope),
+        }), Setting.Property.Dynamic, Setting.Property.NodeScope),
         () -> REMOTE_CLUSTER_SEEDS
-    );
-
-    public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER = intSetting(
-        "search.remote.connections_per_cluster",
-        3,
-        1,
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
     );
 
     /**
@@ -169,7 +112,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
      */
     public static final Setting<Integer> REMOTE_CONNECTIONS_PER_CLUSTER = intSetting(
         "cluster.remote.connections_per_cluster",
-        SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER, // the default needs to three when fallback is removed,
+        3,
         1,
         Setting.Property.NodeScope
     );
@@ -189,20 +132,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             Setting.Property.NodeScope
         )
     );
-
-    public static final SettingUpgrader<String> SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER = new SettingUpgrader<String>() {
-
-        @Override
-        public Setting<String> getSetting() {
-            return SEARCH_REMOTE_CLUSTERS_PROXY;
-        }
-
-        @Override
-        public String getKey(final String key) {
-            return key.replaceFirst("^search", "cluster");
-        }
-
-    };
 
     static final int CHANNELS_PER_CONNECTION = 6;
 

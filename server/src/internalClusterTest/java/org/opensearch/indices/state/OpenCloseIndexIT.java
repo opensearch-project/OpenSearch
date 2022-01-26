@@ -49,7 +49,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -395,9 +394,6 @@ public class OpenCloseIndexIT extends OpenSearchIntegTestCase {
     public void testTranslogStats() throws Exception {
         final String indexName = "test";
         createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
-        boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(
-            client().admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName)
-        );
 
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
@@ -419,7 +415,7 @@ public class OpenCloseIndexIT extends OpenSearchIntegTestCase {
             assertThat(stats.getIndex(indexName), notNullValue());
             assertThat(
                 stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(),
-                equalTo(softDeletesEnabled ? uncommittedTranslogOps : nbDocs)
+                equalTo(uncommittedTranslogOps)
             );
             assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedTranslogOps));
         });
@@ -435,10 +431,7 @@ public class OpenCloseIndexIT extends OpenSearchIntegTestCase {
             .setTranslog(true)
             .get();
         assertThat(stats.getIndex(indexName), notNullValue());
-        assertThat(
-            stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(),
-            equalTo(softDeletesEnabled ? 0 : nbDocs)
-        );
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(0));
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(0));
     }
 }

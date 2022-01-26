@@ -66,12 +66,13 @@ public class OpenSearchLoggingHandlerIT extends OpenSearchNetty4IntegTestCase {
 
     @TestLogging(value = "org.opensearch.transport.netty4.OpenSearchLoggingHandler:trace,org.opensearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
     public void testLoggingHandler() {
-        final String writePattern = ".*\\[length: \\d+"
+        final String writePattern = "^.*\\[length: \\d+"
             + ", request id: \\d+"
             + ", type: request"
-            + ", version: .*"
+            + ", version: [^,]+"
+            + ", header size: \\d+B"
             + ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]"
-            + " WRITE: \\d+B";
+            + " WRITE: \\d+B$";
         final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
             "hot threads request",
             TransportLogger.class.getCanonicalName(),
@@ -86,12 +87,12 @@ public class OpenSearchLoggingHandlerIT extends OpenSearchNetty4IntegTestCase {
             "*FLUSH*"
         );
 
-        final String readPattern = ".*\\[length: \\d+"
+        final String readPattern = "^.*\\[length: \\d+"
             + ", request id: \\d+"
             + ", type: request"
-            + ", version: .*"
+            + ", version: [^,]+"
             + ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]"
-            + " READ: \\d+B";
+            + " READ: \\d+B$";
 
         final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
             "hot threads request",

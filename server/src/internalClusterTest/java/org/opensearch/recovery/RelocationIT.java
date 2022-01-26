@@ -749,7 +749,6 @@ public class RelocationIT extends OpenSearchIntegTestCase {
                 .prepareCreate(indexName)
                 .setSettings(
                     Settings.builder()
-                        .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, halfNodes - 1))
                         .put("index.routing.allocation.include.color", "blue")
                 )

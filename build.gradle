@@ -168,8 +168,7 @@ tasks.register("verifyVersions") {
     // Read the list from maven central.
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
-    //TODO OpenSearch - Update the maven repo URL for OpenSearch when available.
-    new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+    new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
       BuildParams.bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
@@ -433,11 +432,11 @@ allprojects {
   tasks.named('cleanEclipse') { dependsOn 'wipeEclipseSettings' }
   // otherwise the eclipse merging is *super confusing*
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
-  
+
   afterEvaluate {
      tasks.findByName("eclipseJdt")?.configure {
          dependsOn 'copyEclipseSettings'
-     } 
+     }
   }
 }
 

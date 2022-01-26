@@ -49,7 +49,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.Version.V_1_1_1;
 import static org.opensearch.Version.V_1_3_0;
 import static org.opensearch.Version.MASK;
 import static org.opensearch.test.VersionUtils.allVersions;
@@ -68,6 +67,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class VersionTests extends OpenSearchTestCase {
 
     public void testVersionComparison() {
+        Version V_1_1_1 = Version.fromString("1.1.1");
         assertThat(V_1_1_1.before(V_1_3_0), is(true));
         assertThat(V_1_1_1.before(V_1_1_1), is(false));
         assertThat(V_1_3_0.before(V_1_1_1), is(false));
@@ -204,7 +204,7 @@ public class VersionTests extends OpenSearchTestCase {
 
     /** test opensearch min wire compatibility */
     public void testOpenSearchMinCompatVersion() {
-        Version opensearchVersion = VersionUtils.randomOpenSearchVersion(random());
+        Version opensearchVersion = Version.CURRENT;
         // opensearch 1.x minCompat is Legacy 6.8.0
         // opensearch 2.x minCompat is Legacy 7.10.0
         // opensearch 3.x minCompat is 1.{last minor version}.0
