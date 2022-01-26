@@ -36,6 +36,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -654,6 +655,35 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_analyzer_json);
         expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard(new BytesRef("Te?m"))));
         assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String wildcard_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"max_expansions\" : 500 } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(wildcard_max_expand_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("te?m"), 500));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String wildcard_neg_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"max_expansions\" : -20 } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(wildcard_neg_max_expand_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("te?m"))); // max expansions use default
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String wildcard_over_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"max_expansions\" : "
+            + (BooleanQuery.getMaxClauseCount() + 1)
+            + " } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(wildcard_over_max_expand_json);
+            builder1.toQuery(createShardContext());
+        });
     }
 
     private static IntervalsSource buildFuzzySource(String term, String label, int prefixLength, boolean transpositions, int editDistance) {
