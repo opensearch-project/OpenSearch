@@ -1350,8 +1350,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (minimumNodeVersion().before(Version.V_2_0_0)) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
-            final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
-            createIndex(index, settings.build(), mappings);
+            createIndex(index, settings.build());
             ensureGreen(index);
             int committedDocs = randomIntBetween(100, 200);
             for (int i = 0; i < committedDocs; i++) {
