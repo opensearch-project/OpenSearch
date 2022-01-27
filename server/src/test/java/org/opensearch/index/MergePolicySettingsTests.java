@@ -163,11 +163,6 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
                 Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING.getKey(), 29).build()
             )
         );
-        assertWarnings(
-            "[index.merge.policy.max_merge_at_once_explicit] setting was "
-                + "deprecated in OpenSearch and will be removed in a future release! See the breaking changes "
-                + "documentation for the next major version."
-        );
 
         assertEquals(
             ((OpenSearchTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergedSegmentMB(),
