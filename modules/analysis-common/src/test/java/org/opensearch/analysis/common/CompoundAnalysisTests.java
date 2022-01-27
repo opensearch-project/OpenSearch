@@ -81,6 +81,7 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
                 hasItems("donau", "dampf", "schiff", "donaudampfschiff", "spargel", "creme", "suppe", "spargelcremesuppe")
             );
         }
+        assertWarnings("Setting [version] on analysis [custom7] is deprecated, no longer used, and will be removed in a future version.");
     }
 
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
