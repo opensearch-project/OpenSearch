@@ -50,7 +50,6 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
     public AbstractIndexAnalyzerProvider(IndexSettings indexSettings, String name, Settings settings) {
         super(indexSettings);
         this.name = name;
-        Analysis.parseAndDeprecateAnalysisVersion(name, settings);
     }
 
     /**
