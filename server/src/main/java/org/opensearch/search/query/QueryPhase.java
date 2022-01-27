@@ -152,10 +152,7 @@ public class QueryPhase {
         aggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
-            ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(
-                searchContext.getProfilers(),
-                searchContext.request()
-            );
+            ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(searchContext.getProfilers());
             searchContext.queryResult().profileResults(shardResults);
         }
     }
