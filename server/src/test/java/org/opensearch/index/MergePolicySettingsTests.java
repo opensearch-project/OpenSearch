@@ -263,6 +263,12 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
             MergePolicyConfig.DEFAULT_DELETES_PCT_ALLOWED,
             0
         );
+
+        assertWarnings(
+            "[index.merge.policy.max_merge_at_once_explicit] setting was "
+                + "deprecated in OpenSearch and will be removed in a future release! See the breaking changes "
+                + "documentation for the next major version."
+        );
     }
 
     public Settings build(String value) {
