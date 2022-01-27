@@ -1923,71 +1923,6 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
-        // best effort attempt before we acquire locks
-        ensureOpen();
-        if (indexWriter.hasUncommittedChanges()) {
-            logger.trace("can't sync commit [{}]. have pending changes", syncId);
-            return SyncedFlushResult.PENDING_OPERATIONS;
-        }
-        if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
-            logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
-            return SyncedFlushResult.COMMIT_MISMATCH;
-        }
-        try (ReleasableLock lock = writeLock.acquire()) {
-            ensureOpen();
-            ensureCanFlush();
-            // lets do a refresh to make sure we shrink the version map. This refresh will be either a no-op (just shrink the version map)
-            // or we also have uncommitted changes and that causes this syncFlush to fail.
-            refresh("sync_flush", SearcherScope.INTERNAL, true);
-            if (indexWriter.hasUncommittedChanges()) {
-                logger.trace("can't sync commit [{}]. have pending changes", syncId);
-                return SyncedFlushResult.PENDING_OPERATIONS;
-            }
-            if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
-                logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
-                return SyncedFlushResult.COMMIT_MISMATCH;
-            }
-            logger.trace("starting sync commit [{}]", syncId);
-            commitIndexWriter(indexWriter, translog, syncId);
-            logger.debug("successfully sync committed. sync id [{}].", syncId);
-            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-            return SyncedFlushResult.SUCCESS;
-        } catch (IOException ex) {
-            maybeFailEngine("sync commit", ex);
-            throw new EngineException(shardId, "failed to sync commit", ex);
-        }
-    }
-
-    final boolean tryRenewSyncCommit() {
-        boolean renewed = false;
-        try (ReleasableLock lock = writeLock.acquire()) {
-            ensureOpen();
-            ensureCanFlush();
-            String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
-            long localCheckpointOfLastCommit = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            if (syncId != null
-                && indexWriter.hasUncommittedChanges()
-                && translog.estimateTotalOperationsFromMinSeq(localCheckpointOfLastCommit + 1) == 0) {
-                logger.trace("start renewing sync commit [{}]", syncId);
-                commitIndexWriter(indexWriter, translog, syncId);
-                logger.debug("successfully sync committed. sync id [{}].", syncId);
-                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                renewed = true;
-            }
-        } catch (IOException ex) {
-            maybeFailEngine("renew sync commit", ex);
-            throw new EngineException(shardId, "failed to renew sync commit", ex);
-        }
-        if (renewed) {
-            // refresh outside of the write lock
-            // we have to refresh internal reader here to ensure we release unreferenced segments.
-            refresh("renew sync commit", SearcherScope.INTERNAL, true);
-        }
-        return renewed;
-    }
-
-    @Override
     public boolean shouldPeriodicallyFlush() {
         ensureOpen();
         if (shouldPeriodicallyFlushAfterBigMerge.get()) {
@@ -2026,7 +1961,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -2034,18 +1969,16 @@ public class InternalEngine extends Engine {
                 "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing
             );
         }
-        final byte[] newCommitId;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
-                if (waitIfOngoing) {
-                    logger.trace("waiting for in-flight flush to finish");
-                    flushLock.lock();
-                    logger.trace("acquired flush lock after blocking");
-                } else {
-                    return new CommitId(lastCommittedSegmentInfos.getId());
+                if (waitIfOngoing == false) {
+                    return;
                 }
+                logger.trace("waiting for in-flight flush to finish");
+                flushLock.lock();
+                logger.trace("acquired flush lock after blocking");
             } else {
                 logger.trace("acquired flush lock immediately");
             }
@@ -2065,7 +1998,7 @@ public class InternalEngine extends Engine {
                     try {
                         translog.rollGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        commitIndexWriter(indexWriter, translog, null);
+                        commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
 
                         // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
@@ -2088,7 +2021,6 @@ public class InternalEngine extends Engine {
                     refreshLastCommittedSegmentInfos();
 
                 }
-                newCommitId = lastCommittedSegmentInfos.getId();
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
                 throw ex;
@@ -2101,7 +2033,6 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
-        return new CommitId(newCommitId);
     }
 
     private void refreshLastCommittedSegmentInfos() {
@@ -2273,9 +2204,7 @@ public class InternalEngine extends Engine {
                     this.forceMergeUUID = forceMergeUUID;
                 }
                 if (flush) {
-                    if (tryRenewSyncCommit() == false) {
-                        flush(false, true);
-                    }
+                    flush(false, true);
                 }
                 if (upgrade) {
                     logger.info("finished segment upgrade");
@@ -2664,15 +2593,9 @@ public class InternalEngine extends Engine {
 
                     @Override
                     protected void doRun() {
-                        // if we have no pending merges and we are supposed to flush once merges have finished
-                        // we try to renew a sync commit which is the case when we are having a big merge after we
-                        // are inactive. If that didn't work we go and do a real flush which is ok since it only doesn't work
-                        // if we either have records in the translog or if we don't have a sync ID at all...
-                        // maybe even more important, we flush after all merges finish and we are inactive indexing-wise to
+                        // if we have no pending merges and we are supposed to flush once merges have finished to
                         // free up transient disk usage of the (presumably biggish) segments that were just merged
-                        if (tryRenewSyncCommit() == false) {
-                            flush();
-                        }
+                        flush();
                     }
                 });
             } else if (merge.getTotalBytesSize() >= engineConfig.getIndexSettings().getFlushAfterMergeThresholdSize().getBytes()) {
@@ -2709,10 +2632,8 @@ public class InternalEngine extends Engine {
      *
      * @param writer   the index writer to commit
      * @param translog the translog
-     * @param syncId   the sync flush ID ({@code null} if not committing a synced flush)
-     * @throws IOException if an I/O exception occurs committing the specfied writer
      */
-    protected void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
+    protected void commitIndexWriter(final IndexWriter writer, final Translog translog) throws IOException {
         ensureCanFlush();
         try {
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
@@ -2729,9 +2650,6 @@ public class InternalEngine extends Engine {
                 final Map<String, String> commitData = new HashMap<>(7);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
-                if (syncId != null) {
-                    commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-                }
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);

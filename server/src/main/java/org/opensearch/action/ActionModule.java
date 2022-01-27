@@ -140,9 +140,7 @@ import org.opensearch.action.admin.indices.exists.indices.TransportIndicesExists
 import org.opensearch.action.admin.indices.exists.types.TransportTypesExistsAction;
 import org.opensearch.action.admin.indices.exists.types.TypesExistsAction;
 import org.opensearch.action.admin.indices.flush.FlushAction;
-import org.opensearch.action.admin.indices.flush.SyncedFlushAction;
 import org.opensearch.action.admin.indices.flush.TransportFlushAction;
-import org.opensearch.action.admin.indices.flush.TransportSyncedFlushAction;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.opensearch.action.admin.indices.forcemerge.TransportForceMergeAction;
 import org.opensearch.action.admin.indices.get.GetIndexAction;
@@ -589,7 +587,6 @@ public class ActionModule extends AbstractModule {
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
-        actions.register(SyncedFlushAction.INSTANCE, TransportSyncedFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
         actions.register(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
         actions.register(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);

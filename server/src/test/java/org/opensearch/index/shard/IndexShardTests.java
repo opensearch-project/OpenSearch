@@ -103,7 +103,6 @@ import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
-import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -3871,7 +3870,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         assertFalse(primary.scheduledRefresh());
         assertTrue(primary.isSearchIdle());
-        primary.checkIdle(0);
+        primary.flushOnIdle(0);
         assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
@@ -4081,92 +4080,6 @@ public class IndexShardTests extends IndexShardTestCase {
         // Check that the breaker was successfully reset to 0, meaning that all the accounting was correctly applied
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    public void testFlushOnInactive() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            new ShardId(metadata.getIndex(), 0),
-            "n1",
-            true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
-        final ShardId shardId = shardRouting.shardId();
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        AtomicBoolean markedInactive = new AtomicBoolean();
-        AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
-        IndexShard primary = newShard(
-            shardRouting,
-            shardPath,
-            metadata,
-            null,
-            null,
-            new InternalEngineFactory(),
-            new EngineConfigFactory(new IndexSettings(metadata, settings)),
-            () -> {},
-            RetentionLeaseSyncer.EMPTY,
-            new IndexEventListener() {
-                @Override
-                public void onShardInactive(IndexShard indexShard) {
-                    markedInactive.set(true);
-                    primaryRef.get().flush(new FlushRequest());
-                }
-            }
-        );
-        primaryRef.set(primary);
-        recoverShardFromStore(primary);
-        for (int i = 0; i < 3; i++) {
-            indexDoc(primary, "_doc", "" + i, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
-            primary.refresh("test"); // produce segments
-        }
-        List<Segment> segments = primary.segments(false);
-        Set<String> names = new HashSet<>();
-        for (Segment segment : segments) {
-            assertFalse(segment.committed);
-            assertTrue(segment.search);
-            names.add(segment.getName());
-        }
-        assertEquals(3, segments.size());
-        primary.flush(new FlushRequest());
-        primary.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
-        primary.refresh("test");
-        segments = primary.segments(false);
-        for (Segment segment : segments) {
-            if (names.contains(segment.getName())) {
-                assertTrue(segment.committed);
-                assertFalse(segment.search);
-            } else {
-                assertFalse(segment.committed);
-                assertTrue(segment.search);
-            }
-        }
-        assertEquals(4, segments.size());
-
-        assertFalse(markedInactive.get());
-        assertBusy(() -> {
-            primary.checkIdle(0);
-            assertFalse(primary.isActive());
-        });
-
-        assertTrue(markedInactive.get());
-        segments = primary.segments(false);
-        assertEquals(1, segments.size());
-        for (Segment segment : segments) {
-            assertTrue(segment.committed);
-            assertTrue(segment.search);
-        }
-        closeShards(primary);
     }
 
     public void testOnCloseStats() throws IOException {
