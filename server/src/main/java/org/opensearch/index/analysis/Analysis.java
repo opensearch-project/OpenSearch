@@ -32,7 +32,6 @@
 
 package org.opensearch.index.analysis;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
@@ -68,9 +67,8 @@ import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.apache.lucene.util.Version;
 import org.opensearch.common.Strings;
-import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 
@@ -93,19 +91,18 @@ import static java.util.Collections.unmodifiableMap;
 
 public class Analysis {
 
-    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, Logger logger) {
+    private static DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Analysis.class);
+
+    /** version is deprecated and will be removed; this method parses explicit version and issues a deprecation warning */
+    public static void parseAndDeprecateAnalysisVersion(String name, Settings settings) {
         // check for explicit version on the specific analyzer component
         String sVersion = settings.get("version");
         if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
+            DEPRECATION_LOGGER.deprecate(
+                "analyzer.version",
+                "Setting [version] on analysis [" + name + "] is deprecated, no longer used, and will be removed in a future version."
+            );
         }
-        // check for explicit version on the index itself as default for all analysis components
-        sVersion = indexSettings.get("index.analysis.version");
-        if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
-        }
-        // resolve the analysis version based on the version the index was created with
-        return org.opensearch.Version.indexCreated(indexSettings).luceneVersion;
     }
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
