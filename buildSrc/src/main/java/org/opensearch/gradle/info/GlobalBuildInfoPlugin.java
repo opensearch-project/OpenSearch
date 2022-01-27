@@ -121,7 +121,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setGradleJavaVersion(Jvm.current().getJavaVersion());
             params.setGitRevision(gitInfo.getRevision());
             params.setGitOrigin(gitInfo.getOrigin());
-            params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
+            params.setBuildDate(Util.getBuildDate(ZonedDateTime.now(ZoneOffset.UTC)));
             params.setTestSeed(getTestSeed());
             params.setIsCi(System.getenv("JENKINS_URL") != null);
             params.setIsInternal(isInternal);
