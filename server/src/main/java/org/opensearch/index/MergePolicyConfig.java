@@ -163,15 +163,6 @@ public final class MergePolicyConfig {
         Property.Dynamic,
         Property.IndexScope
     );
-    @Deprecated
-    public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING = Setting.intSetting(
-        "index.merge.policy.max_merge_at_once_explicit",
-        30,
-        2,
-        Property.Deprecated,
-        Property.Dynamic,
-        Property.IndexScope
-    );
     public static final Setting<ByteSizeValue> INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
         "index.merge.policy.max_merged_segment",
         DEFAULT_MAX_MERGED_SEGMENT,
@@ -209,7 +200,6 @@ public final class MergePolicyConfig {
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
-        int maxMergeAtOnceExplicit = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING);
         // TODO is this really a good default number for max_merge_segment, what happens for large indices,
         // won't they end up with many segments?
         ByteSizeValue maxMergedSegment = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
@@ -228,19 +218,17 @@ public final class MergePolicyConfig {
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.getMbFrac());
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
-        mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
         mergePolicy.setDeletesPctAllowed(deletesPctAllowed);
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}],"
-                    + " max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}],"
+                    + " max_merge_at_once[{}], max_merged_segment[{}], segments_per_tier[{}],"
                     + " deletes_pct_allowed[{}]",
                 forceMergeDeletesPctAllowed,
                 floorSegment,
                 maxMergeAtOnce,
-                maxMergeAtOnceExplicit,
                 maxMergedSegment,
                 segmentsPerTier,
                 deletesPctAllowed

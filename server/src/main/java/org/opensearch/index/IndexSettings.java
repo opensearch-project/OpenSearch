@@ -714,8 +714,6 @@ public final class IndexSettings {
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
             mergePolicyConfig::setMaxMergesAtOnce
         );
-        // todo: remove this in 2.0.0 since it was removed in lucene 9
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING, noop -> {});
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
             mergePolicyConfig::setMaxMergedSegment
