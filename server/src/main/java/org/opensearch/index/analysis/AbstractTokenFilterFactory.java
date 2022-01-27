@@ -43,7 +43,6 @@ public abstract class AbstractTokenFilterFactory extends AbstractIndexComponent 
     public AbstractTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings) {
         super(indexSettings);
         this.name = name;
-        Analysis.parseAndDeprecateAnalysisVersion(name, settings);
     }
 
     @Override
