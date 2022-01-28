@@ -69,7 +69,6 @@ public class IndexingIT extends OpenSearchRestTestCase {
             final int id = idStart + i;
             Request request = new Request("PUT", index + "/doc/" + id);
             request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");
-            request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             assertOK(client().performRequest(request));
         }
         return numDocs;

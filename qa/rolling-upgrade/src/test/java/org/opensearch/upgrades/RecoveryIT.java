@@ -125,7 +125,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
             final int id = idStart + i;
             Request indexDoc = new Request("PUT", index + "/test/" + id);
             indexDoc.setJsonEntity("{\"test\": \"test_" + randomAsciiOfLength(2) + "\"}");
-            indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             client().performRequest(indexDoc);
         }
         return numDocs;
