@@ -164,7 +164,8 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             reverseMuls,
             missingOrders,
             earlyTerminated,
-            getMetadata());
+            getMetadata()
+        );
     }
 
     @Override
@@ -270,7 +271,8 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             reverseMuls,
             missingOrders,
             earlyTerminated,
-            metadata);
+            metadata
+        );
     }
 
     @Override
@@ -364,7 +366,8 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             List<String> sourceNames,
             List<DocValueFormat> formats,
             int[] reverseMuls,
-            MissingOrder[] missingOrders) throws IOException {
+            MissingOrder[] missingOrders
+        ) throws IOException {
             this.key = new CompositeKey(in);
             this.docCount = in.readVLong();
             this.aggregations = InternalAggregations.readFrom(in);

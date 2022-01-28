@@ -199,7 +199,8 @@ final class CompositeAggregator extends BucketsAggregator {
                 reverseMuls,
                 missingOrders,
                 docCount,
-                aggs);
+                aggs
+            );
         }
         CompositeKey lastBucket = num > 0 ? buckets[num - 1].getRawKey() : null;
         return new InternalAggregation[] {
@@ -229,7 +230,8 @@ final class CompositeAggregator extends BucketsAggregator {
             reverseMuls,
             missingOrders,
             false,
-            metadata());
+            metadata()
+        );
     }
 
     private void finishLeaf() {

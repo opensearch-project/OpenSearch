@@ -204,7 +204,8 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             reverseMuls,
             missingOrders,
             randomBoolean(),
-            metadata);
+            metadata
+        );
     }
 
     @Override
