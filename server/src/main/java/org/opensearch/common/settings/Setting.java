@@ -77,12 +77,12 @@ import java.util.stream.Stream;
 
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
- * Some (SettingsProperty.Dynamic) can by modified at run time using the API.
+ * Some (Settings.Property.Dynamic) can be modified at run time using the API.
  * All settings inside opensearch or in any of the plugins should use this type-safe and generic settings infrastructure
  * together with {@link AbstractScopedSettings}. This class contains several utility methods that makes it straight forward
  * to add settings for the majority of the cases. For instance a simple boolean settings can be defined like this:
  * <pre>{@code
- * public static final Setting<Boolean>; MY_BOOLEAN = Setting.boolSetting("my.bool.setting", true, SettingsProperty.NodeScope);}
+ * public static final Setting<Boolean> MY_BOOLEAN = Setting.boolSetting("my.bool.setting", true, Setting.Property.NodeScope);}
  * </pre>
  * To retrieve the value of the setting a {@link Settings} object can be passed directly to the {@link Setting#get(Settings)} method.
  * <pre>
@@ -94,7 +94,7 @@ import java.util.stream.Stream;
  *     RED, GREEN, BLUE;
  * }
  * public static final Setting<Color> MY_BOOLEAN =
- *     new Setting<>("my.color.setting", Color.RED.toString(), Color::valueOf, SettingsProperty.NodeScope);
+ *     new Setting<>("my.color.setting", Color.RED.toString(), Color::valueOf, Setting.Property.NodeScope);
  * }
  * </pre>
  */
@@ -279,7 +279,7 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Creates a new Setting instance
      * @param key the settings key for this setting.
-     * @param fallbackSetting a setting who's value to fallback on if this setting is not defined
+     * @param fallbackSetting a setting whose value to fallback on if this setting is not defined
      * @param parser a parser that parses the string rep into a complex datatype.
      * @param properties properties for this setting like scope, filtering...
      */
@@ -503,7 +503,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Add this setting to the builder if it doesn't exists in the source settings.
+     * Add this setting to the builder if it doesn't exist in the source settings.
      * The value added to the builder is taken from the given default settings object.
      * @param builder the settings builder to fill the diff into
      * @param source the source settings object to diff
@@ -981,7 +981,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * Returns a map of all namespaces to it's values give the provided settings
+         * Returns a map of all namespaces to its values give the provided settings
          */
         public Map<String, T> getAsMap(Settings settings) {
             Map<String, T> map = new HashMap<>();
@@ -1759,7 +1759,7 @@ public class Setting<T> implements ToXContentObject {
      *
      * @param key the key for the setting
      * @param defaultValue the default value for this setting
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {
@@ -1773,7 +1773,7 @@ public class Setting<T> implements ToXContentObject {
      *
      * @param key the key for the setting
      * @param defaultValue a function that supplies the default value for this setting
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
@@ -1787,7 +1787,7 @@ public class Setting<T> implements ToXContentObject {
      *
      * @param key the key for the setting
      * @param defaultPercentage the default value of this setting as a percentage of the heap memory
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, String defaultPercentage, Property... properties) {
@@ -1801,7 +1801,7 @@ public class Setting<T> implements ToXContentObject {
      *
      * @param key the key for the setting
      * @param fallbackSetting a memory size setting to use as fallback
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
@@ -1980,7 +1980,7 @@ public class Setting<T> implements ToXContentObject {
      * Creates a group of settings prefixed by a key.
      *
      * @param key the group key for the setting
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the group setting object
      */
     public static Setting<Settings> groupSetting(String key, Property... properties) {
@@ -1992,7 +1992,7 @@ public class Setting<T> implements ToXContentObject {
      *
      * @param key the group key for the setting
      * @param validator a {@link Validator} for validating this setting
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the group setting object
      */
     public static Setting<Settings> groupSetting(String key, Consumer<Settings> validator, Property... properties) {
@@ -2004,7 +2004,7 @@ public class Setting<T> implements ToXContentObject {
      *
      * @param key the group key for the setting
      * @param fallback a {@link GroupSetting} to use as fallback when no group key values exist
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the group setting object
      */
     public static Setting<Settings> groupSetting(String key, final Setting<Settings> fallback, Property... properties) {
@@ -2017,7 +2017,7 @@ public class Setting<T> implements ToXContentObject {
      * @param key the group key for the setting
      * @param fallback a {@link GroupSetting} to use as fallback when no group key values exist
      * @param validator a {@link Validator} for validating this setting
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the group setting object
      */
     public static Setting<Settings> groupSetting(
