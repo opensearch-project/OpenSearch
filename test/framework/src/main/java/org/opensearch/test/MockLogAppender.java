@@ -69,7 +69,8 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
      */
     public static MockLogAppender createForLoggers(Logger... loggers) throws IllegalAccessException {
         final MockLogAppender appender = new MockLogAppender(
-            RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null),
+            // Only consider single line log statements
+            RegexFilter.createFilter("^[^\n]+$", new String[0], false, null, null),
             Collections.unmodifiableList(Arrays.asList(loggers))
         );
         appender.start();
