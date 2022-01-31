@@ -97,7 +97,14 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
     @Override
     public void append(LogEvent event) {
         for (LoggingExpectation expectation : expectations) {
-            expectation.match(event);
+            try {
+                expectation.match(event);
+            } catch (final StackOverflowError ex) {
+                System.err.println("StackOverflowError while checking: " + expectation.getClass().getName());
+                System.err.println("Event format: " + event.getMessage().getFormat());
+                System.err.println("Event: " + event.getMessage().getFormattedMessage());
+                throw ex;
+            }
         }
     }
 
