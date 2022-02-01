@@ -501,7 +501,7 @@ public class RestNodesAction extends AbstractCatAction {
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
-            table.addCell(segmentsStats == null ? null : segmentsStats.getMemory());
+            table.addCell(segmentsStats == null ? null : segmentsStats.getZeroMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());

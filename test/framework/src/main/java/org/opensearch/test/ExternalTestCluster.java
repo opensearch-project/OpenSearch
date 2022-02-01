@@ -223,12 +223,9 @@ public final class ExternalTestCluster extends TestCluster {
                     equalTo(0L)
                 );
                 assertThat(
-                    "Accounting breaker not reset to "
-                        + stats.getIndices().getSegments().getMemoryInBytes()
-                        + " on node: "
-                        + stats.getNode(),
+                    "Accounting breaker not reset to " + stats.getIndices().getSegments().getZeroMemory() + " on node: " + stats.getNode(),
                     stats.getBreaker().getStats(CircuitBreaker.ACCOUNTING).getEstimated(),
-                    equalTo(stats.getIndices().getSegments().getMemoryInBytes())
+                    equalTo(stats.getIndices().getSegments().getZeroMemory())
                 );
                 // ExternalTestCluster does not check the request breaker,
                 // because checking it requires a network request, which in

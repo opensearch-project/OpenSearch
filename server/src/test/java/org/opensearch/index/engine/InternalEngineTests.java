@@ -98,7 +98,6 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.Strings;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
@@ -6712,7 +6711,6 @@ public class InternalEngineTests extends EngineTestCase {
             indexer.join();
             refresher.join();
         }
-        assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
     }
 
     public void testPruneAwayDeletedButRetainedIds() throws Exception {

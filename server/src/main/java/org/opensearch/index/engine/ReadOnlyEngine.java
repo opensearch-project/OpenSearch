@@ -85,7 +85,6 @@ public class ReadOnlyEngine extends Engine {
     private final OpenSearchReaderManager readerManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
-    private final RamAccountingRefreshListener refreshListener;
     private final SafeCommitInfo safeCommitInfo;
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
@@ -114,7 +113,6 @@ public class ReadOnlyEngine extends Engine {
         boolean requireCompleteHistory
     ) {
         super(config);
-        this.refreshListener = new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService());
         this.requireCompleteHistory = requireCompleteHistory;
         try {
             Store store = config.getStore();
@@ -135,14 +133,13 @@ public class ReadOnlyEngine extends Engine {
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 reader = wrapReader(open(indexCommit), readerWrapperFunction);
-                readerManager = new OpenSearchReaderManager(reader, refreshListener);
+                readerManager = new OpenSearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), lastCommittedSegmentInfos.totalMaxDoc());
 
                 completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
-                // no need to register a refresh listener to invalidate completionStatsCache since this engine is readonly
 
                 success = true;
             } finally {
@@ -509,10 +506,6 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
 
-    }
-
-    protected void processReader(OpenSearchDirectoryReader reader) {
-        refreshListener.accept(reader, null);
     }
 
     @Override
