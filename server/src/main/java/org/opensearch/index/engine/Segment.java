@@ -71,6 +71,8 @@ public class Segment implements Writeable {
     public Accountable ramTree = null;
     public Map<String, String> attributes;
 
+    private static final ByteSizeValue ZERO_BYTE_SIZE_VALUE = new ByteSizeValue(0L);
+
     public Segment(StreamInput in) throws IOException {
         name = in.readString();
         generation = Long.parseLong(name.substring(1), Character.MAX_RADIX);
@@ -154,8 +156,8 @@ public class Segment implements Writeable {
      * @deprecated
      */
     @Deprecated
-    public long getZeroMemory() {
-        return 0L;
+    public ByteSizeValue getZeroMemory() {
+        return ZERO_BYTE_SIZE_VALUE;
     }
 
     /**
