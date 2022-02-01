@@ -63,7 +63,9 @@ FROM ${base_image}
 
 ENV OPENSEARCH_CONTAINER true
 
-RUN for iter in {1..10}; do \\
+RUN  sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-Linux-* && \\
+     sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-Linux-* && \\
+     for iter in {1..10}; do \\
       ${package_manager} update --setopt=tsflags=nodocs -y && \\
       ${package_manager} install --setopt=tsflags=nodocs -y \\
         nc shadow-utils zip unzip && \\
