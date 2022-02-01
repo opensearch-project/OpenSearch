@@ -70,7 +70,7 @@ public final class HighlightUtils {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
             List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());
-            return Optional.ofNullable(textsToHighlight).orElse(Collections.emptyList());
+            return textsToHighlight != null ? textsToHighlight : Collections.emptyList();
         }
         ValueFetcher fetcher = fieldType.valueFetcher(context, null, null);
         return fetcher.fetchValues(hitContext.sourceLookup());
