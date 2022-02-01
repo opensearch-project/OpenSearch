@@ -659,7 +659,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
             for (int i = 0; i < times; i++) {
                 long value = randomNonNegativeLong();
                 Request update = new Request("POST", index + "/_update/" + docId);
-                update.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
                 update.setJsonEntity("{\"doc\": {\"updated_field\": " + value + "}}");
                 client().performRequest(update);
                 updates.put(docId, value);
