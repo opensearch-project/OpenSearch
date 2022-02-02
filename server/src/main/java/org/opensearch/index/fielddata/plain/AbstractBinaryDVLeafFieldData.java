@@ -33,9 +33,9 @@
 package org.opensearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 
@@ -66,7 +66,7 @@ abstract class AbstractBinaryDVLeafFieldData implements LeafFieldData {
         return new SortedBinaryDocValues() {
 
             int count;
-            final ByteArrayDataInput in = new ByteArrayDataInput();
+            final BytesStreamInput in = new BytesStreamInput();
             final BytesRef scratch = new BytesRef();
 
             @Override
