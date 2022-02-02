@@ -40,7 +40,6 @@ import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
-import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
@@ -660,9 +659,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
-            IntervalsSource source;
-
-            final RegExp regexp = new RegExp(pattern, flags);
+            final org.apache.lucene.util.automaton.RegExp regexp = new org.apache.lucene.util.automaton.RegExp(pattern, flags);
             final CompiledAutomaton automaton = new CompiledAutomaton(regexp.toAutomaton());
 
             if (useField != null) {
@@ -673,14 +670,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 IntervalsSource regexpSource = maxExpansions == null
                     ? Intervals.multiterm(automaton, regexp.toString())
                     : Intervals.multiterm(automaton, maxExpansions, regexp.toString());
-                source = Intervals.fixField(useField, regexpSource);
+                return Intervals.fixField(useField, regexpSource);
             } else {
                 checkPositions(fieldType);
-                source = maxExpansions == null
+                return maxExpansions == null
                     ? Intervals.multiterm(automaton, regexp.toString())
                     : Intervals.multiterm(automaton, maxExpansions, regexp.toString());
             }
-            return source;
         }
 
         private void checkPositions(MappedFieldType type) {
