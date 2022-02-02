@@ -401,7 +401,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     boolean urlExists(Terminal terminal, String urlString) throws IOException {
         terminal.println(VERBOSE, "Checking if url exists: " + urlString);
         URL url = new URL(urlString);
-        assert "https".equals(url.getProtocol()) : "Only http urls can be checked";
+        assert "https".equals(url.getProtocol()) : "Use of https protocol is required";
         HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
         urlConnection.addRequestProperty("User-Agent", "opensearch-plugin-installer");
         urlConnection.setRequestMethod("HEAD");
