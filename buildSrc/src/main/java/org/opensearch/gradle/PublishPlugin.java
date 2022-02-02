@@ -112,7 +112,7 @@ public class PublishPlugin implements Plugin<Project> {
                     root.appendNode("description", project.getDescription());
                 }
                 Node dependenciesNode = (Node) ((NodeList) root.get("dependencies")).get(0);
-                project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME()).getAllDependencies().all(dependency -> {
+                project.getConfigurations().getByName(ShadowBasePlugin.CONFIGURATION_NAME).getAllDependencies().all(dependency -> {
                     if (dependency instanceof ProjectDependency) {
                         Node dependencyNode = dependenciesNode.appendNode("dependency");
                         dependencyNode.appendNode("groupId", dependency.getGroup());
