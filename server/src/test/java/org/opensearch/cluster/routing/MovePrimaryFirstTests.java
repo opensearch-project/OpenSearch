@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -112,6 +113,6 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(z1n1));
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(z1n2));
         } catch (Exception e) {}
-        ensureGreen();
+        ensureGreen(TimeValue.timeValueSeconds(60));
     }
 }

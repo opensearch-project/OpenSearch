@@ -38,7 +38,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -177,24 +176,6 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         } catch (LockObtainFailedException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
         }
-    }
-
-    public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
-        client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
-        ensureGreen("test");
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
-        assertBusy(() -> {
-            IndexStats indexStats = client().admin().indices().prepareStats("test").clear().setTranslog(true).get().getIndex("test");
-            assertThat(indexStats.getTotal().translog.getUncommittedOperations(), equalTo(0));
-            indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
-        });
     }
 
     public void testDurableFlagHasEffect() throws Exception {

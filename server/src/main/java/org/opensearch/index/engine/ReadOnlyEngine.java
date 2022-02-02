@@ -200,16 +200,13 @@ public class ReadOnlyEngine extends Engine {
         DirectoryReader reader,
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction
     ) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
-        }
         reader = readerWrapperFunction.apply(reader);
         return OpenSearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
-        return DirectoryReader.open(commit);
+        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
     }
 
     @Override
@@ -337,10 +334,7 @@ public class ReadOnlyEngine extends Engine {
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange
-    ) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled() == false) {
-            throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
-        }
+    ) {
         return newEmptySnapshot();
     }
 
@@ -435,15 +429,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
-        // we can't do synced flushes this would require an indexWriter which we don't have
-        throw new UnsupportedOperationException("syncedFlush is not supported on a read-only engine");
-    }
-
-    @Override
-    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return new CommitId(lastCommittedSegmentInfos.getId());
-    }
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {}
 
     @Override
     public void forceMerge(

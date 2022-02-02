@@ -46,7 +46,6 @@ public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAn
     GreekAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new GreekAnalyzer(Analysis.parseStopWords(env, settings, GreekAnalyzer.getDefaultStopSet()));
-        analyzer.setVersion(version);
     }
 
     @Override

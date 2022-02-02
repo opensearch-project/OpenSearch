@@ -322,13 +322,13 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
         if (randomBoolean()) {
-            performSyncedFlush(index, randomBoolean());
+            syncedFlush(index, randomBoolean());
             ensureGlobalCheckpointSynced(index);
         }
     }
 
     public void testRecovery() throws Exception {
-        final String index = "recover_with_soft_deletes";
+        final String index = "test_recovery";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -359,6 +359,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     }
                 }
             }
+        }
+        if (randomBoolean()) {
+            syncedFlush(index, randomBoolean());
         }
         ensureGreen(index);
     }
@@ -671,7 +674,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
         }
         if (randomBoolean()) {
-            performSyncedFlush(index, randomBoolean());
+            syncedFlush(index, randomBoolean());
             ensureGlobalCheckpointSynced(index);
         }
     }

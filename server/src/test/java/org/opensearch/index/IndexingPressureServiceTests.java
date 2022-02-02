@@ -9,7 +9,14 @@
 package org.opensearch.index;
 
 import org.junit.Before;
+import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.bulk.BulkItemRequest;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkShardRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.client.Requests;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
@@ -43,11 +50,18 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
         IndexingPressureService service = new IndexingPressureService(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
-
-        Releasable releasable = service.markCoordinatingOperationStarted(shardId, 1024, false);
+        BulkItemRequest[] items = new BulkItemRequest[1];
+        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id").source(
+            Requests.INDEX_CONTENT_TYPE,
+            "foo",
+            "bar"
+        );
+        items[0] = new BulkItemRequest(0, writeRequest);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.NONE, items);
+        Releasable releasable = service.markCoordinatingOperationStarted(shardId, bulkShardRequest::ramBytesUsed, false);
 
         IndexingPressurePerShardStats shardStats = service.shardStats(CommonStatsFlags.ALL).getIndexingPressureShardStats(shardId);
-        assertEquals(1024, shardStats.getCurrentCoordinatingBytes());
+        assertEquals(bulkShardRequest.ramBytesUsed(), shardStats.getCurrentCoordinatingBytes());
         releasable.close();
     }
 
@@ -64,11 +78,12 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
         );
         clusterSettings.applySettings(updated.build());
 
-        Releasable releasable = service.markCoordinatingOperationStarted(1024, false);
+        BulkRequest bulkRequest = new BulkRequest();
+        Releasable releasable = service.markCoordinatingOperationStarted(bulkRequest::ramBytesUsed, false);
         IndexingPressurePerShardStats shardStats = service.shardStats(CommonStatsFlags.ALL).getIndexingPressureShardStats(shardId);
         assertNull(shardStats);
         IndexingPressureStats nodeStats = service.nodeStats();
-        assertEquals(1024, nodeStats.getCurrentCoordinatingBytes());
+        assertEquals(bulkRequest.ramBytesUsed(), nodeStats.getCurrentCoordinatingBytes());
         releasable.close();
     }
 
