@@ -158,8 +158,8 @@ if (project != rootProject) {
   apply plugin: 'opensearch.publish'
 
   allprojects {
-    targetCompatibility = 10
-    sourceCompatibility = 10
+    targetCompatibility = 11
+    sourceCompatibility = 11
   }
 
   // groovydoc succeeds, but has some weird internal exception...
