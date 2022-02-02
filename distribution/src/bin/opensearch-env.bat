@@ -39,16 +39,19 @@ if "%1" == "nojava" (
    exit /b
 )
 
-rem compariing to empty string makes this equivalent to bash -v check on env var
+rem comparing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching OpenSearch
-rem by setting JAVA_HOME=
-if "%JAVA_HOME%" == "" (
+rem by setting OPENSEARCH_JAVA_HOME= and JAVA_HOME= 
+if not "%OPENSEARCH_JAVA_HOME%" == "" (
+  set JAVA="%OPENSEARCH_JAVA_HOME%\bin\java.exe"
+  set JAVA_TYPE=OPENSEARCH_JAVA_HOME 
+) else if not "%JAVA_HOME%" == "" (
+  set JAVA="%JAVA_HOME%\bin\java.exe"
+  set JAVA_TYPE=JAVA_HOME
+) else (
   set JAVA="%OPENSEARCH_HOME%\jdk\bin\java.exe"
   set JAVA_HOME="%OPENSEARCH_HOME%\jdk"
   set JAVA_TYPE=bundled jdk
-) else (
-  set JAVA="%JAVA_HOME%\bin\java.exe"
-  set JAVA_TYPE=JAVA_HOME
 )
 
 if not exist !JAVA! (
