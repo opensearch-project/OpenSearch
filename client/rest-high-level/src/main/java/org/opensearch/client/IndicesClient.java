@@ -1867,7 +1867,6 @@ public final class IndicesClient {
 
     /**
      * Validate a potentially expensive query without executing it.
-     * <p>
      *
      * @param validateQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1886,7 +1885,6 @@ public final class IndicesClient {
 
     /**
      * Asynchronously validate a potentially expensive query without executing it.
-     * <p>
      *
      * @param validateQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
