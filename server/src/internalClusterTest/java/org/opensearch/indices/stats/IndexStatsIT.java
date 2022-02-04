@@ -828,7 +828,6 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
-        assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0L));
     }
 
     public void testAllFlags() throws Exception {

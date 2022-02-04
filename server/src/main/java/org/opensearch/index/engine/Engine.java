@@ -51,7 +51,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
@@ -159,14 +158,6 @@ public abstract class Engine implements Closeable {
         // we use the engine class directly here to make sure all subclasses have the same logger name
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
-    }
-
-    /** Returns 0 in the case where accountable is null, otherwise returns {@code ramBytesUsed()} */
-    protected static long guardedRamBytesUsed(Accountable a) {
-        if (a == null) {
-            return 0;
-        }
-        return a.ramBytesUsed();
     }
 
     public final EngineConfig config() {
@@ -875,14 +866,7 @@ public abstract class Engine implements Closeable {
     }
 
     protected void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
-        stats.add(1, segmentReader.ramBytesUsed());
-        stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
-        stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
-        stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
-        stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
-        stats.addPointsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPointsReader()));
-        stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
-
+        stats.add(1);
         if (includeSegmentFileSizes) {
             // TODO: consider moving this to StoreStats
             stats.addFileSizes(getSegmentFileSizes(segmentReader));
@@ -1048,7 +1032,6 @@ public abstract class Engine implements Closeable {
         } catch (IOException e) {
             logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
         }
-        segment.memoryInBytes = segmentReader.ramBytesUsed();
         segment.segmentSort = info.info.getIndexSort();
         if (verbose) {
             segment.ramTree = Accountables.namedAccountable("root", segmentReader);
