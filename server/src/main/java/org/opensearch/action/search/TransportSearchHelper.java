@@ -32,10 +32,10 @@
 
 package org.opensearch.action.search;
 
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.RAMOutputStream;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
@@ -88,7 +88,7 @@ final class TransportSearchHelper {
     static ParsedScrollId parseScrollId(String scrollId) {
         try {
             byte[] bytes = Base64.getUrlDecoder().decode(scrollId);
-            ByteArrayDataInput in = new ByteArrayDataInput(bytes);
+            BytesStreamInput in = new BytesStreamInput(bytes);
             final boolean includeContextUUID;
             final String type;
             final String firstChunk = in.readString();

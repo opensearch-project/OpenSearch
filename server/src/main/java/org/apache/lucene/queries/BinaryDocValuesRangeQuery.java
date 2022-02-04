@@ -43,8 +43,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.index.mapper.RangeType;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ public final class BinaryDocValuesRangeQuery extends Query {
 
                 final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
 
-                    ByteArrayDataInput in = new ByteArrayDataInput();
+                    BytesStreamInput in = new BytesStreamInput();
                     BytesRef otherFrom = new BytesRef();
                     BytesRef otherTo = new BytesRef();
 

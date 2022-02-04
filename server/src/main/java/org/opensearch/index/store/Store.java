@@ -50,7 +50,6 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksum;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -67,6 +66,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.Streams;
+import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -1426,11 +1426,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             throw new UnsupportedOperationException();
         }
 
-        public long getStoredChecksum() {
-            return new ByteArrayDataInput(checksum).readLong();
+        public long getStoredChecksum() throws IOException {
+            return new BytesStreamInput(checksum).readLong();
         }
 
-        public long verify() throws CorruptIndexException {
+        public long verify() throws CorruptIndexException, IOException {
             long storedChecksum = getStoredChecksum();
             if (getChecksum() == storedChecksum) {
                 return storedChecksum;
