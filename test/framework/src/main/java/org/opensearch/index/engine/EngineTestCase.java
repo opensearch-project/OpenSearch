@@ -71,7 +71,6 @@ import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Strings;
-import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
@@ -345,8 +344,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 assertMaxSeqNoInCommitUserData(replicaEngine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
-            assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
-            assertThat(replicaEngine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
         }

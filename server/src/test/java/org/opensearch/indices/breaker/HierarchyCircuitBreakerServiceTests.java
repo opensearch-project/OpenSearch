@@ -275,7 +275,7 @@ public class HierarchyCircuitBreakerServiceTests extends OpenSearchTestCase {
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
             assertThat(
                 exception.getMessage(),
-                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, in_flight_requests=0/0b, accounting=0/0b]")
+                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, in_flight_requests=0/0b]")
             );
             assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         }
@@ -341,7 +341,7 @@ public class HierarchyCircuitBreakerServiceTests extends OpenSearchTestCase {
                     + requestCircuitBreakerUsed
                     + "/"
                     + new ByteSizeValue(requestCircuitBreakerUsed)
-                    + ", fielddata=0/0b, in_flight_requests=0/0b, accounting=0/0b]"
+                    + ", fielddata=0/0b, in_flight_requests=0/0b]"
             )
         );
         assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
