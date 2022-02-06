@@ -52,15 +52,26 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "load_awareness";
 
-    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING =
-        Setting.intSetting("cluster.routing.allocation.load_awareness.provisioned_capacity", -1, -1,
-            Property.Dynamic, Property.NodeScope);
-    public static final Setting<Double> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING =
-        Setting.doubleSetting("cluster.routing.allocation.load_awareness.skew_factor", 50, -1, Property.Dynamic,
-            Property.NodeScope);
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.load_awareness.allow_unassigned_primaries",
-            true, Setting.Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING = Setting.intSetting(
+        "cluster.routing.allocation.load_awareness.provisioned_capacity",
+        -1,
+        -1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Double> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING = Setting.doubleSetting(
+        "cluster.routing.allocation.load_awareness.skew_factor",
+        50,
+        -1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.load_awareness.allow_unassigned_primaries",
+        true,
+        Setting.Property.Dynamic,
+        Property.NodeScope
+    );
 
     private volatile int provisionedCapacity;
 
@@ -74,12 +85,15 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
         this.skewFactor = CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.get(settings);
         this.provisionedCapacity = CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.get(settings);
         this.allowUnassignedPrimaries = CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING,
-            this::setSkewFactor);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
-            this::setProvisionedCapacity);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
-            this::setAllowUnassignedPrimaries);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING, this::setSkewFactor);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
+            this::setProvisionedCapacity
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
+            this::setAllowUnassignedPrimaries
+        );
     }
 
     private void setAllowUnassignedPrimaries(boolean allowUnassignedPrimaries) {
@@ -104,29 +118,55 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
         return underCapacity(shardRouting, node, allocation, (count, limit) -> count > limit);
     }
 
-    private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation,
-                                   BiPredicate<Integer, Integer> decider) {
-        if (provisionedCapacity <= 0 || skewFactor < 0 ) {
-            return allocation.decision(Decision.YES, NAME,
+    private Decision underCapacity(
+        ShardRouting shardRouting,
+        RoutingNode node,
+        RoutingAllocation allocation,
+        BiPredicate<Integer, Integer> decider
+    ) {
+        if (provisionedCapacity <= 0 || skewFactor < 0) {
+            return allocation.decision(
+                Decision.YES,
+                NAME,
                 "overload awareness allocation is not enabled, set cluster setting [%s] and cluster setting [%s] to enable it",
                 CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
-                CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey());
+                CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey()
+            );
         }
         if (shardRouting.unassigned() && shardRouting.primary() && allowUnassignedPrimaries) {
-            return allocation.decision(Decision.YES, NAME,
+            return allocation.decision(
+                Decision.YES,
+                NAME,
                 "overload allocation awareness is allowed for unassigned primaries, set cluster setting [%s] to disable it",
-                CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey());
+                CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.getKey()
+            );
         }
         Metadata metadata = allocation.metadata();
         float expectedAvgShardsPerNode = (float) metadata.getTotalNumberOfShards() / provisionedCapacity;
         int nodeShardCount = node.numberOfOwningShards();
         int limit = (int) Math.ceil(expectedAvgShardsPerNode * (1 + skewFactor / 100.0));
         if (decider.test(nodeShardCount, limit)) {
-            logger.debug(() -> new ParameterizedMessage("Too many shards [{}] allocated to this node [{}]. Expected average shards" +
-                " per node [{}], overload factor [{}], node limit [{}]", nodeShardCount, node.nodeId(), expectedAvgShardsPerNode,
-                skewFactor, limit));
-            return allocation.decision(Decision.NO, NAME, "too many shards [%d] allocated to this node, limit per node [%d] considering" +
-                " overload factor [%.2f] based on capacity [%d]", nodeShardCount, limit, skewFactor, provisionedCapacity);
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Too many shards [{}] allocated to this node [{}]. Expected average shards"
+                        + " per node [{}], overload factor [{}], node limit [{}]",
+                    nodeShardCount,
+                    node.nodeId(),
+                    expectedAvgShardsPerNode,
+                    skewFactor,
+                    limit
+                )
+            );
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "too many shards [%d] allocated to this node, limit per node [%d] considering"
+                    + " overload factor [%.2f] based on capacity [%d]",
+                nodeShardCount,
+                limit,
+                skewFactor,
+                provisionedCapacity
+            );
         }
         return allocation.decision(Decision.YES, NAME, "node meets all skew awareness attribute requirements");
     }
