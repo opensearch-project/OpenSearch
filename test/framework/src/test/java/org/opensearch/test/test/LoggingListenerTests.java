@@ -238,8 +238,10 @@ public class LoggingListenerTests extends OpenSearchTestCase {
 
         final Description suiteDescription = Description.createSuiteDescription(clazz);
 
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> loggingListener.testRunStarted(suiteDescription));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> loggingListener.testRunStarted(suiteDescription)
+        );
         assertThat(e.getMessage(), equalTo("invalid test logging annotation [abc]"));
     }
 
@@ -263,8 +265,7 @@ public class LoggingListenerTests extends OpenSearchTestCase {
         final TestIssueLogging testIssueLogging = method.getAnnotation(TestIssueLogging.class);
         final Annotation[] annotations = Stream.of(testLogging, testIssueLogging).filter(Objects::nonNull).toArray(Annotation[]::new);
         Description testDescription = Description.createTestDescription(clazz, "invalidMethod", annotations);
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> loggingListener.testStarted(testDescription));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> loggingListener.testStarted(testDescription));
         assertThat(e.getMessage(), equalTo("invalid test logging annotation [abc:INFO:WARN]"));
     }
 
@@ -273,8 +274,10 @@ public class LoggingListenerTests extends OpenSearchTestCase {
 
         final Description suiteDescription = Description.createSuiteDescription(DuplicateLoggerBetweenTestLoggingAndTestIssueLogging.class);
 
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> loggingListener.testRunStarted(suiteDescription));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> loggingListener.testRunStarted(suiteDescription)
+        );
         assertThat(e, hasToString(containsString("found intersection [abc] between TestLogging and TestIssueLogging")));
     }
 
@@ -351,7 +354,7 @@ public class LoggingListenerTests extends OpenSearchTestCase {
 
         @SuppressWarnings("unused")
         @TestLogging(value = "xyz:TRACE,foo:WARN", reason = "testing TestLogging method annotations")
-        @TestIssueLogging(value ="foo.bar:ERROR", issueUrl = "https://example.com")
+        @TestIssueLogging(value = "foo.bar:ERROR", issueUrl = "https://example.com")
         public void annotatedTestMethod() {
 
         }

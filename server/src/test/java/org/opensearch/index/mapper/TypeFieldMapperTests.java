@@ -82,9 +82,10 @@ public class TypeFieldMapperTests extends OpenSearchSingleNodeTestCase {
         w.close();
 
         MappedFieldType ft = mapperService.fieldType(TypeFieldMapper.NAME);
-        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test", () -> {
-            throw new UnsupportedOperationException();
-        }).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder(
+            "test",
+            () -> { throw new UnsupportedOperationException(); }
+        ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         LeafOrdinalsFieldData afd = fd.load(r.leaves().get(0));
         SortedSetDocValues values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));

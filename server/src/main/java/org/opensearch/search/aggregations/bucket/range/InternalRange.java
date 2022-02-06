@@ -51,7 +51,8 @@ import java.util.Map;
 import java.util.Objects;
 
 public class InternalRange<B extends InternalRange.Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation<R, B>
-        implements Range {
+    implements
+        Range {
     static final Factory FACTORY = new Factory();
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
@@ -64,8 +65,15 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         private final InternalAggregations aggregations;
         private final String key;
 
-        public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                DocValueFormat format) {
+        public Bucket(
+            String key,
+            double from,
+            double to,
+            long docCount,
+            InternalAggregations aggregations,
+            boolean keyed,
+            DocValueFormat format
+        ) {
             this.keyed = keyed;
             this.format = format;
             this.key = key != null ? key : generateKey(from, to, format);
@@ -162,8 +170,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         private static String generateKey(double from, double to, DocValueFormat format) {
-            StringBuilder builder = new StringBuilder()
-                .append(Double.isInfinite(from) ? "*" : format.format(from))
+            StringBuilder builder = new StringBuilder().append(Double.isInfinite(from) ? "*" : format.format(from))
                 .append("-")
                 .append(Double.isInfinite(to) ? "*" : format.format(to));
             return builder.toString();
@@ -192,10 +199,10 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             }
             Bucket that = (Bucket) other;
             return Objects.equals(from, that.from)
-                    && Objects.equals(to, that.to)
-                    && Objects.equals(docCount, that.docCount)
-                    && Objects.equals(aggregations, that.aggregations)
-                    && Objects.equals(key, that.key);
+                && Objects.equals(to, that.to)
+                && Objects.equals(docCount, that.docCount)
+                && Objects.equals(aggregations, that.aggregations)
+                && Objects.equals(key, that.key);
         }
 
         @Override
@@ -219,8 +226,15 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         @SuppressWarnings("unchecked")
-        public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                DocValueFormat format) {
+        public B createBucket(
+            String key,
+            double from,
+            double to,
+            long docCount,
+            InternalAggregations aggregations,
+            boolean keyed,
+            DocValueFormat format
+        ) {
             return (B) new Bucket(key, from, to, docCount, aggregations, keyed, format);
         }
 
@@ -231,8 +245,15 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @SuppressWarnings("unchecked")
         public B createBucket(InternalAggregations aggregations, B prototype) {
-            return (B) new Bucket(prototype.getKey(), prototype.from, prototype.to, prototype.getDocCount(), aggregations, prototype.keyed,
-                    prototype.format);
+            return (B) new Bucket(
+                prototype.getKey(),
+                prototype.from,
+                prototype.to,
+                prototype.getDocCount(),
+                aggregations,
+                prototype.keyed,
+                prototype.format
+            );
         }
     }
 
@@ -257,11 +278,18 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            String key = in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)
-                ? in.readString()
-                : in.readOptionalString();
-            ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(),
-                    InternalAggregations.readFrom(in), keyed, format));
+            String key = in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0) ? in.readString() : in.readOptionalString();
+            ranges.add(
+                getFactory().createBucket(
+                    key,
+                    in.readDouble(),
+                    in.readDouble(),
+                    in.readVLong(),
+                    InternalAggregations.readFrom(in),
+                    keyed,
+                    format
+                )
+            );
         }
         this.ranges = ranges;
     }
@@ -367,9 +395,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
 
-        InternalRange<?,?> that = (InternalRange<?,?>) obj;
-        return Objects.equals(ranges, that.ranges)
-                && Objects.equals(format, that.format)
-                && Objects.equals(keyed, that.keyed);
+        InternalRange<?, ?> that = (InternalRange<?, ?>) obj;
+        return Objects.equals(ranges, that.ranges) && Objects.equals(format, that.format) && Objects.equals(keyed, that.keyed);
     }
 }

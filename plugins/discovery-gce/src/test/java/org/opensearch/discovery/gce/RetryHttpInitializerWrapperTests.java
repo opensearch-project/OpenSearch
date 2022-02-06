@@ -107,24 +107,24 @@ public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
     }
 
     public void testSimpleRetry() throws Exception {
-        FailThenSuccessBackoffTransport fakeTransport =
-                new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 3);
+        FailThenSuccessBackoffTransport fakeTransport = new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 3);
 
-        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
-                .build();
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder().build();
         MockSleeper mockSleeper = new MockSleeper();
 
-        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, mockSleeper,
-            TimeValue.timeValueSeconds(5));
+        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(
+            credential,
+            mockSleeper,
+            TimeValue.timeValueSeconds(5)
+        );
 
-        Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null)
-                .setHttpRequestInitializer(retryHttpInitializerWrapper)
-                .setApplicationName("test")
-                .build();
+        Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null).setHttpRequestInitializer(
+            retryHttpInitializerWrapper
+        ).setApplicationName("test").build();
 
         // TODO (URL) replace w/ opensearch url
-        HttpRequest request = client.getRequestFactory().buildRequest(
-            "Get", new GenericUrl("https://github.com/opensearch-project/OpenSearch"), null);
+        HttpRequest request = client.getRequestFactory()
+            .buildRequest("Get", new GenericUrl("https://github.com/opensearch-project/OpenSearch"), null);
         HttpResponse response = request.execute();
 
         assertThat(mockSleeper.getCount(), equalTo(3));
@@ -135,11 +135,12 @@ public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
         TimeValue maxWaitTime = TimeValue.timeValueMillis(10);
         int maxRetryTimes = 50;
 
-        FailThenSuccessBackoffTransport fakeTransport =
-                new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, maxRetryTimes);
+        FailThenSuccessBackoffTransport fakeTransport = new FailThenSuccessBackoffTransport(
+            HttpStatusCodes.STATUS_CODE_SERVER_ERROR,
+            maxRetryTimes
+        );
         JsonFactory jsonFactory = new JacksonFactory();
-        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
-                .build();
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder().build();
 
         MockSleeper oneTimeSleeper = new MockSleeper() {
             @Override
@@ -151,14 +152,13 @@ public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
 
         RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, oneTimeSleeper, maxWaitTime);
 
-        Compute client = new Compute.Builder(fakeTransport, jsonFactory, null)
-                .setHttpRequestInitializer(retryHttpInitializerWrapper)
-                .setApplicationName("test")
-                .build();
+        Compute client = new Compute.Builder(fakeTransport, jsonFactory, null).setHttpRequestInitializer(retryHttpInitializerWrapper)
+            .setApplicationName("test")
+            .build();
 
         // TODO (URL) replace w/ opensearch URL
-        HttpRequest request1 = client.getRequestFactory().buildRequest("Get", new GenericUrl(
-            "https://github.com/opensearch-project/OpenSearch"), null);
+        HttpRequest request1 = client.getRequestFactory()
+            .buildRequest("Get", new GenericUrl("https://github.com/opensearch-project/OpenSearch"), null);
         try {
             request1.execute();
             fail("Request should fail if wait too long");
@@ -170,23 +170,27 @@ public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
     }
 
     public void testIOExceptionRetry() throws Exception {
-        FailThenSuccessBackoffTransport fakeTransport =
-                new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 1, true);
+        FailThenSuccessBackoffTransport fakeTransport = new FailThenSuccessBackoffTransport(
+            HttpStatusCodes.STATUS_CODE_SERVER_ERROR,
+            1,
+            true
+        );
 
-        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
-                .build();
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder().build();
         MockSleeper mockSleeper = new MockSleeper();
-        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, mockSleeper,
-            TimeValue.timeValueSeconds(30L));
+        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(
+            credential,
+            mockSleeper,
+            TimeValue.timeValueSeconds(30L)
+        );
 
-        Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null)
-                .setHttpRequestInitializer(retryHttpInitializerWrapper)
-                .setApplicationName("test")
-                .build();
+        Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null).setHttpRequestInitializer(
+            retryHttpInitializerWrapper
+        ).setApplicationName("test").build();
 
         // TODO (URL) replace w/ opensearch URL
-        HttpRequest request = client.getRequestFactory().buildRequest("Get", new GenericUrl(
-            "https://github.com/opensearch-project/OpenSearch"), null);
+        HttpRequest request = client.getRequestFactory()
+            .buildRequest("Get", new GenericUrl("https://github.com/opensearch-project/OpenSearch"), null);
         HttpResponse response = request.execute();
 
         assertThat(mockSleeper.getCount(), equalTo(1));

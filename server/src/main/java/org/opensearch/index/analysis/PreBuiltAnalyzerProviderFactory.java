@@ -60,24 +60,18 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     PreBuiltAnalyzerProviderFactory(String name, PreBuiltAnalyzers preBuiltAnalyzer) {
         super(name, new PreBuiltAnalyzersDelegateCache(name, preBuiltAnalyzer));
         this.create = preBuiltAnalyzer::getAnalyzer;
-        Analyzer analyzer = preBuiltAnalyzer.getAnalyzer(Version.CURRENT);
-        analyzer.setVersion(Version.CURRENT.luceneVersion);
-        current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
+        current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, preBuiltAnalyzer.getAnalyzer(Version.CURRENT));
     }
 
     public PreBuiltAnalyzerProviderFactory(String name, PreBuiltCacheFactory.CachingStrategy cache, Supplier<Analyzer> create) {
         super(name, cache);
         this.create = version -> create.get();
-        Analyzer analyzer = create.get();
-        analyzer.setVersion(Version.CURRENT.luceneVersion);
-        this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
+        this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, create.get());
     }
 
     @Override
-    public AnalyzerProvider<?> get(IndexSettings indexSettings,
-                                   Environment environment,
-                                   String name,
-                                   Settings settings) throws IOException {
+    public AnalyzerProvider<?> get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
+        throws IOException {
         Version versionCreated = Version.indexCreated(settings);
         if (Version.CURRENT.equals(versionCreated) == false) {
             return super.get(indexSettings, environment, name, settings);
@@ -90,15 +84,12 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     protected AnalyzerProvider<?> create(Version version) {
         assert Version.CURRENT.equals(version) == false;
         Analyzer analyzer = create.apply(version);
-        analyzer.setVersion(version.luceneVersion);
         return new PreBuiltAnalyzerProvider(getName(), AnalyzerScope.INDICES, analyzer);
     }
 
     @Override
     public void close() throws IOException {
-        List<Closeable> closeables = cache.values().stream()
-            .map(AnalyzerProvider::get)
-            .collect(Collectors.toList());
+        List<Closeable> closeables = cache.values().stream().map(AnalyzerProvider::get).collect(Collectors.toList());
         closeables.add(current.get());
         IOUtils.close(closeables);
     }
@@ -131,7 +122,9 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
 
         @Override
         public Collection<AnalyzerProvider<?>> values() {
-            return preBuiltAnalyzer.getCache().values().stream()
+            return preBuiltAnalyzer.getCache()
+                .values()
+                .stream()
                 // Wrap the analyzer instance in a PreBuiltAnalyzerProvider, this is what PreBuiltAnalyzerProviderFactory#close expects
                 // (other caches are not directly caching analyzers, but analyzer provider instead)
                 .map(analyzer -> new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer))

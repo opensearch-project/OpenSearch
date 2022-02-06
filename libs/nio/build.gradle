@@ -27,6 +27,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+import org.opensearch.gradle.info.BuildParams
+ 
 apply plugin: 'opensearch.publish'
 
 dependencies {
@@ -46,4 +49,11 @@ tasks.named('forbiddenApisMain').configure {
   // nio does not depend on core, so only jdk signatures should be checked
   // es-all is not checked as we connect and accept sockets
   replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.test {
+    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+        jvmArgs += ["--add-opens", "java.base/java.nio.channels=ALL-UNNAMED"]
+        jvmArgs += ["--add-opens", "java.base/java.net=ALL-UNNAMED"]
+    }
 }

@@ -236,7 +236,7 @@ final class Compiler {
         // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
-        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         byte[] bytes = classNode.write();
@@ -271,7 +271,7 @@ final class Compiler {
         // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
-        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         classNode.setDebugStream(debugStream);

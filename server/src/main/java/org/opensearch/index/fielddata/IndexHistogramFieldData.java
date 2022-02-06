@@ -32,7 +32,6 @@
 
 package org.opensearch.index.fielddata;
 
-
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 /**

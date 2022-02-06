@@ -41,12 +41,12 @@ import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 public class ShardsAcknowledgedResponseTests extends OpenSearchTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             this::createTestInstance,
             ShardsAcknowledgedResponseTests::toXContent,
-            ShardsAcknowledgedResponse::fromXContent)
-            .supportsUnknownFields(false)
-            .test();
+            ShardsAcknowledgedResponse::fromXContent
+        ).supportsUnknownFields(false).test();
     }
 
     private ShardsAcknowledgedResponse createTestInstance() {

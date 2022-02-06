@@ -39,7 +39,7 @@ import org.apache.lucene.search.Explanation;
  * distance. For example, this could be an exponential drop of, a triangle
  * function or something of the kind. This is used, for example, by
  * {@link GaussDecayFunctionBuilder}.
- * 
+ *
  */
 public interface DecayFunction {
 
@@ -53,7 +53,7 @@ public interface DecayFunction {
      * should compute if document distance and user defined scale equal. The
      * scale parameter for the function must be adjusted accordingly in this
      * function
-     * 
+     *
      * @param scale
      *            the raw scale value given by the user
      * @param decay

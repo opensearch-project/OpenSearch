@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class OpenSearchExecutorsTests extends OpenSearchTestCase {
 
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
     private TimeUnit randomTimeUnit() {
         return TimeUnit.values()[between(0, TimeUnit.values().length - 1)];
     }
@@ -64,8 +65,13 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
     }
 
     public void testFixedForcedExecution() throws Exception {
-        OpenSearchThreadPoolExecutor executor =
-                OpenSearchExecutors.newFixed(getName(), 1, 1, OpenSearchExecutors.daemonThreadFactory("test"), threadContext);
+        OpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newFixed(
+            getName(),
+            1,
+            1,
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -127,8 +133,13 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
     }
 
     public void testFixedRejected() throws Exception {
-        OpenSearchThreadPoolExecutor executor =
-                OpenSearchExecutors.newFixed(getName(), 1, 1, OpenSearchExecutors.daemonThreadFactory("test"), threadContext);
+        OpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newFixed(
+            getName(),
+            1,
+            1,
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -186,9 +197,15 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         final int max = between(min + 1, 6);
         final CyclicBarrier barrier = new CyclicBarrier(max + 1);
 
-        ThreadPoolExecutor pool =
-                OpenSearchExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), randomTimeUnit(),
-                    OpenSearchExecutors.daemonThreadFactory("test"), threadContext);
+        ThreadPoolExecutor pool = OpenSearchExecutors.newScaling(
+            getClass().getName() + "/" + getTestName(),
+            min,
+            max,
+            between(1, 100),
+            randomTimeUnit(),
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -204,8 +221,8 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
                 }
             });
 
-            //wait until thread executes this task
-            //otherwise, a task might be queued
+            // wait until thread executes this task
+            // otherwise, a task might be queued
             latch.await();
         }
 
@@ -221,9 +238,15 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         final int max = between(min + 1, 6);
         final CyclicBarrier barrier = new CyclicBarrier(max + 1);
 
-        final ThreadPoolExecutor pool =
-                OpenSearchExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), TimeUnit.MILLISECONDS,
-                    OpenSearchExecutors.daemonThreadFactory("test"), threadContext);
+        final ThreadPoolExecutor pool = OpenSearchExecutors.newScaling(
+            getClass().getName() + "/" + getTestName(),
+            min,
+            max,
+            between(1, 100),
+            TimeUnit.MILLISECONDS,
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -239,8 +262,8 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
                 }
             });
 
-            //wait until thread executes this task
-            //otherwise, a task might be queued
+            // wait until thread executes this task
+            // otherwise, a task might be queued
             latch.await();
         }
 
@@ -260,8 +283,13 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         int queue = between(0, 100);
         int actions = queue + pool;
         final CountDownLatch latch = new CountDownLatch(1);
-        OpenSearchThreadPoolExecutor executor =
-                OpenSearchExecutors.newFixed(getName(), pool, queue, OpenSearchExecutors.daemonThreadFactory("dummy"), threadContext);
+        OpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newFixed(
+            getName(),
+            pool,
+            queue,
+            OpenSearchExecutors.daemonThreadFactory("dummy"),
+            threadContext
+        );
         try {
             for (int i = 0; i < actions; i++) {
                 executor.execute(new Runnable() {
@@ -350,8 +378,13 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         threadContext.putHeader("foo", "bar");
         final Integer one = Integer.valueOf(1);
         threadContext.putTransient("foo", one);
-        OpenSearchThreadPoolExecutor executor =
-                OpenSearchExecutors.newFixed(getName(), pool, queue, OpenSearchExecutors.daemonThreadFactory("dummy"), threadContext);
+        OpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newFixed(
+            getName(),
+            pool,
+            queue,
+            OpenSearchExecutors.daemonThreadFactory("dummy"),
+            threadContext
+        );
         try {
             executor.execute(() -> {
                 try {
@@ -381,8 +414,13 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         int queue = between(0, 100);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch executed = new CountDownLatch(1);
-        OpenSearchThreadPoolExecutor executor =
-                OpenSearchExecutors.newFixed(getName(), pool, queue, OpenSearchExecutors.daemonThreadFactory("dummy"), threadContext);
+        OpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newFixed(
+            getName(),
+            pool,
+            queue,
+            OpenSearchExecutors.daemonThreadFactory("dummy"),
+            threadContext
+        );
         try {
             Runnable r = () -> {
                 latch.countDown();
@@ -418,7 +456,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         processorsSetting.get(settings);
         final Setting<?>[] deprecatedSettings;
         if (processorsSetting.getProperties().contains(Setting.Property.Deprecated)) {
-            deprecatedSettings = new Setting<?>[]{processorsSetting};
+            deprecatedSettings = new Setting<?>[] { processorsSetting };
         } else {
             deprecatedSettings = new Setting<?>[0];
         }
@@ -427,7 +465,8 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
             "setting [%s] to value [%d] which is more than available processors [%d] is deprecated",
             processorsSetting.getKey(),
             processors,
-            available);
+            available
+        );
         assertSettingDeprecationsAndWarnings(deprecatedSettings, expectedWarning);
     }
 

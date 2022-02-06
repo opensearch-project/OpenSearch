@@ -63,8 +63,10 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     public static final ParseField VALUE_FIELD = new ParseField("value");
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
 
-    public static final ObjectParser<WeightedAvgAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, WeightedAvgAggregationBuilder::new);
+    public static final ObjectParser<WeightedAvgAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        WeightedAvgAggregationBuilder::new
+    );
     static {
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
         MultiValuesSourceParseHelper.declareField(VALUE_FIELD.getPreferredName(), PARSER, true, false, false);
@@ -123,12 +125,14 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     @Override
-    protected MultiValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                            Map<String, ValuesSourceConfig> configs,
-                                                            Map<String, QueryBuilder> filters,
-                                                            DocValueFormat format,
-                                                            AggregatorFactory parent,
-                                                            Builder subFactoriesBuilder) throws IOException {
+    protected MultiValuesSourceAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        Map<String, ValuesSourceConfig> configs,
+        Map<String, QueryBuilder> filters,
+        DocValueFormat format,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
         return new WeightedAvgAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

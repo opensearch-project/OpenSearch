@@ -57,7 +57,7 @@ public class TypeMissingException extends OpenSearchException {
         setIndex(index);
     }
 
-    public TypeMissingException(StreamInput in) throws IOException{
+    public TypeMissingException(StreamInput in) throws IOException {
         super(in);
     }
 

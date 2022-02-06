@@ -61,7 +61,7 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
             name = in.readString();
         }
 
-        public Request() { }
+        public Request() {}
 
         /**
          * Constructs a new delete index request for the specified name.

@@ -68,9 +68,14 @@ public final class Pipeline {
         this(id, description, version, compoundProcessor, System::nanoTime);
     }
 
-    //package private for testing
-    Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor,
-             LongSupplier relativeTimeProvider) {
+    // package private for testing
+    Pipeline(
+        String id,
+        @Nullable String description,
+        @Nullable Integer version,
+        CompoundProcessor compoundProcessor,
+        LongSupplier relativeTimeProvider
+    ) {
         this.id = id;
         this.description = description;
         this.compoundProcessor = compoundProcessor;
@@ -79,25 +84,38 @@ public final class Pipeline {
         this.relativeTimeProvider = relativeTimeProvider;
     }
 
-    public static Pipeline create(String id, Map<String, Object> config,
-        Map<String, Processor.Factory> processorFactories, ScriptService scriptService) throws Exception {
+    public static Pipeline create(
+        String id,
+        Map<String, Object> config,
+        Map<String, Processor.Factory> processorFactories,
+        ScriptService scriptService
+    ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
         List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, scriptService, processorFactories);
-        List<Map<String, Object>> onFailureProcessorConfigs =
-                ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
-        List<Processor> onFailureProcessors =
-            ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, scriptService, processorFactories);
+        List<Map<String, Object>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
+        List<Processor> onFailureProcessors = ConfigurationUtils.readProcessorConfigs(
+            onFailureProcessorConfigs,
+            scriptService,
+            processorFactories
+        );
         if (config.isEmpty() == false) {
-            throw new OpenSearchParseException("pipeline [" + id +
-                    "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
+            throw new OpenSearchParseException(
+                "pipeline ["
+                    + id
+                    + "] doesn't support one or more provided configuration parameters "
+                    + Arrays.toString(config.keySet().toArray())
+            );
         }
         if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
             throw new OpenSearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
-        CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
-                Collections.unmodifiableList(onFailureProcessors));
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            Collections.unmodifiableList(processors),
+            Collections.unmodifiableList(onFailureProcessors)
+        );
         return new Pipeline(id, description, version, compoundProcessor);
     }
 

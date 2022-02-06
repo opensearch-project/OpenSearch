@@ -68,7 +68,7 @@ class DateMethodValueSource extends FieldDataValueSource {
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
-                calendar.setTimeInMillis((long)docValues.doubleValue());
+                calendar.setTimeInMillis((long) docValues.doubleValue());
                 return calendar.get(calendarType);
             }
 

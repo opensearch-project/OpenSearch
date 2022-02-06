@@ -58,8 +58,10 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
 
     public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;
 
-    public static final ObjectParser<DiversifiedAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, DiversifiedAggregationBuilder::new);
+    public static final ObjectParser<DiversifiedAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        DiversifiedAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
         PARSER.declareInt(DiversifiedAggregationBuilder::shardSize, SamplerAggregator.SHARD_SIZE_FIELD);
@@ -119,7 +121,8 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     public DiversifiedAggregationBuilder shardSize(int shardSize) {
         if (shardSize < 0) {
             throw new IllegalArgumentException(
-                    "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
+                "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]"
+            );
         }
         this.shardSize = shardSize;
         return this;
@@ -138,7 +141,8 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     public DiversifiedAggregationBuilder maxDocsPerValue(int maxDocsPerValue) {
         if (maxDocsPerValue < 0) {
             throw new IllegalArgumentException(
-                    "[maxDocsPerValue] must be greater than or equal to 0. Found [" + maxDocsPerValue + "] in [" + name + "]");
+                "[maxDocsPerValue] must be greater than or equal to 0. Found [" + maxDocsPerValue + "] in [" + name + "]"
+            );
         }
         this.maxDocsPerValue = maxDocsPerValue;
         return this;
@@ -172,12 +176,23 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
-        return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, queryShardContext, parent,
-                subFactoriesBuilder, metadata);
+    protected ValuesSourceAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
+        return new DiversifiedAggregatorFactory(
+            name,
+            config,
+            shardSize,
+            maxDocsPerValue,
+            executionHint,
+            queryShardContext,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 
     @Override

@@ -37,9 +37,12 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
-public abstract class NodesOperationRequestBuilder<Request extends BaseNodesRequest<Request>, Response extends BaseNodesResponse,
-        RequestBuilder extends NodesOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response> {
+public abstract class NodesOperationRequestBuilder<
+    Request extends BaseNodesRequest<Request>,
+    Response extends BaseNodesResponse,
+    RequestBuilder extends NodesOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
+        Request,
+        Response> {
 
     protected NodesOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

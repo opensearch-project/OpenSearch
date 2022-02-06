@@ -109,11 +109,14 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
     // threads so that blocking some threads on one repository doesn't block other repositories from doing work
     protected static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
-            .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
+        .put("thread_pool.snapshot.core", 5)
+        .put("thread_pool.snapshot.max", 5)
+        .build();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
             // Rebalancing is causing some checks after restore to randomly fail
             // due to https://github.com/elastic/elasticsearch/issues/9421
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
@@ -172,8 +175,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;
-        for (RepositoriesService repositoriesService :
-            internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
+        for (RepositoriesService repositoriesService : internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
             MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
             failureCount += mockRepository.getFailureCount();
         }
@@ -230,8 +232,9 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
                 // Make sure that snapshot clean up operations are finished
                 ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
                 boolean found = false;
-                for (SnapshotsInProgress.Entry entry :
-                    stateResponse.getState().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
+                for (SnapshotsInProgress.Entry entry : stateResponse.getState()
+                    .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                    .entries()) {
                     final Snapshot curr = entry.snapshot();
                     if (curr.getRepository().equals(repository) && curr.getSnapshotId().getName().equals(snapshotName)) {
                         found = true;
@@ -250,35 +253,36 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockAndFailOnWriteIndexFile();
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, masterName).repository(repositoryName))
+            .setBlockAndFailOnWriteIndexFile();
         return masterName;
     }
 
     public static String blockMasterOnWriteIndexFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getMasterNodeInstance(RepositoriesService.class)
-            .repository(repositoryName)).setBlockOnWriteIndexFile();
+        ((MockRepository) internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repositoryName))
+            .setBlockOnWriteIndexFile();
         return masterName;
     }
 
     public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
         final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockOnDeleteIndexFile();
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, masterName).repository(repositoryName))
+            .setBlockOnDeleteIndexFile();
     }
 
     public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockAndFailOnWriteSnapFiles(true);
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, masterName).repository(repositoryName))
+            .setBlockAndFailOnWriteSnapFiles(true);
         return masterName;
     }
 
     public static String blockNodeWithIndex(final String repositoryName, final String indexName) {
-        for(String node : internalCluster().nodesInclude(indexName)) {
-            ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName))
-                .blockOnDataFiles(true);
+        for (String node : internalCluster().nodesInclude(indexName)) {
+            ((MockRepository) internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName)).blockOnDataFiles(
+                true
+            );
             return node;
         }
         fail("No nodes for the index " + indexName + " found");
@@ -286,24 +290,24 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     public static void blockNodeOnAnyFiles(String repository, String nodeName) {
-        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
-                .repository(repository)).setBlockOnAnyFiles(true);
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName).repository(repository)).setBlockOnAnyFiles(
+            true
+        );
     }
 
     public static void blockDataNode(String repository, String nodeName) {
-        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
-                .repository(repository)).blockOnDataFiles(true);
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName).repository(repository)).blockOnDataFiles(true);
     }
 
     public static void blockAllDataNodes(String repository) {
-        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-            ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository) repositoriesService.repository(repository)).blockOnDataFiles(true);
         }
     }
 
     public static void unblockAllDataNodes(String repository) {
-        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-            ((MockRepository)repositoriesService.repository(repository)).unblock();
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository) repositoriesService.repository(repository)).unblock();
         }
     }
 
@@ -330,13 +334,12 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     public void unblockNode(final String repository, final String node) {
         logger.info("--> unblocking [{}] on node [{}]", repository, node);
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
     protected void createRepository(String repoName, String type, Settings.Builder settings) {
         logger.info("--> creating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName)
-            .setType(type).setSettings(settings));
+        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
     }
 
     protected void createRepository(String repoName, String type, Path location) {
@@ -357,8 +360,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected static Settings.Builder indexSettingsNoReplicas(int shards) {
-        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
     }
 
     /**
@@ -377,24 +379,30 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     protected String initWithSnapshotVersion(String repoName, Path repoPath, Version version) throws IOException {
         assertThat("This hack only works on an empty repository", getRepositoryData(repoName).getSnapshotIds(), empty());
         final String oldVersionSnapshot = OLD_VERSION_SNAPSHOT_PREFIX + version.id;
-        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin()
-                .prepareCreateSnapshot(repoName, oldVersionSnapshot).setIndices("does-not-exist-for-sure-*")
-                .setWaitForCompletion(true).get();
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, oldVersionSnapshot)
+            .setIndices("does-not-exist-for-sure-*")
+            .setWaitForCompletion(true)
+            .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), is(0));
 
         logger.info("--> writing downgraded RepositoryData for repository metadata version [{}]", version);
         final RepositoryData repositoryData = getRepositoryData(repoName);
         final XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
         repositoryData.snapshotsToXContent(jsonBuilder, version);
-        final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(JsonXContent.jsonXContent.createParser(
+        final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
+            JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())),
-                repositoryData.getGenId(), randomBoolean());
-        Files.write(repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
-                BytesReference.toBytes(BytesReference.bytes(
-                        downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
-                StandardOpenOption.TRUNCATE_EXISTING);
+                Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())
+            ),
+            repositoryData.getGenId(),
+            randomBoolean()
+        );
+        Files.write(
+            repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
+            BytesReference.toBytes(BytesReference.bytes(downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
+            StandardOpenOption.TRUNCATE_EXISTING
+        );
         return oldVersionSnapshot;
     }
 
@@ -413,11 +421,11 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices) {
         logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
         final CreateSnapshotResponse response = client().admin()
-                .cluster()
-                .prepareCreateSnapshot(repositoryName, snapshot)
-                .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
-                .setWaitForCompletion(true)
-                .get();
+            .cluster()
+            .prepareCreateSnapshot(repositoryName, snapshot)
+            .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
+            .setWaitForCompletion(true)
+            .get();
 
         final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
@@ -444,8 +452,9 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected long getCountForIndex(String indexName) {
-        return client().search(new SearchRequest(new SearchRequest(indexName).source(
-            new SearchSourceBuilder().size(0).trackTotalHits(true)))).actionGet().getHits().getTotalHits().value;
+        return client().search(
+            new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
+        ).actionGet().getHits().getTotalHits().value;
     }
 
     protected void assertDocCount(String index, long count) {
@@ -465,19 +474,40 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         assertNotNull(repositoriesMetadata);
         final RepositoryMetadata initialRepoMetadata = repositoriesMetadata.repository(repoName);
         assertNotNull(initialRepoMetadata);
-        assertThat("We can only manually insert a snapshot into a repository that does not have a generation tracked in the CS",
-                initialRepoMetadata.generation(), is(RepositoryData.UNKNOWN_REPO_GEN));
+        assertThat(
+            "We can only manually insert a snapshot into a repository that does not have a generation tracked in the CS",
+            initialRepoMetadata.generation(),
+            is(RepositoryData.UNKNOWN_REPO_GEN)
+        );
         final Repository repo = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
-        final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
-                Collections.emptyList(), Collections.emptyList(),
-                SnapshotState.FAILED, "failed on purpose",
-                SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L,0L, 0, 0, Collections.emptyList(),
-                randomBoolean(), metadata);
-        PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
-                ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
-                SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
+        final SnapshotInfo snapshotInfo = new SnapshotInfo(
+            snapshotId,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            SnapshotState.FAILED,
+            "failed on purpose",
+            SnapshotsService.OLD_SNAPSHOT_FORMAT,
+            0L,
+            0L,
+            0,
+            0,
+            Collections.emptyList(),
+            randomBoolean(),
+            metadata
+        );
+        PlainActionFuture.<RepositoryData, Exception>get(
+            f -> repo.finalizeSnapshot(
+                ShardGenerations.EMPTY,
+                getRepositoryData(repoName).getGenId(),
+                state.metadata(),
+                snapshotInfo,
+                SnapshotsService.OLD_SNAPSHOT_FORMAT,
+                Function.identity(),
+                f
+            )
+        );
     }
 
     protected void awaitNoMoreRunningOperations() throws Exception {
@@ -486,8 +516,11 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
-        awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&
-                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
+        awaitClusterState(
+            viaNode,
+            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty()
+                && state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false
+        );
     }
 
     protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
@@ -520,8 +553,8 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         }
     }
 
-    protected ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName,
-                                                                                      String dataNode) throws InterruptedException {
+    protected ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName, String dataNode)
+        throws InterruptedException {
         blockDataNode(repoName, dataNode);
         final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(repoName, snapshotName);
         waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
@@ -534,14 +567,12 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     protected ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName, boolean partial) {
         logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
-        return clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
-                .setPartial(partial).execute();
+        return clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).setPartial(partial).execute();
     }
 
     protected void awaitNumberOfSnapshotsInProgress(int count) throws Exception {
         logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
-        awaitClusterState(state ->
-                state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
+        awaitClusterState(state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
     }
 
     protected static SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
@@ -591,8 +622,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected SnapshotInfo getSnapshot(String repository, String snapshot) {
-        final List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots(repository).setSnapshots(snapshot)
-                .get().getSnapshots();
+        final List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots(repository).setSnapshots(snapshot).get().getSnapshots();
         assertThat(snapshotInfos, hasSize(1));
         return snapshotInfos.get(0);
     }

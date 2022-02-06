@@ -83,16 +83,14 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("log(doc['index'].value + (factor * _score))",
-                    vars -> scoringScript(vars, ScoreAccessor::doubleValue));
-            scripts.put("log(doc['index'].value + (factor * _score.intValue()))",
-                    vars -> scoringScript(vars, ScoreAccessor::intValue));
-            scripts.put("log(doc['index'].value + (factor * _score.longValue()))",
-                    vars -> scoringScript(vars, ScoreAccessor::longValue));
-            scripts.put("log(doc['index'].value + (factor * _score.floatValue()))",
-                    vars -> scoringScript(vars, ScoreAccessor::floatValue));
-            scripts.put("log(doc['index'].value + (factor * _score.doubleValue()))",
-                    vars -> scoringScript(vars, ScoreAccessor::doubleValue));
+            scripts.put("log(doc['index'].value + (factor * _score))", vars -> scoringScript(vars, ScoreAccessor::doubleValue));
+            scripts.put("log(doc['index'].value + (factor * _score.intValue()))", vars -> scoringScript(vars, ScoreAccessor::intValue));
+            scripts.put("log(doc['index'].value + (factor * _score.longValue()))", vars -> scoringScript(vars, ScoreAccessor::longValue));
+            scripts.put("log(doc['index'].value + (factor * _score.floatValue()))", vars -> scoringScript(vars, ScoreAccessor::floatValue));
+            scripts.put(
+                "log(doc['index'].value + (factor * _score.doubleValue()))",
+                vars -> scoringScript(vars, ScoreAccessor::doubleValue)
+            );
             return scripts;
         }
 
@@ -126,12 +124,15 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
             SearchHit[] hits = null;
             for (int i = 0; i < innerIters; i++) {
                 SearchResponse searchResponse = client().prepareSearch()
-                        .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
-                        .setPreference(preference)
-                        .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField("foo")))
-                        .get();
-                assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()),
-                        searchResponse.getShardFailures().length, CoreMatchers.equalTo(0));
+                    .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
+                    .setPreference(preference)
+                    .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField("foo")))
+                    .get();
+                assertThat(
+                    "Failures " + Arrays.toString(searchResponse.getShardFailures()),
+                    searchResponse.getShardFailures().length,
+                    CoreMatchers.equalTo(0)
+                );
                 final int hitCount = searchResponse.getHits().getHits().length;
                 final SearchHit[] currentHits = searchResponse.getHits().getHits();
                 ArrayUtil.timSort(currentHits, (o1, o2) -> {
@@ -154,7 +155,7 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
                 // randomly change some docs to get them in different segments
                 int numDocsToChange = randomIntBetween(20, 50);
                 while (numDocsToChange > 0) {
-                    int doc = randomInt(docCount-1);// watch out this is inclusive the max values!
+                    int doc = randomInt(docCount - 1);// watch out this is inclusive the max values!
                     index("test", "type", "" + doc, jsonBuilder().startObject().field("foo", doc).endObject());
                     --numDocsToChange;
                 }
@@ -165,15 +166,22 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
     }
 
     public void testScoreAccessWithinScript() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "body", "type=text", "index",
-                "type=" + randomFrom("short", "float", "long", "integer", "double")));
+        assertAcked(
+            prepareCreate("test").addMapping(
+                "type",
+                "body",
+                "type=text",
+                "index",
+                "type=" + randomFrom("short", "float", "long", "integer", "double")
+            )
+        );
 
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex("test", "type", "" + i)
-                    // we add 1 to the index field to make sure that the scripts below never compute log(0)
-                    .setSource("body", randomFrom(Arrays.asList("foo", "bar", "baz")), "index", i + 1)
-                    .get();
+                // we add 1 to the index field to make sure that the scripts below never compute log(0)
+                .setSource("body", randomFrom(Arrays.asList("foo", "bar", "baz")), "index", i + 1)
+                .get();
         }
         refresh();
 
@@ -182,80 +190,80 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
 
         // Test for accessing _score
         Script script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score))", params);
-        SearchResponse resp = client()
-                .prepareSearch("test")
-                .setQuery(
-                        functionScoreQuery(matchQuery("body", "foo"),
-                                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script))
-                                }
-                        ))
-                .get();
+        SearchResponse resp = client().prepareSearch("test")
+            .setQuery(
+                functionScoreQuery(
+                    matchQuery("body", "foo"),
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)) }
+                )
+            )
+            .get();
         assertNoFailures(resp);
         SearchHit firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.intValue()
         script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.intValue()))", params);
-        resp = client()
-                .prepareSearch("test")
-                .setQuery(
-                        functionScoreQuery(matchQuery("body", "foo"),
-                                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script))
-                                }
-                        ))
-                .get();
+        resp = client().prepareSearch("test")
+            .setQuery(
+                functionScoreQuery(
+                    matchQuery("body", "foo"),
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)) }
+                )
+            )
+            .get();
         assertNoFailures(resp);
         firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.longValue()
         script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.longValue()))", params);
-        resp = client()
-                .prepareSearch("test")
-                .setQuery(
-                        functionScoreQuery(matchQuery("body", "foo"),
-                                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script))
-                                }
-                        ))
-                .get();
+        resp = client().prepareSearch("test")
+            .setQuery(
+                functionScoreQuery(
+                    matchQuery("body", "foo"),
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)) }
+                )
+            )
+            .get();
         assertNoFailures(resp);
         firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.floatValue()
         script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.floatValue()))", params);
-        resp = client()
-                .prepareSearch("test")
-                .setQuery(
-                        functionScoreQuery(matchQuery("body", "foo"),
-                                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script))
-                                }
-                        ))
-                .get();
+        resp = client().prepareSearch("test")
+            .setQuery(
+                functionScoreQuery(
+                    matchQuery("body", "foo"),
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)) }
+                )
+            )
+            .get();
         assertNoFailures(resp);
         firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.doubleValue()
         script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.doubleValue()))", params);
-        resp = client()
-                .prepareSearch("test")
-                .setQuery(
-                        functionScoreQuery(matchQuery("body", "foo"),
-                                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
-                                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script))
-                                }
-                        ))
-                .get();
+        resp = client().prepareSearch("test")
+            .setQuery(
+                functionScoreQuery(
+                    matchQuery("body", "foo"),
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)) }
+                )
+            )
+            .get();
         assertNoFailures(resp);
         firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));
@@ -271,9 +279,9 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
         int seed = 12345678;
 
         SearchResponse resp = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField(SeqNoFieldMapper.NAME)))
-                .setExplain(true)
-                .get();
+            .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField(SeqNoFieldMapper.NAME)))
+            .setExplain(true)
+            .get();
         assertNoFailures(resp);
         assertEquals(1, resp.getHits().getTotalHits().value);
         SearchHit firstHit = resp.getHits().getAt(0);
@@ -285,14 +293,12 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         SearchResponse resp = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(1234).setField(SeqNoFieldMapper.NAME)))
-                .get();
+            .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(1234).setField(SeqNoFieldMapper.NAME)))
+            .get();
         assertNoFailures(resp);
         assertEquals(0, resp.getHits().getTotalHits().value);
 
-        resp = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()))
-                .get();
+        resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), randomFunction())).get();
         assertNoFailures(resp);
         assertEquals(0, resp.getHits().getTotalHits().value);
     }
@@ -311,9 +317,9 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; ++i) {
             SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()))
-                    .setSize(docCount)
-                    .get();
+                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()))
+                .setSize(docCount)
+                .get();
 
             assertNoFailures(searchResponse);
             for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -331,21 +337,31 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
         }
         flushAndRefresh();
 
-        assertNoFailures(client().prepareSearch()
+        assertNoFailures(
+            client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomInt()).setField(SeqNoFieldMapper.NAME)))
-                .get());
+                .get()
+        );
 
-        assertNoFailures(client().prepareSearch()
+        assertNoFailures(
+            client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomLong()).setField(SeqNoFieldMapper.NAME)))
-                .get());
+                .get()
+        );
 
-        assertNoFailures(client().prepareSearch()
+        assertNoFailures(
+            client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
-                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()
-                        .seed(randomRealisticUnicodeOfLengthBetween(10, 20)).setField(SeqNoFieldMapper.NAME)))
-                .get());
+                .setQuery(
+                    functionScoreQuery(
+                        matchAllQuery(),
+                        randomFunction().seed(randomRealisticUnicodeOfLengthBetween(10, 20)).setField(SeqNoFieldMapper.NAME)
+                    )
+                )
+                .get()
+        );
     }
 
     public void checkDistribution() throws Exception {
@@ -366,8 +382,8 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < count; i++) {
 
             SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(functionScoreQuery(matchAllQuery(), new RandomScoreFunctionBuilder()))
-                    .get();
+                .setQuery(functionScoreQuery(matchAllQuery(), new RandomScoreFunctionBuilder()))
+                .get();
 
             matrix[Integer.valueOf(searchResponse.getHits().getAt(0).getId())]++;
         }

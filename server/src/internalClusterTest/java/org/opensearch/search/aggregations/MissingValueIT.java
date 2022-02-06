@@ -67,17 +67,21 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx")
-                .addMapping("type", "date", "type=date", "location", "type=geo_point", "str", "type=keyword").get());
-        indexRandom(true,
-                client().prepareIndex("idx", "type", "1").setSource(),
-                client().prepareIndex("idx", "type", "2")
-                    .setSource("str", "foo", "long", 3L, "double", 5.5, "date", "2015-05-07", "location", "1,2"));
+        assertAcked(
+            prepareCreate("idx").addMapping("type", "date", "type=date", "location", "type=geo_point", "str", "type=keyword").get()
+        );
+        indexRandom(
+            true,
+            client().prepareIndex("idx", "type", "1").setSource(),
+            client().prepareIndex("idx", "type", "2")
+                .setSource("str", "foo", "long", 3L, "double", 5.5, "date", "2015-05-07", "location", "1,2")
+        );
     }
 
     public void testUnmappedTerms() {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("my_terms").field("non_existing_field").missing("bar")).get();
+            .addAggregation(terms("my_terms").field("non_existing_field").missing("bar"))
+            .get();
         assertSearchResponse(response);
         Terms terms = response.getAggregations().get("my_terms");
         assertEquals(1, terms.getBuckets().size());
@@ -86,11 +90,9 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
 
     public void testStringTerms() {
         for (ExecutionMode mode : ExecutionMode.values()) {
-            SearchResponse response = client().prepareSearch("idx").addAggregation(
-                    terms("my_terms")
-                        .field("str")
-                        .executionHint(mode.toString())
-                        .missing("bar")).get();
+            SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(terms("my_terms").field("str").executionHint(mode.toString()).missing("bar"))
+                .get();
             assertSearchResponse(response);
             Terms terms = response.getAggregations().get("my_terms");
             assertEquals(2, terms.getBuckets().size());
@@ -106,16 +108,14 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
     }
 
     public void testLongTerms() {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("my_terms").field("long").missing(4)).get();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("my_terms").field("long").missing(4)).get();
         assertSearchResponse(response);
         Terms terms = response.getAggregations().get("my_terms");
         assertEquals(2, terms.getBuckets().size());
         assertEquals(1, terms.getBucketByKey("3").getDocCount());
         assertEquals(1, terms.getBucketByKey("4").getDocCount());
 
-        response = client().prepareSearch("idx")
-                .addAggregation(terms("my_terms").field("long").missing(3)).get();
+        response = client().prepareSearch("idx").addAggregation(terms("my_terms").field("long").missing(3)).get();
         assertSearchResponse(response);
         terms = response.getAggregations().get("my_terms");
         assertEquals(1, terms.getBuckets().size());
@@ -123,8 +123,7 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
     }
 
     public void testDoubleTerms() {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("my_terms").field("double").missing(4.5)).get();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("my_terms").field("double").missing(4.5)).get();
         assertSearchResponse(response);
         Terms terms = response.getAggregations().get("my_terms");
         assertEquals(2, terms.getBuckets().size());
@@ -140,7 +139,8 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
 
     public void testUnmappedHistogram() {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("my_histogram").field("non-existing_field").interval(5).missing(12)).get();
+            .addAggregation(histogram("my_histogram").field("non-existing_field").interval(5).missing(12))
+            .get();
         assertSearchResponse(response);
         Histogram histogram = response.getAggregations().get("my_histogram");
         assertEquals(1, histogram.getBuckets().size());
@@ -150,7 +150,8 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
 
     public void testHistogram() {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("my_histogram").field("long").interval(5).missing(7)).get();
+            .addAggregation(histogram("my_histogram").field("long").interval(5).missing(7))
+            .get();
         assertSearchResponse(response);
         Histogram histogram = response.getAggregations().get("my_histogram");
         assertEquals(2, histogram.getBuckets().size());
@@ -159,8 +160,7 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
         assertEquals(5d, histogram.getBuckets().get(1).getKey());
         assertEquals(1, histogram.getBuckets().get(1).getDocCount());
 
-        response = client().prepareSearch("idx")
-                .addAggregation(histogram("my_histogram").field("long").interval(5).missing(3)).get();
+        response = client().prepareSearch("idx").addAggregation(histogram("my_histogram").field("long").interval(5).missing(3)).get();
         assertSearchResponse(response);
         histogram = response.getAggregations().get("my_histogram");
         assertEquals(1, histogram.getBuckets().size());
@@ -170,9 +170,8 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
 
     public void testDateHistogram() {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                        dateHistogram("my_histogram").field("date").calendarInterval(DateHistogramInterval.YEAR).missing("2014-05-07"))
-                .get();
+            .addAggregation(dateHistogram("my_histogram").field("date").calendarInterval(DateHistogramInterval.YEAR).missing("2014-05-07"))
+            .get();
         assertSearchResponse(response);
         Histogram histogram = response.getAggregations().get("my_histogram");
         assertEquals(2, histogram.getBuckets().size());
@@ -182,9 +181,8 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
         assertEquals(1, histogram.getBuckets().get(1).getDocCount());
 
         response = client().prepareSearch("idx")
-                .addAggregation(
-                        dateHistogram("my_histogram").field("date").calendarInterval(DateHistogramInterval.YEAR).missing("2015-05-07"))
-                .get();
+            .addAggregation(dateHistogram("my_histogram").field("date").calendarInterval(DateHistogramInterval.YEAR).missing("2015-05-07"))
+            .get();
         assertSearchResponse(response);
         histogram = response.getAggregations().get("my_histogram");
         assertEquals(1, histogram.getBuckets().size());
@@ -193,8 +191,7 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
     }
 
     public void testCardinality() {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(cardinality("card").field("long").missing(2)).get();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(cardinality("card").field("long").missing(2)).get();
         assertSearchResponse(response);
         Cardinality cardinality = response.getAggregations().get("card");
         assertEquals(2, cardinality.getValue());
@@ -202,15 +199,15 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
 
     public void testPercentiles() {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(percentiles("percentiles").field("long").missing(1000)).get();
+            .addAggregation(percentiles("percentiles").field("long").missing(1000))
+            .get();
         assertSearchResponse(response);
         Percentiles percentiles = response.getAggregations().get("percentiles");
         assertEquals(1000, percentiles.percentile(100), 0);
     }
 
     public void testStats() {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(stats("stats").field("long").missing(5)).get();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(stats("stats").field("long").missing(5)).get();
         assertSearchResponse(response);
         Stats stats = response.getAggregations().get("stats");
         assertEquals(2, stats.getCount());
@@ -219,7 +216,8 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
 
     public void testUnmappedGeoBounds() {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(geoBounds("bounds").field("non_existing_field").missing("2,1")).get();
+            .addAggregation(geoBounds("bounds").field("non_existing_field").missing("2,1"))
+            .get();
         assertSearchResponse(response);
         GeoBounds bounds = response.getAggregations().get("bounds");
         assertThat(bounds.bottomRight().lat(), closeTo(2.0, 1E-5));
@@ -229,8 +227,7 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
     }
 
     public void testGeoBounds() {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(geoBounds("bounds").field("location").missing("2,1")).get();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(geoBounds("bounds").field("location").missing("2,1")).get();
         assertSearchResponse(response);
         GeoBounds bounds = response.getAggregations().get("bounds");
         assertThat(bounds.bottomRight().lat(), closeTo(1.0, 1E-5));
@@ -241,7 +238,8 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
 
     public void testGeoCentroid() {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(geoCentroid("centroid").field("location").missing("2,1")).get();
+            .addAggregation(geoCentroid("centroid").field("location").missing("2,1"))
+            .get();
         assertSearchResponse(response);
         GeoCentroid centroid = response.getAggregations().get("centroid");
         GeoPoint point = new GeoPoint(1.5, 1.5);

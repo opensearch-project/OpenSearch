@@ -64,7 +64,6 @@ import org.opensearch.index.analysis.LowercaseNormalizer;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
-import org.opensearch.index.mapper.FieldTypeTestCase;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
 
@@ -79,10 +78,19 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinQuery() throws IOException {
         KeywordFieldType ft = new KeywordFieldType("field");
         // current impl ignores args and should always return INTERSECTS
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
-            RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
-            RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
-            randomBoolean(), randomBoolean(), null, null, null));
+        assertEquals(
+            Relation.INTERSECTS,
+            ft.isFieldWithinQuery(
+                null,
+                RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
+                RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
+                randomBoolean(),
+                randomBoolean(),
+                null,
+                null,
+                null
+            )
+        );
     }
 
     public void testTermQuery() {
@@ -90,8 +98,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", null));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> unsearchable.termQuery("bar", null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
@@ -103,6 +110,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 TokenFilter out = new LowerCaseFilter(in);
                 return new TokenStreamComponents(in, out);
             }
+
             @Override
             protected TokenStream normalize(String fieldName, TokenStream in) {
                 return new LowerCaseFilter(in);
@@ -117,12 +125,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
         terms.add(new BytesRef("bar"));
-        assertEquals(new TermInSetQuery("field", terms),
-                ft.termsQuery(Arrays.asList("foo", "bar"), null));
+        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), null));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null)
+        );
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
@@ -145,46 +154,58 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testRangeQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
-                ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC));
+        assertEquals(
+            new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
+            ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC)
+        );
 
-        OpenSearchException ee = expectThrows(OpenSearchException.class,
-                () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +
-                "'search.allow_expensive_queries' is set to false.", ee.getMessage());
+        OpenSearchException ee = expectThrows(
+            OpenSearchException.class,
+            () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC_DISALLOW_EXPENSIVE)
+        );
+        assertEquals(
+            "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
+            ee.getMessage()
+        );
     }
 
     public void testRegexpQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new RegexpQuery(new Term("field","foo.*")),
-                ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
+        assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC)
+        );
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
 
-        OpenSearchException ee = expectThrows(OpenSearchException.class,
-                () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
-                ee.getMessage());
+        OpenSearchException ee = expectThrows(
+            OpenSearchException.class,
+            () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE)
+        );
+        assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testFuzzyQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new FuzzyQuery(new Term("field","foo"), 2, 1, 50, true),
-                ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
+        assertEquals(
+            new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true),
+            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC)
+        );
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC)
+        );
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
 
-        OpenSearchException ee = expectThrows(OpenSearchException.class,
-                () -> ft.fuzzyQuery("foo", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1,
-                        randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE));
-        assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
-                ee.getMessage());
+        OpenSearchException ee = expectThrows(
+            OpenSearchException.class,
+            () -> ft.fuzzyQuery("foo", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1, randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE)
+        );
+        assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testNormalizeQueries() {
@@ -206,10 +227,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
         assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
 
-        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
-            .ignoreAbove(4)
-            .build(context)
-            .fieldType();
+        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field").ignoreAbove(4).build(context).fieldType();
         assertEquals(Collections.emptyList(), fetchSourceValue(ignoreAboveMapper, "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper, true));
@@ -221,10 +239,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Collections.singletonList("42"), fetchSourceValue(normalizerMapper, 42L));
         assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "value"));
 
-        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field")
-            .nullValue("NULL")
-            .build(context)
-            .fieldType();
+        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field").nullValue("NULL").build(context).fieldType();
         assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 
@@ -232,10 +247,14 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         return new IndexAnalyzers(
             org.opensearch.common.collect.Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             org.opensearch.common.collect.Map.ofEntries(
-                org.opensearch.common.collect.Map.entry("lowercase",
-                    new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
-                org.opensearch.common.collect.Map.entry("other_lowercase",
-                    new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
+                org.opensearch.common.collect.Map.entry(
+                    "lowercase",
+                    new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
+                ),
+                org.opensearch.common.collect.Map.entry(
+                    "other_lowercase",
+                    new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
+                )
             ),
             org.opensearch.common.collect.Map.of(
                 "lowercase",

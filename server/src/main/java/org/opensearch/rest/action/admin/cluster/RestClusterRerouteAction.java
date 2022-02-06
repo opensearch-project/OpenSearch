@@ -60,13 +60,17 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 public class RestClusterRerouteAction extends BaseRestHandler {
     private static final ObjectParser<ClusterRerouteRequest, Void> PARSER = new ObjectParser<>("cluster_reroute");
     static {
-        PARSER.declareField((p, v, c) -> v.commands(AllocationCommands.fromXContent(p)), new ParseField("commands"),
-                ValueType.OBJECT_ARRAY);
+        PARSER.declareField(
+            (p, v, c) -> v.commands(AllocationCommands.fromXContent(p)),
+            new ParseField("commands"),
+            ValueType.OBJECT_ARRAY
+        );
         PARSER.declareBoolean(ClusterRerouteRequest::dryRun, new ParseField("dry_run"));
     }
 
-    private static final String DEFAULT_METRICS = Strings
-            .arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
+    private static final String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(
+        EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray()
+    );
 
     private final SettingsFilter settingsFilter;
 

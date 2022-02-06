@@ -97,9 +97,11 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
         final int numRanges = randomIntBetween(1, 10);
         BinaryRangeAggregator.Range[] ranges = new BinaryRangeAggregator.Range[numRanges];
         for (int i = 0; i < numRanges; ++i) {
-            ranges[i] = new BinaryRangeAggregator.Range(Integer.toString(i),
-                    randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))),
-                    randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))));
+            ranges[i] = new BinaryRangeAggregator.Range(
+                Integer.toString(i),
+                randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))),
+                randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2)))
+            );
         }
         Arrays.sort(ranges, BinaryRangeAggregator.RANGE_COMPARATOR);
 
@@ -132,7 +134,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
                 for (long ord : ords) {
                     BytesRef term = terms[(int) ord];
                     if ((ranges[i].from == null || ranges[i].from.compareTo(term) <= 0)
-                            && (ranges[i].to == null || ranges[i].to.compareTo(term) > 0)) {
+                        && (ranges[i].to == null || ranges[i].to.compareTo(term) > 0)) {
                         expectedCounts[i]++;
                         break;
                     }
@@ -196,9 +198,11 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
         final int numRanges = randomIntBetween(1, 10);
         BinaryRangeAggregator.Range[] ranges = new BinaryRangeAggregator.Range[numRanges];
         for (int i = 0; i < numRanges; ++i) {
-            ranges[i] = new BinaryRangeAggregator.Range(Integer.toString(i),
-                    randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))),
-                    randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))));
+            ranges[i] = new BinaryRangeAggregator.Range(
+                Integer.toString(i),
+                randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))),
+                randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2)))
+            );
         }
         Arrays.sort(ranges, BinaryRangeAggregator.RANGE_COMPARATOR);
 
@@ -231,7 +235,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
                 for (long ord : ords) {
                     BytesRef term = terms[(int) ord];
                     if ((ranges[i].from == null || ranges[i].from.compareTo(term) <= 0)
-                            && (ranges[i].to == null || ranges[i].to.compareTo(term) > 0)) {
+                        && (ranges[i].to == null || ranges[i].to.compareTo(term) > 0)) {
                         expectedCounts[i]++;
                         break;
                     }

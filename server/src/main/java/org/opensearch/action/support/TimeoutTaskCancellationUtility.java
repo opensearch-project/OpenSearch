@@ -42,10 +42,15 @@ public class TimeoutTaskCancellationUtility {
      * @param listener - original listener associated with the task
      * @return wrapped listener
      */
-    public static <Response> ActionListener<Response>  wrapWithCancellationListener(NodeClient client, CancellableTask taskToCancel,
-        ClusterSettings clusterSettings, ActionListener<Response> listener) {
+    public static <Response> ActionListener<Response> wrapWithCancellationListener(
+        NodeClient client,
+        CancellableTask taskToCancel,
+        ClusterSettings clusterSettings,
+        ActionListener<Response> listener
+    ) {
         final TimeValue globalTimeout = clusterSettings.get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
-        final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null) ? globalTimeout
+        final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null)
+            ? globalTimeout
             : taskToCancel.getCancellationTimeout();
         // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
         // set to null and cluster level set to -1.
@@ -60,12 +65,25 @@ public class TimeoutTaskCancellationUtility {
                 cancelTasksRequest.setTaskId(new TaskId(client.getLocalNodeId(), taskToCancel.getId()));
                 cancelTasksRequest.setReason("Cancellation timeout of " + timeoutInterval + " is expired");
                 // force the origin to execute the cancellation as a system user
-                new OriginSettingClient(client, TASKS_ORIGIN).admin().cluster()
-                    .cancelTasks(cancelTasksRequest, ActionListener.wrap(r -> logger.debug(
-                        "Scheduled cancel task with timeout: {} for original task: {} is successfully completed", timeoutInterval,
-                        cancelTasksRequest.getTaskId()),
-                        e -> logger.error(new ParameterizedMessage("Scheduled cancel task with timeout: {} for original task: {} is failed",
-                            timeoutInterval, cancelTasksRequest.getTaskId()), e))
+                new OriginSettingClient(client, TASKS_ORIGIN).admin()
+                    .cluster()
+                    .cancelTasks(
+                        cancelTasksRequest,
+                        ActionListener.wrap(
+                            r -> logger.debug(
+                                "Scheduled cancel task with timeout: {} for original task: {} is successfully completed",
+                                timeoutInterval,
+                                cancelTasksRequest.getTaskId()
+                            ),
+                            e -> logger.error(
+                                new ParameterizedMessage(
+                                    "Scheduled cancel task with timeout: {} for original task: {} is failed",
+                                    timeoutInterval,
+                                    cancelTasksRequest.getTaskId()
+                                ),
+                                e
+                            )
+                        )
                     );
             });
             wrappedListener.cancellable = client.threadPool().schedule(wrappedListener, timeoutInterval, ThreadPool.Names.GENERIC);
@@ -101,32 +119,42 @@ public class TimeoutTaskCancellationUtility {
             this.creationTime = System.nanoTime();
         }
 
-        @Override public void onResponse(Response response) {
+        @Override
+        public void onResponse(Response response) {
             checkAndCancel();
             originalListener.onResponse(response);
         }
 
-        @Override public void onFailure(Exception e) {
+        @Override
+        public void onFailure(Exception e) {
             checkAndCancel();
             originalListener.onFailure(e);
         }
 
-        @Override public void run() {
+        @Override
+        public void run() {
             try {
                 if (executeRunnable.compareAndSet(true, false)) {
                     timeoutRunnable.run();
                 } // else do nothing since either response/failure is already sent to client
             } catch (Exception ex) {
                 // ignore the exception
-                logger.error(new ParameterizedMessage("Ignoring the failure to run the provided runnable after timeout of {} with " +
-                    "exception", timeout), ex);
+                logger.error(
+                    new ParameterizedMessage(
+                        "Ignoring the failure to run the provided runnable after timeout of {} with " + "exception",
+                        timeout
+                    ),
+                    ex
+                );
             }
         }
 
         private void checkAndCancel() {
             if (executeRunnable.compareAndSet(true, false)) {
-                logger.debug("Aborting the scheduled cancel task after {}",
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - creationTime));
+                logger.debug(
+                    "Aborting the scheduled cancel task after {}",
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - creationTime)
+                );
                 // timer has not yet expired so cancel it
                 cancellable.cancel();
             }

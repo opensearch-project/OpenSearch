@@ -66,22 +66,41 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class TransportAddVotingConfigExclusionsAction extends TransportMasterNodeAction<AddVotingConfigExclusionsRequest,
+public class TransportAddVotingConfigExclusionsAction extends TransportMasterNodeAction<
+    AddVotingConfigExclusionsRequest,
     AddVotingConfigExclusionsResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportAddVotingConfigExclusionsAction.class);
 
-    public static final Setting<Integer> MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING
-        = Setting.intSetting("cluster.max_voting_config_exclusions", 10, 1, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING = Setting.intSetting(
+        "cluster.max_voting_config_exclusions",
+        10,
+        1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private volatile int maxVotingConfigExclusions;
 
     @Inject
-    public TransportAddVotingConfigExclusionsAction(Settings settings, ClusterSettings clusterSettings, TransportService transportService,
-                                                    ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                                    IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(AddVotingConfigExclusionsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            AddVotingConfigExclusionsRequest::new, indexNameExpressionResolver);
+    public TransportAddVotingConfigExclusionsAction(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            AddVotingConfigExclusionsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            AddVotingConfigExclusionsRequest::new,
+            indexNameExpressionResolver
+        );
 
         maxVotingConfigExclusions = MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING, this::setMaxVotingConfigExclusions);
@@ -102,8 +121,11 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
     }
 
     @Override
-    protected void masterOperation(AddVotingConfigExclusionsRequest request, ClusterState state,
-                                   ActionListener<AddVotingConfigExclusionsResponse> listener) throws Exception {
+    protected void masterOperation(
+        AddVotingConfigExclusionsRequest request,
+        ClusterState state,
+        ActionListener<AddVotingConfigExclusionsResponse> listener
+    ) throws Exception {
 
         resolveVotingConfigExclusionsAndCheckMaximum(request, state, maxVotingConfigExclusions);
         // throws IAE if no nodes matched or maximum exceeded
@@ -134,10 +156,15 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
 
-                final ClusterStateObserver observer
-                    = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
+                final ClusterStateObserver observer = new ClusterStateObserver(
+                    clusterService,
+                    request.getTimeout(),
+                    logger,
+                    threadPool.getThreadContext()
+                );
 
-                final Set<String> excludedNodeIds = resolvedExclusions.stream().map(VotingConfigExclusion::getNodeId)
+                final Set<String> excludedNodeIds = resolvedExclusions.stream()
+                    .map(VotingConfigExclusion::getNodeId)
                     .collect(Collectors.toSet());
 
                 final Predicate<ClusterState> allNodesRemoved = clusterState -> {
@@ -153,14 +180,22 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
 
                     @Override
                     public void onClusterServiceClose() {
-                        listener.onFailure(new OpenSearchException("cluster service closed while waiting for voting config exclusions " +
-                            resolvedExclusions + " to take effect"));
+                        listener.onFailure(
+                            new OpenSearchException(
+                                "cluster service closed while waiting for voting config exclusions "
+                                    + resolvedExclusions
+                                    + " to take effect"
+                            )
+                        );
                     }
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        listener.onFailure(new OpenSearchTimeoutException("timed out waiting for voting config exclusions "
-                            + resolvedExclusions + " to take effect"));
+                        listener.onFailure(
+                            new OpenSearchTimeoutException(
+                                "timed out waiting for voting config exclusions " + resolvedExclusions + " to take effect"
+                            )
+                        );
                     }
                 };
 
@@ -173,11 +208,16 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
         });
     }
 
-    private static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(AddVotingConfigExclusionsRequest request,
-                                                                                           ClusterState state,
-                                                                                           int maxVotingConfigExclusions) {
-        return request.resolveVotingConfigExclusionsAndCheckMaximum(state, maxVotingConfigExclusions,
-            MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey());
+    private static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
+        AddVotingConfigExclusionsRequest request,
+        ClusterState state,
+        int maxVotingConfigExclusions
+    ) {
+        return request.resolveVotingConfigExclusionsAndCheckMaximum(
+            state,
+            maxVotingConfigExclusions,
+            MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey()
+        );
     }
 
     @Override

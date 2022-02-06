@@ -35,8 +35,6 @@ package org.opensearch.action.bulk;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.bulk.BulkItemRequest;
-import org.opensearch.action.bulk.BulkShardRequest;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 

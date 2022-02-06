@@ -31,10 +31,7 @@ public class DataStreamUsageIT extends DataStreamTestCase {
 
     public void testDataStreamCrudAPIs() throws Exception {
         // Data stream creation without a matching index template should fail.
-        ExecutionException exception = expectThrows(
-            ExecutionException.class,
-            () -> createDataStream("test-data-stream")
-        );
+        ExecutionException exception = expectThrows(ExecutionException.class, () -> createDataStream("test-data-stream"));
         assertThat(exception.getMessage(), containsString("no matching index template found for data stream"));
 
         // Create an index template for data streams.
@@ -96,42 +93,34 @@ public class DataStreamUsageIT extends DataStreamTestCase {
         Exception exception;
 
         // Only op_type=create requests should be allowed.
-        exception = expectThrows(Exception.class, () -> index(
-            new IndexRequest("logs-demo")
-                .id("doc-1")
-                .source("{}", XContentType.JSON)
-        ));
-        assertThat(
-            exception.getMessage(),
-            containsString("only write ops with an op_type of create are allowed in data streams")
-        );
+        exception = expectThrows(Exception.class, () -> index(new IndexRequest("logs-demo").id("doc-1").source("{}", XContentType.JSON)));
+        assertThat(exception.getMessage(), containsString("only write ops with an op_type of create are allowed in data streams"));
 
         // Documents must contain a valid timestamp field.
-        exception = expectThrows(Exception.class, () -> index(
-            new IndexRequest("logs-demo")
-                .id("doc-1")
-                .source("{}", XContentType.JSON)
-                .opType(DocWriteRequest.OpType.CREATE)
-        ));
+        exception = expectThrows(
+            Exception.class,
+            () -> index(new IndexRequest("logs-demo").id("doc-1").source("{}", XContentType.JSON).opType(DocWriteRequest.OpType.CREATE))
+        );
         assertThat(
             exception.getMessage(),
             containsString("documents must contain a single-valued timestamp field '" + timestampFieldName + "' of date type")
         );
 
         // The timestamp field cannot have multiple values.
-        exception = expectThrows(Exception.class, () -> index(
-            new IndexRequest("logs-demo")
-                .id("doc-1")
-                .opType(DocWriteRequest.OpType.CREATE)
-                .source(
-                    XContentFactory
-                        .jsonBuilder()
-                        .startObject()
-                        .array(timestampFieldName, "2020-12-06T11:04:05.000Z", "2020-12-07T11:04:05.000Z")
-                        .field("message", "User registration successful")
-                        .endObject()
-                )
-        ));
+        exception = expectThrows(
+            Exception.class,
+            () -> index(
+                new IndexRequest("logs-demo").id("doc-1")
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .array(timestampFieldName, "2020-12-06T11:04:05.000Z", "2020-12-07T11:04:05.000Z")
+                            .field("message", "User registration successful")
+                            .endObject()
+                    )
+            )
+        );
         assertThat(
             exception.getMessage(),
             containsString("documents must contain a single-valued timestamp field '" + timestampFieldName + "' of date type")
@@ -139,12 +128,10 @@ public class DataStreamUsageIT extends DataStreamTestCase {
 
         // Successful case.
         IndexResponse response = index(
-            new IndexRequest("logs-demo")
-                .id("doc-1")
+            new IndexRequest("logs-demo").id("doc-1")
                 .opType(DocWriteRequest.OpType.CREATE)
                 .source(
-                    XContentFactory
-                        .jsonBuilder()
+                    XContentFactory.jsonBuilder()
                         .startObject()
                         .field(timestampFieldName, "2020-12-06T11:04:05.000Z")
                         .field("message", "User registration successful")
@@ -158,12 +145,10 @@ public class DataStreamUsageIT extends DataStreamTestCase {
         // Perform a rollover and ingest more documents.
         rolloverDataStream("logs-demo");
         response = index(
-            new IndexRequest("logs-demo")
-                .id("doc-2")
+            new IndexRequest("logs-demo").id("doc-2")
                 .opType(DocWriteRequest.OpType.CREATE)
                 .source(
-                    XContentFactory
-                        .jsonBuilder()
+                    XContentFactory.jsonBuilder()
                         .startObject()
                         .field(timestampFieldName, "2020-12-06T11:04:05.000Z")
                         .field("message", "User registration successful")

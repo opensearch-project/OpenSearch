@@ -74,7 +74,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         } // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
     }, Property.IndexScope, Property.NodeScope);
 
-
     @Override
     public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
         final Path location = path.resolveIndex();
@@ -84,16 +83,15 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
-        final String storeType =
-                indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
+        final String storeType = indexSettings.getSettings()
+            .get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
         IndexModule.Type type;
         if (IndexModule.Type.FS.match(storeType)) {
             type = IndexModule.defaultStoreType(IndexModule.NODE_STORE_ALLOW_MMAP.get(indexSettings.getNodeSettings()));
         } else {
             type = IndexModule.Type.fromSettingsKey(storeType);
         }
-        Set<String> preLoadExtensions = new HashSet<>(
-            indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
+        Set<String> preLoadExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
         switch (type) {
             case HYBRIDFS:
                 // Use Lucene defaults
@@ -107,9 +105,13 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case MMAPFS:
                 return setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
             case SIMPLEFS:
-                DEPRECATION_LOGGER.deprecate(IndexModule.Type.SIMPLEFS.getSettingsKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()
-                    + " is no longer supported and will be removed in 2.0. Use [" + IndexModule.Type.NIOFS.getSettingsKey()
-                    + "], which offers equal or better performance, instead.");
+                DEPRECATION_LOGGER.deprecate(
+                    IndexModule.Type.SIMPLEFS.getSettingsKey(),
+                    IndexModule.Type.SIMPLEFS.getSettingsKey()
+                        + " is no longer supported and will be removed in 2.0. Use ["
+                        + IndexModule.Type.NIOFS.getSettingsKey()
+                        + "], which offers equal or better performance, instead."
+                );
                 return new SimpleFSDirectory(location, lockFactory);
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
@@ -118,8 +120,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
-    public static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory,
-            Set<String> preLoadExtensions) throws IOException {
+    public static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory, Set<String> preLoadExtensions)
+        throws IOException {
         assert mMapDirectory.getPreload() == false;
         if (preLoadExtensions.isEmpty() == false) {
             if (preLoadExtensions.contains("*")) {
@@ -170,26 +172,26 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         boolean useDelegate(String name) {
             String extension = FileSwitchDirectory.getExtension(name);
-            switch(extension) {
+            switch (extension) {
                 // Norms, doc values and term dictionaries are typically performance-sensitive and hot in the page
                 // cache, so we use mmap, which provides better performance.
                 case "nvd":
                 case "dvd":
                 case "tim":
-                // We want to open the terms index and KD-tree index off-heap to save memory, but this only performs
-                // well if using mmap.
+                    // We want to open the terms index and KD-tree index off-heap to save memory, but this only performs
+                    // well if using mmap.
                 case "tip":
-                // dim files only apply up to lucene 8.x indices. It can be removed once we are in lucene 10
+                    // dim files only apply up to lucene 8.x indices. It can be removed once we are in lucene 10
                 case "dim":
                 case "kdd":
                 case "kdi":
-                // Compound files are tricky because they store all the information for the segment. Benchmarks
-                // suggested that not mapping them hurts performance.
+                    // Compound files are tricky because they store all the information for the segment. Benchmarks
+                    // suggested that not mapping them hurts performance.
                 case "cfs":
-                // MMapDirectory has special logic to read long[] arrays in little-endian order that helps speed
-                // up the decoding of postings. The same logic applies to positions (.pos) of offsets (.pay) but we
-                // are not mmaping them as queries that leverage positions are more costly and the decoding of postings
-                // tends to be less a bottleneck.
+                    // MMapDirectory has special logic to read long[] arrays in little-endian order that helps speed
+                    // up the decoding of postings. The same logic applies to positions (.pos) of offsets (.pay) but we
+                    // are not mmaping them as queries that leverage positions are more costly and the decoding of postings
+                    // tends to be less a bottleneck.
                 case "doc":
                     return true;
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
@@ -204,6 +206,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             return delegate;
         }
     }
+
     // TODO it would be nice to share code between PreLoadMMapDirectory and HybridDirectory but due to the nesting aspect of
     // directories here makes it tricky. It would be nice to allow MMAPDirectory to pre-load on a per IndexInput basis.
     static final class PreLoadMMapDirectory extends MMapDirectory {

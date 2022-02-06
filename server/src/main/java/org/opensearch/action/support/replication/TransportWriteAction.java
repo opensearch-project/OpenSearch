@@ -49,7 +49,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.shard.IndexShard;
@@ -71,27 +71,50 @@ import java.util.function.Function;
  * Allows performing async actions (e.g. refresh) after performing write operations on primary and replica shards
  */
 public abstract class TransportWriteAction<
-            Request extends ReplicatedWriteRequest<Request>,
-            ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
-            Response extends ReplicationResponse & WriteResponse
-        > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
+    Request extends ReplicatedWriteRequest<Request>,
+    ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
+    Response extends ReplicationResponse & WriteResponse> extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
-    protected final IndexingPressure indexingPressure;
+    protected final IndexingPressureService indexingPressureService;
     protected final SystemIndices systemIndices;
 
     private final Function<IndexShard, String> executorFunction;
 
-    protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
-                                   ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
-                                   ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
-                                   Writeable.Reader<ReplicaRequest> replicaRequest, Function<IndexShard, String> executorFunction,
-                                   boolean forceExecutionOnPrimary, IndexingPressure indexingPressure, SystemIndices systemIndices) {
+    protected TransportWriteAction(
+        Settings settings,
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        Writeable.Reader<ReplicaRequest> replicaRequest,
+        Function<IndexShard, String> executorFunction,
+        boolean forceExecutionOnPrimary,
+        IndexingPressureService indexingPressureService,
+        SystemIndices systemIndices
+    ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
-        super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
+        super(
+            settings,
+            actionName,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            request,
+            replicaRequest,
+            ThreadPool.Names.SAME,
+            true,
+            forceExecutionOnPrimary
+        );
         this.executorFunction = executorFunction;
-        this.indexingPressure = indexingPressure;
+        this.indexingPressureService = indexingPressureService;
         this.systemIndices = systemIndices;
     }
 
@@ -101,7 +124,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+        return indexingPressureService.markPrimaryOperationStarted(request.shardId, primaryOperationSize(request), force(request));
     }
 
     protected boolean force(ReplicatedWriteRequest<?> request) {
@@ -119,7 +142,10 @@ public abstract class TransportWriteAction<
             // If this primary request was received from a local reroute initiated by the node client, we
             // must mark a new primary operation local to the coordinating node.
             if (localRerouteInitiatedByNodeClient) {
-                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationSize(request));
+                return indexingPressureService.markPrimaryOperationLocalToCoordinatingNodeStarted(
+                    request.shardId,
+                    primaryOperationSize(request)
+                );
             } else {
                 return () -> {};
             }
@@ -127,7 +153,7 @@ public abstract class TransportWriteAction<
             // If this primary request was received directly from the network, we must mark a new primary
             // operation. This happens if the write action skips the reroute step (ex: rsync) or during
             // primary delegation, after the primary relocation hand-off.
-            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+            return indexingPressureService.markPrimaryOperationStarted(request.shardId, primaryOperationSize(request), force(request));
         }
     }
 
@@ -137,7 +163,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), force(request));
+        return indexingPressureService.markReplicaOperationStarted(request.shardId, replicaOperationSize(request), force(request));
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
@@ -145,8 +171,8 @@ public abstract class TransportWriteAction<
     }
 
     /** Syncs operation result to the translog or throws a shard not available failure */
-    protected static Location syncOperationResultOrThrow(final Engine.Result operationResult,
-                                                         final Location currentLocation) throws Exception {
+    protected static Location syncOperationResultOrThrow(final Engine.Result operationResult, final Location currentLocation)
+        throws Exception {
         final Location location;
         if (operationResult.getFailure() != null) {
             // check if any transient write operation failures should be bubbled up
@@ -166,8 +192,7 @@ public abstract class TransportWriteAction<
          * locations even though they are not in the same file. When the translog rolls over files
          * the previous file is fsynced on after closing if needed.*/
         assert next != null : "next operation can't be null";
-        assert current == null || current.compareTo(next) < 0 :
-                "translog locations are not increasing";
+        assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
         return next;
     }
 
@@ -184,7 +209,10 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnPrimary(
-            Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
+        Request request,
+        IndexShard primary,
+        ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
+    ) {
         final String executor = executorFunction.apply(primary);
         threadPool.executor(executor).execute(new ActionRunnable<PrimaryResult<ReplicaRequest, Response>>(listener) {
             @Override
@@ -200,7 +228,10 @@ public abstract class TransportWriteAction<
     }
 
     protected abstract void dispatchedShardOperationOnPrimary(
-        Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
+        Request request,
+        IndexShard primary,
+        ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
+    );
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
@@ -225,29 +256,41 @@ public abstract class TransportWriteAction<
     }
 
     protected abstract void dispatchedShardOperationOnReplica(
-        ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener);
+        ReplicaRequest request,
+        IndexShard replica,
+        ActionListener<ReplicaResult> listener
+    );
 
     /**
      * Result of taking the action on the primary.
      *
      * NOTE: public for testing
      */
-    public static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
-            Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response> {
+    public static class WritePrimaryResult<
+        ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
+        Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response> {
         public final Location location;
         public final IndexShard primary;
         private final Logger logger;
 
-        public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
-                                  @Nullable Location location, @Nullable Exception operationFailure,
-                                  IndexShard primary, Logger logger) {
+        public WritePrimaryResult(
+            ReplicaRequest request,
+            @Nullable Response finalResponse,
+            @Nullable Location location,
+            @Nullable Exception operationFailure,
+            IndexShard primary,
+            Logger logger
+        ) {
             super(request, finalResponse, operationFailure);
             this.location = location;
             this.primary = primary;
             this.logger = logger;
-            assert location == null || operationFailure == null
-                    : "expected either failure to be null or translog location to be null, " +
-                    "but found: [" + location + "] translog location and [" + operationFailure + "] failure";
+            assert location == null || operationFailure == null : "expected either failure to be null or translog location to be null, "
+                + "but found: ["
+                + location
+                + "] translog location and ["
+                + operationFailure
+                + "] failure";
         }
 
         @Override
@@ -284,8 +327,13 @@ public abstract class TransportWriteAction<
         private final IndexShard replica;
         private final Logger logger;
 
-        public WriteReplicaResult(ReplicaRequest request, @Nullable Location location,
-                                  @Nullable Exception operationFailure, IndexShard replica, Logger logger) {
+        public WriteReplicaResult(
+            ReplicaRequest request,
+            @Nullable Location location,
+            @Nullable Exception operationFailure,
+            IndexShard replica,
+            Logger logger
+        ) {
             super(operationFailure);
             this.location = location;
             this.request = request;
@@ -357,11 +405,13 @@ public abstract class TransportWriteAction<
         private final WriteRequest<?> request;
         private final Logger logger;
 
-        AsyncAfterWriteAction(final IndexShard indexShard,
-                             final WriteRequest<?> request,
-                             @Nullable final Translog.Location location,
-                             final RespondingWriteResult respond,
-                             final Logger logger) {
+        AsyncAfterWriteAction(
+            final IndexShard indexShard,
+            final WriteRequest<?> request,
+            @Nullable final Translog.Location location,
+            final RespondingWriteResult respond,
+            final Logger logger
+        ) {
             this.indexShard = indexShard;
             this.request = request;
             boolean waitUntilRefresh = false;
@@ -401,7 +451,7 @@ public abstract class TransportWriteAction<
                     respond.onSuccess(refreshed.get());
                 }
             }
-            assert numPending >= 0 && numPending <= 2: "numPending must either 2, 1 or 0 but was " + numPending ;
+            assert numPending >= 0 && numPending <= 2 : "numPending must either 2, 1 or 0 but was " + numPending;
         }
 
         void run() {
@@ -417,9 +467,7 @@ public abstract class TransportWriteAction<
                 assert pendingOps.get() > 0;
                 indexShard.addRefreshListener(location, forcedRefresh -> {
                     if (forcedRefresh) {
-                        logger.warn(
-                                "block until refresh ran out of slots and forced a refresh: [{}]",
-                                request);
+                        logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
                     }
                     refreshed.set(forcedRefresh);
                     maybeFinish();
@@ -446,13 +494,25 @@ public abstract class TransportWriteAction<
     class WriteActionReplicasProxy extends ReplicasProxy {
 
         @Override
-        public void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception,
-                                      ActionListener<Void> listener) {
+        public void failShardIfNeeded(
+            ShardRouting replica,
+            long primaryTerm,
+            String message,
+            Exception exception,
+            ActionListener<Void> listener
+        ) {
             if (TransportActions.isShardNotAvailableException(exception) == false) {
                 logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
             }
             shardStateAction.remoteShardFailed(
-                replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception, listener);
+                replica.shardId(),
+                replica.allocationId().getId(),
+                primaryTerm,
+                true,
+                message,
+                exception,
+                listener
+            );
         }
 
         @Override

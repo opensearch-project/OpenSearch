@@ -49,4 +49,3 @@ public class KuromojiClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTest
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

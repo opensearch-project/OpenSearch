@@ -70,10 +70,15 @@ public abstract class InnerHitContextBuilder {
         int maxInnerResultWindow = parentSearchContext.mapperService().getIndexSettings().getMaxInnerResultWindow();
         if (innerResultWindow > maxInnerResultWindow) {
             throw new IllegalArgumentException(
-                "Inner result window is too large, the inner hit definition's [" + innerHitBuilder.getName() +
-                    "]'s from + size must be less than or equal to: [" + maxInnerResultWindow + "] but was [" + innerResultWindow +
-                    "]. This limit can be set by changing the [" + IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey() +
-                    "] index level setting."
+                "Inner result window is too large, the inner hit definition's ["
+                    + innerHitBuilder.getName()
+                    + "]'s from + size must be less than or equal to: ["
+                    + maxInnerResultWindow
+                    + "] but was ["
+                    + innerResultWindow
+                    + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey()
+                    + "] index level setting."
             );
         }
         doBuild(parentSearchContext, innerHitsContext);
@@ -85,13 +90,14 @@ public abstract class InnerHitContextBuilder {
         if (query instanceof AbstractQueryBuilder) {
             ((AbstractQueryBuilder) query).extractInnerHitBuilders(innerHitBuilders);
         } else {
-            throw new IllegalStateException("provided query builder [" + query.getClass() +
-                "] class should inherit from AbstractQueryBuilder, but it doesn't");
+            throw new IllegalStateException(
+                "provided query builder [" + query.getClass() + "] class should inherit from AbstractQueryBuilder, but it doesn't"
+            );
         }
     }
 
-    protected void setupInnerHitsContext(QueryShardContext queryShardContext,
-                                         InnerHitsContext.InnerHitSubContext innerHitsContext) throws IOException {
+    protected void setupInnerHitsContext(QueryShardContext queryShardContext, InnerHitsContext.InnerHitSubContext innerHitsContext)
+        throws IOException {
         innerHitsContext.from(innerHitBuilder.getFrom());
         innerHitsContext.size(innerHitBuilder.getSize());
         innerHitsContext.explain(innerHitBuilder.isExplain());
@@ -103,7 +109,9 @@ public abstract class InnerHitContextBuilder {
         }
         if (innerHitBuilder.getDocValueFields() != null) {
             FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(
-                queryShardContext.getMapperService(), innerHitBuilder.getDocValueFields());
+                queryShardContext.getMapperService(),
+                innerHitBuilder.getDocValueFields()
+            );
             innerHitsContext.docValuesContext(docValuesContext);
         }
         if (innerHitBuilder.getFetchFields() != null) {
@@ -116,8 +124,14 @@ public abstract class InnerHitContextBuilder {
                 QueryShardContext innerContext = innerHitsContext.getQueryShardContext();
                 FieldScript.Factory factory = innerContext.compile(field.script(), FieldScript.CONTEXT);
                 FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerContext.lookup());
-                innerHitsContext.scriptFields().add(new org.opensearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
-                    field.fieldName(), fieldScript, field.ignoreFailure()));
+                innerHitsContext.scriptFields()
+                    .add(
+                        new org.opensearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
+                            field.fieldName(),
+                            fieldScript,
+                            field.ignoreFailure()
+                        )
+                    );
             }
         }
         if (innerHitBuilder.getFetchSourceContext() != null) {
@@ -134,19 +148,22 @@ public abstract class InnerHitContextBuilder {
         }
         ParsedQuery parsedQuery = new ParsedQuery(query.toQuery(queryShardContext), queryShardContext.copyNamedQueries());
         innerHitsContext.parsedQuery(parsedQuery);
-        Map<String, InnerHitsContext.InnerHitSubContext> baseChildren =
-            buildChildInnerHits(innerHitsContext.parentSearchContext(), children);
+        Map<String, InnerHitsContext.InnerHitSubContext> baseChildren = buildChildInnerHits(
+            innerHitsContext.parentSearchContext(),
+            children
+        );
         innerHitsContext.setChildInnerHits(baseChildren);
     }
 
-    private static Map<String, InnerHitsContext.InnerHitSubContext> buildChildInnerHits(SearchContext parentSearchContext,
-                                Map<String, InnerHitContextBuilder> children) throws IOException {
+    private static Map<String, InnerHitsContext.InnerHitSubContext> buildChildInnerHits(
+        SearchContext parentSearchContext,
+        Map<String, InnerHitContextBuilder> children
+    ) throws IOException {
 
         Map<String, InnerHitsContext.InnerHitSubContext> childrenInnerHits = new HashMap<>();
         for (Map.Entry<String, InnerHitContextBuilder> entry : children.entrySet()) {
             InnerHitsContext childInnerHitsContext = new InnerHitsContext();
-            entry.getValue().build(
-                parentSearchContext, childInnerHitsContext);
+            entry.getValue().build(parentSearchContext, childInnerHitsContext);
             if (childInnerHitsContext.getInnerHits() != null) {
                 childrenInnerHits.putAll(childInnerHitsContext.getInnerHits());
             }

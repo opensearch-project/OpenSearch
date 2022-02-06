@@ -60,8 +60,7 @@ public interface ClusterApplier {
          * Called on successful cluster state application
          * @param source information where the cluster state came from
          */
-        default void onSuccess(String source) {
-        }
+        default void onSuccess(String source) {}
 
         /**
          * Called on failure during cluster state application

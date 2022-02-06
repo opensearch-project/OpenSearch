@@ -118,8 +118,9 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Range) valuesSourceConfig.getValuesSource() : null;
         this.formatter = valuesSourceConfig.format();
         if (this.valuesSource.rangeType() != RangeType.DATE) {
-            throw new IllegalArgumentException("Expected date range type but found range type [" + this.valuesSource.rangeType().name
-                + "]");
+            throw new IllegalArgumentException(
+                "Expected date range type but found range type [" + this.valuesSource.rangeType().name + "]"
+            );
         }
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
@@ -159,14 +160,15 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                             // The encoding should ensure that this assert is always true.
                             assert from >= previousFrom : "Start of range not >= previous start";
                             final Long to = (Long) range.getTo();
-                            final long effectiveFrom = (hardBounds != null && hardBounds.getMin() != null) ?
-                                max(from, hardBounds.getMin()) : from;
-                            final long effectiveTo = (hardBounds != null && hardBounds.getMax() != null) ?
-                                min(to, hardBounds.getMax()) : to;
+                            final long effectiveFrom = (hardBounds != null && hardBounds.getMin() != null)
+                                ? max(from, hardBounds.getMin())
+                                : from;
+                            final long effectiveTo = (hardBounds != null && hardBounds.getMax() != null)
+                                ? min(to, hardBounds.getMax())
+                                : to;
                             final long startKey = preparedRounding.round(effectiveFrom);
-                            final long endKey =  preparedRounding.round(effectiveTo);
-                            for (long key = max(startKey, previousKey); key <= endKey;
-                                 key = preparedRounding.nextRoundingValue(key)) {
+                            final long endKey = preparedRounding.round(effectiveTo);
+                            for (long key = max(startKey, previousKey); key <= endKey; key = preparedRounding.nextRoundingValue(key)) {
                                 if (key == previousKey) {
                                     continue;
                                 }
@@ -190,13 +192,18 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         };
     }
 
-
-
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
-            (bucketValue, docCount, subAggregationResults) ->
-                new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults),
+        return buildAggregationsForVariableBuckets(
+            owningBucketOrds,
+            bucketOrds,
+            (bucketValue, docCount, subAggregationResults) -> new InternalDateHistogram.Bucket(
+                bucketValue,
+                docCount,
+                keyed,
+                formatter,
+                subAggregationResults
+            ),
             (owningBucketOrd, buckets) -> {
                 // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
@@ -204,20 +211,39 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                 // value source will be null for unmapped fields
                 // Important: use `rounding` here, not `shardRounding`
                 InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                        ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
-                        : null;
-                return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
-                        keyed, metadata());
-            });
+                    ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
+                    : null;
+                return new InternalDateHistogram(
+                    name,
+                    buckets,
+                    order,
+                    minDocCount,
+                    rounding.offset(),
+                    emptyBucketInfo,
+                    formatter,
+                    keyed,
+                    metadata()
+                );
+            }
+        );
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
-                : null;
-        return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
-                keyed, metadata());
+            ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
+            : null;
+        return new InternalDateHistogram(
+            name,
+            Collections.emptyList(),
+            order,
+            minDocCount,
+            rounding.offset(),
+            emptyBucketInfo,
+            formatter,
+            keyed,
+            metadata()
+        );
     }
 
     @Override

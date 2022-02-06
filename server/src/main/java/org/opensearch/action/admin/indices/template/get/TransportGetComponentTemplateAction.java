@@ -52,15 +52,27 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetComponentTemplateAction extends
-    TransportMasterNodeReadAction<GetComponentTemplateAction.Request, GetComponentTemplateAction.Response> {
+public class TransportGetComponentTemplateAction extends TransportMasterNodeReadAction<
+    GetComponentTemplateAction.Request,
+    GetComponentTemplateAction.Response> {
 
     @Inject
-    public TransportGetComponentTemplateAction(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, ActionFilters actionFilters,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetComponentTemplateAction.Request::new, indexNameExpressionResolver);
+    public TransportGetComponentTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetComponentTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetComponentTemplateAction.Request::new,
+            indexNameExpressionResolver
+        );
     }
 
     @Override
@@ -79,8 +91,11 @@ public class TransportGetComponentTemplateAction extends
     }
 
     @Override
-    protected void masterOperation(GetComponentTemplateAction.Request request, ClusterState state,
-                                   ActionListener<GetComponentTemplateAction.Response> listener) {
+    protected void masterOperation(
+        GetComponentTemplateAction.Request request,
+        ClusterState state,
+        ActionListener<GetComponentTemplateAction.Response> listener
+    ) {
         Map<String, ComponentTemplate> allTemplates = state.metadata().componentTemplates();
 
         // If we did not ask for a specific name, then we return all templates

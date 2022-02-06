@@ -102,10 +102,7 @@ public class GlobalCheckpointListeners implements Closeable {
      * @param scheduler the executor used for scheduling timeouts
      * @param logger    a shard-level logger
      */
-    GlobalCheckpointListeners(
-        final ShardId shardId,
-        final ScheduledExecutorService scheduler,
-        final Logger logger) {
+    GlobalCheckpointListeners(final ShardId shardId, final ScheduledExecutorService scheduler, final Logger logger) {
         this.shardId = Objects.requireNonNull(shardId, "shardId");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         this.logger = Objects.requireNonNull(logger, "logger");
@@ -136,32 +133,25 @@ public class GlobalCheckpointListeners implements Closeable {
             if (timeout == null) {
                 listeners.put(listener, Tuple.tuple(waitingForGlobalCheckpoint, null));
             } else {
-                listeners.put(
-                        listener,
-                        Tuple.tuple(
-                                waitingForGlobalCheckpoint,
-                                scheduler.schedule(
-                                        () -> {
-                                            final boolean removed;
-                                            synchronized (this) {
-                                                /*
-                                                 * We know that this listener has a timeout associated with it (otherwise we would not be
-                                                 * here) so the future component of the return value from remove being null is an indication
-                                                 * that we are not in the map. This can happen if a notification collected us into listeners
-                                                 * to be notified and removed us from the map, and then our scheduled execution occurred
-                                                 * before we could be cancelled by the notification. In this case, our listener here would
-                                                 * not be in the map and we should not fire the timeout logic.
-                                                 */
-                                                removed = listeners.remove(listener) != null;
-                                            }
-                                            if (removed) {
-                                                final TimeoutException e = new TimeoutException(timeout.getStringRep());
-                                                logger.trace("global checkpoint listener timed out", e);
-                                                notifyListener(listener, UNASSIGNED_SEQ_NO, e);
-                                            }
-                                        },
-                                        timeout.nanos(),
-                                        TimeUnit.NANOSECONDS)));
+                listeners.put(listener, Tuple.tuple(waitingForGlobalCheckpoint, scheduler.schedule(() -> {
+                    final boolean removed;
+                    synchronized (this) {
+                        /*
+                         * We know that this listener has a timeout associated with it (otherwise we would not be
+                         * here) so the future component of the return value from remove being null is an indication
+                         * that we are not in the map. This can happen if a notification collected us into listeners
+                         * to be notified and removed us from the map, and then our scheduled execution occurred
+                         * before we could be cancelled by the notification. In this case, our listener here would
+                         * not be in the map and we should not fire the timeout logic.
+                         */
+                        removed = listeners.remove(listener) != null;
+                    }
+                    if (removed) {
+                        final TimeoutException e = new TimeoutException(timeout.getStringRep());
+                        logger.trace("global checkpoint listener timed out", e);
+                        notifyListener(listener, UNASSIGNED_SEQ_NO, e);
+                    }
+                }, timeout.nanos(), TimeUnit.NANOSECONDS)));
             }
         }
     }
@@ -201,9 +191,12 @@ public class GlobalCheckpointListeners implements Closeable {
      */
     synchronized void globalCheckpointUpdated(final long globalCheckpoint) {
         assert globalCheckpoint >= NO_OPS_PERFORMED;
-        assert globalCheckpoint > lastKnownGlobalCheckpoint
-                : "updated global checkpoint [" + globalCheckpoint + "]"
-                + " is not more than the last known global checkpoint [" + lastKnownGlobalCheckpoint + "]";
+        assert globalCheckpoint > lastKnownGlobalCheckpoint : "updated global checkpoint ["
+            + globalCheckpoint
+            + "]"
+            + " is not more than the last known global checkpoint ["
+            + lastKnownGlobalCheckpoint
+            + "]";
         lastKnownGlobalCheckpoint = globalCheckpoint;
         notifyListeners(globalCheckpoint, null);
     }
@@ -218,27 +211,24 @@ public class GlobalCheckpointListeners implements Closeable {
 
         final Map<GlobalCheckpointListener, Tuple<Long, ScheduledFuture<?>>> listenersToNotify;
         if (globalCheckpoint != UNASSIGNED_SEQ_NO) {
-            listenersToNotify =
-                    listeners
-                            .entrySet()
-                            .stream()
-                            .filter(entry -> entry.getValue().v1() <= globalCheckpoint)
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            listenersToNotify = listeners.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue().v1() <= globalCheckpoint)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             listenersToNotify.keySet().forEach(listeners::remove);
         } else {
             listenersToNotify = new HashMap<>(listeners);
             listeners.clear();
         }
         if (listenersToNotify.isEmpty() == false) {
-            listenersToNotify
-                .forEach((listener, t) -> {
-                    /*
-                     * We do not want to interrupt any timeouts that fired, these will detect that the listener has been notified and not
-                     * trigger the timeout.
-                     */
-                    FutureUtils.cancel(t.v2());
-                    notifyListener(listener, globalCheckpoint, e);
-                });
+            listenersToNotify.forEach((listener, t) -> {
+                /*
+                 * We do not want to interrupt any timeouts that fired, these will detect that the listener has been notified and not
+                 * trigger the timeout.
+                 */
+                FutureUtils.cancel(t.v2());
+                notifyListener(listener, globalCheckpoint, e);
+            });
         }
     }
 
@@ -253,8 +243,10 @@ public class GlobalCheckpointListeners implements Closeable {
                     logger.warn(
                         new ParameterizedMessage(
                             "error notifying global checkpoint listener of updated global checkpoint [{}]",
-                            globalCheckpoint),
-                        caught);
+                            globalCheckpoint
+                        ),
+                        caught
+                    );
                 } else if (e instanceof IndexShardClosedException) {
                     logger.warn("error notifying global checkpoint listener of closed shard", caught);
                 } else {

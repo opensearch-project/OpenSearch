@@ -41,7 +41,6 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
-import org.opensearch.cluster.Diff;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -134,8 +133,11 @@ public class FeatureAwareTests extends OpenSearchTestCase {
             }
             {
                 final BytesStreamOutput out = new BytesStreamOutput();
-                final Version beforeVersion =
-                        randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(version));
+                final Version beforeVersion = randomVersionBetween(
+                    random(),
+                    VersionUtils.getFirstVersion(),
+                    VersionUtils.getPreviousVersion(version)
+                );
                 out.setVersion(beforeVersion);
                 if (custom.getRequiredFeature().isPresent() && randomBoolean()) {
                     out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));

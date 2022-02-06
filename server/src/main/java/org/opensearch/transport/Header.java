@@ -139,7 +139,22 @@ public class Header {
 
     @Override
     public String toString() {
-        return "Header{" + networkMessageSize + "}{" + version + "}{" + requestId + "}{" + isRequest() + "}{" + isError() + "}{"
-                + isHandshake() + "}{" + isCompressed() + "}{" + actionName + "}";
+        return "Header{"
+            + networkMessageSize
+            + "}{"
+            + version
+            + "}{"
+            + requestId
+            + "}{"
+            + isRequest()
+            + "}{"
+            + isError()
+            + "}{"
+            + isHandshake()
+            + "}{"
+            + isCompressed()
+            + "}{"
+            + actionName
+            + "}";
     }
 }

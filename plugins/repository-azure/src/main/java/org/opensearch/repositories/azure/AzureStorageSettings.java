@@ -32,8 +32,6 @@
 
 package org.opensearch.repositories.azure;
 
-import com.microsoft.azure.storage.LocationMode;
-import com.microsoft.azure.storage.RetryPolicy;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.MapBuilder;
@@ -60,39 +58,108 @@ final class AzureStorageSettings {
     private static final String AZURE_CLIENT_PREFIX_KEY = "azure.client.";
 
     /** Azure account name */
-    public static final AffixSetting<SecureString> ACCOUNT_SETTING =
-        Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "account", key -> SecureSetting.secureString(key, null));
+    public static final AffixSetting<SecureString> ACCOUNT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "account",
+        key -> SecureSetting.secureString(key, null)
+    );
 
     /** Azure key */
-    public static final AffixSetting<SecureString> KEY_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "key",
-        key -> SecureSetting.secureString(key, null));
+    public static final AffixSetting<SecureString> KEY_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "key",
+        key -> SecureSetting.secureString(key, null)
+    );
 
     /** Azure SAS token */
-    public static final AffixSetting<SecureString> SAS_TOKEN_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "sas_token",
-        key -> SecureSetting.secureString(key, null));
+    public static final AffixSetting<SecureString> SAS_TOKEN_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "sas_token",
+        key -> SecureSetting.secureString(key, null)
+    );
 
     /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT). */
-    public static final AffixSetting<Integer> MAX_RETRIES_SETTING =
-        Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "max_retries",
-            (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope),
-            () -> ACCOUNT_SETTING, () -> KEY_SETTING);
+    public static final AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "max_retries",
+        (key) -> Setting.intSetting(key, 3, Setting.Property.NodeScope),
+        () -> ACCOUNT_SETTING,
+        () -> KEY_SETTING
+    );
     /**
      * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
      */
-    public static final AffixSetting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "endpoint_suffix",
-        key -> Setting.simpleString(key, Property.NodeScope), () -> ACCOUNT_SETTING, () -> KEY_SETTING);
+    public static final AffixSetting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "endpoint_suffix",
+        key -> Setting.simpleString(key, Property.NodeScope),
+        () -> ACCOUNT_SETTING,
+        () -> KEY_SETTING
+    );
 
-    public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope), () -> ACCOUNT_SETTING, () -> KEY_SETTING);
+    // The overall operation timeout
+    public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "timeout",
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope),
+        () -> ACCOUNT_SETTING,
+        () -> KEY_SETTING
+    );
+
+    // See please NettyAsyncHttpClientBuilder#DEFAULT_CONNECT_TIMEOUT
+    public static final AffixSetting<TimeValue> CONNECT_TIMEOUT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "connect.timeout",
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Property.NodeScope),
+        () -> ACCOUNT_SETTING,
+        () -> KEY_SETTING
+    );
+
+    // See please NettyAsyncHttpClientBuilder#DEFAULT_WRITE_TIMEOUT
+    public static final AffixSetting<TimeValue> WRITE_TIMEOUT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "write.timeout",
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.NodeScope),
+        () -> ACCOUNT_SETTING,
+        () -> KEY_SETTING
+    );
+
+    // See please NettyAsyncHttpClientBuilder#DEFAULT_READ_TIMEOUT
+    public static final AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "read.timeout",
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.NodeScope),
+        () -> ACCOUNT_SETTING,
+        () -> KEY_SETTING
+    );
+
+    // See please NettyAsyncHttpClientBuilder#DEFAULT_RESPONSE_TIMEOUT
+    public static final AffixSetting<TimeValue> RESPONSE_TIMEOUT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "response.timeout",
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.NodeScope),
+        () -> ACCOUNT_SETTING,
+        () -> KEY_SETTING
+    );
 
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
-    public static final AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "proxy.type",
-        (key) -> new Setting<>(key, "direct", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
-        , () -> ACCOUNT_SETTING, () -> KEY_SETTING);
+    public static final AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "proxy.type",
+        (key) -> new Setting<>(key, "direct", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope),
+        () -> ACCOUNT_SETTING,
+        () -> KEY_SETTING
+    );
 
     /** The host name of a proxy to connect to azure through. */
-    public static final AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "proxy.host",
-        (key) -> Setting.simpleString(key, Property.NodeScope), () -> KEY_SETTING, () -> ACCOUNT_SETTING, () -> PROXY_TYPE_SETTING);
+    public static final AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "proxy.host",
+        (key) -> Setting.simpleString(key, Property.NodeScope),
+        () -> KEY_SETTING,
+        () -> ACCOUNT_SETTING,
+        () -> PROXY_TYPE_SETTING
+    );
 
     /** The port of a proxy to connect to azure through. */
     public static final Setting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(
@@ -102,7 +169,8 @@ final class AzureStorageSettings {
         () -> ACCOUNT_SETTING,
         () -> KEY_SETTING,
         () -> PROXY_TYPE_SETTING,
-        () -> PROXY_HOST_SETTING);
+        () -> PROXY_HOST_SETTING
+    );
 
     private final String account;
     private final String connectString;
@@ -111,10 +179,25 @@ final class AzureStorageSettings {
     private final int maxRetries;
     private final Proxy proxy;
     private final LocationMode locationMode;
+    private final TimeValue connectTimeout;
+    private final TimeValue writeTimeout;
+    private final TimeValue readTimeout;
+    private final TimeValue responseTimeout;
 
     // copy-constructor
-    private AzureStorageSettings(String account, String connectString, String endpointSuffix, TimeValue timeout, int maxRetries,
-                                 Proxy proxy, LocationMode locationMode) {
+    private AzureStorageSettings(
+        String account,
+        String connectString,
+        String endpointSuffix,
+        TimeValue timeout,
+        int maxRetries,
+        Proxy proxy,
+        LocationMode locationMode,
+        TimeValue connectTimeout,
+        TimeValue writeTimeout,
+        TimeValue readTimeout,
+        TimeValue responseTimeout
+    ) {
         this.account = account;
         this.connectString = connectString;
         this.endpointSuffix = endpointSuffix;
@@ -122,10 +205,27 @@ final class AzureStorageSettings {
         this.maxRetries = maxRetries;
         this.proxy = proxy;
         this.locationMode = locationMode;
+        this.connectTimeout = connectTimeout;
+        this.writeTimeout = writeTimeout;
+        this.readTimeout = readTimeout;
+        this.responseTimeout = responseTimeout;
     }
 
-    private AzureStorageSettings(String account, String key, String sasToken, String endpointSuffix, TimeValue timeout, int maxRetries,
-                                 Proxy.Type proxyType, String proxyHost, Integer proxyPort) {
+    private AzureStorageSettings(
+        String account,
+        String key,
+        String sasToken,
+        String endpointSuffix,
+        TimeValue timeout,
+        int maxRetries,
+        Proxy.Type proxyType,
+        String proxyHost,
+        Integer proxyPort,
+        TimeValue connectTimeout,
+        TimeValue writeTimeout,
+        TimeValue readTimeout,
+        TimeValue responseTimeout
+    ) {
         this.account = account;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix);
         this.endpointSuffix = endpointSuffix;
@@ -150,6 +250,10 @@ final class AzureStorageSettings {
             }
         }
         this.locationMode = LocationMode.PRIMARY_ONLY;
+        this.connectTimeout = connectTimeout;
+        this.writeTimeout = writeTimeout;
+        this.readTimeout = readTimeout;
+        this.responseTimeout = responseTimeout;
     }
 
     public String getEndpointSuffix() {
@@ -198,6 +302,22 @@ final class AzureStorageSettings {
         return locationMode;
     }
 
+    public TimeValue getConnectTimeout() {
+        return connectTimeout;
+    }
+
+    public TimeValue getWriteTimeout() {
+        return writeTimeout;
+    }
+
+    public TimeValue getReadTimeout() {
+        return readTimeout;
+    }
+
+    public TimeValue getResponseTimeout() {
+        return responseTimeout;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
@@ -207,6 +327,10 @@ final class AzureStorageSettings {
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxy=").append(proxy);
         sb.append(", locationMode='").append(locationMode).append('\'');
+        sb.append(", connectTimeout='").append(connectTimeout).append('\'');
+        sb.append(", writeTimeout='").append(writeTimeout).append('\'');
+        sb.append(", readTimeout='").append(readTimeout).append('\'');
+        sb.append(", responseTimeout='").append(responseTimeout).append('\'');
         sb.append('}');
         return sb.toString();
     }
@@ -235,21 +359,30 @@ final class AzureStorageSettings {
     // pkg private for tests
     /** Parse settings for a single client. */
     private static AzureStorageSettings getClientSettings(Settings settings, String clientName) {
-        try (SecureString account = getConfigValue(settings, clientName, ACCOUNT_SETTING);
-             SecureString key = getConfigValue(settings, clientName, KEY_SETTING);
-             SecureString sasToken = getConfigValue(settings, clientName, SAS_TOKEN_SETTING)) {
-            return new AzureStorageSettings(account.toString(), key.toString(), sasToken.toString(),
+        try (
+            SecureString account = getConfigValue(settings, clientName, ACCOUNT_SETTING);
+            SecureString key = getConfigValue(settings, clientName, KEY_SETTING);
+            SecureString sasToken = getConfigValue(settings, clientName, SAS_TOKEN_SETTING)
+        ) {
+            return new AzureStorageSettings(
+                account.toString(),
+                key.toString(),
+                sasToken.toString(),
                 getValue(settings, clientName, ENDPOINT_SUFFIX_SETTING),
                 getValue(settings, clientName, TIMEOUT_SETTING),
                 getValue(settings, clientName, MAX_RETRIES_SETTING),
                 getValue(settings, clientName, PROXY_TYPE_SETTING),
                 getValue(settings, clientName, PROXY_HOST_SETTING),
-                getValue(settings, clientName, PROXY_PORT_SETTING));
+                getValue(settings, clientName, PROXY_PORT_SETTING),
+                getValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
+                getValue(settings, clientName, WRITE_TIMEOUT_SETTING),
+                getValue(settings, clientName, READ_TIMEOUT_SETTING),
+                getValue(settings, clientName, RESPONSE_TIMEOUT_SETTING)
+            );
         }
     }
 
-    private static <T> T getConfigValue(Settings settings, String clientName,
-                                        Setting.AffixSetting<T> clientSetting) {
+    private static <T> T getConfigValue(Settings settings, String clientName, Setting.AffixSetting<T> clientSetting) {
         final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
         return concreteSetting.get(settings);
     }
@@ -260,13 +393,28 @@ final class AzureStorageSettings {
         return setting.getConcreteSetting(fullKey).get(settings);
     }
 
-    static Map<String, AzureStorageSettings> overrideLocationMode(Map<String, AzureStorageSettings> clientsSettings,
-                                                                  LocationMode locationMode) {
+    static Map<String, AzureStorageSettings> overrideLocationMode(
+        Map<String, AzureStorageSettings> clientsSettings,
+        LocationMode locationMode
+    ) {
         final MapBuilder<String, AzureStorageSettings> mapBuilder = new MapBuilder<>();
         for (final Map.Entry<String, AzureStorageSettings> entry : clientsSettings.entrySet()) {
-            mapBuilder.put(entry.getKey(),
-                new AzureStorageSettings(entry.getValue().account, entry.getValue().connectString, entry.getValue().endpointSuffix,
-                    entry.getValue().timeout, entry.getValue().maxRetries, entry.getValue().proxy, locationMode));
+            mapBuilder.put(
+                entry.getKey(),
+                new AzureStorageSettings(
+                    entry.getValue().account,
+                    entry.getValue().connectString,
+                    entry.getValue().endpointSuffix,
+                    entry.getValue().timeout,
+                    entry.getValue().maxRetries,
+                    entry.getValue().proxy,
+                    locationMode,
+                    entry.getValue().connectTimeout,
+                    entry.getValue().writeTimeout,
+                    entry.getValue().readTimeout,
+                    entry.getValue().responseTimeout
+                )
+            );
         }
         return mapBuilder.immutableMap();
     }

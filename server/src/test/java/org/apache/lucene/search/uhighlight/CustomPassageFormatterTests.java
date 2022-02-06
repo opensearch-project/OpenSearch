@@ -40,7 +40,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-
 public class CustomPassageFormatterTests extends OpenSearchTestCase {
     public void testSimpleFormat() {
         String content = "This is a really cool highlighter. Unified highlighter gives nice snippets back. No matches here.";
@@ -55,7 +54,7 @@ public class CustomPassageFormatterTests extends OpenSearchTestCase {
         int start = content.indexOf(match);
         int end = start + match.length();
         passage1.setStartOffset(0);
-        passage1.setEndOffset(end + 2); //lets include the whitespace at the end to make sure we trim it
+        passage1.setEndOffset(end + 2); // lets include the whitespace at the end to make sure we trim it
         passage1.addMatch(start, end, matchBytesRef, 1);
         passages[0] = passage1;
 
@@ -96,7 +95,7 @@ public class CustomPassageFormatterTests extends OpenSearchTestCase {
         int start = content.indexOf(match);
         int end = start + match.length();
         passage1.setStartOffset(0);
-        passage1.setEndOffset(end + 6); //lets include the whitespace at the end to make sure we trim it
+        passage1.setEndOffset(end + 6); // lets include the whitespace at the end to make sure we trim it
         passage1.addMatch(start, end, matchBytesRef, 1);
         passages[0] = passage1;
 

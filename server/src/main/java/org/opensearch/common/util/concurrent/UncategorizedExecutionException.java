@@ -43,7 +43,7 @@ public class UncategorizedExecutionException extends OpenSearchException {
         super(msg, cause);
     }
 
-    public UncategorizedExecutionException(StreamInput in) throws IOException{
+    public UncategorizedExecutionException(StreamInput in) throws IOException {
         super(in);
     }
 }

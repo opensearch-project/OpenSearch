@@ -52,27 +52,63 @@ public class RangeQueryRewriteTests extends OpenSearchSingleNodeTestCase {
     public void testRewriteMissingField() throws Exception {
         IndexService indexService = createIndex("test");
         IndexReader reader = new MultiReader();
-        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE,
-            null, null, indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(),
-            null, new IndexSearcher(reader), null, null, null, () -> true, null);
+        QueryRewriteContext context = new QueryShardContext(
+            0,
+            indexService.getIndexSettings(),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            indexService.mapperService(),
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            new IndexSearcher(reader),
+            null,
+            null,
+            null,
+            () -> true,
+            null
+        );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         assertEquals(Relation.DISJOINT, range.getRelation(context));
     }
 
     public void testRewriteMissingReader() throws Exception {
         IndexService indexService = createIndex("test");
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
                 .startObject("properties")
-                    .startObject("foo")
-                        .field("type", "date")
-                    .endObject()
+                .startObject("foo")
+                .field("type", "date")
                 .endObject()
-            .endObject().endObject());
-        indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, null,
-                indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(),
-                null, null, null, null, null, () -> true, null);
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        QueryRewriteContext context = new QueryShardContext(
+            0,
+            indexService.getIndexSettings(),
+            null,
+            null,
+            null,
+            indexService.mapperService(),
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            () -> true,
+            null
+        );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
         assertEquals(Relation.INTERSECTS, range.getRelation(context));
@@ -80,19 +116,39 @@ public class RangeQueryRewriteTests extends OpenSearchSingleNodeTestCase {
 
     public void testRewriteEmptyReader() throws Exception {
         IndexService indexService = createIndex("test");
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
                 .startObject("properties")
-                    .startObject("foo")
-                        .field("type", "date")
-                    .endObject()
+                .startObject("foo")
+                .field("type", "date")
                 .endObject()
-            .endObject().endObject());
-        indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         IndexReader reader = new MultiReader();
-        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE,
-            null, null, indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(),
-                null, new IndexSearcher(reader), null, null, null, () -> true, null);
+        QueryRewriteContext context = new QueryShardContext(
+            0,
+            indexService.getIndexSettings(),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            indexService.mapperService(),
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            new IndexSearcher(reader),
+            null,
+            null,
+            null,
+            () -> true,
+            null
+        );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT
         assertEquals(Relation.DISJOINT, range.getRelation(context));

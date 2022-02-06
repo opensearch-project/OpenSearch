@@ -50,9 +50,13 @@ class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Res
     private final ActionListener<ScrollableHitSource.Response> delegate;
     private int retryCount = 0;
 
-    RetryListener(Logger logger, ThreadPool threadPool, BackoffPolicy backoffPolicy,
-                          Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler,
-                          ActionListener<ScrollableHitSource.Response> delegate) {
+    RetryListener(
+        Logger logger,
+        ThreadPool threadPool,
+        BackoffPolicy backoffPolicy,
+        Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler,
+        ActionListener<ScrollableHitSource.Response> delegate
+    ) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.retries = backoffPolicy.iterator();
@@ -78,8 +82,7 @@ class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Res
             logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
             schedule(() -> retryScrollHandler.accept(this), delay);
         } else {
-            logger.warn(() -> new ParameterizedMessage(
-                "giving up on search because we retried [{}] times without success", retryCount), e);
+            logger.warn(() -> new ParameterizedMessage("giving up on search because we retried [{}] times without success", retryCount), e);
             delegate.onFailure(e);
         }
     }

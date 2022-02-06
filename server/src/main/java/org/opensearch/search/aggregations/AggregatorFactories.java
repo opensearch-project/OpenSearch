@@ -96,19 +96,33 @@ public class AggregatorFactories {
         XContentParser.Token token = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " in [aggs]: aggregations definitions must start with the name of the aggregation.");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unexpected token " + token + " in [aggs]: aggregations definitions must start with the name of the aggregation."
+                );
             }
             final String aggregationName = parser.currentName();
             if (!validAggMatcher.reset(aggregationName).matches()) {
-                throw new ParsingException(parser.getTokenLocation(), "Invalid aggregation name [" + aggregationName
-                        + "]. Aggregation names can contain any character except '[', ']', and '>'");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Invalid aggregation name ["
+                        + aggregationName
+                        + "]. Aggregation names can contain any character except '[', ']', and '>'"
+                );
             }
 
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ParsingException(parser.getTokenLocation(), "Aggregation definition for [" + aggregationName + " starts with a ["
-                        + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Aggregation definition for ["
+                        + aggregationName
+                        + " starts with a ["
+                        + token
+                        + "], expected a ["
+                        + XContentParser.Token.START_OBJECT
+                        + "]."
+                );
             }
 
             BaseAggregationBuilder aggBuilder = null;
@@ -119,49 +133,85 @@ public class AggregatorFactories {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token != XContentParser.Token.FIELD_NAME) {
                     throw new ParsingException(
-                            parser.getTokenLocation(), "Expected [" + XContentParser.Token.FIELD_NAME + "] under a ["
-                            + XContentParser.Token.START_OBJECT + "], but got a [" + token + "] in [" + aggregationName + "]",
-                            parser.getTokenLocation());
+                        parser.getTokenLocation(),
+                        "Expected ["
+                            + XContentParser.Token.FIELD_NAME
+                            + "] under a ["
+                            + XContentParser.Token.START_OBJECT
+                            + "], but got a ["
+                            + token
+                            + "] in ["
+                            + aggregationName
+                            + "]",
+                        parser.getTokenLocation()
+                    );
                 }
                 final String fieldName = parser.currentName();
 
                 token = parser.nextToken();
                 if (token == XContentParser.Token.START_OBJECT) {
                     switch (fieldName) {
-                    case "meta":
-                        metadata = parser.map();
-                        break;
-                    case "aggregations":
-                    case "aggs":
-                        if (subFactories != null) {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "Found two sub aggregation definitions under [" + aggregationName + "]");
-                        }
-                        subFactories = parseAggregators(parser, level + 1);
-                        break;
-                    default:
-                        if (aggBuilder != null) {
-                            throw new ParsingException(parser.getTokenLocation(), "Found two aggregation type definitions in ["
-                                    + aggregationName + "]: [" + aggBuilder.getType() + "] and [" + fieldName + "]");
-                        }
+                        case "meta":
+                            metadata = parser.map();
+                            break;
+                        case "aggregations":
+                        case "aggs":
+                            if (subFactories != null) {
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Found two sub aggregation definitions under [" + aggregationName + "]"
+                                );
+                            }
+                            subFactories = parseAggregators(parser, level + 1);
+                            break;
+                        default:
+                            if (aggBuilder != null) {
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Found two aggregation type definitions in ["
+                                        + aggregationName
+                                        + "]: ["
+                                        + aggBuilder.getType()
+                                        + "] and ["
+                                        + fieldName
+                                        + "]"
+                                );
+                            }
 
-                        try {
-                            aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
-                        } catch (NamedObjectNotFoundException ex) {
-                            String message = String.format(Locale.ROOT, "Unknown aggregation type [%s]%s", fieldName,
-                                SuggestingErrorOnUnknown.suggest(fieldName, ex.getCandidates()));
-                            throw new ParsingException(new XContentLocation(ex.getLineNumber(), ex.getColumnNumber()), message, ex);
-                        }
+                            try {
+                                aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
+                            } catch (NamedObjectNotFoundException ex) {
+                                String message = String.format(
+                                    Locale.ROOT,
+                                    "Unknown aggregation type [%s]%s",
+                                    fieldName,
+                                    SuggestingErrorOnUnknown.suggest(fieldName, ex.getCandidates())
+                                );
+                                throw new ParsingException(new XContentLocation(ex.getLineNumber(), ex.getColumnNumber()), message, ex);
+                            }
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] under ["
-                            + fieldName + "], but got a [" + token + "] in [" + aggregationName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Expected ["
+                            + XContentParser.Token.START_OBJECT
+                            + "] under ["
+                            + fieldName
+                            + "], but got a ["
+                            + token
+                            + "] in ["
+                            + aggregationName
+                            + "]"
+                    );
                 }
             }
 
             if (aggBuilder == null) {
-                throw new ParsingException(parser.getTokenLocation(), "Missing definition for aggregation [" + aggregationName + "]",
-                        parser.getTokenLocation());
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Missing definition for aggregation [" + aggregationName + "]",
+                    parser.getTokenLocation()
+                );
             } else {
                 if (metadata != null) {
                     aggBuilder.setMetadata(metadata);
@@ -202,7 +252,7 @@ public class AggregatorFactories {
      *                    be asked to collect.
      */
     public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality)
-                throws IOException {
+        throws IOException {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
             Aggregator factory = factories[i].create(searchContext, parent, cardinality);
@@ -255,8 +305,7 @@ public class AggregatorFactories {
         /**
          * Create an empty builder.
          */
-        public Builder() {
-        }
+        public Builder() {}
 
         /**
          * Read from a stream.
@@ -315,8 +364,11 @@ public class AggregatorFactories {
          * Validate the root of the aggregation tree.
          */
         public ActionRequestValidationException validate(ActionRequestValidationException e) {
-            PipelineAggregationBuilder.ValidationContext context =
-                    PipelineAggregationBuilder.ValidationContext.forTreeRoot(aggregationBuilders, pipelineAggregatorBuilders, e);
+            PipelineAggregationBuilder.ValidationContext context = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
+                aggregationBuilders,
+                pipelineAggregatorBuilders,
+                e
+            );
             validatePipelines(context);
             return validateChildren(context.getValidationException());
         }
@@ -342,8 +394,7 @@ public class AggregatorFactories {
          */
         private ActionRequestValidationException validateChildren(ActionRequestValidationException e) {
             for (AggregationBuilder agg : aggregationBuilders) {
-                PipelineAggregationBuilder.ValidationContext context =
-                        PipelineAggregationBuilder.ValidationContext.forInsideTree(agg, e);
+                PipelineAggregationBuilder.ValidationContext context = PipelineAggregationBuilder.ValidationContext.forInsideTree(agg, e);
                 agg.factoriesBuilder.validatePipelines(context);
                 e = agg.factoriesBuilder.validateChildren(context.getValidationException());
             }
@@ -364,7 +415,9 @@ public class AggregatorFactories {
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
-                Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders, Collection<AggregationBuilder> aggregationBuilders) {
+            Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders,
+            Collection<AggregationBuilder> aggregationBuilders
+        ) {
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap = new HashMap<>();
             for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
                 pipelineAggregatorBuildersMap.put(builder.getName(), builder);
@@ -378,16 +431,26 @@ public class AggregatorFactories {
             Collection<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
             while (!unmarkedBuilders.isEmpty()) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
-                resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,
-                        temporarilyMarked, builder);
+                resolvePipelineAggregatorOrder(
+                    aggBuildersMap,
+                    pipelineAggregatorBuildersMap,
+                    orderedPipelineAggregatorrs,
+                    unmarkedBuilders,
+                    temporarilyMarked,
+                    builder
+                );
             }
             return orderedPipelineAggregatorrs;
         }
 
-        private void resolvePipelineAggregatorOrder(Map<String, AggregationBuilder> aggBuildersMap,
-                Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap,
-                List<PipelineAggregationBuilder> orderedPipelineAggregators, List<PipelineAggregationBuilder> unmarkedBuilders,
-                Collection<PipelineAggregationBuilder> temporarilyMarked, PipelineAggregationBuilder builder) {
+        private void resolvePipelineAggregatorOrder(
+            Map<String, AggregationBuilder> aggBuildersMap,
+            Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap,
+            List<PipelineAggregationBuilder> orderedPipelineAggregators,
+            List<PipelineAggregationBuilder> unmarkedBuilders,
+            Collection<PipelineAggregationBuilder> temporarilyMarked,
+            PipelineAggregationBuilder builder
+        ) {
             if (temporarilyMarked.contains(builder)) {
                 throw new IllegalArgumentException("Cyclical dependency found with pipeline aggregator [" + builder.getName() + "]");
             } else if (unmarkedBuilders.contains(builder)) {
@@ -419,8 +482,8 @@ public class AggregatorFactories {
                                 }
                                 // Check the pipeline sub-aggregator factories
                                 if (!foundSubBuilder && (i == bucketsPathElements.size() - 1)) {
-                                    Collection<PipelineAggregationBuilder> subPipelineBuilders = aggBuilder.factoriesBuilder
-                                            .pipelineAggregatorBuilders;
+                                    Collection<PipelineAggregationBuilder> subPipelineBuilders =
+                                        aggBuilder.factoriesBuilder.pipelineAggregatorBuilders;
                                     for (PipelineAggregationBuilder subFactory : subPipelineBuilders) {
                                         if (aggName.equals(subFactory.getName())) {
                                             foundSubBuilder = true;
@@ -429,8 +492,9 @@ public class AggregatorFactories {
                                     }
                                 }
                                 if (!foundSubBuilder) {
-                                    throw new IllegalArgumentException("No aggregation [" + aggName + "] found for path [" + bucketsPath
-                                            + "]");
+                                    throw new IllegalArgumentException(
+                                        "No aggregation [" + aggName + "] found for path [" + bucketsPath + "]"
+                                    );
                                 }
                             }
                         }
@@ -438,8 +502,14 @@ public class AggregatorFactories {
                     } else {
                         PipelineAggregationBuilder matchingBuilder = pipelineAggregatorBuildersMap.get(firstAggName);
                         if (matchingBuilder != null) {
-                            resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregators,
-                                    unmarkedBuilders, temporarilyMarked, matchingBuilder);
+                            resolvePipelineAggregatorOrder(
+                                aggBuildersMap,
+                                pipelineAggregatorBuildersMap,
+                                orderedPipelineAggregators,
+                                unmarkedBuilders,
+                                temporarilyMarked,
+                                matchingBuilder
+                            );
                         } else {
                             throw new IllegalArgumentException("No aggregation found for path [" + bucketsPath + "]");
                         }
@@ -492,16 +562,12 @@ public class AggregatorFactories {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
             Builder other = (Builder) obj;
 
-            if (!Objects.equals(aggregationBuilders, other.aggregationBuilders))
-                return false;
-            if (!Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders))
-                return false;
+            if (!Objects.equals(aggregationBuilders, other.aggregationBuilders)) return false;
+            if (!Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders)) return false;
             return true;
         }
 
@@ -537,11 +603,10 @@ public class AggregatorFactories {
                 return PipelineTree.EMPTY;
             }
             Map<String, PipelineTree> subTrees = aggregationBuilders.stream()
-                    .collect(toMap(AggregationBuilder::getName, AggregationBuilder::buildPipelineTree));
-            List<PipelineAggregator> aggregators = resolvePipelineAggregatorOrder(pipelineAggregatorBuilders, aggregationBuilders)
-                    .stream()
-                    .map(PipelineAggregationBuilder::create)
-                    .collect(toList());
+                .collect(toMap(AggregationBuilder::getName, AggregationBuilder::buildPipelineTree));
+            List<PipelineAggregator> aggregators = resolvePipelineAggregatorOrder(pipelineAggregatorBuilders, aggregationBuilders).stream()
+                .map(PipelineAggregationBuilder::create)
+                .collect(toList());
             return new PipelineTree(subTrees, aggregators);
         }
     }

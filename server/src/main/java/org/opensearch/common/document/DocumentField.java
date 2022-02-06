@@ -85,7 +85,7 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
         if (values == null || values.isEmpty()) {
             return null;
         }
-        return (V)values.get(0);
+        return (V) values.get(0);
     }
 
     /**
@@ -150,9 +150,6 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
 
     @Override
     public String toString() {
-        return "DocumentField{" +
-                "name='" + name + '\'' +
-                ", values=" + values +
-                '}';
+        return "DocumentField{" + "name='" + name + '\'' + ", values=" + values + '}';
     }
 }

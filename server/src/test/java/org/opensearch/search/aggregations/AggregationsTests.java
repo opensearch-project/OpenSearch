@@ -252,13 +252,15 @@ public class AggregationsTests extends OpenSearchTestCase {
              *
              * - exclude "key", it can be an array of objects and we need strict values
              */
-            Predicate<String> excludes = path -> (path.isEmpty() || path.endsWith("aggregations")
-                    || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
-                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
-                    || path.endsWith(CommonFields.VALUES.getPreferredName()) || path.endsWith("covariance") || path.endsWith("correlation")
-                    || path.contains(CommonFields.VALUE.getPreferredName())
-                    || path.endsWith(CommonFields.KEY.getPreferredName()))
-                    || path.contains("top_hits");
+            Predicate<String> excludes = path -> (path.isEmpty()
+                || path.endsWith("aggregations")
+                || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
+                || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
+                || path.endsWith(CommonFields.VALUES.getPreferredName())
+                || path.endsWith("covariance")
+                || path.endsWith("correlation")
+                || path.contains(CommonFields.VALUE.getPreferredName())
+                || path.endsWith(CommonFields.KEY.getPreferredName())) || path.contains("top_hits");
             mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
         } else {
             mutated = originalBytes;
@@ -302,13 +304,9 @@ public class AggregationsTests extends OpenSearchTestCase {
             if (testCase instanceof InternalMultiBucketAggregationTestCase) {
                 InternalMultiBucketAggregationTestCase<?> multiBucketAggTestCase = (InternalMultiBucketAggregationTestCase<?>) testCase;
                 if (currentDepth < maxDepth) {
-                    multiBucketAggTestCase.setSubAggregationsSupplier(
-                        () -> createTestInstance(0, currentDepth + 1, maxDepth)
-                    );
+                    multiBucketAggTestCase.setSubAggregationsSupplier(() -> createTestInstance(0, currentDepth + 1, maxDepth));
                 } else {
-                    multiBucketAggTestCase.setSubAggregationsSupplier(
-                        () -> InternalAggregations.EMPTY
-                    );
+                    multiBucketAggTestCase.setSubAggregationsSupplier(() -> InternalAggregations.EMPTY);
                 }
             } else if (testCase instanceof InternalSingleBucketAggregationTestCase) {
                 InternalSingleBucketAggregationTestCase<?> singleBucketAggTestCase = (InternalSingleBucketAggregationTestCase<?>) testCase;

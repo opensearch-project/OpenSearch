@@ -54,36 +54,67 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().field("lang0#id0", "script0").field("lang1#id0", "script1").endObject();
         XContentParser parser0 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(builder).streamInput());
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput()
+            );
         expectThrows(IllegalArgumentException.class, () -> ScriptMetadata.fromXContent(parser0));
 
         // failure to load a new namespace script and old namespace script with the same id but different langs
         builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("lang0#id0", "script0")
-            .startObject("id0").field("lang", "lang1").field("source", "script1").endObject().endObject();
+        builder.startObject()
+            .field("lang0#id0", "script0")
+            .startObject("id0")
+            .field("lang", "lang1")
+            .field("source", "script1")
+            .endObject()
+            .endObject();
         XContentParser parser1 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(builder).streamInput());
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput()
+            );
         expectThrows(IllegalArgumentException.class, () -> ScriptMetadata.fromXContent(parser1));
 
         // failure to load a new namespace script and old namespace script with the same id but different langs with additional scripts
         builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("lang0#id0", "script0").field("lang0#id1", "script1")
-            .startObject("id1").field("lang", "lang0").field("source", "script0").endObject()
-            .startObject("id0").field("lang", "lang1").field("source", "script1").endObject().endObject();
+        builder.startObject()
+            .field("lang0#id0", "script0")
+            .field("lang0#id1", "script1")
+            .startObject("id1")
+            .field("lang", "lang0")
+            .field("source", "script0")
+            .endObject()
+            .startObject("id0")
+            .field("lang", "lang1")
+            .field("source", "script1")
+            .endObject()
+            .endObject();
         XContentParser parser2 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(builder).streamInput());
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput()
+            );
         expectThrows(IllegalArgumentException.class, () -> ScriptMetadata.fromXContent(parser2));
 
         // okay to load the same script from the new and old namespace if the lang is the same
         builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("lang0#id0", "script0")
-            .startObject("id0").field("lang", "lang0").field("source", "script1").endObject().endObject();
+        builder.startObject()
+            .field("lang0#id0", "script0")
+            .startObject("id0")
+            .field("lang", "lang0")
+            .field("source", "script1")
+            .endObject()
+            .endObject();
         XContentParser parser3 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(builder).streamInput());
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput()
+            );
         ScriptMetadata.fromXContent(parser3);
     }
 
@@ -91,12 +122,15 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
         ScriptMetadata.Builder builder = new ScriptMetadata.Builder(null);
 
         XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().startObject("script")
+        sourceBuilder.startObject()
+            .startObject("script")
             .field("lang", "_lang")
-            .startObject("source").field("field", "value").endObject()
-            .endObject().endObject();
-        builder.storeScript("source_template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder),
-            sourceBuilder.contentType()));
+            .startObject("source")
+            .field("field", "value")
+            .endObject()
+            .endObject()
+            .endObject();
+        builder.storeScript("source_template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
@@ -109,20 +143,33 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
 
     public void testDiff() throws Exception {
         ScriptMetadata.Builder builder = new ScriptMetadata.Builder(null);
-        builder.storeScript("1", StoredScriptSource.parse(
-            new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"abc\"}}}"), XContentType.JSON));
-        builder.storeScript("2", StoredScriptSource.parse(
-            new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"def\"}}}"), XContentType.JSON));
-        builder.storeScript("3", StoredScriptSource.parse(
-            new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"ghi\"}}}"), XContentType.JSON));
+        builder.storeScript(
+            "1",
+            StoredScriptSource.parse(new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"abc\"}}}"), XContentType.JSON)
+        );
+        builder.storeScript(
+            "2",
+            StoredScriptSource.parse(new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"def\"}}}"), XContentType.JSON)
+        );
+        builder.storeScript(
+            "3",
+            StoredScriptSource.parse(new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"ghi\"}}}"), XContentType.JSON)
+        );
         ScriptMetadata scriptMetadata1 = builder.build();
 
         builder = new ScriptMetadata.Builder(scriptMetadata1);
-        builder.storeScript("2", StoredScriptSource.parse(
-            new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"changed\"}}}"), XContentType.JSON));
+        builder.storeScript(
+            "2",
+            StoredScriptSource.parse(
+                new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"changed\"}}}"),
+                XContentType.JSON
+            )
+        );
         builder.deleteScript("3");
-        builder.storeScript("4", StoredScriptSource.parse(
-            new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"jkl\"}}}"), XContentType.JSON));
+        builder.storeScript(
+            "4",
+            StoredScriptSource.parse(new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"jkl\"}}}"), XContentType.JSON)
+        );
         ScriptMetadata scriptMetadata2 = builder.build();
 
         ScriptMetadata.ScriptMetadataDiff diff = (ScriptMetadata.ScriptMetadataDiff) scriptMetadata2.diff(scriptMetadata1);
@@ -141,8 +188,10 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
 
     public void testBuilder() {
         ScriptMetadata.Builder builder = new ScriptMetadata.Builder(null);
-        builder.storeScript("_id", StoredScriptSource.parse(
-            new BytesArray("{\"script\": {\"lang\": \"painless\", \"source\": \"1 + 1\"} }"), XContentType.JSON));
+        builder.storeScript(
+            "_id",
+            StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"painless\", \"source\": \"1 + 1\"} }"), XContentType.JSON)
+        );
 
         ScriptMetadata result = builder.build();
         assertEquals("1 + 1", result.getStoredScript("_id").getSource());
@@ -152,32 +201,44 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().field("mustache#empty", "").endObject();
         XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput());
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput()
+            );
         ScriptMetadata.fromXContent(parser);
         assertWarnings("empty templates should no longer be used");
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject().field("lang#empty", "").endObject();
         parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput());
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput()
+            );
         ScriptMetadata.fromXContent(parser);
         assertWarnings("empty scripts should no longer be used");
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject().startObject("script").field("lang", "lang").field("source", "").endObject().endObject();
         parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput());
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput()
+            );
         ScriptMetadata.fromXContent(parser);
         assertWarnings("empty scripts should no longer be used");
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject().startObject("script").field("lang", "mustache").field("source", "").endObject().endObject();
         parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput());
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput()
+            );
         ScriptMetadata.fromXContent(parser);
         assertWarnings("empty templates should no longer be used");
     }
@@ -209,8 +270,11 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
         builder.endObject();
 
         XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(builder).streamInput());
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput()
+            );
         ScriptMetadata smd = ScriptMetadata.fromXContent(parser);
         assertNull(smd.getStoredScript("painless#test"));
         assertNull(smd.getStoredScript("lang#test"));
@@ -228,11 +292,17 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
         int numScripts = scaledRandomIntBetween(minNumberScripts, 32);
         for (int i = 0; i < numScripts; i++) {
             XContentBuilder sourceBuilder = XContentBuilder.builder(sourceContentType.xContent());
-            sourceBuilder.startObject().field("script").startObject()
-                .field("lang", randomAlphaOfLength(4)).field("source", randomAlphaOfLength(10))
-                .endObject().endObject();
-            builder.storeScript(randomAlphaOfLength(i + 1),
-                StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
+            sourceBuilder.startObject()
+                .field("script")
+                .startObject()
+                .field("lang", randomAlphaOfLength(4))
+                .field("source", randomAlphaOfLength(10))
+                .endObject()
+                .endObject();
+            builder.storeScript(
+                randomAlphaOfLength(i + 1),
+                StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType())
+            );
         }
         return builder.build();
     }

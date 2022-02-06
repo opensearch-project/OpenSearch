@@ -58,9 +58,12 @@ public final class PointInTimeBuilder implements Writeable, ToXContentObject {
     static {
         PARSER = new ObjectParser<>(SearchSourceBuilder.POINT_IN_TIME.getPreferredName(), XContentParams::new);
         PARSER.declareString((params, id) -> params.id = id, ID_FIELD);
-        PARSER.declareField((params, keepAlive) -> params.keepAlive = keepAlive,
+        PARSER.declareField(
+            (params, keepAlive) -> params.keepAlive = keepAlive,
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE_FIELD.getPreferredName()),
-            KEEP_ALIVE_FIELD, ObjectParser.ValueType.STRING);
+            KEEP_ALIVE_FIELD,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private static final class XContentParams {

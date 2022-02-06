@@ -100,8 +100,11 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
         testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), parentToChild -> {
             assertEquals(0, parentToChild.getDocCount());
-            assertEquals(Double.POSITIVE_INFINITY, ((InternalMin) parentToChild.getAggregations().get("in_child")).getValue(),
-                    Double.MIN_VALUE);
+            assertEquals(
+                Double.POSITIVE_INFINITY,
+                ((InternalMin) parentToChild.getAggregations().get("in_child")).getValue(),
+                Double.MIN_VALUE
+            );
         });
         indexReader.close();
         directory.close();
@@ -114,8 +117,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(directory),
-                new ShardId(new Index("foo", "_na_"), 1));
+        IndexReader indexReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId(new Index("foo", "_na_"), 1));
         // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
 
@@ -134,8 +136,11 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         for (String parent : expectedParentChildRelations.keySet()) {
             testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(parent)), indexSearcher, child -> {
                 assertEquals((long) expectedParentChildRelations.get(parent).v1(), child.getDocCount());
-                assertEquals(expectedParentChildRelations.get(parent).v2(),
-                        ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
+                assertEquals(
+                    expectedParentChildRelations.get(parent).v2(),
+                    ((InternalMin) child.getAggregations().get("in_child")).getValue(),
+                    Double.MIN_VALUE
+                );
             });
         }
         indexReader.close();
@@ -177,8 +182,13 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                         expectedOddMin = Math.min(expectedOddMin, e.getValue().v2());
                     }
                 }
-                StringTerms result =
-                    searchAndReduce(indexSearcher, new MatchAllDocsQuery(), request, longField("number"), keywordField("kwd"));
+                StringTerms result = searchAndReduce(
+                    indexSearcher,
+                    new MatchAllDocsQuery(),
+                    request,
+                    longField("number"),
+                    keywordField("kwd")
+                );
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
                 InternalChildren evenChildren = evenBucket.getAggregations().get("children");
@@ -219,19 +229,19 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
     private static List<Field> createParentDocument(String id, String kwd) {
         return Arrays.asList(
-                new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
-                new SortedSetDocValuesField("kwd", new BytesRef(kwd)),
-                new StringField("join_field", PARENT_TYPE, Field.Store.NO),
-                createJoinField(PARENT_TYPE, id)
+            new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
+            new SortedSetDocValuesField("kwd", new BytesRef(kwd)),
+            new StringField("join_field", PARENT_TYPE, Field.Store.NO),
+            createJoinField(PARENT_TYPE, id)
         );
     }
 
     private static List<Field> createChildDocument(String childId, String parentId, int value) {
         return Arrays.asList(
-                new StringField(IdFieldMapper.NAME, Uid.encodeId(childId), Field.Store.NO),
-                new StringField("join_field", CHILD_TYPE, Field.Store.NO),
-                createJoinField(PARENT_TYPE, parentId),
-                new SortedNumericDocValuesField("number", value)
+            new StringField(IdFieldMapper.NAME, Uid.encodeId(childId), Field.Store.NO),
+            new StringField("join_field", CHILD_TYPE, Field.Store.NO),
+            createJoinField(PARENT_TYPE, parentId),
+            new SortedNumericDocValuesField("number", value)
         );
     }
 
@@ -246,8 +256,13 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
         when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
         when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
-        MappingLookup fieldMappers = new MappingLookup(Collections.singleton(joinFieldMapper),
-            Collections.emptyList(), Collections.emptyList(), 0, null);
+        MappingLookup fieldMappers = new MappingLookup(
+            Collections.singleton(joinFieldMapper),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            0,
+            null
+        );
         DocumentMapper mockMapper = mock(DocumentMapper.class);
         when(mockMapper.mappers()).thenReturn(fieldMappers);
         when(mapperService.documentMapper()).thenReturn(mockMapper);
@@ -256,13 +271,11 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
     private static ParentJoinFieldMapper createJoinFieldMapper() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        return new ParentJoinFieldMapper.Builder("join_field")
-                .addParent(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
-                .build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+        return new ParentJoinFieldMapper.Builder("join_field").addParent(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
+            .build(new Mapper.BuilderContext(settings, new ContentPath(0)));
     }
 
-    private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalChildren> verify)
-            throws IOException {
+    private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalChildren> verify) throws IOException {
 
         ChildrenAggregationBuilder aggregationBuilder = new ChildrenAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));

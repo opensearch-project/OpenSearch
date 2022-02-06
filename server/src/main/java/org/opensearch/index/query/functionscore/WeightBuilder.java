@@ -49,8 +49,7 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     /**
      * Standard constructor.
      */
-    public WeightBuilder() {
-    }
+    public WeightBuilder() {}
 
     /**
      * Read from a stream.
@@ -60,8 +59,7 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-    }
+    protected void doWriteTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getName() {
@@ -69,8 +67,7 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     }
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-    }
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
 
     @Override
     protected boolean doEquals(WeightBuilder functionBuilder) {
@@ -84,7 +81,7 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
 
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
-        //nothing to do here, weight will be applied by the parent class, no score function
+        // nothing to do here, weight will be applied by the parent class, no score function
         return null;
     }
 }

@@ -49,17 +49,22 @@ import java.util.stream.Collectors;
 import static org.opensearch.client.transport.TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL;
 
 @ClusterScope(scope = Scope.TEST)
-public class NodeDisconnectIT  extends OpenSearchIntegTestCase {
+public class NodeDisconnectIT extends OpenSearchIntegTestCase {
 
     public void testNotifyOnDisconnect() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         final Set<DiscoveryNode> disconnectedNodes = Collections.synchronizedSet(new HashSet<>());
-        try (TransportClient client = new MockTransportClient(Settings.builder()
-            .put("cluster.name", internalCluster().getClusterName())
-            .put(CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.getKey(), "1h") // disable sniffing for better control
-            .build(),
-            Collections.emptySet(), (n, e) -> disconnectedNodes.add(n))) {
+        try (
+            TransportClient client = new MockTransportClient(
+                Settings.builder()
+                    .put("cluster.name", internalCluster().getClusterName())
+                    .put(CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.getKey(), "1h") // disable sniffing for better control
+                    .build(),
+                Collections.emptySet(),
+                (n, e) -> disconnectedNodes.add(n)
+            )
+        ) {
             for (TransportService service : internalCluster().getInstances(TransportService.class)) {
                 client.addTransportAddress(service.boundAddress().publishAddress());
             }
@@ -76,8 +81,13 @@ public class NodeDisconnectIT  extends OpenSearchIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         final Set<DiscoveryNode> disconnectedNodes = Collections.synchronizedSet(new HashSet<>());
-        try (TransportClient client = new MockTransportClient(Settings.builder()
-            .put("cluster.name", internalCluster().getClusterName()).build(), Collections.emptySet(), (n, e) -> disconnectedNodes.add(n))) {
+        try (
+            TransportClient client = new MockTransportClient(
+                Settings.builder().put("cluster.name", internalCluster().getClusterName()).build(),
+                Collections.emptySet(),
+                (n, e) -> disconnectedNodes.add(n)
+            )
+        ) {
             int numNodes = 0;
             for (TransportService service : internalCluster().getInstances(TransportService.class)) {
                 numNodes++;

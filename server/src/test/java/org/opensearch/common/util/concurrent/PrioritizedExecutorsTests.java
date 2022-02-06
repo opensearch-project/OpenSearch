@@ -82,8 +82,12 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
     }
 
     public void testSubmitPrioritizedExecutorWithRunnables() throws Exception {
-        ExecutorService executor =
-                OpenSearchExecutors.newSinglePrioritizing(getName(), OpenSearchExecutors.daemonThreadFactory(getTestName()), holder, null);
+        ExecutorService executor = OpenSearchExecutors.newSinglePrioritizing(
+            getName(),
+            OpenSearchExecutors.daemonThreadFactory(getTestName()),
+            holder,
+            null
+        );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -112,8 +116,12 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
     }
 
     public void testExecutePrioritizedExecutorWithRunnables() throws Exception {
-        ExecutorService executor =
-                OpenSearchExecutors.newSinglePrioritizing(getName(), OpenSearchExecutors.daemonThreadFactory(getTestName()), holder, null);
+        ExecutorService executor = OpenSearchExecutors.newSinglePrioritizing(
+            getName(),
+            OpenSearchExecutors.daemonThreadFactory(getTestName()),
+            holder,
+            null
+        );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -142,8 +150,12 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
     }
 
     public void testSubmitPrioritizedExecutorWithCallables() throws Exception {
-        ExecutorService executor =
-                OpenSearchExecutors.newSinglePrioritizing(getName(), OpenSearchExecutors.daemonThreadFactory(getTestName()), holder, null);
+        ExecutorService executor = OpenSearchExecutors.newSinglePrioritizing(
+            getName(),
+            OpenSearchExecutors.daemonThreadFactory(getTestName()),
+            holder,
+            null
+        );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -172,8 +184,12 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
     }
 
     public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
-        ExecutorService executor = OpenSearchExecutors.newSinglePrioritizing(getTestName(),
-            OpenSearchExecutors.daemonThreadFactory(getTestName()), holder, null);
+        ExecutorService executor = OpenSearchExecutors.newSinglePrioritizing(
+            getTestName(),
+            OpenSearchExecutors.daemonThreadFactory(getTestName()),
+            holder,
+            null
+        );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -203,8 +219,12 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
 
     public void testTimeout() throws Exception {
         ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(OpenSearchExecutors.daemonThreadFactory(getTestName()));
-        PrioritizedOpenSearchThreadPoolExecutor executor =
-                OpenSearchExecutors.newSinglePrioritizing(getName(), OpenSearchExecutors.daemonThreadFactory(getTestName()), holder, timer);
+        PrioritizedOpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newSinglePrioritizing(
+            getName(),
+            OpenSearchExecutors.daemonThreadFactory(getTestName()),
+            holder,
+            timer
+        );
         final CountDownLatch invoked = new CountDownLatch(1);
         final CountDownLatch block = new CountDownLatch(1);
         executor.execute(new Runnable() {
@@ -232,22 +252,21 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
         final AtomicBoolean executeCalled = new AtomicBoolean();
         final CountDownLatch timedOut = new CountDownLatch(1);
         executor.execute(new Runnable() {
-                             @Override
-                             public void run() {
-                                 executeCalled.set(true);
-                             }
+            @Override
+            public void run() {
+                executeCalled.set(true);
+            }
 
-                             @Override
-                             public String toString() {
-                                 return "the waiting";
-                             }
-                         }, TimeValue.timeValueMillis(100) /* enough timeout to catch them in the pending list... */, new Runnable() {
-                    @Override
-                    public void run() {
-                        timedOut.countDown();
-                    }
-                }
-        );
+            @Override
+            public String toString() {
+                return "the waiting";
+            }
+        }, TimeValue.timeValueMillis(100) /* enough timeout to catch them in the pending list... */, new Runnable() {
+            @Override
+            public void run() {
+                timedOut.countDown();
+            }
+        });
 
         pending = executor.getPending();
         assertThat(pending.length, equalTo(2));
@@ -267,22 +286,25 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
         ThreadPool threadPool = new TestThreadPool("test");
         final ScheduledThreadPoolExecutor timer = (ScheduledThreadPoolExecutor) threadPool.scheduler();
         final AtomicBoolean timeoutCalled = new AtomicBoolean();
-        PrioritizedOpenSearchThreadPoolExecutor executor =
-                OpenSearchExecutors.newSinglePrioritizing(getName(), OpenSearchExecutors.daemonThreadFactory(getTestName()), holder, timer);
+        PrioritizedOpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newSinglePrioritizing(
+            getName(),
+            OpenSearchExecutors.daemonThreadFactory(getTestName()),
+            holder,
+            timer
+        );
         final CountDownLatch invoked = new CountDownLatch(1);
         executor.execute(new Runnable() {
-                             @Override
-                             public void run() {
-                                 invoked.countDown();
-                             }
-                         }, TimeValue.timeValueHours(1), new Runnable() {
-                    @Override
-                    public void run() {
-                        // We should never get here
-                        timeoutCalled.set(true);
-                    }
-                }
-        );
+            @Override
+            public void run() {
+                invoked.countDown();
+            }
+        }, TimeValue.timeValueHours(1), new Runnable() {
+            @Override
+            public void run() {
+                // We should never get here
+                timeoutCalled.set(true);
+            }
+        });
         invoked.await();
 
         // the timeout handler is added post execution (and quickly cancelled). We have allow for this

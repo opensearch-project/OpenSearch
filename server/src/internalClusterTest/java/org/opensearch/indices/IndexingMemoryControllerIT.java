@@ -58,9 +58,11 @@ public class IndexingMemoryControllerIT extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings())
+        return Settings.builder()
+            .put(super.nodeSettings())
             // small indexing buffer so that we can trigger refresh after buffering 100 deletes
-            .put("indices.memory.index_buffer_size", "1kb").build();
+            .put("indices.memory.index_buffer_size", "1kb")
+            .build();
     }
 
     @Override
@@ -74,17 +76,35 @@ public class IndexingMemoryControllerIT extends OpenSearchSingleNodeTestCase {
 
         EngineConfig engineConfigWithLargerIndexingMemory(EngineConfig config) {
             // We need to set a larger buffer for the IndexWriter; otherwise, it will flush before the IndexingMemoryController.
-            Settings settings = Settings.builder().put(config.getIndexSettings().getSettings())
-                .put("indices.memory.index_buffer_size", "10mb").build();
+            Settings settings = Settings.builder()
+                .put(config.getIndexSettings().getSettings())
+                .put("indices.memory.index_buffer_size", "10mb")
+                .build();
             IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetadata(), settings);
-            return new EngineConfig(config.getShardId(), config.getThreadPool(),
-                indexSettings, config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
-                config.getSimilarity(), new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)),
-                config.getEventListener(), config.getQueryCache(),
-                config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
-                config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
+            return new EngineConfig(
+                config.getShardId(),
+                config.getThreadPool(),
+                indexSettings,
+                config.getWarmer(),
+                config.getStore(),
+                config.getMergePolicy(),
+                config.getAnalyzer(),
+                config.getSimilarity(),
+                new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)),
+                config.getEventListener(),
+                config.getQueryCache(),
+                config.getQueryCachingPolicy(),
+                config.getTranslogConfig(),
+                config.getFlushMergesAfter(),
+                config.getExternalRefreshListener(),
+                config.getInternalRefreshListener(),
+                config.getIndexSort(),
+                config.getCircuitBreakerService(),
+                config.getGlobalCheckpointSupplier(),
+                config.retentionLeasesSupplier(),
+                config.getPrimaryTermSupplier(),
+                config.getTombstoneDocSupplier()
+            );
         }
 
         @Override
@@ -95,8 +115,10 @@ public class IndexingMemoryControllerIT extends OpenSearchSingleNodeTestCase {
 
     // #10312
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
-        IndexService indexService = createIndex("index", Settings.builder().put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0).put("index.refresh_interval", -1).build());
+        IndexService indexService = createIndex(
+            "index",
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1).build()
+        );
         IndexShard shard = indexService.getShard(0);
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("index", "_doc").setId(Integer.toString(i)).setSource("field", "value").get();

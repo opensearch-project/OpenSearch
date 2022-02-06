@@ -69,29 +69,53 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
             nodePaths = nodeEnvironment.nodeDataPaths();
             nodeId = nodeEnvironment.nodeId();
 
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
-                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
-                writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                    .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build()).build())
-                    .build());
+            try (
+                PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
+                    nodePaths,
+                    nodeId,
+                    xContentRegistry(),
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                ).createWriter()
+            ) {
+                writer.writeFullStateAndCommit(
+                    1L,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .metadata(
+                            Metadata.builder()
+                                .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+                                .build()
+                        )
+                        .build()
+                );
             }
         }
     }
 
     @After
     public void checkClusterStateIntact() throws IOException {
-        assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(new PersistedClusterStateService(nodePaths, nodeId,
-            xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L)
-            .loadBestOnDiskState().metadata.persistentSettings()));
+        assertTrue(
+            Metadata.SETTING_READ_ONLY_SETTING.get(
+                new PersistedClusterStateService(
+                    nodePaths,
+                    nodeId,
+                    xContentRegistry(),
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                ).loadBestOnDiskState().metadata.persistentSettings()
+            )
+        );
     }
 
     public void testFailsOnEmptyPath() {
         final Path emptyPath = createTempDir();
         final MockTerminal mockTerminal = new MockTerminal();
-        final OpenSearchException openSearchException = expectThrows(OpenSearchException.class, () ->
-            new OverrideNodeVersionCommand().processNodePaths(mockTerminal, new Path[]{emptyPath}, 0, noOptions, environment));
+        final OpenSearchException openSearchException = expectThrows(
+            OpenSearchException.class,
+            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, new Path[] { emptyPath }, 0, noOptions, environment)
+        );
         assertThat(openSearchException.getMessage(), equalTo(OverrideNodeVersionCommand.NO_METADATA_MESSAGE));
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
     }
@@ -100,12 +124,18 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         final Version nodeVersion = Version.fromId(between(Version.CURRENT.minimumIndexCompatibilityVersion().id, Version.CURRENT.id));
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
-        final OpenSearchException openSearchException = expectThrows(OpenSearchException.class, () ->
-            new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment));
-        assertThat(openSearchException.getMessage(), allOf(
-            containsString("compatible with current version"),
-            containsString(Version.CURRENT.toString()),
-            containsString(nodeVersion.toString())));
+        final OpenSearchException openSearchException = expectThrows(
+            OpenSearchException.class,
+            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment)
+        );
+        assertThat(
+            openSearchException.getMessage(),
+            allOf(
+                containsString("compatible with current version"),
+                containsString(Version.CURRENT.toString()),
+                containsString(nodeVersion.toString())
+            )
+        );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
     }
 
@@ -114,15 +144,21 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput("n\n");
-        final OpenSearchException openSearchException = expectThrows(OpenSearchException.class, () ->
-            new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment));
+        final OpenSearchException openSearchException = expectThrows(
+            OpenSearchException.class,
+            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment)
+        );
         assertThat(openSearchException.getMessage(), equalTo("aborted by user"));
-        assertThat(mockTerminal.getOutput(), allOf(
-            containsString("too old"),
-            containsString("data loss"),
-            containsString("You should not use this tool"),
-            containsString(Version.CURRENT.toString()),
-            containsString(nodeVersion.toString())));
+        assertThat(
+            mockTerminal.getOutput(),
+            allOf(
+                containsString("too old"),
+                containsString("data loss"),
+                containsString("You should not use this tool"),
+                containsString(Version.CURRENT.toString()),
+                containsString(nodeVersion.toString())
+            )
+        );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
@@ -134,14 +170,20 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput(randomFrom("yy", "Yy", "n", "yes", "true", "N", "no"));
-        final OpenSearchException openSearchException = expectThrows(OpenSearchException.class, () ->
-            new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment));
+        final OpenSearchException openSearchException = expectThrows(
+            OpenSearchException.class,
+            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment)
+        );
         assertThat(openSearchException.getMessage(), equalTo("aborted by user"));
-        assertThat(mockTerminal.getOutput(), allOf(
-            containsString("data loss"),
-            containsString("You should not use this tool"),
-            containsString(Version.CURRENT.toString()),
-            containsString(nodeVersion.toString())));
+        assertThat(
+            mockTerminal.getOutput(),
+            allOf(
+                containsString("data loss"),
+                containsString("You should not use this tool"),
+                containsString(Version.CURRENT.toString()),
+                containsString(nodeVersion.toString())
+            )
+        );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
@@ -154,13 +196,17 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput(randomFrom("y", "Y"));
         new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment);
-        assertThat(mockTerminal.getOutput(), allOf(
-            containsString("too old"),
-            containsString("data loss"),
-            containsString("You should not use this tool"),
-            containsString(Version.CURRENT.toString()),
-            containsString(nodeVersion.toString()),
-            containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)));
+        assertThat(
+            mockTerminal.getOutput(),
+            allOf(
+                containsString("too old"),
+                containsString("data loss"),
+                containsString("You should not use this tool"),
+                containsString(Version.CURRENT.toString()),
+                containsString(nodeVersion.toString()),
+                containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)
+            )
+        );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
@@ -173,12 +219,16 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput(randomFrom("y", "Y"));
         new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment);
-        assertThat(mockTerminal.getOutput(), allOf(
-            containsString("data loss"),
-            containsString("You should not use this tool"),
-            containsString(Version.CURRENT.toString()),
-            containsString(nodeVersion.toString()),
-            containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)));
+        assertThat(
+            mockTerminal.getOutput(),
+            allOf(
+                containsString("data loss"),
+                containsString("You should not use this tool"),
+                containsString(Version.CURRENT.toString()),
+                containsString(nodeVersion.toString()),
+                containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)
+            )
+        );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);

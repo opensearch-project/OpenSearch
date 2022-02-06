@@ -77,7 +77,7 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
     // Note that `global`'s fancy support for ignoring the query comes from special code in AggregationPhase. We don't test that here.
 
     private void testCase(CheckedConsumer<RandomIndexWriter, IOException> buildIndex, BiConsumer<InternalGlobal, InternalMin> verify)
-            throws IOException {
+        throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);

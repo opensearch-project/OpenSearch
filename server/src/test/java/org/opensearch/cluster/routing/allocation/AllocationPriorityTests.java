@@ -53,13 +53,15 @@ public class AllocationPriorityTests extends OpenSearchAllocationTestCase {
      * See https://github.com/elastic/elasticsearch/issues/13249 for details
      */
     public void testPrioritizedIndicesAllocatedFirst() {
-        AllocationService allocation = createAllocationService(Settings.builder().
-                put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 1)
+        AllocationService allocation = createAllocationService(
+            Settings.builder()
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 1)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 10)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 1)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 1)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
-            .build());
+                .build()
+        );
         final String highPriorityName;
         final String lowPriorityName;
         final int priorityFirst;
@@ -76,20 +78,31 @@ public class AllocationPriorityTests extends OpenSearchAllocationTestCase {
             priorityFirst = 1;
         }
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("first").settings(settings(Version.CURRENT)
-                    .put(IndexMetadata.SETTING_PRIORITY, priorityFirst)).numberOfShards(2).numberOfReplicas(1))
-                .put(IndexMetadata.builder("second").settings(settings(Version.CURRENT)
-                    .put(IndexMetadata.SETTING_PRIORITY, prioritySecond)).numberOfShards(2).numberOfReplicas(1))
-                .build();
+            .put(
+                IndexMetadata.builder("first")
+                    .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_PRIORITY, priorityFirst))
+                    .numberOfShards(2)
+                    .numberOfReplicas(1)
+            )
+            .put(
+                IndexMetadata.builder("second")
+                    .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_PRIORITY, prioritySecond))
+                    .numberOfShards(2)
+                    .numberOfReplicas(1)
+            )
+            .build();
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("first"))
-                .addAsNew(metadata.index("second"))
-                .build();
-        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+            .addAsNew(metadata.index("first"))
+            .addAsNew(metadata.index("second"))
+            .build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(initialRoutingTable)
+            .build();
 
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))
-            .add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = allocation.reroute(clusterState, "reroute");
 
         clusterState = allocation.reroute(clusterState, "reroute");
@@ -99,14 +112,20 @@ public class AllocationPriorityTests extends OpenSearchAllocationTestCase {
 
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertEquals(4, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
-        List<String> indices = clusterState.getRoutingNodes().shardsWithState(INITIALIZING).stream().
-            map(x->x.getIndexName()).collect(Collectors.toList());
+        List<String> indices = clusterState.getRoutingNodes()
+            .shardsWithState(INITIALIZING)
+            .stream()
+            .map(x -> x.getIndexName())
+            .collect(Collectors.toList());
         assertTrue(indices.contains(lowPriorityName));
         assertTrue(indices.contains(highPriorityName));
 
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
-        assertEquals(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).toString(),2,
-            clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
+        assertEquals(
+            clusterState.getRoutingNodes().shardsWithState(INITIALIZING).toString(),
+            2,
+            clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size()
+        );
 
         assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
         assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());

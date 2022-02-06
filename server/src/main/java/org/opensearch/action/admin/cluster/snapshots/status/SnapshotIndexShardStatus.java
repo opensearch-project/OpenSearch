@@ -102,9 +102,16 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
             default:
                 throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
         }
-        this.stats = new SnapshotStats(indexShardStatus.getStartTime(), indexShardStatus.getTotalTime(),
-            indexShardStatus.getIncrementalFileCount(), indexShardStatus.getTotalFileCount(), indexShardStatus.getProcessedFileCount(),
-            indexShardStatus.getIncrementalSize(), indexShardStatus.getTotalSize(), indexShardStatus.getProcessedSize());
+        this.stats = new SnapshotStats(
+            indexShardStatus.getStartTime(),
+            indexShardStatus.getTotalTime(),
+            indexShardStatus.getIncrementalFileCount(),
+            indexShardStatus.getTotalFileCount(),
+            indexShardStatus.getProcessedFileCount(),
+            indexShardStatus.getIncrementalSize(),
+            indexShardStatus.getTotalSize(),
+            indexShardStatus.getProcessedSize()
+        );
         this.failure = indexShardStatus.getFailure();
         this.nodeId = nodeId;
     }
@@ -178,7 +185,8 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     static final ObjectParser.NamedObjectParser<SnapshotIndexShardStatus, String> PARSER;
     static {
         ConstructingObjectParser<SnapshotIndexShardStatus, ShardId> innerParser = new ConstructingObjectParser<>(
-            "snapshot_index_shard_status", true,
+            "snapshot_index_shard_status",
+            true,
             (Object[] parsedObjects, ShardId shard) -> {
                 int i = 0;
                 String rawStage = (String) parsedObjects[i++];
@@ -192,7 +200,10 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                 } catch (IllegalArgumentException iae) {
                     throw new OpenSearchParseException(
                         "failed to parse snapshot index shard status [{}][{}], unknown stage [{}]",
-                        shard.getIndex().getName(), shard.getId(), rawStage);
+                        shard.getIndex().getName(),
+                        shard.getId(),
+                        rawStage
+                    );
                 }
                 return new SnapshotIndexShardStatus(shard, stage, stats, nodeId, failure);
             }
@@ -209,7 +220,10 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                 shard = Integer.parseInt(shardName);
             } catch (NumberFormatException nfe) {
                 throw new OpenSearchParseException(
-                    "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]", indexId, shardName);
+                    "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]",
+                    indexId,
+                    shardName
+                );
             }
             ShardId shardId = new ShardId(new Index(indexId, IndexMetadata.INDEX_UUID_NA_VALUE), shard);
             return innerParser.parse(p, shardId);

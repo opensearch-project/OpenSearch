@@ -92,7 +92,9 @@ public class ListInitializationNode extends ArgumentsNode {
         methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
         methodWriter.dup();
         methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+            Type.getType(constructor.javaConstructor.getDeclaringClass()),
+            Method.getMethod(constructor.javaConstructor)
+        );
 
         for (ExpressionNode argument : getArgumentNodes()) {
             methodWriter.dup();

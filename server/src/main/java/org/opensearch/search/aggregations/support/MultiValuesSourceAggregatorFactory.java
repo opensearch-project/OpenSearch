@@ -48,20 +48,27 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
     protected final Map<String, ValuesSourceConfig> configs;
     protected final DocValueFormat format;
 
-    public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
-                                              DocValueFormat format, QueryShardContext queryShardContext,
-                                              AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metadata) throws IOException {
+    public MultiValuesSourceAggregatorFactory(
+        String name,
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.configs = configs;
         this.format = format;
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         return doCreateInternal(searchContext, configs, format, parent, cardinality, metadata);
     }
 
@@ -69,9 +76,8 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
      * Create an aggregator that won't collect anything but will return an
      * appropriate empty aggregation.
      */
-    protected abstract Aggregator createUnmapped(SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    Map<String, Object> metadata) throws IOException;
+    protected abstract Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata)
+        throws IOException;
 
     /**
      * Create the {@linkplain Aggregator}.
@@ -80,8 +86,13 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
      *                    that the {@link Aggregator} created by this method
      *                    will be asked to collect.
      */
-    protected abstract Aggregator doCreateInternal(SearchContext searchContext, Map<String, ValuesSourceConfig> configs,
-                                                   DocValueFormat format, Aggregator parent, CardinalityUpperBound cardinality,
-                                                   Map<String, Object> metadata) throws IOException;
+    protected abstract Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 
 }

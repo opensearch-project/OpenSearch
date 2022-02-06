@@ -115,7 +115,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
         assertEquals("Validation Failed: 1: only inline scripts are supported;", e.getMessage());
     }
 
-    private static ContextSetup randomContextSetup()  {
+    private static ContextSetup randomContextSetup() {
         String index = randomBoolean() ? randomAlphaOfLength(4) : null;
         QueryBuilder query = randomBoolean() ? new MatchAllQueryBuilder() : null;
         BytesReference doc = null;

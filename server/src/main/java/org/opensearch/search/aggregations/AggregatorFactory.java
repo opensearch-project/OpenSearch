@@ -56,8 +56,13 @@ public abstract class AggregatorFactory {
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
-                             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+    public AggregatorFactory(
+        String name,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         this.name = name;
         this.queryShardContext = queryShardContext;
         this.parent = parent;
@@ -69,13 +74,14 @@ public abstract class AggregatorFactory {
         return name;
     }
 
-    public void doValidate() {
-    }
+    public void doValidate() {}
 
-    protected abstract Aggregator createInternal(SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    CardinalityUpperBound cardinality,
-                                                    Map<String, Object> metadata) throws IOException;
+    protected abstract Aggregator createInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 
     /**
      * Creates the aggregator.

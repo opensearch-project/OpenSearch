@@ -167,7 +167,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, PainlessScriptEngine painlessScriptEngine) {
-            super(NAME, transportService, actionFilters, (Writeable.Reader<Request>)Request::new);
+            super(NAME, transportService, actionFilters, (Writeable.Reader<Request>) Request::new);
             this.painlessScriptEngine = painlessScriptEngine;
         }
 
@@ -177,15 +177,18 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
             PainlessContextInfo painlessContextInfo;
 
             if (request.scriptContextName == null) {
-                scriptContextNames =
-                        painlessScriptEngine.getContextsToLookups().keySet().stream().map(v -> v.name).collect(Collectors.toList());
+                scriptContextNames = painlessScriptEngine.getContextsToLookups()
+                    .keySet()
+                    .stream()
+                    .map(v -> v.name)
+                    .collect(Collectors.toList());
                 painlessContextInfo = null;
             } else {
                 ScriptContext<?> scriptContext = null;
                 PainlessLookup painlessLookup = null;
 
-                for (Map.Entry<ScriptContext<?>, PainlessLookup> contextLookupEntry :
-                        painlessScriptEngine.getContextsToLookups().entrySet()) {
+                for (Map.Entry<ScriptContext<?>, PainlessLookup> contextLookupEntry : painlessScriptEngine.getContextsToLookups()
+                    .entrySet()) {
                     if (contextLookupEntry.getKey().name.equals(request.getScriptContextName())) {
                         scriptContext = contextLookupEntry.getKey();
                         painlessLookup = contextLookupEntry.getValue();

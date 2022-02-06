@@ -54,8 +54,11 @@ public abstract class AbstractFullClusterRestartTestCase extends OpenSearchRestT
 
     @Before
     public void init() throws IOException {
-        assertThat("we don't need this branch if we aren't compatible with 6.0",
-                Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(LegacyESVersion.V_6_0_0), equalTo(true));
+        assertThat(
+            "we don't need this branch if we aren't compatible with 6.0",
+            Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(LegacyESVersion.V_6_0_0),
+            equalTo(true)
+        );
         if (isRunningAgainstOldCluster() && getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
             XContentBuilder template = jsonBuilder();
             template.startObject();

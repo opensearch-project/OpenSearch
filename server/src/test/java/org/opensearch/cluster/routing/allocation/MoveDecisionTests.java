@@ -34,9 +34,6 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.routing.allocation.AllocationDecision;
-import org.opensearch.cluster.routing.allocation.MoveDecision;
-import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -124,10 +121,19 @@ public class MoveDecisionTests extends OpenSearchTestCase {
         Type finalDecision = randomFrom(Type.values());
         DiscoveryNode assignedNode = finalDecision == Type.YES ? node1 : null;
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
-        nodeDecisions.add(new NodeAllocationResult(node2, finalDecision == Type.YES ? Decision.YES :
-                                                              randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
-        MoveDecision moveDecision = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.fromDecisionType(finalDecision),
-            assignedNode, nodeDecisions);
+        nodeDecisions.add(
+            new NodeAllocationResult(
+                node2,
+                finalDecision == Type.YES ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
+                1
+            )
+        );
+        MoveDecision moveDecision = MoveDecision.cannotRemain(
+            Decision.NO,
+            AllocationDecision.fromDecisionType(finalDecision),
+            assignedNode,
+            nodeDecisions
+        );
         BytesStreamOutput output = new BytesStreamOutput();
         moveDecision.writeTo(output);
         MoveDecision readDecision = new MoveDecision(output.bytes().streamInput());

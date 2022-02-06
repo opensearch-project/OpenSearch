@@ -105,7 +105,6 @@ public interface RestHandler {
         return Collections.emptyList();
     }
 
-
     /**
      * Controls whether requests handled by this class are allowed to to access system indices by default.
      * @return {@code true} if requests handled by this class should be allowed to access system indices.
@@ -266,9 +265,7 @@ public interface RestHandler {
      * @param deprecatedPrefix deprecated prefix
      * @return new list of API routes prefixed with the prefix string
      */
-    static List<ReplacedRoute> replaceRoutes(List<Route> routes, final String prefix, final String deprecatedPrefix){
-        return routes.stream()
-            .map(route -> new ReplacedRoute(route, prefix, deprecatedPrefix))
-            .collect(Collectors.toList());
+    static List<ReplacedRoute> replaceRoutes(List<Route> routes, final String prefix, final String deprecatedPrefix) {
+        return routes.stream().map(route -> new ReplacedRoute(route, prefix, deprecatedPrefix)).collect(Collectors.toList());
     }
 }

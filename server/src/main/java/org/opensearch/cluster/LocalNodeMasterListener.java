@@ -58,4 +58,3 @@ public interface LocalNodeMasterListener extends ClusterStateListener {
         }
     }
 }
-

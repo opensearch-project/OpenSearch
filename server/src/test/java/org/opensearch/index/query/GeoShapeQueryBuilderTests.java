@@ -83,10 +83,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     protected Settings createTestIndexSettings() {
         // force the new shape impl
         Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_6_0, Version.CURRENT);
-        return Settings.builder()
-                .put(super.createTestIndexSettings())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
+        return Settings.builder().put(super.createTestIndexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
     }
 
     @Override
@@ -120,8 +117,9 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         } catch (IOException ex) {
             throw new OpenSearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(indexedShapeIndex, indexedType, indexedShapeId, 0, 1, 0, true, new BytesArray(json),
-            null, null));
+        return new GetResponse(
+            new GetResult(indexedShapeIndex, indexedType, indexedShapeId, 0, 1, 0, true, new BytesArray(json), null, null)
+        );
     }
 
     @After
@@ -154,8 +152,10 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     }
 
     public void testNoIndexedShape() throws IOException {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new GeoShapeQueryBuilder(fieldName(), null, "type"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GeoShapeQueryBuilder(fieldName(), null, "type")
+        );
         assertEquals("either shape or indexedShapeId is required", e.getMessage());
     }
 
@@ -169,27 +169,26 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     // see #3878
     public void testThatXContentSerializationInsideOfArrayWorks() throws Exception {
         EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(0, 10), new Coordinate(10, 0));
-        GeoShapeQueryBuilder geoQuery = randomBoolean() ?
-            QueryBuilders.geoShapeQuery("searchGeometry", envelopeBuilder) :
-            QueryBuilders.geoShapeQuery("searchGeometry", envelopeBuilder.buildGeometry());
+        GeoShapeQueryBuilder geoQuery = randomBoolean()
+            ? QueryBuilders.geoShapeQuery("searchGeometry", envelopeBuilder)
+            : QueryBuilders.geoShapeQuery("searchGeometry", envelopeBuilder.buildGeometry());
         JsonXContent.contentBuilder().startArray().value(geoQuery).endArray();
     }
 
     public void testFromJson() throws IOException {
-        String json =
-            "{\n" +
-                "  \"geo_shape\" : {\n" +
-                "    \"location\" : {\n" +
-                "      \"shape\" : {\n" +
-                "        \"type\" : \"Envelope\",\n" +
-                "        \"coordinates\" : [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]\n" +
-                "      },\n" +
-                "      \"relation\" : \"intersects\"\n" +
-                "    },\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 42.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"geo_shape\" : {\n"
+            + "    \"location\" : {\n"
+            + "      \"shape\" : {\n"
+            + "        \"type\" : \"Envelope\",\n"
+            + "        \"coordinates\" : [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]\n"
+            + "      },\n"
+            + "      \"relation\" : \"intersects\"\n"
+            + "    },\n"
+            + "    \"ignore_unmapped\" : false,\n"
+            + "    \"boost\" : 42.0\n"
+            + "  }\n"
+            + "}";
         GeoShapeQueryBuilder parsed = (GeoShapeQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.0001);
@@ -202,9 +201,9 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> query.toQuery(createShardContext()));
         assertEquals("query must be rewritten first", e.getMessage());
         QueryBuilder rewrite = rewriteAndFetch(query, createShardContext());
-        GeoShapeQueryBuilder geoShapeQueryBuilder = randomBoolean() ?
-            new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn) :
-            new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn.buildGeometry());
+        GeoShapeQueryBuilder geoShapeQueryBuilder = randomBoolean()
+            ? new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn)
+            : new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn.buildGeometry());
         geoShapeQueryBuilder.strategy(query.strategy());
         geoShapeQueryBuilder.relation(query.relation());
         assertEquals(geoShapeQueryBuilder, rewrite);
@@ -212,37 +211,33 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
 
     public void testMultipleRewrite() throws IOException {
         GeoShapeQueryBuilder shape = doCreateTestQueryBuilder(true);
-        QueryBuilder builder = new BoolQueryBuilder()
-            .should(shape)
-            .should(shape);
+        QueryBuilder builder = new BoolQueryBuilder().should(shape).should(shape);
 
         builder = rewriteAndFetch(builder, createShardContext());
 
-        GeoShapeQueryBuilder expectedShape = randomBoolean() ?
-            new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn) :
-            new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn.buildGeometry());
+        GeoShapeQueryBuilder expectedShape = randomBoolean()
+            ? new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn)
+            : new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn.buildGeometry());
         expectedShape.strategy(shape.strategy());
         expectedShape.relation(shape.relation());
-        QueryBuilder expected = new BoolQueryBuilder()
-            .should(expectedShape)
-            .should(expectedShape);
+        QueryBuilder expected = new BoolQueryBuilder().should(expectedShape).should(expectedShape);
         assertEquals(expected, builder);
     }
 
     public void testIgnoreUnmapped() throws IOException {
         ShapeType shapeType = ShapeType.randomType(random());
         ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
-        final GeoShapeQueryBuilder queryBuilder = randomBoolean() ?
-            new GeoShapeQueryBuilder("unmapped", shape) :
-            new GeoShapeQueryBuilder("unmapped", shape.buildGeometry());
+        final GeoShapeQueryBuilder queryBuilder = randomBoolean()
+            ? new GeoShapeQueryBuilder("unmapped", shape)
+            : new GeoShapeQueryBuilder("unmapped", shape.buildGeometry());
         queryBuilder.ignoreUnmapped(true);
         Query query = queryBuilder.toQuery(createShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
-        final GeoShapeQueryBuilder failingQueryBuilder = randomBoolean() ?
-            new GeoShapeQueryBuilder("unmapped", shape) :
-            new GeoShapeQueryBuilder("unmapped", shape.buildGeometry());
+        final GeoShapeQueryBuilder failingQueryBuilder = randomBoolean()
+            ? new GeoShapeQueryBuilder("unmapped", shape)
+            : new GeoShapeQueryBuilder("unmapped", shape.buildGeometry());
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("failed to find type for field [unmapped]"));
@@ -251,9 +246,9 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     public void testWrongFieldType() throws IOException {
         ShapeType shapeType = ShapeType.randomType(random());
         ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
-        final GeoShapeQueryBuilder queryBuilder = randomBoolean() ?
-            new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape) :
-            new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape.buildGeometry());
+        final GeoShapeQueryBuilder queryBuilder = randomBoolean()
+            ? new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape)
+            : new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape.buildGeometry());
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("Field [mapped_string] is of unsupported type [text] for [geo_shape] query"));
     }

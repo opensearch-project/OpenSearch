@@ -40,7 +40,6 @@ import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -72,8 +71,15 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(org.opensearch.common.collect.List.of("*"),
-                template, null, null, null, null, null);
+        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(
+            org.opensearch.common.collect.List.of("*"),
+            template,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);

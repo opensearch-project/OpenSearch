@@ -48,13 +48,11 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Ukr
             Analysis.parseStopWords(env, settings, UkrainianMorfologikAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override
     public UkrainianMorfologikAnalyzer get() {
         return this.analyzer;
     }
-
 
 }

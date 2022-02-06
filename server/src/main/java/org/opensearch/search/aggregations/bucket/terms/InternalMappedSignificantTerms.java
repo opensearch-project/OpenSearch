@@ -47,9 +47,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public abstract class InternalMappedSignificantTerms<
-            A extends InternalMappedSignificantTerms<A, B>,
-            B extends InternalSignificantTerms.Bucket<B>>
-        extends InternalSignificantTerms<A, B> {
+    A extends InternalMappedSignificantTerms<A, B>,
+    B extends InternalSignificantTerms.Bucket<B>> extends InternalSignificantTerms<A, B> {
 
     protected final DocValueFormat format;
     protected final long subsetSize;
@@ -58,9 +57,17 @@ public abstract class InternalMappedSignificantTerms<
     protected final List<B> buckets;
     protected Map<String, B> bucketMap;
 
-    protected InternalMappedSignificantTerms(String name, int requiredSize, long minDocCount,
-            Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
-            SignificanceHeuristic significanceHeuristic, List<B> buckets) {
+    protected InternalMappedSignificantTerms(
+        String name,
+        int requiredSize,
+        long minDocCount,
+        Map<String, Object> metadata,
+        DocValueFormat format,
+        long subsetSize,
+        long supersetSize,
+        SignificanceHeuristic significanceHeuristic,
+        List<B> buckets
+    ) {
         super(name, requiredSize, minDocCount, metadata);
         this.format = format;
         this.buckets = buckets;
@@ -128,11 +135,11 @@ public abstract class InternalMappedSignificantTerms<
 
         InternalMappedSignificantTerms<?, ?> that = (InternalMappedSignificantTerms<?, ?>) obj;
         return Objects.equals(format, that.format)
-                && subsetSize == that.subsetSize
-                && supersetSize == that.supersetSize
-                && Objects.equals(significanceHeuristic, that.significanceHeuristic)
-                && Objects.equals(buckets, that.buckets)
-                && Objects.equals(bucketMap, that.bucketMap);
+            && subsetSize == that.subsetSize
+            && supersetSize == that.supersetSize
+            && Objects.equals(significanceHeuristic, that.significanceHeuristic)
+            && Objects.equals(buckets, that.buckets)
+            && Objects.equals(bucketMap, that.bucketMap);
     }
 
     @Override
@@ -146,7 +153,7 @@ public abstract class InternalMappedSignificantTerms<
         builder.field(BG_COUNT, supersetSize);
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
-            //There is a condition (presumably when only one shard has a bucket?) where reduce is not called
+            // There is a condition (presumably when only one shard has a bucket?) where reduce is not called
             // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer
             if (bucket.subsetDf >= minDocCount) {
                 bucket.toXContent(builder, params);

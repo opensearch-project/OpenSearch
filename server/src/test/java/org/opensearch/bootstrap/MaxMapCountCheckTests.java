@@ -40,7 +40,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.AbstractBootstrapCheckTestCase;
 import org.opensearch.test.MockLogAppender;
@@ -75,10 +74,16 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
     private void assertFailure(final BootstrapCheck.BootstrapCheckResult result) {
         assertTrue(result.isFailure());
         assertThat(
-                result.getMessage(),
-                equalTo(
-                        "max virtual memory areas vm.max_map_count [" + maxMapCount.get() + "] is too low, "
-                                + "increase to at least [" + BootstrapChecks.MaxMapCountCheck.LIMIT + "]"));
+            result.getMessage(),
+            equalTo(
+                "max virtual memory areas vm.max_map_count ["
+                    + maxMapCount.get()
+                    + "] is too low, "
+                    + "increase to at least ["
+                    + BootstrapChecks.MaxMapCountCheck.LIMIT
+                    + "]"
+            )
+        );
     }
 
     public void testMaxMapCountCheckBelowLimit() {
@@ -151,44 +156,42 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             final IOException ioException = new IOException("fatal");
             when(reader.readLine()).thenThrow(ioException);
             final Logger logger = LogManager.getLogger("testGetMaxMapCountIOException");
-            final MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            appender.addExpectation(
+            try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
+                appender.addExpectation(
                     new ParameterizedMessageLoggingExpectation(
-                            "expected logged I/O exception",
-                            "testGetMaxMapCountIOException",
-                            Level.WARN,
-                            "I/O exception while trying to read [{}]",
-                            new Object[] { procSysVmMaxMapCountPath },
-                            e -> ioException == e));
-            Loggers.addAppender(logger, appender);
-            assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-            appender.assertAllExpectationsMatched();
-            verify(reader).close();
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
+                        "expected logged I/O exception",
+                        "testGetMaxMapCountIOException",
+                        Level.WARN,
+                        "I/O exception while trying to read [{}]",
+                        new Object[] { procSysVmMaxMapCountPath },
+                        e -> ioException == e
+                    )
+                );
+                assertThat(check.getMaxMapCount(logger), equalTo(-1L));
+                appender.assertAllExpectationsMatched();
+                verify(reader).close();
+            }
         }
 
         {
             reset(reader);
             when(reader.readLine()).thenReturn("eof");
             final Logger logger = LogManager.getLogger("testGetMaxMapCountNumberFormatException");
-            final MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            appender.addExpectation(
+            try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
+                appender.addExpectation(
                     new ParameterizedMessageLoggingExpectation(
-                            "expected logged number format exception",
-                            "testGetMaxMapCountNumberFormatException",
-                            Level.WARN,
-                            "unable to parse vm.max_map_count [{}]",
-                            new Object[] { "eof" },
-                            e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")));
-            Loggers.addAppender(logger, appender);
-            assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-            appender.assertAllExpectationsMatched();
-            verify(reader).close();
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
+                        "expected logged number format exception",
+                        "testGetMaxMapCountNumberFormatException",
+                        Level.WARN,
+                        "unable to parse vm.max_map_count [{}]",
+                        new Object[] { "eof" },
+                        e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")
+                    )
+                );
+                assertThat(check.getMaxMapCount(logger), equalTo(-1L));
+                appender.assertAllExpectationsMatched();
+                verify(reader).close();
+            }
         }
 
     }
@@ -205,12 +208,13 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
         private final Predicate<Throwable> throwablePredicate;
 
         private ParameterizedMessageLoggingExpectation(
-                final String name,
-                final String loggerName,
-                final Level level,
-                final String messagePattern,
-                final Object[] arguments,
-                final Predicate<Throwable> throwablePredicate) {
+            final String name,
+            final String loggerName,
+            final Level level,
+            final String messagePattern,
+            final Object[] arguments,
+            final Predicate<Throwable> throwablePredicate
+        ) {
             this.name = name;
             this.loggerName = loggerName;
             this.level = level;
@@ -221,13 +225,13 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
 
         @Override
         public void match(final LogEvent event) {
-            if (event.getLevel().equals(level) &&
-                    event.getLoggerName().equals(loggerName) &&
-                    event.getMessage() instanceof ParameterizedMessage) {
-                final ParameterizedMessage message = (ParameterizedMessage)event.getMessage();
-                saw = message.getFormat().equals(messagePattern) &&
-                        Arrays.deepEquals(arguments, message.getParameters()) &&
-                        throwablePredicate.test(event.getThrown());
+            if (event.getLevel().equals(level)
+                && event.getLoggerName().equals(loggerName)
+                && event.getMessage() instanceof ParameterizedMessage) {
+                final ParameterizedMessage message = (ParameterizedMessage) event.getMessage();
+                saw = message.getFormat().equals(messagePattern)
+                    && Arrays.deepEquals(arguments, message.getParameters())
+                    && throwablePredicate.test(event.getThrown());
             }
         }
 

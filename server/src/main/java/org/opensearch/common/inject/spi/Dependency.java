@@ -53,8 +53,7 @@ public final class Dependency<T> {
     private final boolean nullable;
     private final int parameterIndex;
 
-    Dependency(InjectionPoint injectionPoint, Key<T> key,
-               boolean nullable, int parameterIndex) {
+    Dependency(InjectionPoint injectionPoint, Key<T> key, boolean nullable, int parameterIndex) {
         this.injectionPoint = injectionPoint;
         this.key = key;
         this.nullable = nullable;
@@ -121,8 +120,8 @@ public final class Dependency<T> {
         if (o instanceof Dependency) {
             Dependency<?> dependency = (Dependency<?>) o;
             return Objects.equals(injectionPoint, dependency.injectionPoint)
-                    && Objects.equals(parameterIndex, dependency.parameterIndex)
-                    && Objects.equals(key, dependency.key);
+                && Objects.equals(parameterIndex, dependency.parameterIndex)
+                && Objects.equals(key, dependency.key);
         } else {
             return false;
         }

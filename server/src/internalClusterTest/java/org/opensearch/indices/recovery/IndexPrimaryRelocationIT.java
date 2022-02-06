@@ -51,7 +51,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
 
@@ -59,7 +58,9 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
 
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
-        client().admin().indices().prepareCreate("test")
+        client().admin()
+            .indices()
+            .prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
             .addMapping("type", "field", "type=text")
             .get();
@@ -83,26 +84,46 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
 
         ClusterState initialState = client().admin().cluster().prepareState().get().getState();
         DiscoveryNode[] dataNodes = initialState.getNodes().getDataNodes().values().toArray(DiscoveryNode.class);
-        DiscoveryNode relocationSource = initialState.getNodes().getDataNodes().get(initialState.getRoutingTable()
-            .shardRoutingTable("test", 0).primaryShard().currentNodeId());
+        DiscoveryNode relocationSource = initialState.getNodes()
+            .getDataNodes()
+            .get(initialState.getRoutingTable().shardRoutingTable("test", 0).primaryShard().currentNodeId());
         for (int i = 0; i < RELOCATION_COUNT; i++) {
             DiscoveryNode relocationTarget = randomFrom(dataNodes);
             while (relocationTarget.equals(relocationSource)) {
                 relocationTarget = randomFrom(dataNodes);
             }
             logger.info("--> [iteration {}] relocating from {} to {} ", i, relocationSource.getName(), relocationTarget.getName());
-            client().admin().cluster().prepareReroute()
+            client().admin()
+                .cluster()
+                .prepareReroute()
                 .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
-                .execute().actionGet();
-            ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
+                .execute()
+                .actionGet();
+            ClusterHealthResponse clusterHealthResponse = client().admin()
+                .cluster()
+                .prepareHealth()
                 .setTimeout(TimeValue.timeValueSeconds(60))
-                .setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).execute().actionGet();
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForNoRelocatingShards(true)
+                .execute()
+                .actionGet();
             if (clusterHealthResponse.isTimedOut()) {
-                final String hotThreads = client().admin().cluster().prepareNodesHotThreads().setIgnoreIdleThreads(false).get().getNodes()
-                    .stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"));
+                final String hotThreads = client().admin()
+                    .cluster()
+                    .prepareNodesHotThreads()
+                    .setIgnoreIdleThreads(false)
+                    .get()
+                    .getNodes()
+                    .stream()
+                    .map(NodeHotThreads::getHotThreads)
+                    .collect(Collectors.joining("\n"));
                 final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-                logger.info("timed out for waiting for relocation iteration [{}] \ncluster state {} \nhot threads {}",
-                    i, clusterState, hotThreads);
+                logger.info(
+                    "timed out for waiting for relocation iteration [{}] \ncluster state {} \nhot threads {}",
+                    i,
+                    clusterState,
+                    hotThreads
+                );
                 finished.set(true);
                 indexingThread.join();
                 throw new AssertionError("timed out waiting for relocation iteration [" + i + "] ");
@@ -113,7 +134,7 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
             if (indexingThread.isAlive() == false) {
                 break;
             }
-            if (i > 0  && i % 5 == 0) {
+            if (i > 0 && i % 5 == 0) {
                 logger.info("--> [iteration {}] flushing index", i);
                 client().admin().indices().prepareFlush("test").get();
             }
@@ -122,8 +143,13 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
         indexingThread.join();
         refresh("test");
         OpenSearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true).get(), numAutoGenDocs.get());
-        OpenSearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true)// extra paranoia ;)
-            .setQuery(QueryBuilders.termQuery("auto", true)).get(), numAutoGenDocs.get());
+        OpenSearchAssertions.assertHitCount(
+            client().prepareSearch("test")
+                .setTrackTotalHits(true)// extra paranoia ;)
+                .setQuery(QueryBuilders.termQuery("auto", true))
+                .get(),
+            numAutoGenDocs.get()
+        );
     }
 
 }

@@ -473,30 +473,18 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
     }
 
     public void testRankFeatureSaturationPivot() {
-        RankFeatureQueryBuilders.saturation(
-            "pagerank",
-            8
-        );
+        RankFeatureQueryBuilders.saturation("pagerank", 8);
     }
 
     public void testRankFeatureLog() {
-        RankFeatureQueryBuilders.log(
-            "pagerank",
-            4f
-        );
+        RankFeatureQueryBuilders.log("pagerank", 4f);
     }
 
     public void testRankFeatureSigmoid() {
-        RankFeatureQueryBuilders.sigmoid(
-            "pagerank",
-            7,
-            0.6f
-        );
+        RankFeatureQueryBuilders.sigmoid("pagerank", 7, 0.6f);
     }
 
     public void testRankFeatureLinear() {
-        RankFeatureQueryBuilders.linear(
-            "pagerank"
-        );
+        RankFeatureQueryBuilders.linear("pagerank");
     }
 }

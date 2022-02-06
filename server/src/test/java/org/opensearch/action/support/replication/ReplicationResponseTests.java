@@ -70,18 +70,33 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
             assertEquals("{\"total\":5,\"successful\":3,\"failed\":0}", output);
         }
         {
-            ShardInfo shardInfo = new ShardInfo(6, 4,
-                    new ShardInfo.Failure(new ShardId("index", "_uuid", 3),
-                            "_node_id", new IllegalArgumentException("Wrong"), RestStatus.BAD_REQUEST, false),
-                    new ShardInfo.Failure(new ShardId("index", "_uuid", 1),
-                            "_node_id", new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
-                        RestStatus.NOT_ACCEPTABLE, true));
+            ShardInfo shardInfo = new ShardInfo(
+                6,
+                4,
+                new ShardInfo.Failure(
+                    new ShardId("index", "_uuid", 3),
+                    "_node_id",
+                    new IllegalArgumentException("Wrong"),
+                    RestStatus.BAD_REQUEST,
+                    false
+                ),
+                new ShardInfo.Failure(
+                    new ShardId("index", "_uuid", 1),
+                    "_node_id",
+                    new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
+                    RestStatus.NOT_ACCEPTABLE,
+                    true
+                )
+            );
             String output = Strings.toString(shardInfo);
-            assertEquals("{\"total\":6,\"successful\":4,\"failed\":2,\"failures\":[{\"_index\":\"index\",\"_shard\":3," +
-                    "\"_node\":\"_node_id\",\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"Wrong\"}," +
-                    "\"status\":\"BAD_REQUEST\",\"primary\":false},{\"_index\":\"index\",\"_shard\":1,\"_node\":\"_node_id\"," +
-                    "\"reason\":{\"type\":\"circuit_breaking_exception\",\"reason\":\"Wrong\",\"bytes_wanted\":12,\"bytes_limit\":21" +
-                    ",\"durability\":\"PERMANENT\"},\"status\":\"NOT_ACCEPTABLE\",\"primary\":true}]}", output);
+            assertEquals(
+                "{\"total\":6,\"successful\":4,\"failed\":2,\"failures\":[{\"_index\":\"index\",\"_shard\":3,"
+                    + "\"_node\":\"_node_id\",\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"Wrong\"},"
+                    + "\"status\":\"BAD_REQUEST\",\"primary\":false},{\"_index\":\"index\",\"_shard\":1,\"_node\":\"_node_id\","
+                    + "\"reason\":{\"type\":\"circuit_breaking_exception\",\"reason\":\"Wrong\",\"bytes_wanted\":12,\"bytes_limit\":21"
+                    + ",\"durability\":\"PERMANENT\"},\"status\":\"NOT_ACCEPTABLE\",\"primary\":true}]}",
+                output
+            );
         }
     }
 

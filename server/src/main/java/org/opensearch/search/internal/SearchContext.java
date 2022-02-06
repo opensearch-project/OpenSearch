@@ -31,7 +31,6 @@
 
 package org.opensearch.search.internal;
 
-
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
@@ -362,7 +361,6 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract Profilers getProfilers();
 
-
     /**
      * Adds a releasable that will be freed when this context is closed.
      */
@@ -374,8 +372,7 @@ public abstract class SearchContext implements Releasable {
      * @return true if the request contains only suggest
      */
     public final boolean hasOnlySuggest() {
-        return request().source() != null
-            && request().source().isSuggestOnly();
+        return request().source() != null && request().source().isSuggestOnly();
     }
 
     /**

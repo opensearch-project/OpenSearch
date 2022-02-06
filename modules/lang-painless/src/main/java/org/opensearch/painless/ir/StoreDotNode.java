@@ -79,11 +79,17 @@ public class StoreDotNode extends StoreNode {
         methodWriter.writeDebugInfo(getLocation());
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            methodWriter.putStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
+            methodWriter.putStatic(
+                Type.getType(field.javaField.getDeclaringClass()),
+                field.javaField.getName(),
+                MethodWriter.getType(field.typeParameter)
+            );
         } else {
-            methodWriter.putField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
+            methodWriter.putField(
+                Type.getType(field.javaField.getDeclaringClass()),
+                field.javaField.getName(),
+                MethodWriter.getType(field.typeParameter)
+            );
         }
     }
 }

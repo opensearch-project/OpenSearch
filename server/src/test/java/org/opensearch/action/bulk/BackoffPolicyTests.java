@@ -34,7 +34,6 @@ package org.opensearch.action.bulk;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.bulk.BackoffPolicy;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;

@@ -100,18 +100,15 @@ public class XContentTypeTests extends OpenSearchTestCase {
     }
 
     public void testVersionedMediaType() throws Exception {
-        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+json;compatible-with=7"),
-            equalTo(XContentType.JSON));
-        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+yaml;compatible-with=7"),
-            equalTo(XContentType.YAML));
-        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+cbor;compatible-with=7"),
-            equalTo(XContentType.CBOR));
-        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+smile;compatible-with=7"),
-            equalTo(XContentType.SMILE));
+        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+json;compatible-with=7"), equalTo(XContentType.JSON));
+        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+yaml;compatible-with=7"), equalTo(XContentType.YAML));
+        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+cbor;compatible-with=7"), equalTo(XContentType.CBOR));
+        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+smile;compatible-with=7"), equalTo(XContentType.SMILE));
 
-        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+json ;compatible-with=7"),
-            equalTo(XContentType.JSON));
-        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+json ;compatible-with=7;charset=utf-8"),
-            equalTo(XContentType.JSON));
+        assertThat(XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+json ;compatible-with=7"), equalTo(XContentType.JSON));
+        assertThat(
+            XContentType.fromMediaTypeOrFormat("application/vnd.opensearch+json ;compatible-with=7;charset=utf-8"),
+            equalTo(XContentType.JSON)
+        );
     }
 }

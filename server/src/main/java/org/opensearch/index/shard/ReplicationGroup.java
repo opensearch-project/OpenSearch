@@ -53,8 +53,12 @@ public class ReplicationGroup {
     private final List<ShardRouting> replicationTargets; // derived from the other fields
     private final List<ShardRouting> skippedShards; // derived from the other fields
 
-    public ReplicationGroup(IndexShardRoutingTable routingTable, Set<String> inSyncAllocationIds, Set<String> trackedAllocationIds,
-                            long version) {
+    public ReplicationGroup(
+        IndexShardRoutingTable routingTable,
+        Set<String> inSyncAllocationIds,
+        Set<String> trackedAllocationIds,
+        long version
+    ) {
         this.routingTable = routingTable;
         this.inSyncAllocationIds = inSyncAllocationIds;
         this.trackedAllocationIds = trackedAllocationIds;
@@ -71,8 +75,8 @@ public class ReplicationGroup {
                 if (trackedAllocationIds.contains(shard.allocationId().getId())) {
                     replicationTargets.add(shard);
                 } else {
-                    assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false :
-                        "in-sync shard copy but not tracked: " + shard;
+                    assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false : "in-sync shard copy but not tracked: "
+                        + shard;
                     skippedShards.add(shard);
                 }
                 if (shard.relocating()) {
@@ -81,8 +85,9 @@ public class ReplicationGroup {
                         replicationTargets.add(relocationTarget);
                     } else {
                         skippedShards.add(relocationTarget);
-                        assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false :
-                            "in-sync shard copy but not tracked: " + shard;
+                        assert inSyncAllocationIds.contains(
+                            relocationTarget.allocationId().getId()
+                        ) == false : "in-sync shard copy but not tracked: " + shard;
                     }
                 }
             }
@@ -127,7 +132,6 @@ public class ReplicationGroup {
         return skippedShards;
     }
 
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -150,11 +154,14 @@ public class ReplicationGroup {
 
     @Override
     public String toString() {
-        return "ReplicationGroup{" +
-            "routingTable=" + routingTable +
-            ", inSyncAllocationIds=" + inSyncAllocationIds +
-            ", trackedAllocationIds=" + trackedAllocationIds +
-            '}';
+        return "ReplicationGroup{"
+            + "routingTable="
+            + routingTable
+            + ", inSyncAllocationIds="
+            + inSyncAllocationIds
+            + ", trackedAllocationIds="
+            + trackedAllocationIds
+            + '}';
     }
 
 }

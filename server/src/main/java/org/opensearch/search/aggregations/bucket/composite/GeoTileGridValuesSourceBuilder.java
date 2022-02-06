@@ -86,8 +86,11 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     static {
         PARSER = new ObjectParser<>(GeoTileGridValuesSourceBuilder.TYPE);
         PARSER.declareInt(GeoTileGridValuesSourceBuilder::precision, new ParseField("precision"));
-        PARSER.declareField(((p, builder, context) -> builder.geoBoundingBox(GeoBoundingBox.parseBoundingBox(p))),
-            GeoBoundingBox.BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            ((p, builder, context) -> builder.geoBoundingBox(GeoBoundingBox.parseBoundingBox(p))),
+            GeoBoundingBox.BOUNDS_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER);
     }
 
@@ -104,12 +107,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
                 // is specified in the builder.
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
-                CellIdSource cellIdSource = new CellIdSource(
-                    geoPoint,
-                    precision,
-                    boundingBox,
-                    GeoTileUtils::longEncode
-                );
+                CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, boundingBox, GeoTileUtils::longEncode);
                 return new CompositeValuesSourceConfig(
                     name,
                     fieldType,
@@ -140,7 +138,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                     }
                 );
             },
-            false);
+            false
+        );
     }
 
     private int precision = GeoTileGridAggregationBuilder.DEFAULT_PRECISION;
@@ -209,8 +208,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         GeoTileGridValuesSourceBuilder other = (GeoTileGridValuesSourceBuilder) obj;
-        return Objects.equals(precision,other.precision)
-            && Objects.equals(geoBoundingBox, other.geoBoundingBox);
+        return Objects.equals(precision, other.precision) && Objects.equals(geoBoundingBox, other.geoBoundingBox);
     }
 
     @Override

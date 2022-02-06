@@ -99,16 +99,20 @@ public class NetworkUtilsTests extends OpenSearchTestCase {
     public void testMaybeGetInterfaceByName() throws Exception {
         final List<NetworkInterface> networkInterfaces = NetworkUtils.getInterfaces();
         for (NetworkInterface netIf : networkInterfaces) {
-            final Optional<NetworkInterface> maybeNetworkInterface =
-                NetworkUtils.maybeGetInterfaceByName(networkInterfaces, netIf.getName());
+            final Optional<NetworkInterface> maybeNetworkInterface = NetworkUtils.maybeGetInterfaceByName(
+                networkInterfaces,
+                netIf.getName()
+            );
             assertThat(maybeNetworkInterface, OptionalMatchers.isPresent());
             assertThat(maybeNetworkInterface.get().getName(), equalTo(netIf.getName()));
         }
     }
 
     public void testNonExistingInterface() throws Exception {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> NetworkUtils.getAddressesForInterface("non-existing"));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> NetworkUtils.getAddressesForInterface("non-existing")
+        );
         assertThat(exception.getMessage(), containsString("No interface named 'non-existing' found"));
     }
 }

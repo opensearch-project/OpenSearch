@@ -94,15 +94,22 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final RepositoryMetadata metadata,
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
-        final RecoverySettings recoverySettings) {
+        final RecoverySettings recoverySettings
+    ) {
         return new S3Repository(metadata, registry, service, clusterService, recoverySettings);
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
-                                                           final ClusterService clusterService, final RecoverySettings recoverySettings) {
-        return Collections.singletonMap(S3Repository.TYPE, metadata -> createRepository(metadata, registry, clusterService,
-            recoverySettings));
+    public Map<String, Repository.Factory> getRepositories(
+        final Environment env,
+        final NamedXContentRegistry registry,
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings
+    ) {
+        return Collections.singletonMap(
+            S3Repository.TYPE,
+            metadata -> createRepository(metadata, registry, clusterService, recoverySettings)
+        );
     }
 
     @Override
@@ -125,7 +132,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.ACCESS_KEY_SETTING,
             S3Repository.SECRET_KEY_SETTING,
             S3ClientSettings.SIGNER_OVERRIDE,
-            S3ClientSettings.REGION);
+            S3ClientSettings.REGION
+        );
     }
 
     @Override

@@ -47,8 +47,7 @@ public class SimpleHeuristic extends SignificanceHeuristic {
     public static final String NAME = "simple";
     public static final ObjectParser<SimpleHeuristic, Void> PARSER = new ObjectParser<>(NAME, SimpleHeuristic::new);
 
-    public SimpleHeuristic() {
-    }
+    public SimpleHeuristic() {}
 
     /**
      * Read from a stream.

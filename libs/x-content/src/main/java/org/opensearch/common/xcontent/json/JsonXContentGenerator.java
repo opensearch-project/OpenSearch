@@ -180,7 +180,6 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.writeEndObject();
     }
 
-
     @Override
     public void writeStartArray() throws IOException {
         generator.writeStartArray();
@@ -350,11 +349,13 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void writeRawField(String name, InputStream content, XContentType contentType) throws IOException {
         if (mayWriteRawData(contentType) == false) {
             // EMPTY is safe here because we never call namedObject when writing raw data
-            try (XContentParser parser = XContentFactory.xContent(contentType)
+            try (
+                XContentParser parser = XContentFactory.xContent(contentType)
                     // It's okay to pass the throwing deprecation handler
                     // because we should not be writing raw fields when
                     // generating JSON
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content)) {
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content)
+            ) {
                 parser.nextToken();
                 writeFieldName(name);
                 copyCurrentStructure(parser);
@@ -387,10 +388,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         // or the content is in a different format than the current generator,
         // we need to copy the whole structure so that it will be correctly
         // filtered or converted
-        return supportsRawWrites()
-                && isFiltered() == false
-                && contentType == contentType()
-                && prettyPrint == false;
+        return supportsRawWrites() && isFiltered() == false && contentType == contentType() && prettyPrint == false;
     }
 
     /** Whether this generator supports writing raw data directly */
@@ -400,10 +398,12 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     protected void copyRawValue(InputStream stream, XContent xContent) throws IOException {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = xContent
-                 // It's okay to pass the throwing deprecation handler because we
-                 // should not be writing raw fields when generating JSON
-                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+        try (
+            XContentParser parser = xContent
+                // It's okay to pass the throwing deprecation handler because we
+                // should not be writing raw fields when generating JSON
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
+        ) {
             copyCurrentStructure(parser);
         }
     }
@@ -465,7 +465,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             return;
         }
         JsonStreamContext context = generator.getOutputContext();
-        if ((context != null) && (context.inRoot() ==  false)) {
+        if ((context != null) && (context.inRoot() == false)) {
             throw new IOException("Unclosed object or array found");
         }
         if (writeLineFeedAtEnd) {

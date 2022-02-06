@@ -63,7 +63,7 @@ public class IndicesDocumentationIT extends OpenSearchIntegTestCase {
      * at "docs/java-api/admin/indices/put-mapping.asciidoc" so the documentation gets tested
      * so that it compiles and runs without throwing errors at runtime.
      */
-     public void testPutMappingDocumentation() throws Exception {
+    public void testPutMappingDocumentation() throws Exception {
         Client client = client();
 
         // tag::index-with-mapping
@@ -109,8 +109,10 @@ public class IndicesDocumentationIT extends OpenSearchIntegTestCase {
         getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
         indexMapping = getMappingsResponse.getMappings().get("twitter");
-        assertEquals(singletonMap("properties", singletonMap("name", singletonMap("type", "text"))),
-                indexMapping.get("_doc").getSourceAsMap());
+        assertEquals(
+            singletonMap("properties", singletonMap("name", singletonMap("type", "text"))),
+            indexMapping.get("_doc").getSourceAsMap()
+        );
     }
 
 }

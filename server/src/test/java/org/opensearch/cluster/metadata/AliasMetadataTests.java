@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.AliasMetadata.Builder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -48,16 +47,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> {
 
     public void testSerialization() throws IOException {
-        final AliasMetadata before =
-                AliasMetadata
-                        .builder("alias")
-                        .filter("{ \"term\": \"foo\"}")
-                        .indexRouting("indexRouting")
-                        .routing("routing")
-                        .searchRouting("trim,tw , ltw , lw")
-                        .writeIndex(randomBoolean() ? null : randomBoolean())
-                        .isHidden(randomBoolean() ? null : randomBoolean())
-                        .build();
+        final AliasMetadata before = AliasMetadata.builder("alias")
+            .filter("{ \"term\": \"foo\"}")
+            .indexRouting("indexRouting")
+            .routing("routing")
+            .searchRouting("trim,tw , ltw , lw")
+            .writeIndex(randomBoolean() ? null : randomBoolean())
+            .isHidden(randomBoolean() ? null : randomBoolean())
+            .build();
 
         assertThat(before.searchRoutingValues(), equalTo(Sets.newHashSet("trim", "tw ", " ltw ", " lw")));
 
@@ -94,7 +91,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return p -> p.equals("") // do not add elements at the top-level as any element at this level is parsed as a new alias
-                || p.contains(".filter"); // do not insert random data into AliasMetadata#filter
+            || p.contains(".filter"); // do not insert random data into AliasMetadata#filter
     }
 
     @Override

@@ -62,8 +62,13 @@ public class BulkBenchmarkTask implements BenchmarkTask {
     private LoadGenerator generator;
     private ExecutorService executorService;
 
-    public BulkBenchmarkTask(BulkRequestExecutor requestExecutor, String indexFilePath, int warmupIterations, int measurementIterations,
-                             int bulkSize) {
+    public BulkBenchmarkTask(
+        BulkRequestExecutor requestExecutor,
+        String indexFilePath,
+        int warmupIterations,
+        int measurementIterations,
+        int bulkSize
+    ) {
         this.requestExecutor = requestExecutor;
         this.indexFilePath = indexFilePath;
         this.warmupIterations = warmupIterations;
@@ -86,11 +91,11 @@ public class BulkBenchmarkTask implements BenchmarkTask {
 
     @Override
     @SuppressForbidden(reason = "system out is ok for a command line tool")
-    public void run() throws Exception  {
+    public void run() throws Exception {
         generator.execute();
         // when the generator is done, there are no more data -> shutdown client
         executorService.shutdown();
-        //We need to wait until the queue is drained
+        // We need to wait until the queue is drained
         final boolean finishedNormally = executorService.awaitTermination(20, TimeUnit.MINUTES);
         if (finishedNormally == false) {
             System.err.println("Background tasks are still running after timeout on enclosing pool. Forcing pool shutdown.");
@@ -100,7 +105,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
 
     @Override
     public void tearDown() {
-        //no op
+        // no op
     }
 
     private static final class LoadGenerator {
@@ -146,7 +151,6 @@ public class BulkBenchmarkTask implements BenchmarkTask {
         }
     }
 
-
     private static final class BulkIndexer implements Runnable {
         private static final Logger logger = LogManager.getLogger(BulkIndexer.class);
 
@@ -156,8 +160,13 @@ public class BulkBenchmarkTask implements BenchmarkTask {
         private final BulkRequestExecutor bulkRequestExecutor;
         private final SampleRecorder sampleRecorder;
 
-        BulkIndexer(BlockingQueue<List<String>> bulkData, int warmupIterations, int measurementIterations,
-                           SampleRecorder sampleRecorder, BulkRequestExecutor bulkRequestExecutor) {
+        BulkIndexer(
+            BlockingQueue<List<String>> bulkData,
+            int warmupIterations,
+            int measurementIterations,
+            SampleRecorder sampleRecorder,
+            BulkRequestExecutor bulkRequestExecutor
+        ) {
             this.bulkData = bulkData;
             this.warmupIterations = warmupIterations;
             this.measurementIterations = measurementIterations;
@@ -176,7 +185,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
                     Thread.currentThread().interrupt();
                     return;
                 }
-                //measure only service time, latency is not that interesting for a throughput benchmark
+                // measure only service time, latency is not that interesting for a throughput benchmark
                 long start = System.nanoTime();
                 try {
                     success = bulkRequestExecutor.bulkIndex(currentBulk);

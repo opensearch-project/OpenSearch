@@ -131,8 +131,7 @@ public class AbstractLifecycleRunnableTests extends OpenSearchTestCase {
             protected void onAfterInLifecycle() {
                 try {
                     afterCallable.call();
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     fail("Unexpected for mock.");
                 }
             }

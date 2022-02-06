@@ -34,8 +34,6 @@ package org.opensearch.action;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.ActionListener;
-
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -135,16 +133,14 @@ public class ActionListenerTests extends OpenSearchTestCase {
         List<AtomicReference<Exception>> excList = new ArrayList<>();
         List<ActionListener<Boolean>> listeners = new ArrayList<>();
 
-        final int listenerToFail = randomBoolean() ? -1 : randomIntBetween(0, numListeners-1);
+        final int listenerToFail = randomBoolean() ? -1 : randomIntBetween(0, numListeners - 1);
         for (int i = 0; i < numListeners; i++) {
             AtomicReference<Boolean> reference = new AtomicReference<>();
             AtomicReference<Exception> exReference = new AtomicReference<>();
             refList.add(reference);
             excList.add(exReference);
             boolean fail = i == listenerToFail;
-            CheckedConsumer<Boolean, ? extends Exception> handler = (o) -> {
-                reference.set(o);
-            };
+            CheckedConsumer<Boolean, ? extends Exception> handler = (o) -> { reference.set(o); };
             listeners.add(ActionListener.wrap(handler, (e) -> {
                 exReference.set(e);
                 if (fail) {
@@ -189,15 +185,13 @@ public class ActionListenerTests extends OpenSearchTestCase {
     public void testRunBefore() {
         {
             AtomicBoolean afterSuccess = new AtomicBoolean();
-            ActionListener<Object> listener =
-                ActionListener.runBefore(ActionListener.wrap(r -> {}, e -> {}), () -> afterSuccess.set(true));
+            ActionListener<Object> listener = ActionListener.runBefore(ActionListener.wrap(r -> {}, e -> {}), () -> afterSuccess.set(true));
             listener.onResponse(null);
             assertThat(afterSuccess.get(), equalTo(true));
         }
         {
             AtomicBoolean afterFailure = new AtomicBoolean();
-            ActionListener<Object> listener =
-                ActionListener.runBefore(ActionListener.wrap(r -> {}, e -> {}), () -> afterFailure.set(true));
+            ActionListener<Object> listener = ActionListener.runBefore(ActionListener.wrap(r -> {}, e -> {}), () -> afterFailure.set(true));
             listener.onFailure(null);
             assertThat(afterFailure.get(), equalTo(true));
         }
@@ -211,6 +205,7 @@ public class ActionListenerTests extends OpenSearchTestCase {
             public void onResponse(Object o) {
                 onResponseTimes.getAndIncrement();
             }
+
             @Override
             public void onFailure(Exception e) {
                 onFailureTimes.getAndIncrement();
@@ -271,8 +266,10 @@ public class ActionListenerTests extends OpenSearchTestCase {
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertNull(exReference.get());
 
-        assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener,
-            () -> { throw new IllegalArgumentException(); }));
+        assertionError = expectThrows(
+            AssertionError.class,
+            () -> ActionListener.completeWith(listener, () -> { throw new IllegalArgumentException(); })
+        );
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }

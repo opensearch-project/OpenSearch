@@ -77,11 +77,24 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     private final Client client;
 
     @Inject
-    public TransportRolloverAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   MetadataRolloverService rolloverService, Client client) {
-        super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, RolloverRequest::new,
-            indexNameExpressionResolver);
+    public TransportRolloverAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MetadataRolloverService rolloverService,
+        Client client
+    ) {
+        super(
+            RolloverAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            RolloverRequest::new,
+            indexNameExpressionResolver
+        );
         this.rolloverService = rolloverService;
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
@@ -100,27 +113,43 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     @Override
     protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true,
-            request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+            true,
+            true,
+            request.indicesOptions().expandWildcardsOpen(),
+            request.indicesOptions().expandWildcardsClosed()
+        );
 
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request));
+        return state.blocks()
+            .indicesBlockedException(
+                ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request)
+            );
     }
 
     @Override
-    protected void masterOperation(RolloverRequest request, ClusterState state,
-                                   ActionListener<RolloverResponse> listener) throws Exception {
+    protected void masterOperation(RolloverRequest request, ClusterState state, ActionListener<RolloverResponse> listener)
+        throws Exception {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
-    protected void masterOperation(Task task, final RolloverRequest rolloverRequest, final ClusterState state,
-                                   final ActionListener<RolloverResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        final RolloverRequest rolloverRequest,
+        final ClusterState state,
+        final ActionListener<RolloverResponse> listener
+    ) throws Exception {
 
-        MetadataRolloverService.RolloverResult preResult =
-            rolloverService.rolloverClusterState(state,
-                rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
-                Collections.emptyList(), true, true);
+        MetadataRolloverService.RolloverResult preResult = rolloverService.rolloverClusterState(
+            state,
+            rolloverRequest.getRolloverTarget(),
+            rolloverRequest.getNewIndexName(),
+            rolloverRequest.getCreateIndexRequest(),
+            Collections.emptyList(),
+            true,
+            true
+        );
         Metadata metadata = state.metadata();
         String sourceIndexName = preResult.sourceIndexName;
         String rolloverIndexName = preResult.rolloverIndexName;
@@ -129,31 +158,46 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
             .docs(true);
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        client.execute(IndicesStatsAction.INSTANCE, statsRequest,
-            new ActionListener<IndicesStatsResponse>() {
-                @Override
-                public void onResponse(IndicesStatsResponse statsResponse) {
-                    final Map<String, Boolean> conditionResults = evaluateConditions(rolloverRequest.getConditions().values(),
-                        metadata.index(sourceIndexName), statsResponse);
+        client.execute(IndicesStatsAction.INSTANCE, statsRequest, new ActionListener<IndicesStatsResponse>() {
+            @Override
+            public void onResponse(IndicesStatsResponse statsResponse) {
+                final Map<String, Boolean> conditionResults = evaluateConditions(
+                    rolloverRequest.getConditions().values(),
+                    metadata.index(sourceIndexName),
+                    statsResponse
+                );
 
-                    if (rolloverRequest.isDryRun()) {
-                        listener.onResponse(
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
-                        return;
-                    }
-                    List<Condition<?>> metConditions = rolloverRequest.getConditions().values().stream()
-                        .filter(condition -> conditionResults.get(condition.toString())).collect(Collectors.toList());
-                    if (conditionResults.size() == 0 || metConditions.size() > 0) {
-                        clusterService.submitStateUpdateTask("rollover_index source [" + sourceIndexName + "] to target ["
-                            + rolloverIndexName + "]", new ClusterStateUpdateTask() {
+                if (rolloverRequest.isDryRun()) {
+                    listener.onResponse(
+                        new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false)
+                    );
+                    return;
+                }
+                List<Condition<?>> metConditions = rolloverRequest.getConditions()
+                    .values()
+                    .stream()
+                    .filter(condition -> conditionResults.get(condition.toString()))
+                    .collect(Collectors.toList());
+                if (conditionResults.size() == 0 || metConditions.size() > 0) {
+                    clusterService.submitStateUpdateTask(
+                        "rollover_index source [" + sourceIndexName + "] to target [" + rolloverIndexName + "]",
+                        new ClusterStateUpdateTask() {
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
-                                MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(currentState,
-                                    rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(),
-                                    rolloverRequest.getCreateIndexRequest(), metConditions, false, false);
+                                MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
+                                    currentState,
+                                    rolloverRequest.getRolloverTarget(),
+                                    rolloverRequest.getNewIndexName(),
+                                    rolloverRequest.getCreateIndexRequest(),
+                                    metConditions,
+                                    false,
+                                    false
+                                );
                                 if (rolloverResult.sourceIndexName.equals(sourceIndexName) == false) {
-                                    throw new OpenSearchException("Concurrent modification of alias [{}] during rollover",
-                                        rolloverRequest.getRolloverTarget());
+                                    throw new OpenSearchException(
+                                        "Concurrent modification of alias [{}] during rollover",
+                                        rolloverRequest.getRolloverTarget()
+                                    );
                                 }
                                 return rolloverResult.clusterState;
                             }
@@ -166,35 +210,47 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             @Override
                             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                                 if (newState.equals(oldState) == false) {
-                                    activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
+                                    activeShardsObserver.waitForActiveShards(
+                                        new String[] { rolloverIndexName },
                                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                                         rolloverRequest.masterNodeTimeout(),
-                                        isShardsAcknowledged -> listener.onResponse(new RolloverResponse(
-                                            sourceIndexName, rolloverIndexName, conditionResults, false, true, true,
-                                            isShardsAcknowledged)),
-                                        listener::onFailure);
+                                        isShardsAcknowledged -> listener.onResponse(
+                                            new RolloverResponse(
+                                                sourceIndexName,
+                                                rolloverIndexName,
+                                                conditionResults,
+                                                false,
+                                                true,
+                                                true,
+                                                isShardsAcknowledged
+                                            )
+                                        ),
+                                        listener::onFailure
+                                    );
                                 }
                             }
-                        });
-                    } else {
-                        // conditions not met
-                        listener.onResponse(
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, false, false, false)
-                        );
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                        }
+                    );
+                } else {
+                    // conditions not met
+                    listener.onResponse(
+                        new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, false, false, false)
+                    );
                 }
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
-    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions,
-                                                   @Nullable final DocsStats docsStats,
-                                                   @Nullable final IndexMetadata metadata) {
+    static Map<String, Boolean> evaluateConditions(
+        final Collection<Condition<?>> conditions,
+        @Nullable final DocsStats docsStats,
+        @Nullable final IndexMetadata metadata
+    ) {
         if (metadata == null) {
             return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
         }
@@ -206,9 +262,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
     }
 
-    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions,
-                                                   @Nullable final IndexMetadata metadata,
-                                                   @Nullable final IndicesStatsResponse statsResponse) {
+    static Map<String, Boolean> evaluateConditions(
+        final Collection<Condition<?>> conditions,
+        @Nullable final IndexMetadata metadata,
+        @Nullable final IndicesStatsResponse statsResponse
+    ) {
         if (metadata == null) {
             return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
         } else {

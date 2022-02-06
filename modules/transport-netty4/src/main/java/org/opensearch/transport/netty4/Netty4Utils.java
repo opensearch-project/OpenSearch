@@ -78,10 +78,11 @@ public class Netty4Utils {
              * in Netty and our previous value did not take, bail.
              */
             final String message = String.format(
-                    Locale.ROOT,
-                    "available processors value [%d] did not match current value [%d]",
-                    availableProcessors,
-                    NettyRuntime.availableProcessors());
+                Locale.ROOT,
+                "available processors value [%d] did not match current value [%d]",
+                availableProcessors,
+                NettyRuntime.availableProcessors()
+            );
             throw new IllegalStateException(message);
         }
     }

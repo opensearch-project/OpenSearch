@@ -60,8 +60,13 @@ public class RetryableActionTests extends OpenSearchTestCase {
     public void testRetryableActionNoRetries() {
         final AtomicInteger executedCount = new AtomicInteger();
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(logger, taskQueue.getThreadPool(),
-            TimeValue.timeValueMillis(10), TimeValue.timeValueSeconds(30), future) {
+        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(
+            logger,
+            taskQueue.getThreadPool(),
+            TimeValue.timeValueMillis(10),
+            TimeValue.timeValueSeconds(30),
+            future
+        ) {
 
             @Override
             public void tryAction(ActionListener<Boolean> listener) {
@@ -86,8 +91,13 @@ public class RetryableActionTests extends OpenSearchTestCase {
         final AtomicInteger remainingFailedCount = new AtomicInteger(expectedRetryCount);
         final AtomicInteger retryCount = new AtomicInteger();
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(logger, taskQueue.getThreadPool(),
-            TimeValue.timeValueMillis(10), TimeValue.timeValueSeconds(30), future) {
+        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(
+            logger,
+            taskQueue.getThreadPool(),
+            TimeValue.timeValueMillis(10),
+            TimeValue.timeValueSeconds(30),
+            future
+        ) {
 
             @Override
             public void tryAction(ActionListener<Boolean> listener) {
@@ -128,8 +138,13 @@ public class RetryableActionTests extends OpenSearchTestCase {
     public void testRetryableActionTimeout() {
         final AtomicInteger retryCount = new AtomicInteger();
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(logger, taskQueue.getThreadPool(),
-            TimeValue.timeValueMillis(10), TimeValue.timeValueSeconds(1), future) {
+        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(
+            logger,
+            taskQueue.getThreadPool(),
+            TimeValue.timeValueMillis(10),
+            TimeValue.timeValueSeconds(1),
+            future
+        ) {
 
             @Override
             public void tryAction(ActionListener<Boolean> listener) {
@@ -165,8 +180,13 @@ public class RetryableActionTests extends OpenSearchTestCase {
     public void testTimeoutOfZeroMeansNoRetry() {
         final AtomicInteger executedCount = new AtomicInteger();
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(logger, taskQueue.getThreadPool(),
-            TimeValue.timeValueMillis(10), TimeValue.timeValueSeconds(0), future) {
+        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(
+            logger,
+            taskQueue.getThreadPool(),
+            TimeValue.timeValueMillis(10),
+            TimeValue.timeValueSeconds(0),
+            future
+        ) {
 
             @Override
             public void tryAction(ActionListener<Boolean> listener) {
@@ -189,8 +209,13 @@ public class RetryableActionTests extends OpenSearchTestCase {
     public void testFailedBecauseNotRetryable() {
         final AtomicInteger executedCount = new AtomicInteger();
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(logger, taskQueue.getThreadPool(),
-            TimeValue.timeValueMillis(10), TimeValue.timeValueSeconds(30), future) {
+        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(
+            logger,
+            taskQueue.getThreadPool(),
+            TimeValue.timeValueMillis(10),
+            TimeValue.timeValueSeconds(30),
+            future
+        ) {
 
             @Override
             public void tryAction(ActionListener<Boolean> listener) {
@@ -213,8 +238,13 @@ public class RetryableActionTests extends OpenSearchTestCase {
     public void testRetryableActionCancelled() {
         final AtomicInteger executedCount = new AtomicInteger();
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(logger, taskQueue.getThreadPool(),
-            TimeValue.timeValueMillis(10), TimeValue.timeValueSeconds(30), future) {
+        final RetryableAction<Boolean> retryableAction = new RetryableAction<Boolean>(
+            logger,
+            taskQueue.getThreadPool(),
+            TimeValue.timeValueMillis(10),
+            TimeValue.timeValueSeconds(30),
+            future
+        ) {
 
             @Override
             public void tryAction(ActionListener<Boolean> listener) {

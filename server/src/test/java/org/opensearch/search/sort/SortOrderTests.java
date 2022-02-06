@@ -48,12 +48,12 @@ public class SortOrderTests extends OpenSearchTestCase {
 
     public void testReadWrite() throws Exception {
         for (SortOrder unit : SortOrder.values()) {
-          try (BytesStreamOutput out = new BytesStreamOutput()) {
-              unit.writeTo(out);
-              try (StreamInput in = out.bytes().streamInput()) {
-                  assertThat("Roundtrip serialisation failed.", SortOrder.readFromStream(in), equalTo(unit));
-              }
-          }
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                unit.writeTo(out);
+                try (StreamInput in = out.bytes().streamInput()) {
+                    assertThat("Roundtrip serialisation failed.", SortOrder.readFromStream(in), equalTo(unit));
+                }
+            }
         }
     }
 

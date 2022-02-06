@@ -65,8 +65,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      */
     private Level level = Level.CLUSTER;
 
-    public ClusterHealthRequest() {
-    }
+    public ClusterHealthRequest() {}
 
     public ClusterHealthRequest(String... indices) {
         this.indices = indices;
@@ -290,6 +289,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     public enum Level {
-        CLUSTER, INDICES, SHARDS
+        CLUSTER,
+        INDICES,
+        SHARDS
     }
 }

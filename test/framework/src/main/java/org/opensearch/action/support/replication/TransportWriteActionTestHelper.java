@@ -36,17 +36,17 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.action.support.replication.TransportWriteAction;
 
 import java.util.concurrent.CountDownLatch;
 
 public abstract class TransportWriteActionTestHelper {
 
-
-    public static void performPostWriteActions(final IndexShard indexShard,
-                                              final WriteRequest<?> request,
-                                              @Nullable final Translog.Location location,
-                                              final Logger logger) {
+    public static void performPostWriteActions(
+        final IndexShard indexShard,
+        final WriteRequest<?> request,
+        @Nullable final Translog.Location location,
+        final Logger logger
+    ) {
         final CountDownLatch latch = new CountDownLatch(1);
         TransportWriteAction.RespondingWriteResult writerResult = new TransportWriteAction.RespondingWriteResult() {
             @Override

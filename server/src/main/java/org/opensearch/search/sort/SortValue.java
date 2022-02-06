@@ -66,8 +66,9 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
      */
     public static List<NamedWriteableRegistry.Entry> namedWriteables() {
         return Arrays.asList(
-                new NamedWriteableRegistry.Entry(SortValue.class, DoubleSortValue.NAME, DoubleSortValue::new),
-                new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new));
+            new NamedWriteableRegistry.Entry(SortValue.class, DoubleSortValue.NAME, DoubleSortValue::new),
+            new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new)
+        );
     }
 
     private SortValue() {

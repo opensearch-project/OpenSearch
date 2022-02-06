@@ -78,16 +78,21 @@ public class NamedXContentProviderTests extends OpenSearchTestCase {
 
     public static class TestNamedXContentProvider implements NamedXContentProvider {
 
-        public TestNamedXContentProvider() {
-        }
+        public TestNamedXContentProvider() {}
 
         @Override
         public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
             return Arrays.asList(
-                    new NamedXContentRegistry.Entry(Aggregation.class, new ParseField("test_aggregation"),
-                            (parser, context) -> ParsedSimpleValue.fromXContent(parser, (String) context)),
-                    new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("test_suggestion"),
-                            (parser, context) -> TermSuggestion.fromXContent(parser, (String) context))
+                new NamedXContentRegistry.Entry(
+                    Aggregation.class,
+                    new ParseField("test_aggregation"),
+                    (parser, context) -> ParsedSimpleValue.fromXContent(parser, (String) context)
+                ),
+                new NamedXContentRegistry.Entry(
+                    Suggest.Suggestion.class,
+                    new ParseField("test_suggestion"),
+                    (parser, context) -> TermSuggestion.fromXContent(parser, (String) context)
+                )
             );
         }
     }

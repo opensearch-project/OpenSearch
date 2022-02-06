@@ -48,7 +48,7 @@ import org.apache.lucene.util.SetOnce;
  * opensearch.yml.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
-@ConverterKeys({"node_name"})
+@ConverterKeys({ "node_name" })
 public final class NodeNamePatternConverter extends LogEventPatternConverter {
     /**
      * The name of this node.
@@ -67,8 +67,7 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
      */
     public static NodeNamePatternConverter newInstance(final String[] options) {
         if (options.length > 0) {
-            throw new IllegalArgumentException("no options supported but options provided: "
-                    + Arrays.toString(options));
+            throw new IllegalArgumentException("no options supported but options provided: " + Arrays.toString(options));
         }
         String nodeName = NODE_NAME.get();
         if (nodeName == null) {

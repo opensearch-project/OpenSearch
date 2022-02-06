@@ -128,8 +128,10 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             () -> new FailedNodeException(
                 randomAlphaOfLength(8),
                 randomAlphaOfLength(8),
-                new IllegalStateException(randomAlphaOfLength(8))),
-            randomIntBetween(0, 2));
+                new IllegalStateException(randomAlphaOfLength(8))
+            ),
+            randomIntBetween(0, 2)
+        );
 
         List<Object> allResponses = new ArrayList<>(expectedNodeResponses);
         allResponses.addAll(failures);
@@ -168,7 +170,11 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
     }
 
     private enum NodeSelector {
-        LOCAL("_local"), ELECTED_MASTER("_master"), MASTER_ELIGIBLE("master:true"), DATA("data:true"), CUSTOM_ATTRIBUTE("attr:value");
+        LOCAL("_local"),
+        ELECTED_MASTER("_master"),
+        MASTER_ELIGIBLE("master:true"),
+        DATA("data:true"),
+        CUSTOM_ATTRIBUTE("attr:value");
 
         private final String selector;
 
@@ -194,8 +200,14 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = transport.createTransportService(clusterService.getSettings(), THREAD_POOL,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         int numNodes = randomIntBetween(3, 10);
@@ -228,13 +240,13 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
 
     public TestTransportNodesAction getTestTransportNodesAction() {
         return new TestTransportNodesAction(
-                THREAD_POOL,
-                clusterService,
-                transportService,
-                new ActionFilters(Collections.emptySet()),
-                TestNodesRequest::new,
-                TestNodeRequest::new,
-                ThreadPool.Names.SAME
+            THREAD_POOL,
+            clusterService,
+            transportService,
+            new ActionFilters(Collections.emptySet()),
+            TestNodesRequest::new,
+            TestNodeRequest::new,
+            ThreadPool.Names.SAME
         );
     }
 
@@ -255,19 +267,40 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         return new DiscoveryNode(node, node, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
     }
 
-    private static class TestTransportNodesAction
-        extends TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> {
+    private static class TestTransportNodesAction extends TransportNodesAction<
+        TestNodesRequest,
+        TestNodesResponse,
+        TestNodeRequest,
+        TestNodeResponse> {
 
-        TestTransportNodesAction(ThreadPool threadPool, ClusterService clusterService, TransportService
-                transportService, ActionFilters actionFilters, Writeable.Reader<TestNodesRequest> request,
-                                 Writeable.Reader<TestNodeRequest> nodeRequest, String nodeExecutor) {
-            super("indices:admin/test", threadPool, clusterService, transportService, actionFilters,
-                request, nodeRequest, nodeExecutor, TestNodeResponse.class);
+        TestTransportNodesAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            Writeable.Reader<TestNodesRequest> request,
+            Writeable.Reader<TestNodeRequest> nodeRequest,
+            String nodeExecutor
+        ) {
+            super(
+                "indices:admin/test",
+                threadPool,
+                clusterService,
+                transportService,
+                actionFilters,
+                request,
+                nodeRequest,
+                nodeExecutor,
+                TestNodeResponse.class
+            );
         }
 
         @Override
-        protected TestNodesResponse newResponse(TestNodesRequest request,
-                                                List<TestNodeResponse> responses, List<FailedNodeException> failures) {
+        protected TestNodesResponse newResponse(
+            TestNodesRequest request,
+            List<TestNodeResponse> responses,
+            List<FailedNodeException> failures
+        ) {
             return new TestNodesResponse(clusterService.getClusterName(), request, responses, failures);
         }
 
@@ -288,12 +321,17 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
 
     }
 
-    private static class DataNodesOnlyTransportNodesAction
-        extends TestTransportNodesAction {
+    private static class DataNodesOnlyTransportNodesAction extends TestTransportNodesAction {
 
-        DataNodesOnlyTransportNodesAction(ThreadPool threadPool, ClusterService clusterService, TransportService
-            transportService, ActionFilters actionFilters, Writeable.Reader<TestNodesRequest> request,
-                                          Writeable.Reader<TestNodeRequest> nodeRequest, String nodeExecutor) {
+        DataNodesOnlyTransportNodesAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            Writeable.Reader<TestNodesRequest> request,
+            Writeable.Reader<TestNodeRequest> nodeRequest,
+            String nodeExecutor
+        ) {
             super(threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
         }
 
@@ -307,6 +345,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         TestNodesRequest(StreamInput in) throws IOException {
             super(in);
         }
+
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
         }
@@ -316,8 +355,12 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
 
         private final TestNodesRequest request;
 
-        TestNodesResponse(ClusterName clusterName, TestNodesRequest request, List<TestNodeResponse> nodeResponses,
-                          List<FailedNodeException> failures) {
+        TestNodesResponse(
+            ClusterName clusterName,
+            TestNodesRequest request,
+            List<TestNodeResponse> nodeResponses,
+            List<FailedNodeException> failures
+        ) {
             super(clusterName, nodeResponses, failures);
             this.request = request;
         }
@@ -335,6 +378,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
 
     private static class TestNodeRequest extends BaseNodeRequest {
         TestNodeRequest() {}
+
         TestNodeRequest(StreamInput in) throws IOException {
             super(in);
         }
@@ -344,6 +388,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         TestNodeResponse() {
             super(mock(DiscoveryNode.class));
         }
+
         protected TestNodeResponse(StreamInput in) throws IOException {
             super(in);
         }

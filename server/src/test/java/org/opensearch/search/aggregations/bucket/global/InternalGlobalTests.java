@@ -41,8 +41,12 @@ import java.util.Map;
 
 public class InternalGlobalTests extends InternalSingleBucketAggregationTestCase<InternalGlobal> {
     @Override
-    protected InternalGlobal createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
+    protected InternalGlobal createTestInstance(
+        String name,
+        long docCount,
+        InternalAggregations aggregations,
+        Map<String, Object> metadata
+    ) {
         return new InternalGlobal(name, docCount, aggregations, metadata);
     }
 

@@ -67,10 +67,7 @@ public class HeaderWarningAppender extends AbstractAppender {
     }
 
     @PluginFactory
-    public static HeaderWarningAppender createAppender(
-        @PluginAttribute("name") String name,
-        @PluginElement("filter") Filter filter
-    ) {
+    public static HeaderWarningAppender createAppender(@PluginAttribute("name") String name, @PluginElement("filter") Filter filter) {
         return new HeaderWarningAppender(name, filter);
     }
 }

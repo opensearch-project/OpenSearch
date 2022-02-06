@@ -58,23 +58,28 @@ public final class NodesResponseHeader {
     public static final ParseField FAILURES = new ParseField("failures");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<NodesResponseHeader, Void> PARSER =
-        new ConstructingObjectParser<>("nodes_response_header", true,
-            (a) -> {
-                int i = 0;
-                int total = (Integer) a[i++];
-                int successful = (Integer) a[i++];
-                int failed = (Integer) a[i++];
-                List<OpenSearchException> failures = (List<OpenSearchException>) a[i++];
-                return new NodesResponseHeader(total, successful, failed, failures);
-            });
+    public static final ConstructingObjectParser<NodesResponseHeader, Void> PARSER = new ConstructingObjectParser<>(
+        "nodes_response_header",
+        true,
+        (a) -> {
+            int i = 0;
+            int total = (Integer) a[i++];
+            int successful = (Integer) a[i++];
+            int failed = (Integer) a[i++];
+            List<OpenSearchException> failures = (List<OpenSearchException>) a[i++];
+            return new NodesResponseHeader(total, successful, failed, failures);
+        }
+    );
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), TOTAL);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), SUCCESSFUL);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), FAILED);
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> OpenSearchException.fromXContent(p), FAILURES);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> OpenSearchException.fromXContent(p),
+            FAILURES
+        );
     }
 
     private final int total;
@@ -135,10 +140,7 @@ public final class NodesResponseHeader {
             return false;
         }
         NodesResponseHeader that = (NodesResponseHeader) o;
-        return total == that.total &&
-            successful == that.successful &&
-            failed == that.failed &&
-            Objects.equals(failures, that.failures);
+        return total == that.total && successful == that.successful && failed == that.failed && Objects.equals(failures, that.failures);
     }
 
     @Override

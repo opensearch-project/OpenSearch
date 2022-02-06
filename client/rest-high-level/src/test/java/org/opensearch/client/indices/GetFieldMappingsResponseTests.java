@@ -51,17 +51,14 @@ public class GetFieldMappingsResponseTests extends OpenSearchTestCase {
             this::createParser,
             GetFieldMappingsResponseTests::createTestInstance,
             GetFieldMappingsResponseTests::toXContent,
-            GetFieldMappingsResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
-            .test();
+            GetFieldMappingsResponse::fromXContent
+        ).supportsUnknownFields(true).randomFieldsExcludeFilter(getRandomFieldsExcludeFilter()).test();
     }
 
     private Predicate<String> getRandomFieldsExcludeFilter() {
         // allow random fields at the level of `index` and `index.mappings.field`
         // otherwise random field could be evaluated as index name or type name
-        return s -> false == (s.matches("(?<index>[^.]+)")
-            || s.matches("(?<index>[^.]+)\\.mappings\\.(?<field>[^.]+)"));
+        return s -> false == (s.matches("(?<index>[^.]+)") || s.matches("(?<index>[^.]+)\\.mappings\\.(?<field>[^.]+)"));
     }
 
     private static GetFieldMappingsResponse createTestInstance() {

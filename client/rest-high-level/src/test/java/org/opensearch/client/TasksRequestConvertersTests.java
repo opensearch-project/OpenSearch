@@ -50,10 +50,11 @@ public class TasksRequestConvertersTests extends OpenSearchTestCase {
 
     public void testCancelTasks() {
         Map<String, String> expectedParams = new HashMap<>();
-        org.opensearch.client.tasks.TaskId taskId =
-            new org.opensearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        org.opensearch.client.tasks.TaskId parentTaskId =
-            new org.opensearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        org.opensearch.client.tasks.TaskId taskId = new org.opensearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        org.opensearch.client.tasks.TaskId parentTaskId = new org.opensearch.client.tasks.TaskId(
+            randomAlphaOfLength(5),
+            randomNonNegativeLong()
+        );
         CancelTasksRequest.Builder builder = new CancelTasksRequest.Builder().withTaskId(taskId).withParentTaskId(parentTaskId);
         expectedParams.put("task_id", taskId.toString());
         expectedParams.put("parent_task_id", parentTaskId.toString());
@@ -123,8 +124,10 @@ public class TasksRequestConvertersTests extends OpenSearchTestCase {
         {
             ListTasksRequest request = new ListTasksRequest();
             request.setTaskId(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()));
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, ()
-                -> TasksRequestConverters.listTasks(request));
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> TasksRequestConverters.listTasks(request)
+            );
             assertEquals("TaskId cannot be used for list tasks request", exception.getMessage());
         }
     }

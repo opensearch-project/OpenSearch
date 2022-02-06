@@ -145,11 +145,11 @@ public class MeanReciprocalRankTests extends OpenSearchTestCase {
      */
     public void testPrecisionAtFiveRelevanceThreshold() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument("test",  "0", 0));
-        rated.add(new RatedDocument("test",  "1", 1));
-        rated.add(new RatedDocument("test",  "2", 2));
-        rated.add(new RatedDocument("test",  "3", 3));
-        rated.add(new RatedDocument("test",  "4", 4));
+        rated.add(new RatedDocument("test", "0", 0));
+        rated.add(new RatedDocument("test", "1", 1));
+        rated.add(new RatedDocument("test", "2", 2));
+        rated.add(new RatedDocument("test", "3", 3));
+        rated.add(new RatedDocument("test", "4", 4));
         SearchHit[] hits = createSearchHits(0, 5, "test");
 
         MeanReciprocalRank reciprocalRank = new MeanReciprocalRank(2, 10);
@@ -204,8 +204,7 @@ public class MeanReciprocalRankTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parser.nextToken();
             parser.nextToken();
-            XContentParseException exception = expectThrows(XContentParseException.class,
-                    () -> MeanReciprocalRank.fromXContent(parser));
+            XContentParseException exception = expectThrows(XContentParseException.class, () -> MeanReciprocalRank.fromXContent(parser));
             assertThat(exception.getMessage(), containsString("[reciprocal_rank] unknown field"));
         }
     }
@@ -229,8 +228,11 @@ public class MeanReciprocalRankTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         MeanReciprocalRank original = createTestItem();
-        MeanReciprocalRank deserialized = OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-                MeanReciprocalRank::new);
+        MeanReciprocalRank deserialized = OpenSearchTestCase.copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            MeanReciprocalRank::new
+        );
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);

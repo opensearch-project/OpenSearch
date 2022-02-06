@@ -47,8 +47,13 @@ public class PainlessClassBinding {
     public final List<Class<?>> typeParameters;
     public final Map<Class<?>, Object> annotations;
 
-    PainlessClassBinding(Constructor<?> javaConstructor, Method javaMethod, Class<?> returnType, List<Class<?>> typeParameters,
-        Map<Class<?>, Object> annotations) {
+    PainlessClassBinding(
+        Constructor<?> javaConstructor,
+        Method javaMethod,
+        Class<?> returnType,
+        List<Class<?>> typeParameters,
+        Map<Class<?>, Object> annotations
+    ) {
         this.javaConstructor = javaConstructor;
         this.javaMethod = javaMethod;
 
@@ -67,12 +72,12 @@ public class PainlessClassBinding {
             return false;
         }
 
-        PainlessClassBinding that = (PainlessClassBinding)object;
+        PainlessClassBinding that = (PainlessClassBinding) object;
 
-        return Objects.equals(javaConstructor, that.javaConstructor) &&
-                Objects.equals(javaMethod, that.javaMethod) &&
-                Objects.equals(returnType, that.returnType) &&
-                Objects.equals(typeParameters, that.typeParameters);
+        return Objects.equals(javaConstructor, that.javaConstructor)
+            && Objects.equals(javaMethod, that.javaMethod)
+            && Objects.equals(returnType, that.returnType)
+            && Objects.equals(typeParameters, that.typeParameters);
     }
 
     @Override

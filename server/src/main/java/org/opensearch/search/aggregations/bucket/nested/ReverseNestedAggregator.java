@@ -60,9 +60,15 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
     private final Query parentFilter;
     private final BitSetProducer parentBitsetProducer;
 
-    public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper,
-            SearchContext context, Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
-            throws IOException {
+    public ReverseNestedAggregator(
+        String name,
+        AggregatorFactories factories,
+        ObjectMapper objectMapper,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
         if (objectMapper == null) {
             parentFilter = Queries.newNonNestedFilter(context.mapperService().getIndexSettings().getIndexVersionCreated());
@@ -105,8 +111,15 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalReverseNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalReverseNested(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override

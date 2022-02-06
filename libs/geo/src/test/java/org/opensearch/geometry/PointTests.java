@@ -74,8 +74,10 @@ public class PointTests extends BaseGeometryTestCase<Point> {
     }
 
     public void testWKTValidation() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> new WellKnownText(randomBoolean(), new GeographyValidator(false)).fromWKT("point (20.0 10.0 100.0)"));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new WellKnownText(randomBoolean(), new GeographyValidator(false)).fromWKT("point (20.0 10.0 100.0)")
+        );
         assertEquals("found Z value [100.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
     }
 }

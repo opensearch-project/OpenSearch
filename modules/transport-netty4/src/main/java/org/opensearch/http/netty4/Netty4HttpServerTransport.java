@@ -111,8 +111,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
 
-    public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
-        new Setting<>(SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS, (s) -> {
+    public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
+        SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
+        (s) -> {
             ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(s);
             /*
              * Netty accumulates buffers containing data from all incoming network packets that make up one HTTP request in an instance of
@@ -136,12 +137,18 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             long maxBufferComponents = Math.max(2, Math.min(maxBufferComponentsEstimate, Integer.MAX_VALUE));
             return String.valueOf(maxBufferComponents);
             // Netty's CompositeByteBuf implementation does not allow less than two components.
-        }, s -> Setting.parseInt(s, 2, Integer.MAX_VALUE, SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS), Property.NodeScope);
+        },
+        s -> Setting.parseInt(s, 2, Integer.MAX_VALUE, SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS),
+        Property.NodeScope
+    );
 
     public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = Setting.intSetting("http.netty.worker_count", 0, Property.NodeScope);
 
-    public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
-        Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
+    public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
+        "http.netty.receive_predictor_size",
+        new ByteSizeValue(64, ByteSizeUnit.KB),
+        Property.NodeScope
+    );
 
     private final ByteSizeValue maxInitialLineLength;
     private final ByteSizeValue maxHeaderSize;
@@ -158,9 +165,16 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private volatile ServerBootstrap serverBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
-    public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
-                                     NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings,
-                                     SharedGroupFactory sharedGroupFactory) {
+    public Netty4HttpServerTransport(
+        Settings settings,
+        NetworkService networkService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SharedGroupFactory sharedGroupFactory
+    ) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
         Netty4Utils.setAvailableProcessors(OpenSearchExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
@@ -178,10 +192,17 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         ByteSizeValue receivePredictor = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
         recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
 
-        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], " +
-                "receive_predictor[{}], max_composite_buffer_components[{}], pipelining_max_events[{}]",
-            maxChunkSize, maxHeaderSize, maxInitialLineLength, maxContentLength, receivePredictor, maxCompositeBufferComponents,
-            pipeliningMaxEvents);
+        logger.debug(
+            "using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], "
+                + "receive_predictor[{}], max_composite_buffer_components[{}], pipelining_max_events[{}]",
+            maxChunkSize,
+            maxHeaderSize,
+            maxInitialLineLength,
+            maxContentLength,
+            receivePredictor,
+            maxCompositeBufferComponents,
+            pipeliningMaxEvents
+        );
     }
 
     public Settings settings() {
@@ -222,8 +243,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     if (SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings) >= 0) {
                         final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
                         if (keepIntervalOption != null) {
-                            serverBootstrap.childOption(NioChannelOption.of(keepIntervalOption),
-                                SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings));
+                            serverBootstrap.childOption(
+                                NioChannelOption.of(keepIntervalOption),
+                                SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings)
+                            );
                         }
                     }
                     if (SETTING_HTTP_TCP_KEEP_COUNT.get(settings) >= 0) {
@@ -306,8 +329,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
-            this.byteBufSizer =  new NettyByteBufSizer();
-            this.requestCreator =  new Netty4HttpRequestCreator();
+            this.byteBufSizer = new NettyByteBufSizer();
+            this.requestCreator = new Netty4HttpRequestCreator();
             this.requestHandler = new Netty4HttpRequestHandler(transport);
             this.responseCreator = new Netty4HttpResponseCreator();
         }
@@ -321,7 +344,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
                 handlingSettings.getMaxInitialLineLength(),
                 handlingSettings.getMaxHeaderSize(),
-                handlingSettings.getMaxChunkSize());
+                handlingSettings.getMaxChunkSize()
+            );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());

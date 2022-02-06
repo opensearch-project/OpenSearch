@@ -22,7 +22,6 @@
  * limitations under the License.
  */
 
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
@@ -51,8 +50,7 @@ import java.util.Set;
  * @since 2.0
  */
 public final class Types {
-    private Types() {
-    }
+    private Types() {}
 
     /**
      * Returns a new parameterized type, applying {@code typeArguments} to
@@ -70,8 +68,7 @@ public final class Types {
      *
      * @return a parameterized type.
      */
-    public static ParameterizedType newParameterizedTypeWithOwner(
-            Type ownerType, Type rawType, Type... typeArguments) {
+    public static ParameterizedType newParameterizedTypeWithOwner(Type ownerType, Type rawType, Type... typeArguments) {
         return new ParameterizedTypeImpl(ownerType, rawType, typeArguments);
     }
 
@@ -92,7 +89,7 @@ public final class Types {
      * this returns {@code ?}, which is shorthand for {@code ? extends Object}.
      */
     public static WildcardType subtypeOf(Type bound) {
-        return new WildcardTypeImpl(new Type[]{bound}, MoreTypes.EMPTY_TYPE_ARRAY);
+        return new WildcardTypeImpl(new Type[] { bound }, MoreTypes.EMPTY_TYPE_ARRAY);
     }
 
     /**
@@ -101,7 +98,7 @@ public final class Types {
      * super String}.
      */
     public static WildcardType supertypeOf(Type bound) {
-        return new WildcardTypeImpl(new Type[]{Object.class}, new Type[]{bound});
+        return new WildcardTypeImpl(new Type[] { Object.class }, new Type[] { bound });
     }
 
     /**

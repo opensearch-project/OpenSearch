@@ -39,9 +39,9 @@ import org.opensearch.test.OpenSearchTestCase;
 public class ShardIdTests extends OpenSearchTestCase {
 
     public void testShardIdFromString() {
-        String indexName = randomAlphaOfLengthBetween(3,50);
+        String indexName = randomAlphaOfLengthBetween(3, 50);
         int shardId = randomInt();
-        ShardId id = ShardId.fromString("["+indexName+"]["+shardId+"]");
+        ShardId id = ShardId.fromString("[" + indexName + "][" + shardId + "]");
         assertEquals(indexName, id.getIndexName());
         assertEquals(shardId, id.getId());
         assertEquals(indexName, id.getIndex().getName());
@@ -58,12 +58,10 @@ public class ShardIdTests extends OpenSearchTestCase {
         assertEquals("Unexpected shardId string format, expected [indexName][shardId] but got " + badId, ex.getMessage());
 
         String badId2 = indexName + "][" + shardId + "]"; // missing opening bracket
-        ex = expectThrows(IllegalArgumentException.class,
-                () -> ShardId.fromString(badId2));
+        ex = expectThrows(IllegalArgumentException.class, () -> ShardId.fromString(badId2));
 
         String badId3 = "[" + indexName + "][" + shardId; // missing closing bracket
-        ex = expectThrows(IllegalArgumentException.class,
-                () -> ShardId.fromString(badId3));
+        ex = expectThrows(IllegalArgumentException.class, () -> ShardId.fromString(badId3));
     }
 
     public void testEquals() {

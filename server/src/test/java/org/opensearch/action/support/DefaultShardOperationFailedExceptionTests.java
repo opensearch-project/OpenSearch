@@ -65,9 +65,13 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
     public void testToString() {
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
-                new OpenSearchException("foo", new IllegalArgumentException("bar", new RuntimeException("baz"))));
-            assertEquals("[null][-1] failed, reason [OpenSearchException[foo]; nested: " +
-                "IllegalArgumentException[bar]; nested: RuntimeException[baz]; ]", exception.toString());
+                new OpenSearchException("foo", new IllegalArgumentException("bar", new RuntimeException("baz")))
+            );
+            assertEquals(
+                "[null][-1] failed, reason [OpenSearchException[foo]; nested: "
+                    + "IllegalArgumentException[bar]; nested: RuntimeException[baz]; ]",
+                exception.toString()
+            );
         }
         {
             OpenSearchException openSearchException = new OpenSearchException("foo");
@@ -85,27 +89,43 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
     public void testToXContent() throws IOException {
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(new OpenSearchException("foo"));
-            assertEquals("{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\"," +
-                "\"reason\":{\"type\":\"exception\",\"reason\":\"foo\"}}", Strings.toString(exception));
+            assertEquals(
+                "{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\","
+                    + "\"reason\":{\"type\":\"exception\",\"reason\":\"foo\"}}",
+                Strings.toString(exception)
+            );
         }
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
-                new OpenSearchException("foo", new IllegalArgumentException("bar")));
-            assertEquals("{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\",\"reason\":{\"type\":\"exception\"," +
-                "\"reason\":\"foo\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"bar\"}}}",
-                Strings.toString(exception));
+                new OpenSearchException("foo", new IllegalArgumentException("bar"))
+            );
+            assertEquals(
+                "{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\",\"reason\":{\"type\":\"exception\","
+                    + "\"reason\":\"foo\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"bar\"}}}",
+                Strings.toString(exception)
+            );
         }
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
-                new BroadcastShardOperationFailedException(new ShardId("test", "_uuid", 2), "foo", new IllegalStateException("bar")));
-            assertEquals("{\"shard\":2,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\"," +
-                "\"reason\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}", Strings.toString(exception));
+                new BroadcastShardOperationFailedException(new ShardId("test", "_uuid", 2), "foo", new IllegalStateException("bar"))
+            );
+            assertEquals(
+                "{\"shard\":2,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
+                    + "\"reason\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}",
+                Strings.toString(exception)
+            );
         }
         {
-            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException("test", 1,
-                new IllegalArgumentException("foo"));
-            assertEquals("{\"shard\":1,\"index\":\"test\",\"status\":\"BAD_REQUEST\"," +
-                "\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}", Strings.toString(exception));
+            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
+                "test",
+                1,
+                new IllegalArgumentException("foo")
+            );
+            assertEquals(
+                "{\"shard\":1,\"index\":\"test\",\"status\":\"BAD_REQUEST\","
+                    + "\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}",
+                Strings.toString(exception)
+            );
         }
     }
 
@@ -117,13 +137,13 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             .field("index", "test")
             .field("status", "INTERNAL_SERVER_ERROR")
             .startObject("reason")
-                .field("type", "exception")
-                .field("reason", "foo")
+            .field("type", "exception")
+            .field("reason", "foo")
             .endObject()
             .endObject();
         builder = shuffleXContent(builder);
         DefaultShardOperationFailedException parsed;
-        try(XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
+        try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = DefaultShardOperationFailedException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

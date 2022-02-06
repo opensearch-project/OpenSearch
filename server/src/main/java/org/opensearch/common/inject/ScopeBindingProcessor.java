@@ -59,8 +59,7 @@ class ScopeBindingProcessor extends AbstractProcessor {
         }
 
         if (!Annotations.isRetainedAtRuntime(annotationType)) {
-            errors.withSource(annotationType)
-                    .missingRuntimeRetention(command.getSource());
+            errors.withSource(annotationType).missingRuntimeRetention(command.getSource());
             // Go ahead and bind anyway so we don't get collateral errors.
         }
 

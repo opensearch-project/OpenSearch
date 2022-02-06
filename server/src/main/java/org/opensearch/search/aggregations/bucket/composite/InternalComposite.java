@@ -56,8 +56,9 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 
-public class InternalComposite
-    extends InternalMultiBucketAggregation<InternalComposite, InternalComposite.InternalBucket> implements CompositeAggregation {
+public class InternalComposite extends InternalMultiBucketAggregation<InternalComposite, InternalComposite.InternalBucket>
+    implements
+        CompositeAggregation {
 
     private final int size;
     private final List<InternalBucket> buckets;
@@ -68,9 +69,17 @@ public class InternalComposite
 
     private final boolean earlyTerminated;
 
-    InternalComposite(String name, int size, List<String> sourceNames, List<DocValueFormat> formats,
-                      List<InternalBucket> buckets, CompositeKey afterKey, int[] reverseMuls, boolean earlyTerminated,
-                      Map<String, Object> metadata) {
+    InternalComposite(
+        String name,
+        int size,
+        List<String> sourceNames,
+        List<DocValueFormat> formats,
+        List<InternalBucket> buckets,
+        CompositeKey afterKey,
+        int[] reverseMuls,
+        boolean earlyTerminated,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.sourceNames = sourceNames;
         this.formats = formats;
@@ -98,7 +107,7 @@ public class InternalComposite
         if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
             this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
         } else {
-            this.afterKey = buckets.size() > 0 ? buckets.get(buckets.size()-1).key : null;
+            this.afterKey = buckets.size() > 0 ? buckets.get(buckets.size() - 1).key : null;
         }
         this.earlyTerminated = in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0) ? in.readBoolean() : false;
     }
@@ -142,14 +151,19 @@ public class InternalComposite
          * keep the <code>afterKey</code> of the original aggregation in order
          * to be able to retrieve the next page even if all buckets have been filtered.
          */
-        return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey,
-            reverseMuls, earlyTerminated, getMetadata());
+        return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey, reverseMuls, earlyTerminated, getMetadata());
     }
 
     @Override
     public InternalBucket createBucket(InternalAggregations aggregations, InternalBucket prototype) {
-        return new InternalBucket(prototype.sourceNames, prototype.formats, prototype.key, prototype.reverseMuls,
-            prototype.docCount, aggregations);
+        return new InternalBucket(
+            prototype.sourceNames,
+            prototype.formats,
+            prototype.key,
+            prototype.reverseMuls,
+            prototype.docCount,
+            aggregations
+        );
     }
 
     public int getSize() {
@@ -232,8 +246,7 @@ public class InternalComposite
             lastKey = lastBucket.getRawKey();
         }
         reduceContext.consumeBucketsAndMaybeBreak(result.size());
-        return new InternalComposite(name, size, sourceNames, reducedFormats, result, lastKey, reverseMuls,
-            earlyTerminated, metadata);
+        return new InternalComposite(name, size, sourceNames, reducedFormats, result, lastKey, reverseMuls, earlyTerminated, metadata);
     }
 
     @Override
@@ -261,10 +274,10 @@ public class InternalComposite
         if (super.equals(obj) == false) return false;
 
         InternalComposite that = (InternalComposite) obj;
-        return Objects.equals(size, that.size) &&
-            Objects.equals(buckets, that.buckets) &&
-            Objects.equals(afterKey, that.afterKey) &&
-            Arrays.equals(reverseMuls, that.reverseMuls);
+        return Objects.equals(size, that.size)
+            && Objects.equals(buckets, that.buckets)
+            && Objects.equals(afterKey, that.afterKey)
+            && Arrays.equals(reverseMuls, that.reverseMuls);
     }
 
     @Override
@@ -291,7 +304,9 @@ public class InternalComposite
     }
 
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
-        implements CompositeAggregation.Bucket, KeyComparable<InternalBucket> {
+        implements
+            CompositeAggregation.Bucket,
+            KeyComparable<InternalBucket> {
 
         private final CompositeKey key;
         private final long docCount;
@@ -300,9 +315,14 @@ public class InternalComposite
         private final transient List<String> sourceNames;
         private final transient List<DocValueFormat> formats;
 
-
-        InternalBucket(List<String> sourceNames, List<DocValueFormat> formats, CompositeKey key, int[] reverseMuls, long docCount,
-                       InternalAggregations aggregations) {
+        InternalBucket(
+            List<String> sourceNames,
+            List<DocValueFormat> formats,
+            CompositeKey key,
+            int[] reverseMuls,
+            long docCount,
+            InternalAggregations aggregations
+        ) {
             this.key = key;
             this.docCount = docCount;
             this.aggregations = aggregations;
@@ -486,6 +506,7 @@ public class InternalComposite
                 public Iterator<Entry<String, Object>> iterator() {
                     return new Iterator<Entry<String, Object>>() {
                         int pos = 0;
+
                         @Override
                         public boolean hasNext() {
                             return pos < values.length;
@@ -493,9 +514,11 @@ public class InternalComposite
 
                         @Override
                         public Entry<String, Object> next() {
-                            SimpleEntry<String, Object> entry =
-                                new SimpleEntry<>(keys.get(pos), formatObject(values[pos], formats.get(pos)));
-                            ++ pos;
+                            SimpleEntry<String, Object> entry = new SimpleEntry<>(
+                                keys.get(pos),
+                                formatObject(values[pos], formats.get(pos))
+                            );
+                            ++pos;
                             return entry;
                         }
                     };

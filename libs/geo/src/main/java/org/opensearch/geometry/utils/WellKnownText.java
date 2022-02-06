@@ -446,8 +446,9 @@ public class WellKnownText {
     private void closeLinearRingIfCoerced(ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts) {
         if (coerce && lats.isEmpty() == false && lons.isEmpty() == false) {
             int last = lats.size() - 1;
-            if (!lats.get(0).equals(lats.get(last)) || !lons.get(0).equals(lons.get(last)) ||
-                (alts.isEmpty() == false && !alts.get(0).equals(alts.get(last)))) {
+            if (!lats.get(0).equals(lats.get(last))
+                || !lons.get(0).equals(lons.get(last))
+                || (alts.isEmpty() == false && !alts.get(0).equals(alts.get(last)))) {
                 lons.add(lons.get(0));
                 lats.add(lats.get(0));
                 if (alts.isEmpty() == false) {
@@ -485,7 +486,6 @@ public class WellKnownText {
         nextCloser(stream);
         return new Rectangle(minLon, maxLon, maxLat, minLat);
     }
-
 
     private Circle parseCircle(StreamTokenizer stream) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
@@ -561,8 +561,7 @@ public class WellKnownText {
         if (next.equals(EMPTY) || next.equals(LPAREN)) {
             return next;
         }
-        throw new ParseException("expected " + EMPTY + " or " + LPAREN
-            + " but found: " + tokenString(stream), stream.lineno());
+        throw new ParseException("expected " + EMPTY + " or " + LPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
     private String nextCloser(StreamTokenizer stream) throws IOException, ParseException {
@@ -591,8 +590,7 @@ public class WellKnownText {
         if (token.equals(COMMA) || token.equals(RPAREN)) {
             return token;
         }
-        throw new ParseException("expected " + COMMA + " or " + RPAREN
-            + " but found: " + tokenString(stream), stream.lineno());
+        throw new ParseException("expected " + COMMA + " or " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
     private static String getWKTName(Geometry geometry) {

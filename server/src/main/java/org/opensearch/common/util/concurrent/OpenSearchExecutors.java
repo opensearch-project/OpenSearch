@@ -69,7 +69,8 @@ public class OpenSearchExecutors {
         s -> Integer.toString(Runtime.getRuntime().availableProcessors()),
         processorsParser("processors"),
         Property.Deprecated,
-        Property.NodeScope);
+        Property.NodeScope
+    );
 
     /**
      * Setting to manually control the number of allocated processors. This setting is used to adjust thread pool sizes per node. The
@@ -80,7 +81,8 @@ public class OpenSearchExecutors {
         "node.processors",
         PROCESSORS_SETTING,
         processorsParser("node.processors"),
-        Property.NodeScope);
+        Property.NodeScope
+    );
 
     private static Function<String, Integer> processorsParser(final String name) {
         return s -> {
@@ -92,7 +94,8 @@ public class OpenSearchExecutors {
                     "setting [{}] to value [{}] which is more than available processors [{}] is deprecated",
                     name,
                     value,
-                    availableProcessors);
+                    availableProcessors
+                );
             }
             return value;
         };
@@ -109,32 +112,64 @@ public class OpenSearchExecutors {
         return NODE_PROCESSORS_SETTING.get(settings);
     }
 
-    public static PrioritizedOpenSearchThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory,
-                                                                                ThreadContext contextHolder,
-                                                                                ScheduledExecutorService timer) {
+    public static PrioritizedOpenSearchThreadPoolExecutor newSinglePrioritizing(
+        String name,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        ScheduledExecutorService timer
+    ) {
         return new PrioritizedOpenSearchThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
-    public static OpenSearchThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit,
-                                                          ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static OpenSearchThreadPoolExecutor newScaling(
+        String name,
+        int min,
+        int max,
+        long keepAliveTime,
+        TimeUnit unit,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        OpenSearchThreadPoolExecutor executor =
-            new OpenSearchThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory,
-                new ForceQueuePolicy(), contextHolder);
+        OpenSearchThreadPoolExecutor executor = new OpenSearchThreadPoolExecutor(
+            name,
+            min,
+            max,
+            keepAliveTime,
+            unit,
+            queue,
+            threadFactory,
+            new ForceQueuePolicy(),
+            contextHolder
+        );
         queue.executor = executor;
         return executor;
     }
 
-    public static OpenSearchThreadPoolExecutor newFixed(String name, int size, int queueCapacity,
-                                                        ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static OpenSearchThreadPoolExecutor newFixed(
+        String name,
+        int size,
+        int queueCapacity,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        return new OpenSearchThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
-            queue, threadFactory, new OpenSearchAbortPolicy(), contextHolder);
+        return new OpenSearchThreadPoolExecutor(
+            name,
+            size,
+            size,
+            0,
+            TimeUnit.MILLISECONDS,
+            queue,
+            threadFactory,
+            new OpenSearchAbortPolicy(),
+            contextHolder
+        );
     }
 
     /**
@@ -146,18 +181,42 @@ public class OpenSearchExecutors {
      * @param maxQueueSize maximum queue size that the queue can be adjusted to
      * @param frameSize number of tasks during which stats are collected before adjusting queue size
      */
-    public static OpenSearchThreadPoolExecutor newAutoQueueFixed(String name, int size, int initialQueueCapacity, int minQueueSize,
-                                                                 int maxQueueSize, int frameSize, TimeValue targetedResponseTime,
-                                                                 ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static OpenSearchThreadPoolExecutor newAutoQueueFixed(
+        String name,
+        int size,
+        int initialQueueCapacity,
+        int minQueueSize,
+        int maxQueueSize,
+        int frameSize,
+        TimeValue targetedResponseTime,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
         if (initialQueueCapacity <= 0) {
-            throw new IllegalArgumentException("initial queue capacity for [" + name + "] executor must be positive, got: " +
-                            initialQueueCapacity);
+            throw new IllegalArgumentException(
+                "initial queue capacity for [" + name + "] executor must be positive, got: " + initialQueueCapacity
+            );
         }
-        ResizableBlockingQueue<Runnable> queue =
-                new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), initialQueueCapacity);
-        return new QueueResizingOpenSearchThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
-                queue, minQueueSize, maxQueueSize, TimedRunnable::new, frameSize, targetedResponseTime, threadFactory,
-                new OpenSearchAbortPolicy(), contextHolder);
+        ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(
+            ConcurrentCollections.<Runnable>newBlockingQueue(),
+            initialQueueCapacity
+        );
+        return new QueueResizingOpenSearchThreadPoolExecutor(
+            name,
+            size,
+            size,
+            0,
+            TimeUnit.MILLISECONDS,
+            queue,
+            minQueueSize,
+            maxQueueSize,
+            TimedRunnable::new,
+            frameSize,
+            targetedResponseTime,
+            threadFactory,
+            new OpenSearchAbortPolicy(),
+            contextHolder
+        );
     }
 
     /**
@@ -181,9 +240,7 @@ public class OpenSearchExecutors {
                  * exception to ensure that there is not a buried error anywhere. We assume that a general exception has been
                  * handled by the executed task or the task submitter.
                  */
-                assert e instanceof CancellationException
-                    || e instanceof InterruptedException
-                    || e instanceof ExecutionException : e;
+                assert e instanceof CancellationException || e instanceof InterruptedException || e instanceof ExecutionException : e;
                 final Optional<Error> maybeError = ExceptionsHelper.maybeError(e);
                 if (maybeError.isPresent()) {
                     // throw this error where it will propagate to the uncaught exception handler
@@ -289,15 +346,12 @@ public class OpenSearchExecutors {
         OpenSearchThreadFactory(String namePrefix) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();
-            group = (s != null) ? s.getThreadGroup() :
-                    Thread.currentThread().getThreadGroup();
+            group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
         }
 
         @Override
         public Thread newThread(Runnable r) {
-            Thread t = new Thread(group, r,
-                    namePrefix + "[T#" + threadNumber.getAndIncrement() + "]",
-                    0);
+            Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
             t.setDaemon(true);
             return t;
         }
@@ -307,15 +361,13 @@ public class OpenSearchExecutors {
     /**
      * Cannot instantiate.
      */
-    private OpenSearchExecutors() {
-    }
+    private OpenSearchExecutors() {}
 
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
         ThreadPoolExecutor executor;
 
-        ExecutorScalingQueue() {
-        }
+        ExecutorScalingQueue() {}
 
         @Override
         public boolean offer(E e) {

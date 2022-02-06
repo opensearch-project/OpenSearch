@@ -62,7 +62,6 @@ import static org.opensearch.grok.GrokCaptureType.INTEGER;
 import static org.opensearch.grok.GrokCaptureType.LONG;
 import static org.opensearch.grok.GrokCaptureType.STRING;
 
-
 public class GrokTests extends OpenSearchTestCase {
     public void testMatchWithoutCaptures() {
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "value", logger::warn);
@@ -130,8 +129,8 @@ public class GrokTests extends OpenSearchTestCase {
     }
 
     public void testSyslog5424Line() {
-        String line = "<191>1 2009-06-30T18:30:00+02:00 paxton.local grokdebug 4123 - [id1 foo=\\\"bar\\\"][id2 baz=\\\"something\\\"] " +
-                "Hello, syslog.";
+        String line = "<191>1 2009-06-30T18:30:00+02:00 paxton.local grokdebug 4123 - [id1 foo=\\\"bar\\\"][id2 baz=\\\"something\\\"] "
+            + "Hello, syslog.";
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{SYSLOG5424LINE}", logger::warn);
         assertCaptureConfig(
             grok,
@@ -186,9 +185,13 @@ public class GrokTests extends OpenSearchTestCase {
     }
 
     public void testUnicodeSyslog() {
-        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "<%{POSINT:syslog_pri}>%{SPACE}%{SYSLOGTIMESTAMP:syslog_timestamp} " +
-                "%{SYSLOGHOST:syslog_hostname} %{PROG:syslog_program}(:?)(?:\\[%{GREEDYDATA:syslog_pid}\\])?(:?) " +
-                "%{GREEDYDATA:syslog_message}", logger::warn);
+        Grok grok = new Grok(
+            Grok.BUILTIN_PATTERNS,
+            "<%{POSINT:syslog_pri}>%{SPACE}%{SYSLOGTIMESTAMP:syslog_timestamp} "
+                + "%{SYSLOGHOST:syslog_hostname} %{PROG:syslog_program}(:?)(?:\\[%{GREEDYDATA:syslog_pid}\\])?(:?) "
+                + "%{GREEDYDATA:syslog_message}",
+            logger::warn
+        );
         assertCaptureConfig(
             grok,
             org.opensearch.common.collect.Map.ofEntries(
@@ -200,9 +203,11 @@ public class GrokTests extends OpenSearchTestCase {
                 org.opensearch.common.collect.Map.entry("syslog_timestamp", STRING)
             )
         );
-        Map<String, Object> matches = grok.captures("<22>Jan  4 07:50:46 mailmaster postfix/policy-spf[9454]: : " +
-                "SPF permerror (Junk encountered in record 'v=spf1 mx a:mail.domain.no ip4:192.168.0.4 �all'): Envelope-from: " +
-                "email@domain.no");
+        Map<String, Object> matches = grok.captures(
+            "<22>Jan  4 07:50:46 mailmaster postfix/policy-spf[9454]: : "
+                + "SPF permerror (Junk encountered in record 'v=spf1 mx a:mail.domain.no ip4:192.168.0.4 �all'): Envelope-from: "
+                + "email@domain.no"
+        );
         assertThat(matches.get("syslog_pri"), equalTo("22"));
         assertThat(matches.get("syslog_program"), equalTo("postfix/policy-spf"));
         assertThat(matches.get("tags"), nullValue());
@@ -226,21 +231,21 @@ public class GrokTests extends OpenSearchTestCase {
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "^%{TIMESTAMP_ISO8601}$", logger::warn);
         assertCaptureConfig(grok, org.opensearch.common.collect.Map.of());
         List<String> timeMessages = Arrays.asList(
-                "2001-01-01T00:00:00",
-                "1974-03-02T04:09:09",
-                "2010-05-03T08:18:18+00:00",
-                "2004-07-04T12:27:27-00:00",
-                "2001-09-05T16:36:36+0000",
-                "2001-11-06T20:45:45-0000",
-                "2001-12-07T23:54:54Z",
-                "2001-01-01T00:00:00.123456",
-                "1974-03-02T04:09:09.123456",
-                "2010-05-03T08:18:18.123456+00:00",
-                "2004-07-04T12:27:27.123456-00:00",
-                "2001-09-05T16:36:36.123456+0000",
-                "2001-11-06T20:45:45.123456-0000",
-                "2001-12-07T23:54:54.123456Z",
-                "2001-12-07T23:54:60.123456Z" // '60' second is a leap second.
+            "2001-01-01T00:00:00",
+            "1974-03-02T04:09:09",
+            "2010-05-03T08:18:18+00:00",
+            "2004-07-04T12:27:27-00:00",
+            "2001-09-05T16:36:36+0000",
+            "2001-11-06T20:45:45-0000",
+            "2001-12-07T23:54:54Z",
+            "2001-01-01T00:00:00.123456",
+            "1974-03-02T04:09:09.123456",
+            "2010-05-03T08:18:18.123456+00:00",
+            "2004-07-04T12:27:27.123456-00:00",
+            "2001-09-05T16:36:36.123456+0000",
+            "2001-11-06T20:45:45.123456-0000",
+            "2001-12-07T23:54:54.123456Z",
+            "2001-12-07T23:54:60.123456Z" // '60' second is a leap second.
         );
         for (String msg : timeMessages) {
             assertThat(grok.match(msg), is(true));
@@ -251,28 +256,28 @@ public class GrokTests extends OpenSearchTestCase {
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "^%{TIMESTAMP_ISO8601}$", logger::warn);
         assertCaptureConfig(grok, org.opensearch.common.collect.Map.of());
         List<String> timeMessages = Arrays.asList(
-                "2001-13-01T00:00:00", // invalid month
-                "2001-00-01T00:00:00", // invalid month
-                "2001-01-00T00:00:00", // invalid day
-                "2001-01-32T00:00:00", // invalid day
-                "2001-01-aT00:00:00", // invalid day
-                "2001-01-1aT00:00:00", // invalid day
-                "2001-01-01Ta0:00:00", // invalid hour
-                "2001-01-01T0:00:00", // invalid hour
-                "2001-01-01T25:00:00", // invalid hour
-                "2001-01-01T01:60:00", // invalid minute
-                "2001-01-01T00:aa:00", // invalid minute
-                "2001-01-01T00:00:aa", // invalid second
-                "2001-01-01T00:00:-1", // invalid second
-                "2001-01-01T00:00:61", // invalid second
-                "2001-01-01T00:00:00A", // invalid timezone
-                "2001-01-01T00:00:00+", // invalid timezone
-                "2001-01-01T00:00:00+25", // invalid timezone
-                "2001-01-01T00:00:00+2500", // invalid timezone
-                "2001-01-01T00:00:00+25:00", // invalid timezone
-                "2001-01-01T00:00:00-25", // invalid timezone
-                "2001-01-01T00:00:00-2500", // invalid timezone
-                "2001-01-01T00:00:00-00:61" // invalid timezone
+            "2001-13-01T00:00:00", // invalid month
+            "2001-00-01T00:00:00", // invalid month
+            "2001-01-00T00:00:00", // invalid day
+            "2001-01-32T00:00:00", // invalid day
+            "2001-01-aT00:00:00", // invalid day
+            "2001-01-1aT00:00:00", // invalid day
+            "2001-01-01Ta0:00:00", // invalid hour
+            "2001-01-01T0:00:00", // invalid hour
+            "2001-01-01T25:00:00", // invalid hour
+            "2001-01-01T01:60:00", // invalid minute
+            "2001-01-01T00:aa:00", // invalid minute
+            "2001-01-01T00:00:aa", // invalid second
+            "2001-01-01T00:00:-1", // invalid second
+            "2001-01-01T00:00:61", // invalid second
+            "2001-01-01T00:00:00A", // invalid timezone
+            "2001-01-01T00:00:00+", // invalid timezone
+            "2001-01-01T00:00:00+25", // invalid timezone
+            "2001-01-01T00:00:00+2500", // invalid timezone
+            "2001-01-01T00:00:00+25:00", // invalid timezone
+            "2001-01-01T00:00:00-25", // invalid timezone
+            "2001-01-01T00:00:00-2500", // invalid timezone
+            "2001-01-01T00:00:00-00:61" // invalid timezone
         );
         for (String msg : timeMessages) {
             assertThat(grok.match(msg), is(false));
@@ -344,8 +349,10 @@ public class GrokTests extends OpenSearchTestCase {
             String pattern = "%{NAME1}";
             new Grok(bank, pattern, false, logger::warn);
         });
-        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME1=>NAME2]",
-            e.getMessage());
+        assertEquals(
+            "circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME1=>NAME2]",
+            e.getMessage()
+        );
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             Map<String, String> bank = new TreeMap<>();
@@ -354,8 +361,7 @@ public class GrokTests extends OpenSearchTestCase {
             String pattern = "%{NAME1}";
             new Grok(bank, pattern, false, logger::warn);
         });
-        assertEquals("circular reference in pattern [NAME2][!!!%{NAME2}!!!]",
-            e.getMessage());
+        assertEquals("circular reference in pattern [NAME2][!!!%{NAME2}!!!]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             Map<String, String> bank = new TreeMap<>();
@@ -365,10 +371,12 @@ public class GrokTests extends OpenSearchTestCase {
             bank.put("NAME4", "!!!%{NAME5}!!!");
             bank.put("NAME5", "!!!%{NAME1}!!!");
             String pattern = "%{NAME1}";
-            new Grok(bank, pattern, false, logger::warn );
+            new Grok(bank, pattern, false, logger::warn);
         });
-        assertEquals("circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] " +
-            "via patterns [NAME1=>NAME2=>NAME3=>NAME4]", e.getMessage());
+        assertEquals(
+            "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] " + "via patterns [NAME1=>NAME2=>NAME3=>NAME4]",
+            e.getMessage()
+        );
     }
 
     public void testMalformedPattern() {
@@ -453,7 +461,7 @@ public class GrokTests extends OpenSearchTestCase {
 
         double[] rating = new double[1];
         GrokCaptureExtracter ratingExtracter = namedConfig(g, "rating").nativeExtracter(new ThrowingNativeExtracterMap() {
-            public GrokCaptureExtracter forDouble(java.util.function.Function<DoubleConsumer,GrokCaptureExtracter> buildExtracter) {
+            public GrokCaptureExtracter forDouble(java.util.function.Function<DoubleConsumer, GrokCaptureExtracter> buildExtracter) {
                 return buildExtracter.apply(d -> rating[0] = d);
             }
         });
@@ -491,9 +499,9 @@ public class GrokTests extends OpenSearchTestCase {
     }
 
     public void testApacheLog() {
-        String logLine = "31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] \"GET /logs/access.log HTTP/1.0\" 200 69849 " +
-                "\"http://8rursodiol.enjin.com\" \"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36\" \"www.dlwindianrailways.com\"";
+        String logLine = "31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] \"GET /logs/access.log HTTP/1.0\" 200 69849 "
+            + "\"http://8rursodiol.enjin.com\" \"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) "
+            + "Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36\" \"www.dlwindianrailways.com\"";
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{COMBINEDAPACHELOG}", logger::warn);
         assertCaptureConfig(
             grok,
@@ -525,15 +533,21 @@ public class GrokTests extends OpenSearchTestCase {
         assertEquals("69849", matches.get("bytes"));
         assertEquals("\"http://8rursodiol.enjin.com\"", matches.get("referrer"));
         assertEquals(null, matches.get("port"));
-        assertEquals("\"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/30.0.1599.12785 " +
-                "YaBrowser/13.12.1599.12785 Safari/537.36\"", matches.get("agent"));
+        assertEquals(
+            "\"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/30.0.1599.12785 "
+                + "YaBrowser/13.12.1599.12785 Safari/537.36\"",
+            matches.get("agent")
+        );
     }
 
     public void testComplete() {
         Map<String, String> bank = new HashMap<>();
         bank.put("MONTHDAY", "(?:(?:0[1-9])|(?:[12][0-9])|(?:3[01])|[1-9])");
-        bank.put("MONTH", "\\b(?:Jan(?:uary|uar)?|Feb(?:ruary|ruar)?|M(?:a|ä)?r(?:ch|z)?|Apr(?:il)?|Ma(?:y|i)?|Jun(?:e|i)" +
-                "?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|O(?:c|k)?t(?:ober)?|Nov(?:ember)?|De(?:c|z)(?:ember)?)\\b");
+        bank.put(
+            "MONTH",
+            "\\b(?:Jan(?:uary|uar)?|Feb(?:ruary|ruar)?|M(?:a|ä)?r(?:ch|z)?|Apr(?:il)?|Ma(?:y|i)?|Jun(?:e|i)"
+                + "?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|O(?:c|k)?t(?:ober)?|Nov(?:ember)?|De(?:c|z)(?:ember)?)\\b"
+        );
         bank.put("MINUTE", "(?:[0-5][0-9])");
         bank.put("YEAR", "(?>\\d\\d){1,2}");
         bank.put("HOUR", "(?:2[0123]|[01]?[0-9])");
@@ -544,19 +558,25 @@ public class GrokTests extends OpenSearchTestCase {
         bank.put("WORD", "\\b\\w+\\b");
         bank.put("BASE10NUM", "(?<![0-9.+-])(?>[+-]?(?:(?:[0-9]+(?:\\.[0-9]+)?)|(?:\\.[0-9]+)))");
         bank.put("NUMBER", "(?:%{BASE10NUM})");
-        bank.put("IPV6", "((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]" +
-                "\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4})" +
-                "{1,2})|:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3})|:))|(([0-9A-Fa-f]{1,4}:)" +
-                "{4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\" +
-                "d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]" +
-                "\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4})" +
-                "{1,5})" +
-                "|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))" +
-                "|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)" +
-                "(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}" +
-                ":((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:)))(%.+)?");
-        bank.put("IPV4", "(?<![0-9])(?:(?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.]" +
-                "(?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5]))(?![0-9])");
+        bank.put(
+            "IPV6",
+            "((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]"
+                + "\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4})"
+                + "{1,2})|:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3})|:))|(([0-9A-Fa-f]{1,4}:)"
+                + "{4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\"
+                + "d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]"
+                + "\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4})"
+                + "{1,5})"
+                + "|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))"
+                + "|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)"
+                + "(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}"
+                + ":((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:)))(%.+)?"
+        );
+        bank.put(
+            "IPV4",
+            "(?<![0-9])(?:(?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.]"
+                + "(?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5]))(?![0-9])"
+        );
         bank.put("IP", "(?:%{IPV6}|%{IPV4})");
         bank.put("HOSTNAME", "\\b(?:[0-9A-Za-z][0-9A-Za-z-]{0,62})(?:\\.(?:[0-9A-Za-z][0-9A-Za-z-]{0,62}))*(\\.?|\\b)");
         bank.put("IPORHOST", "(?:%{IP}|%{HOSTNAME})");
@@ -564,12 +584,12 @@ public class GrokTests extends OpenSearchTestCase {
         bank.put("DATA", ".*?");
         bank.put("QS", "(?>(?<!\\\\)(?>\"(?>\\\\.|[^\\\\\"]+)+\"|\"\"|(?>'(?>\\\\.|[^\\\\']+)+')|''|(?>`(?>\\\\.|[^\\\\`]+)+`)|``))");
 
-        String text = "83.149.9.216 - - [19/Jul/2015:08:13:42 +0000] \"GET /presentations/logstash-monitorama-2013/images/" +
-                "kibana-dashboard3.png HTTP/1.1\" 200 171717 \"http://semicomplete.com/presentations/logstash-monitorama-2013/\" " +
-                "\"Mozilla" +
-                "/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"";
-        String pattern = "%{IPORHOST:clientip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:timestamp}\\] \"%{WORD:verb} %{DATA:request} " +
-                "HTTP/%{NUMBER:httpversion}\" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}";
+        String text = "83.149.9.216 - - [19/Jul/2015:08:13:42 +0000] \"GET /presentations/logstash-monitorama-2013/images/"
+            + "kibana-dashboard3.png HTTP/1.1\" 200 171717 \"http://semicomplete.com/presentations/logstash-monitorama-2013/\" "
+            + "\"Mozilla"
+            + "/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"";
+        String pattern = "%{IPORHOST:clientip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:timestamp}\\] \"%{WORD:verb} %{DATA:request} "
+            + "HTTP/%{NUMBER:httpversion}\" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}";
 
         Grok grok = new Grok(bank, pattern, logger::warn);
         assertCaptureConfig(
@@ -600,8 +620,11 @@ public class GrokTests extends OpenSearchTestCase {
         expected.put("response", 200);
         expected.put("bytes", 171717);
         expected.put("referrer", "\"http://semicomplete.com/presentations/logstash-monitorama-2013/\"");
-        expected.put("agent", "\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/32.0.1700.77 Safari/537.36\"");
+        expected.put(
+            "agent",
+            "\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) "
+                + "Chrome/32.0.1700.77 Safari/537.36\""
+        );
 
         Map<String, Object> actual = grok.captures(text);
 
@@ -629,10 +652,10 @@ public class GrokTests extends OpenSearchTestCase {
     public void testExponentialExpressions() {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
 
-        String grokPattern = "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] " +
-            "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}";
-        String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] " +
-            "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018";
+        String grokPattern = "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] "
+            + "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}";
+        String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] "
+            + "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018";
         BiConsumer<Long, Runnable> scheduler = (delay, command) -> {
             try {
                 Thread.sleep(delay);
@@ -646,8 +669,12 @@ public class GrokTests extends OpenSearchTestCase {
             });
             t.start();
         };
-        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, grokPattern, MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
-            logger::warn);
+        Grok grok = new Grok(
+            Grok.BUILTIN_PATTERNS,
+            grokPattern,
+            MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
+            logger::warn
+        );
         Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
         run.set(false);
         assertThat(e.getMessage(), equalTo("grok pattern matching was interrupted after [200] ms"));
@@ -702,11 +729,11 @@ public class GrokTests extends OpenSearchTestCase {
         assertThat(grok.match("Test Class.java"), is(true));
     }
 
-    public void testLogCallBack(){
+    public void testLogCallBack() {
         AtomicReference<String> message = new AtomicReference<>();
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, ".*\\[.*%{SPACE}*\\].*", message::set);
         grok.match("[foo]");
-        //this message comes from Joni, so updates to Joni may change the expectation
+        // this message comes from Joni, so updates to Joni may change the expectation
         assertThat(message.get(), containsString("regular expression has redundant nested repeat operator"));
     }
 

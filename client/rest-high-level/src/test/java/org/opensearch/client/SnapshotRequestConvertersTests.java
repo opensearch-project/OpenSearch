@@ -74,7 +74,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         RequestConvertersTests.setRandomLocal(getRepositoriesRequest::local, expectedParams);
 
         if (randomBoolean()) {
-            String[] entries = new String[]{"a", "b", "c"};
+            String[] entries = new String[] { "a", "b", "c" };
             getRepositoriesRequest.repositories(entries);
             endpoint.append("/" + String.join(",", entries));
         }
@@ -99,7 +99,8 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
                 .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
                 .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                 .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                .build());
+                .build()
+        );
 
         Request request = SnapshotRequestConverters.createRepository(putRepositoryRequest);
         assertThat(request.getEndpoint(), equalTo(endpoint));

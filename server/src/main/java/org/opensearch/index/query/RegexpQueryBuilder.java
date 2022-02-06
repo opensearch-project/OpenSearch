@@ -62,7 +62,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     public static final String NAME = "regexp";
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
-    public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+    public static final int DEFAULT_DETERMINIZE_WORK_LIMIT = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
     public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
 
     private static final ParseField FLAGS_VALUE_FIELD = new ParseField("flags_value");
@@ -79,7 +79,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     private int syntaxFlagsValue = DEFAULT_FLAGS_VALUE;
     private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
 
-    private int maxDeterminizedStates = DEFAULT_MAX_DETERMINIZED_STATES;
+    private int maxDeterminizedStates = DEFAULT_DETERMINIZE_WORK_LIMIT;
 
     private String rewrite;
 
@@ -221,7 +221,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         int flagsValue = RegexpQueryBuilder.DEFAULT_FLAGS_VALUE;
         boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
-        int maxDeterminizedStates = RegexpQueryBuilder.DEFAULT_MAX_DETERMINIZED_STATES;
+        int maxDeterminizedStates = RegexpQueryBuilder.DEFAULT_DETERMINIZE_WORK_LIMIT;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -253,8 +253,10 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[regexp] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
@@ -265,12 +267,11 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             }
         }
 
-        RegexpQueryBuilder result = new RegexpQueryBuilder(fieldName, value)
-                .flags(flagsValue)
-                .maxDeterminizedStates(maxDeterminizedStates)
-                .rewrite(rewrite)
-                .boost(boost)
-                .queryName(queryName);
+        RegexpQueryBuilder result = new RegexpQueryBuilder(fieldName, value).flags(flagsValue)
+            .maxDeterminizedStates(maxDeterminizedStates)
+            .rewrite(rewrite)
+            .boost(boost)
+            .queryName(queryName);
         result.caseInsensitive(caseInsensitive);
         return result;
     }
@@ -285,10 +286,16 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         final int maxAllowedRegexLength = context.getIndexSettings().getMaxRegexLength();
         if (value.length() > maxAllowedRegexLength) {
             throw new IllegalArgumentException(
-                "The length of regex ["  + value.length() +  "] used in the Regexp Query request has exceeded " +
-                    "the allowed maximum of [" + maxAllowedRegexLength + "]. " +
-                    "This maximum can be set by changing the [" +
-                    IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey() + "] index level setting.");
+                "The length of regex ["
+                    + value.length()
+                    + "] used in the Regexp Query request has exceeded "
+                    + "the allowed maximum of ["
+                    + maxAllowedRegexLength
+                    + "]. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
@@ -302,8 +309,12 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }
         if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), sanitisedSyntaxFlag,
-                matchFlagsValue, maxDeterminizedStates);
+            RegexpQuery regexpQuery = new RegexpQuery(
+                new Term(fieldName, BytesRefs.toBytesRef(value)),
+                sanitisedSyntaxFlag,
+                matchFlagsValue,
+                maxDeterminizedStates
+            );
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -319,11 +330,11 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     @Override
     protected boolean doEquals(RegexpQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(value, other.value) &&
-                Objects.equals(syntaxFlagsValue, other.syntaxFlagsValue) &&
-                Objects.equals(caseInsensitive, other.caseInsensitive) &&
-                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
-                Objects.equals(rewrite, other.rewrite);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(syntaxFlagsValue, other.syntaxFlagsValue)
+            && Objects.equals(caseInsensitive, other.caseInsensitive)
+            && Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates)
+            && Objects.equals(rewrite, other.rewrite);
     }
 }

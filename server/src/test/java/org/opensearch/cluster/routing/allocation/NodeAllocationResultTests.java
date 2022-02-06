@@ -34,7 +34,6 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
 import org.opensearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.io.stream.BytesStreamOutput;

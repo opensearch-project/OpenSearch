@@ -53,7 +53,7 @@ public class BinaryMathNode extends BinaryNode {
     private Class<?> binaryType;
     private Class<?> shiftType;
     private int flags;
-    // TODO(stu): DefaultUserTreeToIRTree -> visitRegex should have compiler settings in script set.  set it
+    // TODO(stu): DefaultUserTreeToIRTree -> visitRegex should have compiler settings in script set. set it
     private int regexLimit;
 
     public void setOperation(Operation operation) {
@@ -138,16 +138,23 @@ public class BinaryMathNode extends BinaryNode {
             } else if (operation == Operation.MATCH) {
                 methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
             } else {
-                throw new IllegalStateException("unexpected binary math operation [" + operation + "] " +
-                        "for type [" + getExpressionCanonicalTypeName() + "]");
+                throw new IllegalStateException(
+                    "unexpected binary math operation [" + operation + "] " + "for type [" + getExpressionCanonicalTypeName() + "]"
+                );
             }
         } else {
             getLeftNode().write(classWriter, methodWriter, writeScope);
             getRightNode().write(classWriter, methodWriter, writeScope);
 
             if (binaryType == def.class || (shiftType != null && shiftType == def.class)) {
-                methodWriter.writeDynamicBinaryInstruction(getLocation(),
-                        getExpressionType(), getLeftNode().getExpressionType(), getRightNode().getExpressionType(), operation, flags);
+                methodWriter.writeDynamicBinaryInstruction(
+                    getLocation(),
+                    getExpressionType(),
+                    getLeftNode().getExpressionType(),
+                    getRightNode().getExpressionType(),
+                    operation,
+                    flags
+                );
             } else {
                 methodWriter.writeBinaryInstruction(getLocation(), getExpressionType(), operation);
             }

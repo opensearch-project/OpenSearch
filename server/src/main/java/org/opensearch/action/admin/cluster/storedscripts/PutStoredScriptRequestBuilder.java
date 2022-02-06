@@ -38,8 +38,10 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 
-public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<PutStoredScriptRequest,
-    AcknowledgedResponse, PutStoredScriptRequestBuilder> {
+public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
+    PutStoredScriptRequest,
+    AcknowledgedResponse,
+    PutStoredScriptRequestBuilder> {
 
     public PutStoredScriptRequestBuilder(OpenSearchClient client, PutStoredScriptAction action) {
         super(client, action, new PutStoredScriptRequest());

@@ -50,33 +50,37 @@ public class NestedAggregatorFactory extends AggregatorFactory {
     private final ObjectMapper parentObjectMapper;
     private final ObjectMapper childObjectMapper;
 
-    NestedAggregatorFactory(String name, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
-                            QueryShardContext queryShardContext, AggregatorFactory parent, AggregatorFactories.Builder subFactories,
-                            Map<String, Object> metadata) throws IOException {
+    NestedAggregatorFactory(
+        String name,
+        ObjectMapper parentObjectMapper,
+        ObjectMapper childObjectMapper,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactories,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, queryShardContext, parent, subFactories, metadata);
         this.parentObjectMapper = parentObjectMapper;
         this.childObjectMapper = childObjectMapper;
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         if (childObjectMapper == null) {
             return new Unmapped(name, searchContext, parent, factories, metadata);
         }
-        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, searchContext, parent,
-            cardinality, metadata);
+        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, searchContext, parent, cardinality, metadata);
     }
 
     private static final class Unmapped extends NonCollectingAggregator {
 
-        Unmapped(String name,
-                    SearchContext context,
-                    Aggregator parent,
-                    AggregatorFactories factories,
-                    Map<String, Object> metadata) throws IOException {
+        Unmapped(String name, SearchContext context, Aggregator parent, AggregatorFactories factories, Map<String, Object> metadata)
+            throws IOException {
             super(name, context, parent, factories, metadata);
         }
 

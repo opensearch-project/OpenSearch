@@ -66,9 +66,10 @@ public class FlipDefIndexNode extends UnaryNode {
         methodWriter.dup();
         getChildNode().write(classWriter, methodWriter, writeScope);
         Type methodType = Type.getMethodType(
-                MethodWriter.getType(getChildNode().getExpressionType()),
-                MethodWriter.getType(def.class),
-                MethodWriter.getType(getChildNode().getExpressionType()));
+            MethodWriter.getType(getChildNode().getExpressionType()),
+            MethodWriter.getType(def.class),
+            MethodWriter.getType(getChildNode().getExpressionType())
+        );
         methodWriter.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE);
     }
 }

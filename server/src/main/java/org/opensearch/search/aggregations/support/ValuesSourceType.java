@@ -96,8 +96,7 @@ public interface ValuesSourceType {
      * @param now - Used in conjunction with the formatter, should return the current time in milliseconds
      * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
      */
-    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                LongSupplier now);
+    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now);
 
     /**
      * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a
