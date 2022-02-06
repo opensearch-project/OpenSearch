@@ -240,11 +240,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             AwarenessAllocationDecider.class,
             NodeLoadAwareAllocationDecider.class
         );
-        Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            Collections.emptyList()
-        );
+        Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), Collections.emptyList());
         Iterator<AllocationDecider> iter = deciders.iterator();
         int idx = 0;
         while (iter.hasNext()) {
