@@ -174,7 +174,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             }
 
             // disrupt file system
-            disruptFileSystemProvider.injectIOException.set(true);
+            disruptFileSystemProvider.injectIODelay.set(true);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
             assertBusy(mockAppender::assertAllExpectationsMatched);
