@@ -60,8 +60,12 @@ public class DiscoveryNodeRoleIT extends OpenSearchIntegTestCase {
 
         }
 
-        static final Setting<Boolean> NODE_ADDITIONAL_SETTING =
-                Setting.boolSetting("node.additional", true, Property.Deprecated, Property.NodeScope);
+        static final Setting<Boolean> NODE_ADDITIONAL_SETTING = Setting.boolSetting(
+            "node.additional",
+            true,
+            Property.Deprecated,
+            Property.NodeScope
+        );
 
         static DiscoveryNodeRole ADDITIONAL_ROLE = new DiscoveryNodeRole("additional", "a") {
 

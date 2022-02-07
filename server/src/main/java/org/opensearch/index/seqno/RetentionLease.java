@@ -159,8 +159,9 @@ public final class RetentionLease implements ToXContentObject, Writeable {
     private static final ParseField SOURCE_FIELD = new ParseField("source");
 
     private static final ConstructingObjectParser<RetentionLease, Void> PARSER = new ConstructingObjectParser<>(
-            "retention_leases",
-            (a) -> new RetentionLease((String) a[0], (Long) a[1], (Long) a[2], (String) a[3]));
+        "retention_leases",
+        (a) -> new RetentionLease((String) a[0], (Long) a[1], (Long) a[2], (String) a[3])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
@@ -203,10 +204,10 @@ public final class RetentionLease implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final RetentionLease that = (RetentionLease) o;
-        return Objects.equals(id, that.id) &&
-                retainingSequenceNumber == that.retainingSequenceNumber &&
-                timestamp == that.timestamp &&
-                Objects.equals(source, that.source);
+        return Objects.equals(id, that.id)
+            && retainingSequenceNumber == that.retainingSequenceNumber
+            && timestamp == that.timestamp
+            && Objects.equals(source, that.source);
     }
 
     @Override
@@ -216,12 +217,18 @@ public final class RetentionLease implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "RetentionLease{" +
-                "id='" + id + '\'' +
-                ", retainingSequenceNumber=" + retainingSequenceNumber +
-                ", timestamp=" + timestamp +
-                ", source='" + source + '\'' +
-                '}';
+        return "RetentionLease{"
+            + "id='"
+            + id
+            + '\''
+            + ", retainingSequenceNumber="
+            + retainingSequenceNumber
+            + ", timestamp="
+            + timestamp
+            + ", source='"
+            + source
+            + '\''
+            + '}';
     }
 
 }

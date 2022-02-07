@@ -163,18 +163,25 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
     public void testConvert() throws IOException {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new DetailedExceptionRestChannel(request);
-        ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
-        ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE));
-        SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
-            new ShardSearchFailure[] {failure, failure1});
+        ShardSearchFailure failure = new ShardSearchFailure(
+            new ParsingException(1, 2, "foobar", null),
+            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE)
+        );
+        ShardSearchFailure failure1 = new ShardSearchFailure(
+            new ParsingException(1, 2, "foobar", null),
+            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE)
+        );
+        SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+            "search",
+            "all shards failed",
+            new ShardSearchFailure[] { failure, failure1 }
+        );
         BytesRestResponse response = new BytesRestResponse(channel, new RemoteTransportException("foo", ex));
         String text = response.content().utf8ToString();
-        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}]," +
-            "\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true," +
-            "\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\"," +
-            "\"reason\":\"foobar\",\"line\":1,\"col\":2}}]},\"status\":400}";
+        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}],"
+            + "\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,"
+            + "\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\","
+            + "\"reason\":\"foobar\",\"line\":1,\"col\":2}}]},\"status\":400}";
         assertEquals(expected.trim(), text.trim());
         String stackTrace = ExceptionsHelper.stackTrace(ex);
         assertTrue(stackTrace.contains("Caused by: ParsingException[foobar]"));
@@ -249,8 +256,12 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
                 break;
             case 3:
                 TransportAddress address = buildNewFakeTransportAddress();
-                original = new RemoteTransportException("remote", address, "action",
-                        new ResourceAlreadyExistsException("OpenSearchWrapperException with a cause that has a custom status"));
+                original = new RemoteTransportException(
+                    "remote",
+                    address,
+                    "action",
+                    new ResourceAlreadyExistsException("OpenSearchWrapperException with a cause that has a custom status")
+                );
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
                     type = "resource_already_exists_exception";
@@ -260,8 +271,10 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
                 }
                 break;
             case 4:
-                original = new RemoteTransportException("OpenSearchWrapperException with a cause that has a special treatment",
-                        new IllegalArgumentException("wrong"));
+                original = new RemoteTransportException(
+                    "OpenSearchWrapperException with a cause that has a special treatment",
+                    new IllegalArgumentException("wrong")
+                );
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
                     type = "illegal_argument_exception";
@@ -360,8 +373,7 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void sendResponse(RestResponse response) {
-        }
+        public void sendResponse(RestResponse response) {}
     }
 
     private static class DetailedExceptionRestChannel extends AbstractRestChannel {
@@ -371,7 +383,6 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void sendResponse(RestResponse response) {
-        }
+        public void sendResponse(RestResponse response) {}
     }
 }

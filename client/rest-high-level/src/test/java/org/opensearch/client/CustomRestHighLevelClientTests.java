@@ -43,11 +43,6 @@ import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Build;
-import org.opensearch.client.Request;
-import org.opensearch.client.RequestOptions;
-import org.opensearch.client.Response;
-import org.opensearch.client.ResponseListener;
-import org.opensearch.client.RestClient;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.main.MainRequest;
@@ -92,15 +87,11 @@ public class CustomRestHighLevelClientTests extends OpenSearchTestCase {
             final RestClient restClient = mock(RestClient.class);
             restHighLevelClient = new CustomRestClient(restClient);
 
-            doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0]))
-                    .when(restClient)
-                    .performRequest(any(Request.class));
+            doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0])).when(restClient).performRequest(any(Request.class));
 
-            doAnswer(inv -> mockPerformRequestAsync(
-                        ((Request) inv.getArguments()[0]),
-                        (ResponseListener) inv.getArguments()[1]))
-                    .when(restClient)
-                    .performRequestAsync(any(Request.class), any(ResponseListener.class));
+            doAnswer(inv -> mockPerformRequestAsync(((Request) inv.getArguments()[0]), (ResponseListener) inv.getArguments()[1])).when(
+                restClient
+            ).performRequestAsync(any(Request.class), any(ResponseListener.class));
         }
     }
 
@@ -140,21 +131,21 @@ public class CustomRestHighLevelClientTests extends OpenSearchTestCase {
      */
     @SuppressForbidden(reason = "We're forced to uses Class#getDeclaredMethods() here because this test checks protected methods")
     public void testMethodsVisibility() {
-        final String[] methodNames = new String[]{"convertExistsResponse",
-                                                  "parseEntity",
-                                                  "parseResponseException",
-                                                  "performRequest",
-                                                  "performRequestAndParseEntity",
-                                                  "performRequestAndParseOptionalEntity",
-                                                  "performRequestAsync",
-                                                  "performRequestAsyncAndParseEntity",
-                                                  "performRequestAsyncAndParseOptionalEntity"
-                                                  };
+        final String[] methodNames = new String[] {
+            "convertExistsResponse",
+            "parseEntity",
+            "parseResponseException",
+            "performRequest",
+            "performRequestAndParseEntity",
+            "performRequestAndParseOptionalEntity",
+            "performRequestAsync",
+            "performRequestAsyncAndParseEntity",
+            "performRequestAsyncAndParseOptionalEntity" };
 
-        final Set<String> protectedMethods =  Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
-                                                     .filter(method -> Modifier.isProtected(method.getModifiers()))
-                                                     .map(Method::getName)
-                                                     .collect(Collectors.toCollection(TreeSet::new));
+        final Set<String> protectedMethods = Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
+            .filter(method -> Modifier.isProtected(method.getModifiers()))
+            .map(Method::getName)
+            .collect(Collectors.toCollection(TreeSet::new));
 
         assertThat(protectedMethods, contains(methodNames));
     }

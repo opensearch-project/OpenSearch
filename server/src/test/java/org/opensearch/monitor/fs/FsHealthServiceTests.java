@@ -34,13 +34,11 @@ package org.opensearch.monitor.fs;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
@@ -124,7 +122,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
             assertEquals("health check passed", fsHealthService.getHealth().getInfo());
 
-            //disrupt file system
+            // disrupt file system
             disruptFileSystemProvider.restrictPathPrefix(""); // disrupt all paths
             disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
@@ -144,41 +142,43 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
     @TestLogging(value = "org.opensearch.monitor.fs:WARN", reason = "to ensure that we log on hung IO at WARN level")
     public void testLoggingOnHungIO() throws Exception {
         long slowLogThreshold = randomLongBetween(100, 200);
-        final Settings settings = Settings.builder().put(FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING.getKey(),
-            slowLogThreshold + "ms").build();
+        final Settings settings = Settings.builder()
+            .put(FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING.getKey(), slowLogThreshold + "ms")
+            .build();
         FileSystem fileSystem = PathUtils.getDefaultFileSystem();
         TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
-        FileSystemFsyncHungProvider disruptFileSystemProvider = new FileSystemFsyncHungProvider(fileSystem,
-            randomLongBetween(slowLogThreshold + 1 , 400), testThreadPool);
+        FileSystemFsyncHungProvider disruptFileSystemProvider = new FileSystemFsyncHungProvider(
+            fileSystem,
+            randomLongBetween(slowLogThreshold + 1, 400),
+            testThreadPool
+        );
         fileSystem = disruptFileSystemProvider.getFileSystem(null);
         PathUtilsForTesting.installMock(fileSystem);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-
-        Logger logger = LogManager.getLogger(FsHealthService.class);
-        Loggers.addAppender(logger, mockAppender);
-        try (NodeEnvironment env = newNodeEnvironment()) {
+        try (
+            MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(FsHealthService.class));
+            NodeEnvironment env = newNodeEnvironment()
+        ) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             int counter = 0;
-            for(Path path : env.nodeDataPaths()){
+            for (Path path : env.nodeDataPaths()) {
                 mockAppender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
                         "test" + ++counter,
                         FsHealthService.class.getCanonicalName(),
                         Level.WARN,
-                        "health check of [" + path + "] took [*ms] which is above the warn threshold*"));
+                        "health check of [" + path + "] took [*ms] which is above the warn threshold*"
+                    )
+                );
             }
 
-            //disrupt file system
-            disruptFileSystemProvider.injectIODelay.set(true);
+            // disrupt file system
+            disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
             PathUtilsForTesting.teardown();
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }
@@ -253,7 +253,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
             assertEquals("health check passed", fsHealthService.getHealth().getInfo());
 
-            //disrupt file system fsync on single path
+            // disrupt file system fsync on single path
             disruptFsyncFileSystemProvider.injectIOException.set(true);
             String disruptedPath = randomFrom(paths).toString();
             disruptFsyncFileSystemProvider.restrictPathPrefix(disruptedPath);
@@ -284,7 +284,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
             assertEquals("health check passed", fsHealthService.getHealth().getInfo());
 
-            //disrupt file system writes on single path
+            // disrupt file system writes on single path
             String disruptedPath = randomFrom(paths).toString();
             disruptWritesFileSystemProvider.restrictPathPrefix(disruptedPath);
             disruptWritesFileSystemProvider.injectIOException.set(true);
@@ -305,7 +305,10 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         final Settings settings = Settings.EMPTY;
         TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
         FileSystemUnexpectedLockFileSizeProvider unexpectedLockFileSizeFileSystemProvider = new FileSystemUnexpectedLockFileSizeProvider(
-            fileSystem, 1, testThreadPool);
+            fileSystem,
+            1,
+            testThreadPool
+        );
         fileSystem = unexpectedLockFileSizeFileSystemProvider.getFileSystem(null);
         PathUtilsForTesting.installMock(fileSystem);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -341,20 +344,19 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             super("disrupt_fs_health://", inner);
         }
 
-        public void restrictPathPrefix(String pathPrefix){
+        public void restrictPathPrefix(String pathPrefix) {
             this.pathPrefix = pathPrefix;
         }
 
-        public int getInjectedPathCount(){
+        public int getInjectedPathCount() {
             return injectedPaths.get();
         }
 
         @Override
         public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
-            if (injectIOException.get()){
+            if (injectIOException.get()) {
                 assert pathPrefix != null : "must set pathPrefix before starting disruptions";
-                if (path.toString().startsWith(pathPrefix) && path.toString().
-                    endsWith(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
+                if (path.toString().startsWith(pathPrefix) && path.toString().endsWith(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
                     injectedPaths.incrementAndGet();
                     throw new IOException("fake IOException");
                 }
@@ -374,11 +376,11 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             super("disrupt_fs_health://", inner);
         }
 
-        public void restrictPathPrefix(String pathPrefix){
+        public void restrictPathPrefix(String pathPrefix) {
             this.pathPrefix = pathPrefix;
         }
 
-        public int getInjectedPathCount(){
+        public int getInjectedPathCount() {
             return injectedPaths.get();
         }
 
@@ -389,8 +391,8 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
                 public void force(boolean metaData) throws IOException {
                     if (injectIOException.get()) {
                         assert pathPrefix != null : "must set pathPrefix before starting disruptions";
-                        if (path.toString().startsWith(pathPrefix) && path.toString().
-                            endsWith(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
+                        if (path.toString().startsWith(pathPrefix)
+                            && path.toString().endsWith(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
                             injectedPaths.incrementAndGet();
                             throw new IOException("fake IOException");
                         }
@@ -422,7 +424,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             this.delay = Long.MAX_VALUE;
         }
 
-        public int getInjectedPathCount(){
+        public int getInjectedPathCount() {
             return injectedPaths.get();
         }
 
@@ -467,7 +469,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             this.threadPool = threadPool;
         }
 
-        public int getInjectedPathCount(){
+        public int getInjectedPathCount() {
             return injectedPaths.get();
         }
 

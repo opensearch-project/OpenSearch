@@ -80,8 +80,10 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                     if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
                         if (systemIndices.isSystemIndex(cursor.value.getIndex()) != cursor.value.isSystem()) {
                             updateTaskPending = true;
-                            clusterService.submitStateUpdateTask("system_index_metadata_upgrade_service {system metadata change}",
-                                new SystemIndexMetadataUpdateTask());
+                            clusterService.submitStateUpdateTask(
+                                "system_index_metadata_upgrade_service {system metadata change}",
+                                new SystemIndexMetadataUpdateTask()
+                            );
                             break;
                         }
                     }

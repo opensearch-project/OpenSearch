@@ -52,8 +52,7 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 public class CompositeValuesSourceParserHelper {
 
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser) {
-        objectParser.declareField(VB::field, XContentParser::text,
-            new ParseField("field"), ObjectParser.ValueType.STRING);
+        objectParser.declareField(VB::field, XContentParser::text, new ParseField("field"), ObjectParser.ValueType.STRING);
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
 
         objectParser.declareField(VB::userValuetypeHint, p -> {
@@ -61,10 +60,14 @@ public class CompositeValuesSourceParserHelper {
             return valueType;
         }, new ParseField("value_type"), ObjectParser.ValueType.STRING);
 
-        objectParser.declareField(VB::script,
-            (parser, context) -> Script.parse(parser), Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+        objectParser.declareField(
+            VB::script,
+            (parser, context) -> Script.parse(parser),
+            Script.SCRIPT_PARSE_FIELD,
+            ObjectParser.ValueType.OBJECT_OR_STRING
+        );
 
-        objectParser.declareField(VB::order,  XContentParser::text, new ParseField("order"), ObjectParser.ValueType.STRING);
+        objectParser.declareField(VB::order, XContentParser::text, new ParseField("order"), ObjectParser.ValueType.STRING);
     }
 
     public static void writeTo(CompositeValuesSourceBuilder<?> builder, StreamOutput out) throws IOException {
@@ -77,8 +80,13 @@ public class CompositeValuesSourceParserHelper {
             code = 2;
         } else if (builder.getClass() == GeoTileGridValuesSourceBuilder.class) {
             if (out.getVersion().before(LegacyESVersion.V_7_5_0)) {
-                throw new IOException("Attempting to serialize [" + builder.getClass().getSimpleName()
-                    + "] to a node with unsupported version [" + out.getVersion() + "]");
+                throw new IOException(
+                    "Attempting to serialize ["
+                        + builder.getClass().getSimpleName()
+                        + "] to a node with unsupported version ["
+                        + out.getVersion()
+                        + "]"
+                );
             }
             code = 3;
         } else {
@@ -90,7 +98,7 @@ public class CompositeValuesSourceParserHelper {
 
     public static CompositeValuesSourceBuilder<?> readFrom(StreamInput in) throws IOException {
         int code = in.readByte();
-        switch(code) {
+        switch (code) {
             case 0:
                 return new TermsValuesSourceBuilder(in);
             case 1:
@@ -118,7 +126,7 @@ public class CompositeValuesSourceParserHelper {
         token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         final CompositeValuesSourceBuilder<?> builder;
-        switch(type) {
+        switch (type) {
             case TermsValuesSourceBuilder.TYPE:
                 builder = TermsValuesSourceBuilder.parse(name, parser);
                 break;
@@ -140,7 +148,7 @@ public class CompositeValuesSourceParserHelper {
     }
 
     public static XContentBuilder toXContent(CompositeValuesSourceBuilder<?> source, XContentBuilder builder, Params params)
-            throws IOException {
+        throws IOException {
         builder.startObject();
         builder.startObject(source.name());
         source.toXContent(builder, params);

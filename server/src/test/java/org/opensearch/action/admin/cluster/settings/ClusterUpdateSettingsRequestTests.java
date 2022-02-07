@@ -39,7 +39,6 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.XContentTestUtils;
-import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,12 +64,20 @@ public class ClusterUpdateSettingsRequestTests extends OpenSearchTestCase {
 
         if (addRandomFields) {
             String unsupportedField = "unsupported_field";
-            BytesReference mutated = BytesReference.bytes(XContentTestUtils.insertIntoXContent(xContentType.xContent(), originalBytes,
-                    Collections.singletonList(""), () -> unsupportedField, () -> randomAlphaOfLengthBetween(3, 10)));
-            XContentParseException iae = expectThrows(XContentParseException.class,
-                    () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated)));
-            assertThat(iae.getMessage(),
-                    containsString("[cluster_update_settings_request] unknown field [" + unsupportedField + "]"));
+            BytesReference mutated = BytesReference.bytes(
+                XContentTestUtils.insertIntoXContent(
+                    xContentType.xContent(),
+                    originalBytes,
+                    Collections.singletonList(""),
+                    () -> unsupportedField,
+                    () -> randomAlphaOfLengthBetween(3, 10)
+                )
+            );
+            XContentParseException iae = expectThrows(
+                XContentParseException.class,
+                () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated))
+            );
+            assertThat(iae.getMessage(), containsString("[cluster_update_settings_request] unknown field [" + unsupportedField + "]"));
         } else {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
                 ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);

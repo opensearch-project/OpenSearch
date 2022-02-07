@@ -32,7 +32,6 @@
 
 package org.opensearch.common.recycler;
 
-
 public class NoneRecycler<T> extends AbstractRecycler<T> {
 
     public NoneRecycler(C<T> c) {
@@ -71,4 +70,3 @@ public class NoneRecycler<T> extends AbstractRecycler<T> {
         }
     }
 }
-

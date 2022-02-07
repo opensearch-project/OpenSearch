@@ -62,7 +62,7 @@ public class RepositoryException extends OpenSearchException {
         return repository;
     }
 
-    public RepositoryException(StreamInput in) throws IOException{
+    public RepositoryException(StreamInput in) throws IOException {
         super(in);
         repository = in.readOptionalString();
     }

@@ -92,21 +92,30 @@ public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
     }
 
     private void createTransportSvc() {
-        final MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
+        final MockNioTransport transport = new MockNioTransport(
+            Settings.EMPTY,
+            Version.CURRENT,
+            threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()) {
+            new NoneCircuitBreakerService()
+        ) {
             @Override
             public BoundTransportAddress boundAddress() {
                 return new BoundTransportAddress(
-                    new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9300)},
+                    new TransportAddress[] { new TransportAddress(InetAddress.getLoopbackAddress(), 9300) },
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300)
                 );
             }
         };
-        transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null);
+        transportService = new MockTransportService(
+            Settings.EMPTY,
+            transport,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            null
+        );
     }
 
     public void testBuildDynamicNodes() throws Exception {
@@ -129,9 +138,16 @@ public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
 
     public void testUnicastHostsDoesNotExist() {
         final FileBasedSeedHostsProvider provider = new FileBasedSeedHostsProvider(createTempDir().toAbsolutePath());
-        final List<TransportAddress> addresses = provider.getSeedAddresses(hosts ->
-            SeedHostsResolver.resolveHostsLists(new CancellableThreads(), executorService, logger, hosts, transportService,
-                TimeValue.timeValueSeconds(10)));
+        final List<TransportAddress> addresses = provider.getSeedAddresses(
+            hosts -> SeedHostsResolver.resolveHostsLists(
+                new CancellableThreads(),
+                executorService,
+                logger,
+                hosts,
+                transportService,
+                TimeValue.timeValueSeconds(10)
+            )
+        );
         assertEquals(0, addresses.size());
     }
 
@@ -159,8 +175,15 @@ public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
             writer.write(String.join("\n", hostEntries));
         }
 
-        return new FileBasedSeedHostsProvider(configPath).getSeedAddresses(hosts ->
-            SeedHostsResolver.resolveHostsLists(new CancellableThreads(), executorService, logger, hosts, transportService,
-                TimeValue.timeValueSeconds(10)));
+        return new FileBasedSeedHostsProvider(configPath).getSeedAddresses(
+            hosts -> SeedHostsResolver.resolveHostsLists(
+                new CancellableThreads(),
+                executorService,
+                logger,
+                hosts,
+                transportService,
+                TimeValue.timeValueSeconds(10)
+            )
+        );
     }
 }

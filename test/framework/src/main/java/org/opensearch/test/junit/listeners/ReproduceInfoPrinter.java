@@ -151,13 +151,13 @@ public class ReproduceInfoPrinter extends RunListener {
                 return this;
             }
             if (sysPropName.equals(SYSPROP_TESTCLASS())) {
-                //don't print out the test class, we print it ourselves in appendAllOpts
-                //without filtering out the parameters (needed for REST tests)
+                // don't print out the test class, we print it ourselves in appendAllOpts
+                // without filtering out the parameters (needed for REST tests)
                 return this;
             }
             if (sysPropName.equals(SYSPROP_TESTMETHOD())) {
-                //don't print out the test method, we print it ourselves in appendAllOpts
-                //without filtering out the parameters (needed for REST tests)
+                // don't print out the test method, we print it ourselves in appendAllOpts
+                // without filtering out the parameters (needed for REST tests)
                 return this;
             }
             if (sysPropName.equals(SYSPROP_PREFIX())) {
@@ -176,8 +176,17 @@ public class ReproduceInfoPrinter extends RunListener {
                 // these properties only make sense for integration tests
                 appendProperties(OpenSearchIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
-            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
-                             "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version", "build.snapshot");
+            appendProperties(
+                "tests.assertion.disabled",
+                "tests.security.manager",
+                "tests.nightly",
+                "tests.jvms",
+                "tests.client.ratio",
+                "tests.heap.size",
+                "tests.bwc",
+                "tests.bwc.version",
+                "build.snapshot"
+            );
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
@@ -189,8 +198,10 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         public ReproduceErrorMessageBuilder appendClientYamlSuiteProperties() {
-            return appendProperties(OpenSearchClientYamlSuiteTestCase.REST_TESTS_SUITE,
-                OpenSearchClientYamlSuiteTestCase.REST_TESTS_BLACKLIST);
+            return appendProperties(
+                OpenSearchClientYamlSuiteTestCase.REST_TESTS_SUITE,
+                OpenSearchClientYamlSuiteTestCase.REST_TESTS_BLACKLIST
+            );
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

@@ -32,7 +32,6 @@
 
 package org.opensearch.index.query.functionscore;
 
-
 import org.apache.lucene.search.Explanation;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.bytes.BytesReference;
@@ -86,9 +85,7 @@ public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFu
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match(
-                    (float) evaluate(value, scale),
-                    "exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
+            return Explanation.match((float) evaluate(value, scale), "exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
         }
 
         @Override

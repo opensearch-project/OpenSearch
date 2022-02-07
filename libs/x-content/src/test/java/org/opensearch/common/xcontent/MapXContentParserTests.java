@@ -75,12 +75,11 @@ public class MapXContentParserTests extends OpenSearchTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            builder.field("bytes", new byte[]{1, 2, 3});
+            builder.field("bytes", new byte[] { 1, 2, 3 });
             builder.nullField("nothing");
             builder.endObject();
         });
     }
-
 
     public void testRandomObject() throws IOException {
         compareTokens(builder -> generateRandomObject(builder, randomIntBetween(0, 10)));
@@ -102,8 +101,14 @@ public class MapXContentParserTests extends OpenSearchTestCase {
             }
 
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
-                try (XContentParser mapParser = new MapXContentParser(
-                    xContentRegistry(), LoggingDeprecationHandler.INSTANCE, map, xContentType)) {
+                try (
+                    XContentParser mapParser = new MapXContentParser(
+                        xContentRegistry(),
+                        LoggingDeprecationHandler.INSTANCE,
+                        map,
+                        xContentType
+                    )
+                ) {
                     assertEquals(parser.contentType(), mapParser.contentType());
                     XContentParser.Token token;
                     assertEquals(parser.currentToken(), mapParser.currentToken());
@@ -128,8 +133,8 @@ public class MapXContentParserTests extends OpenSearchTestCase {
                                 case VALUE_NUMBER:
                                     assertEquals(parser.numberType(), mapParser.numberType());
                                     assertEquals(parser.numberValue(), mapParser.numberValue());
-                                    if (parser.numberType() == XContentParser.NumberType.LONG ||
-                                        parser.numberType() == XContentParser.NumberType.INT) {
+                                    if (parser.numberType() == XContentParser.NumberType.LONG
+                                        || parser.numberType() == XContentParser.NumberType.INT) {
                                         assertEquals(parser.longValue(), mapParser.longValue());
                                         if (parser.longValue() <= Integer.MAX_VALUE && parser.longValue() >= Integer.MIN_VALUE) {
                                             assertEquals(parser.intValue(), mapParser.intValue());

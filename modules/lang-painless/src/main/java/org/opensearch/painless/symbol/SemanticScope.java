@@ -348,6 +348,7 @@ public abstract class SemanticScope {
     }
 
     public abstract Class<?> getReturnType();
+
     public abstract String getReturnCanonicalTypeName();
 
     public Variable defineVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
@@ -362,6 +363,7 @@ public abstract class SemanticScope {
     }
 
     public abstract boolean isVariableDefined(String name);
+
     public abstract Variable getVariable(Location location, String name);
 
     public Variable defineInternalVariable(Location location, Class<?> type, String name, boolean isReadOnly) {

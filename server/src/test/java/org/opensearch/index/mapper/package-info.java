@@ -47,4 +47,3 @@
  */
 
 package org.opensearch.index.mapper;
-

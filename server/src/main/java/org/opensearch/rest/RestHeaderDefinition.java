@@ -32,7 +32,6 @@
 
 package org.opensearch.rest;
 
-
 /**
  * A definition for an http header that should be copied to the {@link org.opensearch.common.util.concurrent.ThreadContext} when
  * reading the request on the rest layer.

@@ -57,8 +57,10 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     private final ImmutableOpenMap<String, Settings> indexToSettings;
     private final ImmutableOpenMap<String, Settings> indexToDefaultSettings;
 
-    public GetSettingsResponse(ImmutableOpenMap<String, Settings> indexToSettings,
-                               ImmutableOpenMap<String, Settings> indexToDefaultSettings) {
+    public GetSettingsResponse(
+        ImmutableOpenMap<String, Settings> indexToSettings,
+        ImmutableOpenMap<String, Settings> indexToDefaultSettings
+    ) {
         this.indexToSettings = indexToSettings;
         this.indexToDefaultSettings = indexToDefaultSettings;
     }
@@ -121,34 +123,42 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
     }
 
-    private static void parseSettingsField(XContentParser parser, String currentIndexName, Map<String, Settings> indexToSettings,
-                                           Map<String, Settings> indexToDefaultSettings) throws IOException {
+    private static void parseSettingsField(
+        XContentParser parser,
+        String currentIndexName,
+        Map<String, Settings> indexToSettings,
+        Map<String, Settings> indexToDefaultSettings
+    ) throws IOException {
 
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                switch (parser.currentName()) {
-                    case "settings":
-                        indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
-                        break;
-                    case "defaults":
-                        indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
-                        break;
-                    default:
-                        parser.skipChildren();
-                }
-            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                parser.skipChildren();
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            switch (parser.currentName()) {
+                case "settings":
+                    indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
+                    break;
+                case "defaults":
+                    indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
+                    break;
+                default:
+                    parser.skipChildren();
             }
-            parser.nextToken();
+        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren();
+        }
+        parser.nextToken();
     }
 
-    private static void parseIndexEntry(XContentParser parser, Map<String, Settings> indexToSettings,
-    Map<String, Settings> indexToDefaultSettings) throws IOException {
+    private static void parseIndexEntry(
+        XContentParser parser,
+        Map<String, Settings> indexToSettings,
+        Map<String, Settings> indexToDefaultSettings
+    ) throws IOException {
         String indexName = parser.currentName();
         parser.nextToken();
         while (!parser.isClosed() && parser.currentToken() != XContentParser.Token.END_OBJECT) {
             parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);
         }
     }
+
     public static GetSettingsResponse fromXContent(XContentParser parser) throws IOException {
         HashMap<String, Settings> indexToSettings = new HashMap<>();
         HashMap<String, Settings> indexToDefaultSettings = new HashMap<>();
@@ -161,7 +171,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
         while (!parser.isClosed()) {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                //we must assume this is an index entry
+                // we must assume this is an index entry
                 parseIndexEntry(parser, indexToSettings, indexToDefaultSettings);
             } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 parser.skipChildren();
@@ -171,8 +181,9 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         }
 
         ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
-        ImmutableOpenMap<String, Settings> defaultSettingsMap =
-            ImmutableOpenMap.<String, Settings>builder().putAll(indexToDefaultSettings).build();
+        ImmutableOpenMap<String, Settings> defaultSettingsMap = ImmutableOpenMap.<String, Settings>builder()
+            .putAll(indexToDefaultSettings)
+            .build();
 
         return new GetSettingsResponse(settingsMap, defaultSettingsMap);
     }
@@ -185,7 +196,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             toXContent(builder, ToXContent.EMPTY_PARAMS, false);
             return Strings.toString(builder);
         } catch (IOException e) {
-            throw new IllegalStateException(e); //should not be possible here
+            throw new IllegalStateException(e); // should not be possible here
         }
     }
 
@@ -221,8 +232,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSettingsResponse that = (GetSettingsResponse) o;
-        return Objects.equals(indexToSettings, that.indexToSettings) &&
-            Objects.equals(indexToDefaultSettings, that.indexToDefaultSettings);
+        return Objects.equals(indexToSettings, that.indexToSettings) && Objects.equals(indexToDefaultSettings, that.indexToDefaultSettings);
     }
 
     @Override

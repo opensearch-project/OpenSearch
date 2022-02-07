@@ -60,9 +60,15 @@ public final class BinaryDocValuesRangeQuery extends Query {
     private final Object originalFrom;
     private final Object originalTo;
 
-    public BinaryDocValuesRangeQuery(String fieldName, QueryType queryType, RangeType.LengthType lengthType,
-                                     BytesRef from, BytesRef to,
-                                     Object originalFrom, Object originalTo) {
+    public BinaryDocValuesRangeQuery(
+        String fieldName,
+        QueryType queryType,
+        RangeType.LengthType lengthType,
+        BytesRef from,
+        BytesRef to,
+        Object originalFrom,
+        Object originalTo
+    ) {
         this.fieldName = fieldName;
         this.queryType = queryType;
         this.lengthType = lengthType;
@@ -142,11 +148,11 @@ public final class BinaryDocValuesRangeQuery extends Query {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         BinaryDocValuesRangeQuery that = (BinaryDocValuesRangeQuery) o;
-        return Objects.equals(fieldName, that.fieldName) &&
-                queryType == that.queryType &&
-                lengthType == that.lengthType &&
-                Objects.equals(from, that.from) &&
-                Objects.equals(to, that.to);
+        return Objects.equals(fieldName, that.fieldName)
+            && queryType == that.queryType
+            && lengthType == that.lengthType
+            && Objects.equals(from, that.from)
+            && Objects.equals(to, that.to);
     }
 
     @Override
@@ -165,7 +171,8 @@ public final class BinaryDocValuesRangeQuery extends Query {
                  */
                 return from.compareTo(otherTo) <= 0 && to.compareTo(otherFrom) >= 0;
             }
-        }, WITHIN {
+        },
+        WITHIN {
             @Override
             boolean matches(BytesRef from, BytesRef to, BytesRef otherFrom, BytesRef otherTo) {
                 /*
@@ -175,7 +182,8 @@ public final class BinaryDocValuesRangeQuery extends Query {
                  */
                 return from.compareTo(otherFrom) <= 0 && to.compareTo(otherTo) >= 0;
             }
-        }, CONTAINS {
+        },
+        CONTAINS {
             @Override
             boolean matches(BytesRef from, BytesRef to, BytesRef otherFrom, BytesRef otherTo) {
                 /*
@@ -185,12 +193,13 @@ public final class BinaryDocValuesRangeQuery extends Query {
                  */
                 return from.compareTo(otherFrom) >= 0 && to.compareTo(otherTo) <= 0;
             }
-        }, CROSSES {
+        },
+        CROSSES {
             @Override
             boolean matches(BytesRef from, BytesRef to, BytesRef otherFrom, BytesRef otherTo) {
                 // does not disjoint AND not within:
-                return  (from.compareTo(otherTo) > 0 || to.compareTo(otherFrom) < 0) == false &&
-                    (from.compareTo(otherFrom) <= 0 && to.compareTo(otherTo) >= 0) == false;
+                return (from.compareTo(otherTo) > 0 || to.compareTo(otherFrom) < 0) == false
+                    && (from.compareTo(otherFrom) <= 0 && to.compareTo(otherTo) >= 0) == false;
             }
         };
 

@@ -58,8 +58,11 @@ public class ParsedDerivative extends ParsedSimpleValue implements Derivative {
         return DerivativePipelineAggregationBuilder.NAME;
     }
 
-    private static final ObjectParser<ParsedDerivative, Void> PARSER = new ObjectParser<>(ParsedDerivative.class.getSimpleName(), true,
-            ParsedDerivative::new);
+    private static final ObjectParser<ParsedDerivative, Void> PARSER = new ObjectParser<>(
+        ParsedDerivative.class.getSimpleName(),
+        true,
+        ParsedDerivative::new
+    );
 
     static {
         declareSingleValueFields(PARSER, Double.NaN);

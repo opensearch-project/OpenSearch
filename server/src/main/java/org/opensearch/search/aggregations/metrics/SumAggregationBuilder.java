@@ -70,9 +70,11 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         super(name);
     }
 
-    protected SumAggregationBuilder(SumAggregationBuilder clone,
-                                    AggregatorFactories.Builder factoriesBuilder,
-                                    Map<String, Object> metadata) {
+    protected SumAggregationBuilder(
+        SumAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -99,9 +101,12 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected SumAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                              AggregatorFactory parent,
-                                              AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected SumAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new SumAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

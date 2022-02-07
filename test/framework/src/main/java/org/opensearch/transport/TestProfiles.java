@@ -51,12 +51,14 @@ public final class TestProfiles {
         builder.setHandshakeTimeout(source.getHandshakeTimeout());
         builder.setCompressionEnabled(source.getCompressionEnabled());
         builder.setPingInterval(source.getPingInterval());
-        builder.addConnections(1,
+        builder.addConnections(
+            1,
             TransportRequestOptions.Type.BULK,
             TransportRequestOptions.Type.PING,
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
-            TransportRequestOptions.Type.STATE);
+            TransportRequestOptions.Type.STATE
+        );
         LIGHT_PROFILE = builder.build();
     }
 }

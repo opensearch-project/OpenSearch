@@ -72,25 +72,30 @@ public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
         IndexModule.Type storeType = IndexModule.defaultStoreType(true);
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("doc")
-                    .startObject("properties")
-                        .startObject("foo")
-                            .field("type", "keyword")
-                            .field("doc_values", true)
-                            .field("store", true)
-                        .endObject()
-                        .startObject("bar")
-                            .field("type", "text")
-                            .field("term_vector", "with_positions_offsets_payloads")
-                        .endObject()
-                        .startObject("baz")
-                            .field("type", "long")
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject("doc")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "keyword")
+            .field("doc_values", true)
+            .field("store", true)
+            .endObject()
+            .startObject("bar")
+            .field("type", "text")
+            .field("term_vector", "with_positions_offsets_payloads")
+            .endObject()
+            .startObject("baz")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping)
-            .setSettings(Settings.builder().put("index.store.type", storeType.getSettingsKey())));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .addMapping("doc", mapping)
+                .setSettings(Settings.builder().put("index.store.type", storeType.getSettingsKey()))
+        );
         ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();
         client().admin().indices().prepareRefresh("test").get();
@@ -145,8 +150,10 @@ public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
         createIndex("test", Settings.builder().put("refresh_interval", -1).build());
 
         // Index a document asynchronously so the request will only return when document is refreshed
-        ActionFuture<IndexResponse> index = client().prepareIndex("test", "test", "test").setSource("test", "test")
-                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
+        ActionFuture<IndexResponse> index = client().prepareIndex("test", "test", "test")
+            .setSource("test", "test")
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .execute();
 
         // Wait for the refresh listener to appear in the stats. Wait a long time because NFS tests can be quite slow!
         logger.info("starting to wait");
@@ -185,8 +192,13 @@ public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
     /**
      * Gives access to package private IndicesStatsResponse constructor for test purpose.
      **/
-    public static IndicesStatsResponse newIndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards,
-                                                               int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
+    public static IndicesStatsResponse newIndicesStatsResponse(
+        ShardStats[] shards,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures);
     }
 }

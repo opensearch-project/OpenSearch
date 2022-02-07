@@ -72,14 +72,15 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
     static final String mappingString = "{\"properties\":{\"f1\": {\"type\":\"text\"},\"f2\": {\"type\":\"keyword\"}}}";
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             GetIndexTemplatesResponseTests::createTestInstance,
             GetIndexTemplatesResponseTests::toXContent,
-            GetIndexTemplatesResponse::fromXContent)
-            .assertEqualsConsumer(GetIndexTemplatesResponseTests::assertEqualInstances)
+            GetIndexTemplatesResponse::fromXContent
+        ).assertEqualsConsumer(GetIndexTemplatesResponseTests::assertEqualInstances)
             .supportsUnknownFields(true)
             .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
-            .shuffleFieldsExceptions(new String[] {"aliases", "mappings", "patterns", "settings"})
+            .shuffleFieldsExceptions(new String[] { "aliases", "mappings", "patterns", "settings" })
             .test();
     }
 
@@ -92,8 +93,9 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
             int numTemplates = randomIntBetween(0, 32);
             for (int i = 0; i < numTemplates; i++) {
                 org.opensearch.cluster.metadata.IndexTemplateMetadata.Builder esIMD =
-                    new org.opensearch.cluster.metadata.IndexTemplateMetadata.Builder(String.format(Locale.ROOT, "%02d ", i) +
-                        randomAlphaOfLength(4));
+                    new org.opensearch.cluster.metadata.IndexTemplateMetadata.Builder(
+                        String.format(Locale.ROOT, "%02d ", i) + randomAlphaOfLength(4)
+                    );
                 esIMD.patterns(Arrays.asList(generateRandomStringArray(32, 4, false, false)));
                 esIMD.settings(randomIndexSettings());
                 esIMD.putMapping("_doc", new CompressedXContent(BytesReference.bytes(randomMapping("_doc", xContentType))));
@@ -109,8 +111,14 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
             XContentBuilder xContentBuilder = XContentBuilder.builder(xContentType.xContent());
             esResponse.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
 
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(xContentBuilder), xContentType)) {
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(xContentBuilder),
+                    xContentType
+                )
+            ) {
                 GetIndexTemplatesResponse response = GetIndexTemplatesResponse.fromXContent(parser);
                 assertThat(response.getIndexTemplates().size(), equalTo(numTemplates));
 
@@ -126,8 +134,8 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
 
                     assertThat(esIMD.mappings().size(), equalTo(1));
                     BytesReference mappingSource = esIMD.mappings().valuesIt().next().uncompressed();
-                    Map<String, Object> expectedMapping =
-                        XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType()).v2();
+                    Map<String, Object> expectedMapping = XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType())
+                        .v2();
                     assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));
 
                     assertThat(result.aliases().size(), equalTo(esIMD.aliases().size()));
@@ -146,8 +154,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
     }
 
     private Predicate<String> randomFieldsExcludeFilter() {
-        return (field) ->
-            field.isEmpty()
+        return (field) -> field.isEmpty()
             || field.endsWith("aliases")
             || field.endsWith("settings")
             || field.endsWith("settings.index")
@@ -159,11 +166,10 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
     private static void assertEqualInstances(GetIndexTemplatesResponse expectedInstance, GetIndexTemplatesResponse newInstance) {
         assertEquals(expectedInstance, newInstance);
         // Check there's no doc types at the root of the mapping
-        Map<String, Object> expectedMap = XContentHelper.convertToMap(
-                new BytesArray(mappingString), true, XContentType.JSON).v2();
+        Map<String, Object> expectedMap = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
         for (IndexTemplateMetadata template : newInstance.getIndexTemplates()) {
             MappingMetadata mappingMD = template.mappings();
-            if(mappingMD != null) {
+            if (mappingMD != null) {
                 Map<String, Object> mappingAsMap = mappingMD.sourceAsMap();
                 assertEquals(expectedMap, mappingAsMap);
             }
@@ -206,18 +212,18 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
     // As the client class GetIndexTemplatesResponse doesn't have toXContent method, adding this method here only for the test
     static void toXContent(GetIndexTemplatesResponse response, XContentBuilder builder) throws IOException {
 
-        //Create a server-side counterpart for the client-side class and call toXContent on it
+        // Create a server-side counterpart for the client-side class and call toXContent on it
 
         List<org.opensearch.cluster.metadata.IndexTemplateMetadata> serverIndexTemplates = new ArrayList<>();
         List<IndexTemplateMetadata> clientIndexTemplates = response.getIndexTemplates();
         for (IndexTemplateMetadata clientITMD : clientIndexTemplates) {
             org.opensearch.cluster.metadata.IndexTemplateMetadata.Builder serverTemplateBuilder =
-                    org.opensearch.cluster.metadata.IndexTemplateMetadata.builder(clientITMD.name());
+                org.opensearch.cluster.metadata.IndexTemplateMetadata.builder(clientITMD.name());
 
             serverTemplateBuilder.patterns(clientITMD.patterns());
 
             Iterator<AliasMetadata> aliases = clientITMD.aliases().valuesIt();
-            aliases.forEachRemaining((a)->serverTemplateBuilder.putAlias(a));
+            aliases.forEachRemaining((a) -> serverTemplateBuilder.putAlias(a));
 
             serverTemplateBuilder.settings(clientITMD.settings());
             serverTemplateBuilder.order(clientITMD.order());
@@ -228,8 +234,8 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
             serverIndexTemplates.add(serverTemplateBuilder.build());
 
         }
-        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse = new
-                org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse(serverIndexTemplates);
+        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse =
+            new org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse(serverIndexTemplates);
         serverResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
     }
 

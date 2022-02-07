@@ -54,11 +54,15 @@ public class GceMetadataService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(GceMetadataService.class);
 
     // Forcing Google Token API URL as set in GCE SDK to
-    //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
+    // http://metadata/computeMetadata/v1/instance/service-accounts/default/token
     // See https://developers.google.com/compute/docs/metadata#metadataserver
     // all settings just used for testing - not registered by default
-    public static final Setting<String> GCE_HOST =
-        new Setting<>("cloud.gce.host", "http://metadata.google.internal", Function.identity(), Setting.Property.NodeScope);
+    public static final Setting<String> GCE_HOST = new Setting<>(
+        "cloud.gce.host",
+        "http://metadata.google.internal",
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
 
     private final Settings settings;
 
@@ -78,7 +82,7 @@ public class GceMetadataService extends AbstractLifecycleComponent {
 
     public String metadata(String metadataPath) throws IOException, URISyntaxException {
         // Forcing Google Token API URL as set in GCE SDK to
-        //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
+        // http://metadata/computeMetadata/v1/instance/service-accounts/default/token
         // See https://developers.google.com/compute/docs/metadata#metadataserver
         final URI urlMetadataNetwork = new URI(GCE_HOST.get(settings)).resolve("/computeMetadata/v1/instance/").resolve(metadataPath);
         logger.debug("get metadata from [{}]", urlMetadataNetwork);
@@ -91,11 +95,9 @@ public class GceMetadataService extends AbstractLifecycleComponent {
 
             // This is needed to query meta data: https://cloud.google.com/compute/docs/metadata
             headers.put("Metadata-Flavor", "Google");
-            HttpResponse response = Access.doPrivilegedIOException(() ->
-                getGceHttpTransport().createRequestFactory()
-                    .buildGetRequest(genericUrl)
-                    .setHeaders(headers)
-                    .execute());
+            HttpResponse response = Access.doPrivilegedIOException(
+                () -> getGceHttpTransport().createRequestFactory().buildGetRequest(genericUrl).setHeaders(headers).execute()
+            );
             String metadata = response.parseAsString();
             logger.debug("metadata found [{}]", metadata);
             return metadata;

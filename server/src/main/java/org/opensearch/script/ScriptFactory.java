@@ -37,5 +37,7 @@ package org.opensearch.script;
  */
 public interface ScriptFactory {
     /** Returns {@code true} if the result of the script will be deterministic, {@code false} otherwise. */
-    default boolean isResultDeterministic() { return false; }
+    default boolean isResultDeterministic() {
+        return false;
+    }
 }

@@ -34,8 +34,6 @@ package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.action.admin.cluster.stats.IndexFeatureStats;
-import org.opensearch.action.admin.cluster.stats.MappingStats;
 
 import java.io.IOException;
 import java.util.ArrayList;

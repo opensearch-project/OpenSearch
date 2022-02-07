@@ -73,13 +73,17 @@ public class SearchLookup {
      * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
      * stored fields, or _source.
      */
-    public SearchLookup(MapperService mapperService,
-                        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
-                        @Nullable String[] types) {
+    public SearchLookup(
+        MapperService mapperService,
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
+        @Nullable String[] types
+    ) {
         this.fieldChain = Collections.emptySet();
-        docMap = new DocLookup(mapperService,
+        docMap = new DocLookup(
+            mapperService,
             fieldType -> fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())),
-            types);
+            types
+        );
         sourceLookup = new SourceLookup();
         fieldsLookup = new FieldsLookup(mapperService, types);
         this.fieldDataLookup = fieldDataLookup;
@@ -94,9 +98,11 @@ public class SearchLookup {
      */
     private SearchLookup(SearchLookup searchLookup, Set<String> fieldChain) {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
-        this.docMap = new DocLookup(searchLookup.docMap.mapperService(),
+        this.docMap = new DocLookup(
+            searchLookup.docMap.mapperService(),
             fieldType -> searchLookup.fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())),
-            searchLookup.docMap.getTypes());
+            searchLookup.docMap.getTypes()
+        );
         this.sourceLookup = searchLookup.sourceLookup;
         this.fieldsLookup = searchLookup.fieldsLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
@@ -124,10 +130,7 @@ public class SearchLookup {
     }
 
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
-        return new LeafSearchLookup(context,
-                docMap.getLeafDocLookup(context),
-                sourceLookup,
-                fieldsLookup.getLeafFieldsLookup(context));
+        return new LeafSearchLookup(context, docMap.getLeafDocLookup(context), sourceLookup, fieldsLookup.getLeafFieldsLookup(context));
     }
 
     public DocLookup doc() {

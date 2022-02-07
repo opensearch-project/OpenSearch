@@ -124,11 +124,17 @@ public class AliasValidator {
      * provided {@link org.opensearch.index.query.QueryShardContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(String alias, String filter, QueryShardContext queryShardContext,
-            NamedXContentRegistry xContentRegistry) {
+    public void validateAliasFilter(
+        String alias,
+        String filter,
+        QueryShardContext queryShardContext,
+        NamedXContentRegistry xContentRegistry
+    ) {
         assert queryShardContext != null;
-        try (XContentParser parser = XContentFactory.xContent(filter)
-            .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(filter)
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter)
+        ) {
             validateAliasFilter(parser, queryShardContext);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
@@ -140,13 +146,20 @@ public class AliasValidator {
      * provided {@link org.opensearch.index.query.QueryShardContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(String alias, BytesReference filter, QueryShardContext queryShardContext,
-                                    NamedXContentRegistry xContentRegistry) {
+    public void validateAliasFilter(
+        String alias,
+        BytesReference filter,
+        QueryShardContext queryShardContext,
+        NamedXContentRegistry xContentRegistry
+    ) {
         assert queryShardContext != null;
 
-        try (InputStream inputStream = filter.streamInput();
-             XContentParser parser = XContentFactory.xContentType(inputStream).xContent()
-                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter.streamInput())) {
+        try (
+            InputStream inputStream = filter.streamInput();
+            XContentParser parser = XContentFactory.xContentType(inputStream)
+                .xContent()
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter.streamInput())
+        ) {
             validateAliasFilter(parser, queryShardContext);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);

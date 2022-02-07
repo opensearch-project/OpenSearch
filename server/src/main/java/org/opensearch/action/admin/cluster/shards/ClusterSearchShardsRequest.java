@@ -53,9 +53,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
     private String preference;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-
-    public ClusterSearchShardsRequest() {
-    }
+    public ClusterSearchShardsRequest() {}
 
     public ClusterSearchShardsRequest(String... indices) {
         indices(indices);

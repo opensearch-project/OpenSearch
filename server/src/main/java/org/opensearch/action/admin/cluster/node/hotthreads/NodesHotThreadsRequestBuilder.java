@@ -36,8 +36,10 @@ import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
-public class NodesHotThreadsRequestBuilder
-        extends NodesOperationRequestBuilder<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
+public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<
+    NodesHotThreadsRequest,
+    NodesHotThreadsResponse,
+    NodesHotThreadsRequestBuilder> {
 
     public NodesHotThreadsRequestBuilder(OpenSearchClient client, NodesHotThreadsAction action) {
         super(client, action, new NodesHotThreadsRequest());

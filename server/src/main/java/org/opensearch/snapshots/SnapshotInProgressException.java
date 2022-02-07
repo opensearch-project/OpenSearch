@@ -57,4 +57,3 @@ public class SnapshotInProgressException extends OpenSearchException {
         return RestStatus.BAD_REQUEST;
     }
 }
-

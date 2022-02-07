@@ -127,53 +127,90 @@ public class QueryShardContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
 
-    public QueryShardContext(int shardId,
-                             IndexSettings indexSettings,
-                             BigArrays bigArrays,
-                             BitsetFilterCache bitsetFilterCache,
-                             TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-                             MapperService mapperService,
-                             SimilarityService similarityService,
-                             ScriptService scriptService,
-                             NamedXContentRegistry xContentRegistry,
-                             NamedWriteableRegistry namedWriteableRegistry,
-                             Client client,
-                             IndexSearcher searcher,
-                             LongSupplier nowInMillis,
-                             String clusterAlias,
-                             Predicate<String> indexNameMatcher,
-                             BooleanSupplier allowExpensiveQueries,
-                             ValuesSourceRegistry valuesSourceRegistry) {
-        this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
-                scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, indexNameMatcher,
-                new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
-                        indexSettings.getIndex().getUUID()), allowExpensiveQueries, valuesSourceRegistry);
+    public QueryShardContext(
+        int shardId,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry
+    ) {
+        this(
+            shardId,
+            indexSettings,
+            bigArrays,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            similarityService,
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            indexNameMatcher,
+            new Index(
+                RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
+                indexSettings.getIndex().getUUID()
+            ),
+            allowExpensiveQueries,
+            valuesSourceRegistry
+        );
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
-            source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
-            source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
-            source.fullyQualifiedIndex, source.allowExpensiveQueries, source.valuesSourceRegistry);
+        this(
+            source.shardId,
+            source.indexSettings,
+            source.bigArrays,
+            source.bitsetFilterCache,
+            source.indexFieldDataService,
+            source.mapperService,
+            source.similarityService,
+            source.scriptService,
+            source.getXContentRegistry(),
+            source.getWriteableRegistry(),
+            source.client,
+            source.searcher,
+            source.nowInMillis,
+            source.indexNameMatcher,
+            source.fullyQualifiedIndex,
+            source.allowExpensiveQueries,
+            source.valuesSourceRegistry
+        );
     }
 
-    private QueryShardContext(int shardId,
-                              IndexSettings indexSettings,
-                              BigArrays bigArrays,
-                              BitsetFilterCache bitsetFilterCache,
-                              TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-                              MapperService mapperService,
-                              SimilarityService similarityService,
-                              ScriptService scriptService,
-                              NamedXContentRegistry xContentRegistry,
-                              NamedWriteableRegistry namedWriteableRegistry,
-                              Client client,
-                              IndexSearcher searcher,
-                              LongSupplier nowInMillis,
-                              Predicate<String> indexNameMatcher,
-                              Index fullyQualifiedIndex,
-                              BooleanSupplier allowExpensiveQueries,
-                              ValuesSourceRegistry valuesSourceRegistry) {
+    private QueryShardContext(
+        int shardId,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        Predicate<String> indexNameMatcher,
+        Index fullyQualifiedIndex,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry
+    ) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
@@ -232,8 +269,11 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(),
-            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()));
+        return (IFD) indexFieldDataService.apply(
+            fieldType,
+            fullyQualifiedIndex.getName(),
+            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name())
+        );
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -309,8 +349,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder
-                = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
             return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -396,9 +435,9 @@ public class QueryShardContext extends QueryRewriteContext {
         try {
             QueryBuilder rewriteQuery = Rewriteable.rewrite(queryBuilder, this, true);
             return new ParsedQuery(filterOrQuery.apply(rewriteQuery), copyNamedQueries());
-        } catch(QueryShardException | ParsingException e) {
+        } catch (QueryShardException | ParsingException e) {
             throw e;
-        } catch(Exception e) {
+        } catch (Exception e) {
             throw new QueryShardException(this, "failed to create query: {}", e, e.getMessage());
         } finally {
             reset();

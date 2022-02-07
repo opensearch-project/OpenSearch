@@ -56,7 +56,6 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     private volatile boolean done = false;
     private final List<Tuple<ActionListener<V>, ExecutorService>> listeners = new ArrayList<>();
 
-
     /**
      * Adds a listener to this future. If the future has not yet completed, the listener will be
      * notified of a response or exception in a runnable submitted to the ExecutorService provided.

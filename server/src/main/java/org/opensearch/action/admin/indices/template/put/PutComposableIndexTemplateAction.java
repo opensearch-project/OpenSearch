@@ -110,8 +110,8 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
             } else {
                 if (indexTemplate.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
                     if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(indexTemplate.template().settings())) {
-                        validationException = addValidationError("global composable templates may not specify the setting "
-                                + IndexMetadata.INDEX_HIDDEN_SETTING.getKey(),
+                        validationException = addValidationError(
+                            "global composable templates may not specify the setting " + IndexMetadata.INDEX_HIDDEN_SETTING.getKey(),
                             validationException
                         );
                     }
@@ -203,10 +203,10 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(this.name, other.name) &&
-                Objects.equals(this.cause, other.cause) &&
-                Objects.equals(this.indexTemplate, other.indexTemplate) &&
-                this.create == other.create;
+            return Objects.equals(this.name, other.name)
+                && Objects.equals(this.cause, other.cause)
+                && Objects.equals(this.indexTemplate, other.indexTemplate)
+                && this.create == other.create;
         }
     }
 

@@ -57,7 +57,9 @@ public class UnavailableShardsException extends OpenSearchException {
         return buildMessage(shardId.getIndexName(), shardId.id(), message);
     }
 
-    private static String buildMessage(String index, int shardId, String message) {return "[" + index + "][" + shardId + "] " + message;}
+    private static String buildMessage(String index, int shardId, String message) {
+        return "[" + index + "][" + shardId + "] " + message;
+    }
 
     public UnavailableShardsException(StreamInput in) throws IOException {
         super(in);

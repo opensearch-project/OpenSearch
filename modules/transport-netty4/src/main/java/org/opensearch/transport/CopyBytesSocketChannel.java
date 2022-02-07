@@ -60,7 +60,6 @@ import java.nio.channels.SocketChannel;
 
 import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
 
-
 /**
  * This class is adapted from {@link NioSocketChannel} class in the Netty project. It overrides the channel
  * read/write behavior to ensure that the bytes are always copied to a thread-local direct bytes buffer. This
@@ -74,8 +73,10 @@ import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRI
 @SuppressForbidden(reason = "Channel#write")
 public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
 
-    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(ByteSizeValue.parseBytesSizeValue(
-        System.getProperty("opensearch.transport.buffer.size", "1m"), "opensearch.transport.buffer.size").getBytes());
+    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(System.getProperty("opensearch.transport.buffer.size", "1m"), "opensearch.transport.buffer.size")
+            .getBytes()
+    );
 
     private static final ThreadLocal<ByteBuffer> ioBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE));
     private final WriteConfig writeConfig = new WriteConfig();

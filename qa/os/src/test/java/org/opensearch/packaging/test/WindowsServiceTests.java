@@ -149,10 +149,18 @@ public class WindowsServiceTests extends PackagingTestCase {
     }
 
     public void test14InstallBadJavaHome() throws IOException {
+        sh.getEnv().put("OPENSEARCH_JAVA_HOME", "");
         sh.getEnv().put("JAVA_HOME", "doesnotexist");
         Result result = sh.runIgnoreExitCode(serviceScript + " install");
         assertThat(result.exitCode, equalTo(1));
         assertThat(result.stderr, containsString("could not find java in JAVA_HOME"));
+    }
+
+    public void test14InstallBadOpensearchJavaHome() throws IOException {
+        sh.getEnv().put("OPENSEARCH_JAVA_HOME", "doesnotexist");
+        Result result = sh.runIgnoreExitCode(serviceScript + " install");
+        assertThat(result.exitCode, equalTo(1));
+        assertThat(result.stderr, containsString("could not find java in OPENSEARCH_JAVA_HOME"));
     }
 
     public void test15RemoveNotInstalled() {
@@ -163,6 +171,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test16InstallSpecialCharactersInJdkPath() throws IOException {
         assumeTrue("Only run this test when we know where the JDK is.", distribution().hasJdk);
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("a (special) jdk");
+        sh.getEnv().put("OPENSEARCH_JAVA_HOME", "");
         sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
 
         try {
@@ -248,12 +257,29 @@ public class WindowsServiceTests extends PackagingTestCase {
 
     public void test33JavaChanged() throws Exception {
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        sh.getEnv().put("OPENSEARCH_JAVA_HOME", "");
 
         try {
             mv(installation.bundledJdk, relocatedJdk);
             sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
             assertCommand(serviceScript + " install");
             sh.getEnv().remove("JAVA_HOME");
+            assertCommand(serviceScript + " start");
+            assertStartedAndStop();
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
+    }
+
+    public void test33OpensearchJavaChanged() throws Exception {
+        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        sh.getEnv().put("JAVA_HOME", "");
+
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            sh.getEnv().put("OPENSEARCH_JAVA_HOME", relocatedJdk.toString());
+            assertCommand(serviceScript + " install");
+            sh.getEnv().remove("OPENSEARCH_JAVA_HOME");
             assertCommand(serviceScript + " start");
             assertStartedAndStop();
         } finally {

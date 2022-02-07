@@ -64,11 +64,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     LongArray counts;
 
     public ValueCountAggregator(
-            String name,
-            ValuesSourceConfig valuesSourceConfig,
-            SearchContext aggregationContext,
-            Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, aggregationContext, parent, metadata);
         // TODO: stop expecting nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
@@ -78,15 +79,14 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
 
         if (valuesSource instanceof ValuesSource.Numeric) {
-            final SortedNumericDocValues values = ((ValuesSource.Numeric)valuesSource).longValues(ctx);
+            final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
 
                 @Override
@@ -99,7 +99,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             };
         }
         if (valuesSource instanceof ValuesSource.Bytes.GeoPoint) {
-            MultiGeoPointValues values = ((ValuesSource.GeoPoint)valuesSource).geoPointValues(ctx);
+            MultiGeoPointValues values = ((ValuesSource.GeoPoint) valuesSource).geoPointValues(ctx);
             return new LeafBucketCollectorBase(sub, null) {
 
                 @Override

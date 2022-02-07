@@ -74,9 +74,10 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     private void waitForNodes(int numNodes) {
-        ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID)
-                    .waitForNodes(Integer.toString(numNodes))).actionGet();
+        ClusterHealthResponse actionGet = client().admin()
+            .cluster()
+            .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
+            .actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }
 
@@ -275,12 +276,21 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
 
-        client().admin().indices().prepareCreate("test1").addMapping(MapperService.SINGLE_MAPPING_NAME,
-            "{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}", XContentType.JSON).get();
-        client().admin().indices().prepareCreate("test2")
-            .addMapping(MapperService.SINGLE_MAPPING_NAME,
-                "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"}," +
-                "\"eggplant\":{\"type\":\"integer\"}}}}}", XContentType.JSON).get();
+        client().admin()
+            .indices()
+            .prepareCreate("test1")
+            .addMapping(MapperService.SINGLE_MAPPING_NAME, "{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}", XContentType.JSON)
+            .get();
+        client().admin()
+            .indices()
+            .prepareCreate("test2")
+            .addMapping(
+                MapperService.SINGLE_MAPPING_NAME,
+                "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"},"
+                    + "\"eggplant\":{\"type\":\"integer\"}}}}}",
+                XContentType.JSON
+            )
+            .get();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
         Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();

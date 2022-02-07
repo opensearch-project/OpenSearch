@@ -90,8 +90,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         IncludeExclude.LongFilter longFilter,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
-    )
-        throws IOException {
+    ) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
@@ -204,8 +203,7 @@ public class NumericTermsAggregator extends TermsAggregator {
 
             InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx],
-                    topBucketsPerOrd[ordIdx]);
+                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
             }
             return result;
         }
@@ -621,6 +619,5 @@ public class NumericTermsAggregator extends TermsAggregator {
             Releasables.close(backgroundFrequencies, subsetSizes);
         }
     }
-
 
 }

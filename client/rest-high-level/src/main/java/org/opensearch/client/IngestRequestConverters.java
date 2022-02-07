@@ -40,7 +40,6 @@ import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.GetPipelineRequest;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
-import org.opensearch.client.Request;
 
 import java.io.IOException;
 
@@ -49,8 +48,7 @@ final class IngestRequestConverters {
     private IngestRequestConverters() {}
 
     static Request getPipeline(GetPipelineRequest getPipelineRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_ingest/pipeline")
             .addCommaSeparatedPathParts(getPipelineRequest.getIds())
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -62,8 +60,7 @@ final class IngestRequestConverters {
     }
 
     static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_ingest/pipeline")
             .addPathPart(putPipelineRequest.getId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -77,8 +74,7 @@ final class IngestRequestConverters {
     }
 
     static Request deletePipeline(DeletePipelineRequest deletePipelineRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_ingest/pipeline")
             .addPathPart(deletePipelineRequest.getId())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);

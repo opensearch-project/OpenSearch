@@ -162,6 +162,5 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
     }
 
     @Override
-    protected void assertEqualInstances(DeleteByQueryRequest expectedInstance, DeleteByQueryRequest newInstance) {
-    }
+    protected void assertEqualInstances(DeleteByQueryRequest expectedInstance, DeleteByQueryRequest newInstance) {}
 }

@@ -67,23 +67,20 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
     }
 
     private void submitTask(ClusterService clusterService) {
-        clusterService.getMasterService().submitStateUpdateTask(
-            "service_disruption_block",
-            new ClusterStateUpdateTask(priority) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    if (active.get()) {
-                        submitTask(clusterService);
-                    }
-                    return currentState;
+        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(priority) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                if (active.get()) {
+                    submitTask(clusterService);
                 }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error("unexpected error during disruption", e);
-                }
+                return currentState;
             }
-        );
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected error during disruption", e);
+            }
+        });
     }
 
     @Override

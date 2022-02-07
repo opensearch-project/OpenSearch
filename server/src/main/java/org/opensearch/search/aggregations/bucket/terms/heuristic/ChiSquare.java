@@ -25,14 +25,12 @@
  * under the License.
  */
 
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
 package org.opensearch.search.aggregations.bucket.terms.heuristic;
-
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
@@ -43,7 +41,9 @@ import java.io.IOException;
 public class ChiSquare extends NXYSignificanceHeuristic {
     public static final String NAME = "chi_square";
     public static final ConstructingObjectParser<ChiSquare, Void> PARSER = new ConstructingObjectParser<>(
-        NAME, buildFromParsedArgs(ChiSquare::new));
+        NAME,
+        buildFromParsedArgs(ChiSquare::new)
+    );
     static {
         NXYSignificanceHeuristic.declareParseFields(PARSER);
     }
@@ -86,8 +86,8 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         if (!includeNegatives && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
             return Double.NEGATIVE_INFINITY;
         }
-        return (frequencies.N * Math.pow((frequencies.N11 * frequencies.N00 - frequencies.N01 * frequencies.N10), 2.0) /
-                ((frequencies.N_1) * (frequencies.N1_) * (frequencies.N0_) * (frequencies.N_0)));
+        return (frequencies.N * Math.pow((frequencies.N11 * frequencies.N00 - frequencies.N01 * frequencies.N10), 2.0) / ((frequencies.N_1)
+            * (frequencies.N1_) * (frequencies.N0_) * (frequencies.N_0)));
     }
 
     @Override
@@ -117,4 +117,3 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         }
     }
 }
-

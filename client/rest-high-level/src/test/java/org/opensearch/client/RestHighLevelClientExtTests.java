@@ -75,7 +75,7 @@ public class RestHighLevelClientExtTests extends OpenSearchTestCase {
             BaseCustomResponseSection customSection = restHighLevelClient.parseEntity(jsonEntity, BaseCustomResponseSection::fromXContent);
             assertThat(customSection, instanceOf(CustomResponseSection2.class));
             CustomResponseSection2 customResponseSection2 = (CustomResponseSection2) customSection;
-            assertArrayEquals(new String[]{"item1", "item2"}, customResponseSection2.values);
+            assertArrayEquals(new String[] { "item1", "item2" }, customResponseSection2.values);
         }
     }
 
@@ -87,10 +87,20 @@ public class RestHighLevelClientExtTests extends OpenSearchTestCase {
 
         private static List<NamedXContentRegistry.Entry> getNamedXContentsExt() {
             List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
-            entries.add(new NamedXContentRegistry.Entry(BaseCustomResponseSection.class, new ParseField("custom1"),
-                    CustomResponseSection1::fromXContent));
-            entries.add(new NamedXContentRegistry.Entry(BaseCustomResponseSection.class, new ParseField("custom2"),
-                    CustomResponseSection2::fromXContent));
+            entries.add(
+                new NamedXContentRegistry.Entry(
+                    BaseCustomResponseSection.class,
+                    new ParseField("custom1"),
+                    CustomResponseSection1::fromXContent
+                )
+            );
+            entries.add(
+                new NamedXContentRegistry.Entry(
+                    BaseCustomResponseSection.class,
+                    new ParseField("custom2"),
+                    CustomResponseSection2::fromXContent
+                )
+            );
             return entries;
         }
     }
@@ -139,7 +149,7 @@ public class RestHighLevelClientExtTests extends OpenSearchTestCase {
             assertEquals("array", parser.currentName());
             assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
             List<String> values = new ArrayList<>();
-            while(parser.nextToken().isValue()) {
+            while (parser.nextToken().isValue()) {
                 values.add(parser.text());
             }
             assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());

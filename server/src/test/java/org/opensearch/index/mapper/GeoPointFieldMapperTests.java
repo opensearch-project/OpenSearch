@@ -37,7 +37,6 @@ import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.hamcrest.CoreMatchers;
-import org.opensearch.index.mapper.FieldMapperTestCase2;
 
 import java.io.IOException;
 import java.util.Set;
@@ -215,14 +214,14 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", true)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        boolean ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
+        boolean ignoreZValue = ((GeoPointFieldMapper) fieldMapper).ignoreZValue().value();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", false)));
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
+        ignoreZValue = ((GeoPointFieldMapper) fieldMapper).ignoreZValue().value();
         assertThat(ignoreZValue, equalTo(false));
     }
 
@@ -246,9 +245,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
     }
 
     public void testNullValue() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "geo_point"))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point")));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
@@ -256,9 +253,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         assertThat(doc.rootDoc().getField("field"), nullValue());
         assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
 
-        mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "geo_point").field("doc_values", false))
-        );
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("doc_values", false)));
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
@@ -266,9 +261,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         assertThat(doc.rootDoc().getField("field"), nullValue());
         assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
 
-        mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "geo_point").field("null_value", "1,2"))
-        );
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("null_value", "1,2")));
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
@@ -310,9 +303,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
     }
 
     public void testInvalidGeohashIgnored() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", "true"))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", "true")));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234.333")));
         assertThat(doc.rootDoc().getField("field"), nullValue());
     }

@@ -37,7 +37,7 @@ import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
 public class MatrixStatsClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
-    public MatrixStatsClientYamlTestSuiteIT(@Name("yaml")ClientYamlTestCandidate testCandidate) {
+    public MatrixStatsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

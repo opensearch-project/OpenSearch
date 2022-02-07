@@ -51,14 +51,20 @@ public class TransportSearchHelperTests extends OpenSearchTestCase {
         DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("a", 1), node1);
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("a", 1),
+            node1
+        );
         testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), "cluster_x", null));
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("b", 12), node2);
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("b", 12),
+            node2
+        );
         testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), "cluster_y", null));
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("c", 42), node3);
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("c", 42),
+            node3
+        );
         testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null, null));
         array.setOnce(0, testSearchPhaseResult1);
         array.setOnce(1, testSearchPhaseResult2);
@@ -66,7 +72,7 @@ public class TransportSearchHelperTests extends OpenSearchTestCase {
         return array;
     }
 
-    public void testParseScrollId()  {
+    public void testParseScrollId() {
         final Version version = VersionUtils.randomVersion(random());
         boolean includeUUID = version.onOrAfter(LegacyESVersion.V_7_7_0);
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();

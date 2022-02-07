@@ -99,8 +99,7 @@ class Netty4HttpClient implements Closeable {
     private final Bootstrap clientBootstrap;
 
     Netty4HttpClient() {
-        clientBootstrap = new Bootstrap()
-            .channel(NettyAllocator.getChannelType())
+        clientBootstrap = new Bootstrap().channel(NettyAllocator.getChannelType())
             .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
             .group(new NioEventLoopGroup(1));
     }
@@ -132,8 +131,11 @@ class Netty4HttpClient implements Closeable {
         return processRequestsWithBody(HttpMethod.PUT, remoteAddress, urisAndBodies);
     }
 
-    private List<FullHttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, List<Tuple<String,
-        CharSequence>> urisAndBodies) throws InterruptedException {
+    private List<FullHttpResponse> processRequestsWithBody(
+        HttpMethod method,
+        SocketAddress remoteAddress,
+        List<Tuple<String, CharSequence>> urisAndBodies
+    ) throws InterruptedException {
         List<HttpRequest> requests = new ArrayList<>(urisAndBodies.size());
         for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {
             ByteBuf content = Unpooled.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8);
@@ -146,9 +148,8 @@ class Netty4HttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    private synchronized List<FullHttpResponse> sendRequests(
-        final SocketAddress remoteAddress,
-        final Collection<HttpRequest> requests) throws InterruptedException {
+    private synchronized List<FullHttpResponse> sendRequests(final SocketAddress remoteAddress, final Collection<HttpRequest> requests)
+        throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(requests.size());
         final List<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
 

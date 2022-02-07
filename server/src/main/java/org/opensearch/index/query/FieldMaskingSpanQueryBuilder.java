@@ -48,7 +48,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
-    public static final String NAME = "field_masking_span";
+    public static final ParseField SPAN_FIELD_MASKING_FIELD = new ParseField("span_field_masking", "field_masking_span");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
@@ -105,7 +105,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME);
+        builder.startObject(SPAN_FIELD_MASKING_FIELD.getPreferredName());
         builder.field(QUERY_FIELD.getPreferredName());
         queryBuilder.toXContent(builder, params);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
@@ -129,12 +129,17 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
-                        throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query must be of type span query");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + SPAN_FIELD_MASKING_FIELD.getPreferredName() + "] query must be of type span query"
+                        );
                     }
                     inner = (SpanQueryBuilder) query;
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query does not support ["
-                            + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + SPAN_FIELD_MASKING_FIELD.getPreferredName() + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
                 if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -144,16 +149,24 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[field_masking_span] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + SPAN_FIELD_MASKING_FIELD.getPreferredName() + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             }
         }
         if (inner == null) {
-            throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [query] span query clause");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                SPAN_FIELD_MASKING_FIELD.getPreferredName() + " must have [query] span query clause"
+            );
         }
         if (field == null) {
-            throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [field] set for it");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                SPAN_FIELD_MASKING_FIELD.getPreferredName() + " must have [field] set for it"
+            );
         }
 
         FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(inner, field);
@@ -171,7 +184,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
         }
         Query innerQuery = queryBuilder.toQuery(context);
         assert innerQuery instanceof SpanQuery;
-        return new FieldMaskingSpanQuery((SpanQuery)innerQuery, fieldInQuery);
+        return new FieldMaskingSpanQuery((SpanQuery) innerQuery, fieldInQuery);
     }
 
     @Override
@@ -181,12 +194,11 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     @Override
     protected boolean doEquals(FieldMaskingSpanQueryBuilder other) {
-        return Objects.equals(queryBuilder, other.queryBuilder) &&
-               Objects.equals(fieldName, other.fieldName);
+        return Objects.equals(queryBuilder, other.queryBuilder) && Objects.equals(fieldName, other.fieldName);
     }
 
     @Override
     public String getWriteableName() {
-        return NAME;
+        return SPAN_FIELD_MASKING_FIELD.getPreferredName();
     }
 }

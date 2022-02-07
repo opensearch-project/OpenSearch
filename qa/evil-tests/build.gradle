@@ -33,6 +33,8 @@
  * integration, change default filesystem impl, mess with arbitrary
  * threads, etc.
  */
+ 
+import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-test'
@@ -60,4 +62,10 @@ thirdPartyAudit {
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
   )
+}
+
+tasks.test {
+    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+        jvmArgs += ["--add-opens", "java.base/java.lang=ALL-UNNAMED"]
+    }
 }

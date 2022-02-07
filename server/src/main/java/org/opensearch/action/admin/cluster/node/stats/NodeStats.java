@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -44,6 +45,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.stats.IndexingPressureStats;
+import org.opensearch.index.stats.ShardIndexingPressureStats;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.ingest.IngestStats;
@@ -112,6 +114,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private IndexingPressureStats indexingPressureStats;
 
+    @Nullable
+    private ShardIndexingPressureStats shardIndexingPressureStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -147,18 +152,34 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             indexingPressureStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
+        } else {
+            shardIndexingPressureStats = null;
+        }
+
     }
 
-    public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
-                     @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool,
-                     @Nullable FsInfo fs, @Nullable TransportStats transport, @Nullable HttpStats http,
-                     @Nullable AllCircuitBreakerStats breaker,
-                     @Nullable ScriptStats scriptStats,
-                     @Nullable DiscoveryStats discoveryStats,
-                     @Nullable IngestStats ingestStats,
-                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
-                     @Nullable ScriptCacheStats scriptCacheStats,
-                     @Nullable IndexingPressureStats indexingPressureStats) {
+    public NodeStats(
+        DiscoveryNode node,
+        long timestamp,
+        @Nullable NodeIndicesStats indices,
+        @Nullable OsStats os,
+        @Nullable ProcessStats process,
+        @Nullable JvmStats jvm,
+        @Nullable ThreadPoolStats threadPool,
+        @Nullable FsInfo fs,
+        @Nullable TransportStats transport,
+        @Nullable HttpStats http,
+        @Nullable AllCircuitBreakerStats breaker,
+        @Nullable ScriptStats scriptStats,
+        @Nullable DiscoveryStats discoveryStats,
+        @Nullable IngestStats ingestStats,
+        @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
+        @Nullable ScriptCacheStats scriptCacheStats,
+        @Nullable IndexingPressureStats indexingPressureStats,
+        @Nullable ShardIndexingPressureStats shardIndexingPressureStats
+    ) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -176,6 +197,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.adaptiveSelectionStats = adaptiveSelectionStats;
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
+        this.shardIndexingPressureStats = shardIndexingPressureStats;
     }
 
     public long getTimestamp() {
@@ -280,6 +302,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return indexingPressureStats;
     }
 
+    @Nullable
+    public ShardIndexingPressureStats getShardIndexingPressureStats() {
+        return shardIndexingPressureStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -303,11 +330,15 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(ingestStats);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
             out.writeOptionalWriteable(adaptiveSelectionStats);
-        } if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0) && out.getVersion().before(LegacyESVersion.V_7_9_0)) {
+        }
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0) && out.getVersion().before(LegacyESVersion.V_7_9_0)) {
             out.writeOptionalWriteable(scriptCacheStats);
         }
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeOptionalWriteable(indexingPressureStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeOptionalWriteable(shardIndexingPressureStats);
         }
     }
 
@@ -377,6 +408,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getIndexingPressureStats() != null) {
             getIndexingPressureStats().toXContent(builder, params);
+        }
+        if (getShardIndexingPressureStats() != null) {
+            getShardIndexingPressureStats().toXContent(builder, params);
         }
         return builder;
     }

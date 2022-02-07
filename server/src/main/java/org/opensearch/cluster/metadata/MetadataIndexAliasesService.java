@@ -78,8 +78,13 @@ public class MetadataIndexAliasesService {
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public MetadataIndexAliasesService(ClusterService clusterService, IndicesService indicesService,
-            AliasValidator aliasValidator, MetadataDeleteIndexService deleteIndexService, NamedXContentRegistry xContentRegistry) {
+    public MetadataIndexAliasesService(
+        ClusterService clusterService,
+        IndicesService indicesService,
+        AliasValidator aliasValidator,
+        MetadataDeleteIndexService deleteIndexService,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.aliasValidator = aliasValidator;
@@ -87,9 +92,12 @@ public class MetadataIndexAliasesService {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request,
-                               final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("index-aliases",
+    public void indicesAliases(
+        final IndicesAliasesClusterStateUpdateRequest request,
+        final ActionListener<ClusterStateUpdateResponse> listener
+    ) {
+        clusterService.submitStateUpdateTask(
+            "index-aliases",
             new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -100,13 +108,14 @@ public class MetadataIndexAliasesService {
                 public ClusterState execute(ClusterState currentState) {
                     return applyAliasActions(currentState, request.actions());
                 }
-            });
+            }
+        );
     }
 
     /**
      * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s.
      */
-     public ClusterState applyAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
+    public ClusterState applyAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
         List<Index> indicesToClose = new ArrayList<>();
         Map<String, IndexService> indices = new HashMap<>();
         try {
@@ -166,8 +175,12 @@ public class MetadataIndexAliasesService {
                         }
                         // the context is only used for validation so it's fine to pass fake values for the shard id,
                         // but the current timestamp should be set to real value as we may use `now` in a filtered alias
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null,
-                            () -> System.currentTimeMillis(), null), xContentRegistry);
+                        aliasValidator.validateAliasFilter(
+                            alias,
+                            filter,
+                            indexService.newQueryShardContext(0, null, () -> System.currentTimeMillis(), null),
+                            xContentRegistry
+                        );
                     }
                 };
                 if (action.apply(newAliasValidator, metadata, index)) {
@@ -206,9 +219,13 @@ public class MetadataIndexAliasesService {
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(action.getIndex());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + action.getIndex() + "] was not found";
         if (indexAbstraction.getParentDataStream() != null) {
-            throw new IllegalArgumentException("The provided index [ " + action.getIndex()
-                + "] is a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
-                + "]. Data streams and their backing indices don't support alias operations.");
+            throw new IllegalArgumentException(
+                "The provided index [ "
+                    + action.getIndex()
+                    + "] is a backing index belonging to data stream ["
+                    + indexAbstraction.getParentDataStream().getName()
+                    + "]. Data streams and their backing indices don't support alias operations."
+            );
         }
     }
 }

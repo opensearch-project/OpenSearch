@@ -69,12 +69,14 @@ public class PrivateSettingsIT extends OpenSearchIntegTestCase {
     public void testUpdatePrivateIndexSettingViaSettingsAPI() {
         createIndex("test");
         // we can not update the setting via the update settings API
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> client().admin()
-                        .indices()
-                        .prepareUpdateSettings("test")
-                        .setSettings(Settings.builder().put("index.private", "private-update"))
-                        .get());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.private", "private-update"))
+                .get()
+        );
         final String message = "can not update private setting [index.private]; this setting is managed by OpenSearch";
         assertThat(e, hasToString(containsString(message)));
         final GetSettingsResponse responseAfterAttemptedUpdate = client().admin().indices().prepareGetSettings("test").get();
@@ -84,9 +86,9 @@ public class PrivateSettingsIT extends OpenSearchIntegTestCase {
     public void testUpdatePrivatelIndexSettingViaDedicatedAPI() {
         createIndex("test");
         client().execute(
-                InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
-                new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("test", "index.private", "private-update"))
-                .actionGet();
+            InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
+            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("test", "index.private", "private-update")
+        ).actionGet();
         final GetSettingsResponse responseAfterUpdate = client().admin().indices().prepareGetSettings("test").get();
         assertThat(responseAfterUpdate.getSetting("test", "index.private"), equalTo("private-update"));
     }

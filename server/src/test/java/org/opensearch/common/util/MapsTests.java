@@ -48,8 +48,9 @@ public class MapsTests extends OpenSearchTestCase {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
         final Supplier<int[]> arrayValueGenerator = () -> random().ints(randomInt(5)).toArray();
         final Map<String, int[]> map = randomMap(randomInt(5), keyGenerator, arrayValueGenerator);
-        final Map<String, int[]> mapCopy = map.entrySet().stream()
-                .collect(toMap(Map.Entry::getKey, e -> Arrays.copyOf(e.getValue(), e.getValue().length)));
+        final Map<String, int[]> mapCopy = map.entrySet()
+            .stream()
+            .collect(toMap(Map.Entry::getKey, e -> Arrays.copyOf(e.getValue(), e.getValue().length)));
 
         assertTrue(Maps.deepEquals(map, mapCopy));
 

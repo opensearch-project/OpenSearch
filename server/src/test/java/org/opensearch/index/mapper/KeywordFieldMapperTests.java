@@ -60,7 +60,6 @@ import org.opensearch.index.termvectors.TermVectorsService;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.index.mapper.MapperTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -136,8 +135,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         return new IndexAnalyzers(
             singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             org.opensearch.common.collect.Map.of(
-                "lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
-                "other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
+                "lowercase",
+                new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
+                "other_lowercase",
+                new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
             ),
             singletonMap(
                 "lowercase",
@@ -184,26 +185,22 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
         checker.registerConflictCheck("normalizer", b -> b.field("normalizer", "lowercase"));
 
-        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
-            m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
-        checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((KeywordFieldMapper)m).ignoreAbove()));
-        checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
-            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
+        checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((KeywordFieldMapper) m).ignoreAbove()));
+        checker.registerUpdateCheck(
+            b -> b.field("split_queries_on_whitespace", true),
+            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name())
+        );
 
         // norms can be set from true to false, but not vice versa
         checker.registerConflictCheck("norms", b -> b.field("norms", true));
-        checker.registerUpdateCheck(
-            b -> {
-                b.field("type", "keyword");
-                b.field("norms", true);
-            },
-            b -> {
-                b.field("type", "keyword");
-                b.field("norms", false);
-            },
-            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
-        );
+        checker.registerUpdateCheck(b -> {
+            b.field("type", "keyword");
+            b.field("norms", true);
+        }, b -> {
+            b.field("type", "keyword");
+            b.field("norms", false);
+        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
 
         checker.registerUpdateCheck(b -> b.field("boost", 2.0), m -> assertEquals(m.fieldType().boost(), 2.0, 0));
     }
@@ -329,14 +326,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testConfigureSimilarity() throws IOException {
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean"))
-        );
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean")));
         MappedFieldType ft = mapperService.documentMapper().fieldTypes().get("field");
         assertEquals("boolean", ft.getTextSearchInfo().getSimilarity().name());
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("similarity", "BM25"))));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("similarity", "BM25")))
+        );
         assertThat(e.getMessage(), containsString("Cannot update parameter [similarity] from [boolean] to [BM25]"));
     }
 

@@ -56,50 +56,103 @@ public class StoredNumericValuesTests extends OpenSearchSingleNodeTestCase {
     public void testBytesAndNumericRepresentation() throws Exception {
         IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
-        String mapping = Strings
-                .toString(XContentFactory.jsonBuilder()
-                        .startObject()
-                            .startObject("type")
-                                .startObject("properties")
-                                    .startObject("field1").field("type", "byte").field("store", true).endObject()
-                                    .startObject("field2").field("type", "short").field("store", true).endObject()
-                                    .startObject("field3").field("type", "integer").field("store", true).endObject()
-                                    .startObject("field4").field("type", "float").field("store", true).endObject()
-                                    .startObject("field5").field("type", "long").field("store", true).endObject()
-                                    .startObject("field6").field("type", "double").field("store", true).endObject()
-                                    .startObject("field7").field("type", "ip").field("store", true).endObject()
-                                    .startObject("field8").field("type", "ip").field("store", true).endObject()
-                                    .startObject("field9").field("type", "date").field("store", true).endObject()
-                                    .startObject("field10").field("type", "boolean").field("store", true).endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "byte")
+                .field("store", true)
+                .endObject()
+                .startObject("field2")
+                .field("type", "short")
+                .field("store", true)
+                .endObject()
+                .startObject("field3")
+                .field("type", "integer")
+                .field("store", true)
+                .endObject()
+                .startObject("field4")
+                .field("type", "float")
+                .field("store", true)
+                .endObject()
+                .startObject("field5")
+                .field("type", "long")
+                .field("store", true)
+                .endObject()
+                .startObject("field6")
+                .field("type", "double")
+                .field("store", true)
+                .endObject()
+                .startObject("field7")
+                .field("type", "ip")
+                .field("store", true)
+                .endObject()
+                .startObject("field8")
+                .field("type", "ip")
+                .field("store", true)
+                .endObject()
+                .startObject("field9")
+                .field("type", "date")
+                .field("store", true)
+                .endObject()
+                .startObject("field10")
+                .field("type", "boolean")
+                .field("store", true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "type",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder()
                         .startObject()
-                            .field("field1", 1)
-                            .field("field2", 1)
-                            .field("field3", 1)
-                            .field("field4", 1.1)
-                            .startArray("field5").value(1).value(2).value(3).endArray()
-                            .field("field6", 1.1)
-                            .field("field7", "192.168.1.1")
-                            .field("field8", "2001:db8::2:1")
-                            .field("field9", "2016-04-05")
-                            .field("field10", true)
-                        .endObject()),
-                XContentType.JSON));
+                        .field("field1", 1)
+                        .field("field2", 1)
+                        .field("field3", 1)
+                        .field("field4", 1.1)
+                        .startArray("field5")
+                        .value(1)
+                        .value(2)
+                        .value(3)
+                        .endArray()
+                        .field("field6", 1.1)
+                        .field("field7", "192.168.1.1")
+                        .field("field8", "2001:db8::2:1")
+                        .field("field9", "2016-04-05")
+                        .field("field10", true)
+                        .endObject()
+                ),
+                XContentType.JSON
+            )
+        );
 
         writer.addDocument(doc.rootDoc());
 
         DirectoryReader reader = DirectoryReader.open(writer);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        Set<String> fieldNames = Sets.newHashSet("field1", "field2", "field3", "field4", "field5",
-            "field6", "field7", "field8", "field9", "field10");
+        Set<String> fieldNames = Sets.newHashSet(
+            "field1",
+            "field2",
+            "field3",
+            "field4",
+            "field5",
+            "field6",
+            "field7",
+            "field8",
+            "field9",
+            "field10"
+        );
         CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
         searcher.doc(0, fieldsVisitor);
 

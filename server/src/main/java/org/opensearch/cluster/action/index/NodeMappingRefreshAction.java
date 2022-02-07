@@ -66,8 +66,12 @@ public class NodeMappingRefreshAction {
     public NodeMappingRefreshAction(TransportService transportService, MetadataMappingService metadataMappingService) {
         this.transportService = transportService;
         this.metadataMappingService = metadataMappingService;
-        transportService.registerRequestHandler(ACTION_NAME,
-           ThreadPool.Names.SAME,  NodeMappingRefreshRequest::new, new NodeMappingRefreshTransportHandler());
+        transportService.registerRequestHandler(
+            ACTION_NAME,
+            ThreadPool.Names.SAME,
+            NodeMappingRefreshRequest::new,
+            new NodeMappingRefreshTransportHandler()
+        );
     }
 
     public void nodeMappingRefresh(final DiscoveryNode masterNode, final NodeMappingRefreshRequest request) {
@@ -108,7 +112,7 @@ public class NodeMappingRefreshAction {
 
         @Override
         public String[] indices() {
-            return new String[]{index};
+            return new String[] { index };
         }
 
         @Override

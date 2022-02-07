@@ -52,24 +52,30 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(MissingAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, MissingAggregator::new, true);
     }
 
-    public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
-                                    AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
+    public MissingAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
-    protected MissingAggregator createUnmapped(SearchContext searchContext,
-                                                Aggregator parent,
-                                                Map<String, Object> metadata) throws IOException {
+    protected MissingAggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata)
+        throws IOException {
         return new MissingAggregator(name, factories, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override
-    protected MissingAggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected MissingAggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(MissingAggregationBuilder.REGISTRY_KEY, config)
             .build(name, factories, config, searchContext, parent, cardinality, metadata);

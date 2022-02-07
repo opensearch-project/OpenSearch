@@ -73,18 +73,13 @@ import java.util.Objects;
 public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(OpenSearchNodeCommand.class);
     protected static final String DELIMITER = "------------------------------------------------------------------------\n";
-    static final String STOP_WARNING_MSG =
-            DELIMITER +
-                    "\n" +
-                    "    WARNING: OpenSearch MUST be stopped before running this tool." +
-                    "\n";
+    static final String STOP_WARNING_MSG = DELIMITER + "\n" + "    WARNING: OpenSearch MUST be stopped before running this tool." + "\n";
     protected static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is OpenSearch still running?";
     protected static final String ABORTED_BY_USER_MSG = "aborted by user";
     final OptionSpec<Integer> nodeOrdinalOption;
     static final String NO_NODE_FOLDER_FOUND_MSG = "no node folder is found in data folder(s), node has not been started yet?";
     static final String NO_NODE_METADATA_FOUND_MSG = "no node meta data is found, node has not been started yet?";
-    protected static final String CS_MISSING_MSG =
-        "cluster state is empty, cluster has never been bootstrapped?";
+    protected static final String CS_MISSING_MSG = "cluster state is empty, cluster has never been bootstrapped?";
 
     // fake the registry here, as command-line tools are not loading plugins, and ensure that it preserves the parsed XContent
     public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables()) {
@@ -125,8 +120,7 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
 
     public OpenSearchNodeCommand(String description) {
         super(description);
-        nodeOrdinalOption = parser.accepts("ordinal", "Optional node ordinal, 0 if not specified")
-                .withRequiredArg().ofType(Integer.class);
+        nodeOrdinalOption = parser.accepts("ordinal", "Optional node ordinal, 0 if not specified").withRequiredArg().ofType(Integer.class);
     }
 
     public static PersistedClusterStateService createPersistedClusterStateService(Settings settings, Path[] dataPaths) throws IOException {
@@ -136,8 +130,14 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         String nodeId = nodeMetadata.nodeId();
-        return new PersistedClusterStateService(dataPaths, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+        return new PersistedClusterStateService(
+            dataPaths,
+            nodeId,
+            namedXContentRegistry,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            () -> 0L
+        );
     }
 
     public static ClusterState clusterState(Environment environment, PersistedClusterStateService.OnDiskState onDiskState) {
@@ -147,8 +147,7 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
             .build();
     }
 
-    public static Tuple<Long, ClusterState> loadTermAndClusterState(PersistedClusterStateService psf,
-                                                                    Environment env) throws IOException {
+    public static Tuple<Long, ClusterState> loadTermAndClusterState(PersistedClusterStateService psf, Environment env) throws IOException {
         final PersistedClusterStateService.OnDiskState bestOnDiskState = psf.loadBestOnDiskState();
         if (bestOnDiskState.empty()) {
             throw new OpenSearchException(CS_MISSING_MSG);
@@ -163,8 +162,7 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
             nodeOrdinal = 0;
         }
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(nodeOrdinal, logger, env, Files::exists)) {
-            final Path[] dataPaths =
-                    Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
+            final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             if (dataPaths.length == 0) {
                 throw new OpenSearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
@@ -200,7 +198,6 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
         return true;
     }
 
-
     /**
      * Process the paths. Locks for the paths is held during this method invocation.
      * @param terminal the terminal to use for messages
@@ -223,7 +220,7 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
         }
     }
 
-    //package-private for testing
+    // package-private for testing
     OptionParser getParser() {
         return parser;
     }

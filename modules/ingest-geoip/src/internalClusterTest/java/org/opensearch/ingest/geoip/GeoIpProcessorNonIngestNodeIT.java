@@ -84,22 +84,25 @@ public class GeoIpProcessorNonIngestNodeIT extends OpenSearchIntegTestCase {
         try {
             Files.createDirectories(databasePath);
             Files.copy(
-                    new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
-                    databasePath.resolve("GeoLite2-City.mmdb"));
+                new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
+                databasePath.resolve("GeoLite2-City.mmdb")
+            );
             Files.copy(
-                    new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")),
-                    databasePath.resolve("GeoLite2-Country.mmdb"));
+                new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")),
+                databasePath.resolve("GeoLite2-Country.mmdb")
+            );
             Files.copy(
-                    new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb")),
-                    databasePath.resolve("GeoLite2-ASN.mmdb"));
+                new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb")),
+                databasePath.resolve("GeoLite2-ASN.mmdb")
+            );
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
         return Settings.builder()
-                .put("ingest.geoip.database_path", databasePath)
-                .put(nonIngestNode())
-                .put(super.nodeSettings(nodeOrdinal))
-                .build();
+            .put("ingest.geoip.database_path", databasePath)
+            .put(nonIngestNode())
+            .put(super.nodeSettings(nodeOrdinal))
+            .build();
     }
 
     /**
@@ -173,13 +176,13 @@ public class GeoIpProcessorNonIngestNodeIT extends OpenSearchIntegTestCase {
         assertDatabaseLoadStatus(ingestNode, true);
         // the geo-IP database should still not be loaded on the non-ingest nodes
         Arrays.stream(internalCluster().getNodeNames())
-                .filter(node -> node.equals(ingestNode) == false)
-                .forEach(node -> assertDatabaseLoadStatus(node, false));
+            .filter(node -> node.equals(ingestNode) == false)
+            .forEach(node -> assertDatabaseLoadStatus(node, false));
     }
 
     private void assertDatabaseLoadStatus(final String node, final boolean loaded) {
         final IngestService ingestService = internalCluster().getInstance(IngestService.class, node);
-        final GeoIpProcessor.Factory factory = (GeoIpProcessor.Factory)ingestService.getProcessorFactories().get("geoip");
+        final GeoIpProcessor.Factory factory = (GeoIpProcessor.Factory) ingestService.getProcessorFactories().get("geoip");
         for (final DatabaseReaderLazyLoader loader : factory.databaseReaders().values()) {
             if (loaded) {
                 assertNotNull(loader.databaseReader.get());

@@ -35,8 +35,10 @@ package org.opensearch.action.admin.cluster.tasks;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRequestBuilder<PendingClusterTasksRequest,
-        PendingClusterTasksResponse, PendingClusterTasksRequestBuilder> {
+public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    PendingClusterTasksRequest,
+    PendingClusterTasksResponse,
+    PendingClusterTasksRequestBuilder> {
 
     public PendingClusterTasksRequestBuilder(OpenSearchClient client, PendingClusterTasksAction action) {
         super(client, action, new PendingClusterTasksRequest());

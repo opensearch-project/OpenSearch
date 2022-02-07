@@ -105,17 +105,27 @@ public class BulkItemRequest implements Writeable, Accountable {
      */
     public void abort(String index, Exception cause) {
         if (primaryResponse == null) {
-            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),
-                    Objects.requireNonNull(cause), true);
+            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
+                index,
+                request.type(),
+                request.id(),
+                Objects.requireNonNull(cause),
+                true
+            );
             setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
         } else {
-            assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()
-                    : "response [" + Strings.toString(primaryResponse) + "]; cause [" + cause + "]";
+            assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted() : "response ["
+                + Strings.toString(primaryResponse)
+                + "]; cause ["
+                + cause
+                + "]";
             if (primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()) {
                 primaryResponse.getFailure().getCause().addSuppressed(cause);
             } else {
                 throw new IllegalStateException(
-                        "aborting item that with response [" + primaryResponse + "] that was previously processed", cause);
+                    "aborting item that with response [" + primaryResponse + "] that was previously processed",
+                    cause
+                );
             }
         }
     }

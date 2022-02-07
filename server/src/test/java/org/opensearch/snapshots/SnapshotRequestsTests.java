@@ -100,11 +100,11 @@ public class SnapshotRequestsTests extends OpenSearchTestCase {
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());
-        assertArrayEquals(request.indices(), new String[]{"foo", "bar", "baz"});
+        assertArrayEquals(request.indices(), new String[] { "foo", "bar", "baz" });
         assertEquals("rename-from", request.renamePattern());
         assertEquals("rename-to", request.renameReplacement());
         assertEquals(partial, request.partial());
-        assertArrayEquals(request.ignoreIndexSettings(), new String[]{"set2", "set3"});
+        assertArrayEquals(request.ignoreIndexSettings(), new String[] { "set2", "set3" });
         boolean expectedIgnoreAvailable = includeIgnoreUnavailable
             ? indicesOptions.ignoreUnavailable()
             : IndicesOptions.strictExpandOpen().ignoreUnavailable();
@@ -166,7 +166,7 @@ public class SnapshotRequestsTests extends OpenSearchTestCase {
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());
-        assertArrayEquals(request.indices(), new String[]{"foo", "bar", "baz"});
+        assertArrayEquals(request.indices(), new String[] { "foo", "bar", "baz" });
         assertEquals(partial, request.partial());
         assertEquals("val1", request.settings().get("set1"));
         boolean expectedIgnoreAvailable = includeIgnoreUnavailable

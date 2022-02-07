@@ -120,10 +120,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
                 throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
             }
 
-            try (
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                GZIPInputStream in = new GZIPInputStream(is)
-            ) {
+            try (ByteArrayOutputStream out = new ByteArrayOutputStream(); GZIPInputStream in = new GZIPInputStream(is)) {
                 Streams.copy(in, out);
 
                 return out.toByteArray();
@@ -134,91 +131,89 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
     public void testShapeBuilders() {
         try {
             // self intersection polygon
-            new PolygonBuilder(new CoordinatesBuilder()
-                    .coordinate(-10, -10)
-                    .coordinate(10, 10)
-                    .coordinate(-10, 10)
-                    .coordinate(10, -10)
-                    .close())
-                    .buildS4J();
+            new PolygonBuilder(
+                new CoordinatesBuilder().coordinate(-10, -10).coordinate(10, 10).coordinate(-10, 10).coordinate(10, -10).close()
+            ).buildS4J();
             fail("Self intersection not detected");
-        } catch (InvalidShapeException e) {
-        }
+        } catch (InvalidShapeException e) {}
 
         // polygon with hole
-        new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
-                .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5)
-                        .coordinate(5, -5).close()))
-                .buildS4J();
+        new PolygonBuilder(new CoordinatesBuilder().coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
+            .hole(
+                new LineStringBuilder(
+                    new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()
+                )
+            )
+            .buildS4J();
         try {
             // polygon with overlapping hole
-            new PolygonBuilder(new CoordinatesBuilder()
-                    .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
-                    .hole(new LineStringBuilder(new CoordinatesBuilder()
-                    .coordinate(-5, -5).coordinate(-5, 11).coordinate(5, 11).coordinate(5, -5).close()))
-                    .buildS4J();
+            new PolygonBuilder(
+                new CoordinatesBuilder().coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close()
+            ).hole(
+                new LineStringBuilder(
+                    new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 11).coordinate(5, 11).coordinate(5, -5).close()
+                )
+            ).buildS4J();
 
             fail("Self intersection not detected");
-        } catch (InvalidShapeException e) {
-        }
+        } catch (InvalidShapeException e) {}
 
         try {
             // polygon with intersection holes
-            new PolygonBuilder(new CoordinatesBuilder()
-                    .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
-                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5)
-                            .coordinate(5, -5).close()))
-                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -6).coordinate(5, -6).coordinate(5, -4)
-                            .coordinate(-5, -4).close()))
-                    .buildS4J();
+            new PolygonBuilder(
+                new CoordinatesBuilder().coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close()
+            ).hole(
+                new LineStringBuilder(
+                    new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()
+                )
+            )
+                .hole(
+                    new LineStringBuilder(
+                        new CoordinatesBuilder().coordinate(-5, -6).coordinate(5, -6).coordinate(5, -4).coordinate(-5, -4).close()
+                    )
+                )
+                .buildS4J();
             fail("Intersection of holes not detected");
-        } catch (InvalidShapeException e) {
-        }
+        } catch (InvalidShapeException e) {}
 
         try {
             // Common line in polygon
-            new PolygonBuilder(new CoordinatesBuilder()
-                    .coordinate(-10, -10)
+            new PolygonBuilder(
+                new CoordinatesBuilder().coordinate(-10, -10)
                     .coordinate(-10, 10)
                     .coordinate(-5, 10)
                     .coordinate(-5, -5)
                     .coordinate(-5, 20)
                     .coordinate(10, 20)
                     .coordinate(10, -10)
-                    .close())
-                    .buildS4J();
+                    .close()
+            ).buildS4J();
             fail("Self intersection not detected");
-        } catch (InvalidShapeException e) {
-        }
+        } catch (InvalidShapeException e) {}
 
         // Multipolygon: polygon with hole and polygon within the whole
-        new MultiPolygonBuilder()
-                .polygon(new PolygonBuilder(
-                             new CoordinatesBuilder().coordinate(-10, -10)
-                             .coordinate(-10, 10)
-                             .coordinate(10, 10)
-                             .coordinate(10, -10).close())
-                        .hole(new LineStringBuilder(
-                              new CoordinatesBuilder().coordinate(-5, -5)
-                               .coordinate(-5, 5)
-                               .coordinate(5, 5)
-                               .coordinate(5, -5).close())))
-                .polygon(new PolygonBuilder(
-                            new CoordinatesBuilder()
-                            .coordinate(-4, -4)
-                            .coordinate(-4, 4)
-                            .coordinate(4, 4)
-                            .coordinate(4, -4).close()))
-                .buildS4J();
+        new MultiPolygonBuilder().polygon(
+            new PolygonBuilder(
+                new CoordinatesBuilder().coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close()
+            ).hole(
+                new LineStringBuilder(
+                    new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()
+                )
+            )
+        )
+            .polygon(
+                new PolygonBuilder(new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close())
+            )
+            .buildS4J();
     }
 
     public void testShapeRelations() throws Exception {
-        assertTrue( "Intersect relation is not supported", intersectSupport);
+        assertTrue("Intersect relation is not supported", intersectSupport);
         assertTrue("Disjoint relation is not supported", disjointSupport);
         assertTrue("within relation is not supported", withinSupport);
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("polygon")
                 .startObject("properties")
@@ -228,9 +223,12 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject());
+                .endObject()
+        );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes")
+        CreateIndexRequestBuilder mappingRequest = client().admin()
+            .indices()
+            .prepareCreate("shapes")
             .addMapping("polygon", mapping, XContentType.JSON);
         mappingRequest.get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
@@ -238,14 +236,18 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         // Create a multipolygon with two polygons. The first is an rectangle of size 10x10
         // with a hole of size 5x5 equidistant from all sides. This hole in turn contains
         // the second polygon of size 4x4 equidistant from all sites
-        MultiPolygonBuilder polygon = new MultiPolygonBuilder()
-                .polygon(new PolygonBuilder(
-                                new CoordinatesBuilder().coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10)
-                                .close())
-                        .hole(new LineStringBuilder(new CoordinatesBuilder()
-                                    .coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close())))
-                .polygon(new PolygonBuilder(
-                                new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
+        MultiPolygonBuilder polygon = new MultiPolygonBuilder().polygon(
+            new PolygonBuilder(
+                new CoordinatesBuilder().coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close()
+            ).hole(
+                new LineStringBuilder(
+                    new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()
+                )
+            )
+        )
+            .polygon(
+                new PolygonBuilder(new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close())
+            );
         BytesReference data = BytesReference.bytes(jsonBuilder().startObject().field("area", polygon).endObject());
 
         client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
@@ -253,17 +255,17 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
 
         // Point in polygon
         SearchResponse result = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(3, 3)))
-                .get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(3, 3)))
+            .get();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
 
         // Point in polygon hole
         result = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(4.5, 4.5)))
-                .get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(4.5, 4.5)))
+            .get();
         assertHitCount(result, 0);
 
         // by definition the border of a polygon belongs to the inner
@@ -272,42 +274,43 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
 
         // Point on polygon border
         result = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(10.0, 5.0)))
-                .get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(10.0, 5.0)))
+            .get();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
 
         // Point on hole border
         result = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(5.0, 2.0)))
-                .get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(5.0, 2.0)))
+            .get();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
 
         if (disjointSupport) {
             // Point not in polygon
             result = client().prepareSearch()
-                    .setQuery(matchAllQuery())
-                    .setPostFilter(QueryBuilders.geoDisjointQuery("area", new PointBuilder(3, 3)))
-                    .get();
+                .setQuery(matchAllQuery())
+                .setPostFilter(QueryBuilders.geoDisjointQuery("area", new PointBuilder(3, 3)))
+                .get();
             assertHitCount(result, 0);
 
             // Point in polygon hole
             result = client().prepareSearch()
-                    .setQuery(matchAllQuery())
-                    .setPostFilter(QueryBuilders.geoDisjointQuery("area", new PointBuilder(4.5, 4.5)))
-                    .get();
+                .setQuery(matchAllQuery())
+                .setPostFilter(QueryBuilders.geoDisjointQuery("area", new PointBuilder(4.5, 4.5)))
+                .get();
             assertHitCount(result, 1);
             assertFirstHit(result, hasId("1"));
         }
 
         // Create a polygon that fills the empty area of the polygon defined above
-        PolygonBuilder inverse = new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close())
-                .hole(new LineStringBuilder(
-                            new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
+        PolygonBuilder inverse = new PolygonBuilder(
+            new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()
+        ).hole(
+            new LineStringBuilder(new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close())
+        );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", inverse).endObject());
         client().prepareIndex("shapes", "polygon", "2").setSource(data, XContentType.JSON).get();
@@ -315,96 +318,102 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
 
         // re-check point on polygon hole
         result = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(4.5, 4.5)))
-                .get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(4.5, 4.5)))
+            .get();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("2"));
 
         // Create Polygon with hole and common edge
-        PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
-                .hole(new LineStringBuilder(new CoordinatesBuilder()
-                    .coordinate(-5, -5).coordinate(-5, 5).coordinate(10, 5).coordinate(10, -5).close()));
+        PolygonBuilder builder = new PolygonBuilder(
+            new CoordinatesBuilder().coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close()
+        ).hole(
+            new LineStringBuilder(
+                new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(10, 5).coordinate(10, -5).close()
+            )
+        );
 
         if (withinSupport) {
             // Polygon WithIn Polygon
-            builder = new PolygonBuilder(new CoordinatesBuilder()
-                    .coordinate(-30, -30).coordinate(-30, 30).coordinate(30, 30).coordinate(30, -30).close());
+            builder = new PolygonBuilder(
+                new CoordinatesBuilder().coordinate(-30, -30).coordinate(-30, 30).coordinate(30, 30).coordinate(30, -30).close()
+            );
 
             result = client().prepareSearch()
-                    .setQuery(matchAllQuery())
-                    .setPostFilter(QueryBuilders.geoWithinQuery("area", builder.buildGeometry()))
-                    .get();
+                .setQuery(matchAllQuery())
+                .setPostFilter(QueryBuilders.geoWithinQuery("area", builder.buildGeometry()))
+                .get();
             assertHitCount(result, 2);
         }
 
         // Create a polygon crossing longitude 180.
-        builder = new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
+        builder = new PolygonBuilder(
+            new CoordinatesBuilder().coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close()
+        );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
         client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Create a polygon crossing longitude 180 with hole.
-        builder = new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
-                    .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5)
-                            .coordinate(175, 5).close()));
+        builder = new PolygonBuilder(
+            new CoordinatesBuilder().coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close()
+        ).hole(
+            new LineStringBuilder(
+                new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5).coordinate(175, 5).close()
+            )
+        );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
         client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         result = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(174, -4).buildGeometry()))
-                .get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(174, -4).buildGeometry()))
+            .get();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(-174, -4).buildGeometry()))
-                .get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(-174, -4).buildGeometry()))
+            .get();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -4).buildGeometry()))
-                .get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -4).buildGeometry()))
+            .get();
         assertHitCount(result, 0);
 
         result = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -6).buildGeometry()))
-                .get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -6).buildGeometry()))
+            .get();
         assertHitCount(result, 1);
     }
 
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/opensearch/search/geo/gzippedmap.gz");
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("country")
-                .startObject("properties")
-                .startObject("pin")
-                .field("type", "geo_point");
+            .startObject()
+            .startObject("country")
+            .startObject("properties")
+            .startObject("pin")
+            .field("type", "geo_point");
         xContentBuilder.field("store", true)
-                .endObject()
-                .startObject("location")
-                .field("type", "geo_shape")
-                .field("ignore_malformed", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
+            .endObject()
+            .startObject("location")
+            .field("type", "geo_shape")
+            .field("ignore_malformed", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
-        client().admin().indices().prepareCreate("countries").setSettings(settings)
-                .addMapping("country", xContentBuilder).get();
+        client().admin().indices().prepareCreate("countries").setSettings(settings).addMapping("country", xContentBuilder).get();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {
@@ -414,9 +423,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareRefresh().get();
         String key = "DE";
 
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchQuery("_id", key))
-                .get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("_id", key)).get();
 
         assertHitCount(searchResponse, 1);
 
@@ -424,15 +431,17 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
             assertThat(hit.getId(), equalTo(key));
         }
 
-        SearchResponse world = client().prepareSearch().addStoredField("pin").setQuery(
-                geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999)
-        ).get();
+        SearchResponse world = client().prepareSearch()
+            .addStoredField("pin")
+            .setQuery(geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999))
+            .get();
 
         assertHitCount(world, 53);
 
-        SearchResponse distance = client().prepareSearch().addStoredField("pin").setQuery(
-                geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)
-                ).get();
+        SearchResponse distance = client().prepareSearch()
+            .addStoredField("pin")
+            .setQuery(geoDistanceQuery("pin").distance("425km").point(51.11, 9.851))
+            .get();
 
         assertHitCount(distance, 5);
         GeoPoint point = new GeoPoint();
@@ -464,22 +473,19 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         assertThat(addNeighbors("r", new ArrayList<>()), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
 
         // level1: simple case
-        assertThat(addNeighbors("dk", new ArrayList<>()),
-                containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
+        assertThat(addNeighbors("dk", new ArrayList<>()), containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
 
         // Level1: crossing cells
-        assertThat(addNeighbors("d5", new ArrayList<>()),
-                containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
-        assertThat(addNeighbors("d0", new ArrayList<>()),
-                containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
+        assertThat(addNeighbors("d5", new ArrayList<>()), containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
+        assertThat(addNeighbors("d0", new ArrayList<>()), containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
     }
 
     public static double distance(double lat1, double lon1, double lat2, double lon2) {
         return GeoUtils.EARTH_SEMI_MAJOR_AXIS * DistanceUtils.distHaversineRAD(
-                DistanceUtils.toRadians(lat1),
-                DistanceUtils.toRadians(lon1),
-                DistanceUtils.toRadians(lat2),
-                DistanceUtils.toRadians(lon2)
+            DistanceUtils.toRadians(lat1),
+            DistanceUtils.toRadians(lon1),
+            DistanceUtils.toRadians(lat2),
+            DistanceUtils.toRadians(lon2)
         );
     }
 
@@ -517,10 +523,38 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
 
     protected static String randomhash(Random random, int length) {
         final char[] BASE_32 = {
-                '0', '1', '2', '3', '4', '5', '6', '7',
-                '8', '9', 'b', 'c', 'd', 'e', 'f', 'g',
-                'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r',
-                's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
+            '0',
+            '1',
+            '2',
+            '3',
+            '4',
+            '5',
+            '6',
+            '7',
+            '8',
+            '9',
+            'b',
+            'c',
+            'd',
+            'e',
+            'f',
+            'g',
+            'h',
+            'j',
+            'k',
+            'm',
+            'n',
+            'p',
+            'q',
+            'r',
+            's',
+            't',
+            'u',
+            'v',
+            'w',
+            'x',
+            'y',
+            'z' };
 
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < length; i++) {
@@ -530,4 +564,3 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         return sb.toString();
     }
 }
-

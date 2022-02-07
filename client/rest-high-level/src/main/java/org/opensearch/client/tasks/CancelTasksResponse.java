@@ -48,9 +48,7 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  */
 public class CancelTasksResponse extends ListTasksResponse {
 
-    CancelTasksResponse(List<NodeData> nodesInfoData,
-                        List<TaskOperationFailure> taskFailures,
-                        List<OpenSearchException> nodeFailures) {
+    CancelTasksResponse(List<NodeData> nodesInfoData, List<TaskOperationFailure> taskFailures, List<OpenSearchException> nodeFailures) {
         super(nodesInfoData, taskFailures, nodeFailures);
     }
 
@@ -61,7 +59,9 @@ public class CancelTasksResponse extends ListTasksResponse {
     private static ConstructingObjectParser<CancelTasksResponse, Void> PARSER;
 
     static {
-        ConstructingObjectParser<CancelTasksResponse, Void> parser = new ConstructingObjectParser<>("cancel_tasks_response", true,
+        ConstructingObjectParser<CancelTasksResponse, Void> parser = new ConstructingObjectParser<>(
+            "cancel_tasks_response",
+            true,
             constructingObjects -> {
                 int i = 0;
                 @SuppressWarnings("unchecked")
@@ -71,12 +71,15 @@ public class CancelTasksResponse extends ListTasksResponse {
                 @SuppressWarnings("unchecked")
                 List<NodeData> nodesInfoData = (List<NodeData>) constructingObjects[i];
                 return new CancelTasksResponse(nodesInfoData, tasksFailures, nodeFailures);
-            });
+            }
+        );
 
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) ->
-            TaskOperationFailure.fromXContent(p), new ParseField("task_failures"));
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) ->
-            OpenSearchException.fromXContent(p), new ParseField("node_failures"));
+        parser.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> TaskOperationFailure.fromXContent(p),
+            new ParseField("task_failures")
+        );
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> OpenSearchException.fromXContent(p), new ParseField("node_failures"));
         parser.declareNamedObjects(optionalConstructorArg(), NodeData.PARSER, new ParseField("nodes"));
         PARSER = parser;
     }
@@ -93,12 +96,17 @@ public class CancelTasksResponse extends ListTasksResponse {
 
     @Override
     public String toString() {
-        return "CancelTasksResponse{" +
-            "taskFailures=" + taskFailures +
-            ", nodeFailures=" + nodeFailures +
-            ", nodesInfoData=" + nodesInfoData +
-            ", tasks=" + tasks +
-            ", taskGroups=" + taskGroups +
-            '}';
+        return "CancelTasksResponse{"
+            + "taskFailures="
+            + taskFailures
+            + ", nodeFailures="
+            + nodeFailures
+            + ", nodesInfoData="
+            + nodesInfoData
+            + ", tasks="
+            + tasks
+            + ", taskGroups="
+            + taskGroups
+            + '}';
     }
 }

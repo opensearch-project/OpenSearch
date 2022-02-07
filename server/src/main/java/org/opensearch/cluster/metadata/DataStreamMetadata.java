@@ -59,8 +59,11 @@ public class DataStreamMetadata implements Metadata.Custom {
     public static final String TYPE = "data_stream";
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStreamMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, false,
-        a -> new DataStreamMetadata((Map<String, DataStream>) a[0]));
+    private static final ConstructingObjectParser<DataStreamMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE,
+        false,
+        a -> new DataStreamMetadata((Map<String, DataStream>) a[0])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
@@ -175,13 +178,16 @@ public class DataStreamMetadata implements Metadata.Custom {
         final Diff<Map<String, DataStream>> dataStreamDiff;
 
         DataStreamMetadataDiff(DataStreamMetadata before, DataStreamMetadata after) {
-            this.dataStreamDiff = DiffableUtils.diff(before.dataStreams, after.dataStreams,
-                DiffableUtils.getStringKeySerializer());
+            this.dataStreamDiff = DiffableUtils.diff(before.dataStreams, after.dataStreams, DiffableUtils.getStringKeySerializer());
         }
 
         DataStreamMetadataDiff(StreamInput in) throws IOException {
-            this.dataStreamDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                DataStream::new, DataStream::readDiffFrom);
+            this.dataStreamDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                DataStream::new,
+                DataStream::readDiffFrom
+            );
         }
 
         @Override

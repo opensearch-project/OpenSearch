@@ -60,8 +60,14 @@ public class AllocatedPersistentTask extends CancellableTask {
     private volatile PersistentTasksService persistentTasksService;
     private volatile TaskManager taskManager;
 
-    public AllocatedPersistentTask(long id, String type, String action, String description, TaskId parentTask,
-                                   Map<String, String> headers) {
+    public AllocatedPersistentTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTask,
+        Map<String, String> headers
+    ) {
         super(id, type, action, description, parentTask, headers);
         this.state = new AtomicReference<>(State.STARTED);
     }
@@ -90,8 +96,10 @@ public class AllocatedPersistentTask extends CancellableTask {
      * <p>
      * This doesn't affect the status of this allocated task.
      */
-    public void updatePersistentTaskState(final PersistentTaskState state,
-                                          final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
+    public void updatePersistentTaskState(
+        final PersistentTaskState state,
+        final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+    ) {
         persistentTasksService.sendUpdateStateRequest(persistentTaskId, allocationId, state, listener);
     }
 
@@ -99,8 +107,12 @@ public class AllocatedPersistentTask extends CancellableTask {
         return persistentTaskId;
     }
 
-    protected void init(PersistentTasksService persistentTasksService, TaskManager taskManager,
-                        String persistentTaskId, long allocationId) {
+    protected void init(
+        PersistentTasksService persistentTasksService,
+        TaskManager taskManager,
+        String persistentTaskId,
+        long allocationId
+    ) {
         this.persistentTasksService = persistentTasksService;
         this.taskManager = taskManager;
         this.persistentTaskId = persistentTaskId;
@@ -122,9 +134,11 @@ public class AllocatedPersistentTask extends CancellableTask {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
-    public void waitForPersistentTask(final Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate,
-                                      final @Nullable TimeValue timeout,
-                                      final PersistentTasksService.WaitForPersistentTaskListener<?> listener) {
+    public void waitForPersistentTask(
+        final Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate,
+        final @Nullable TimeValue timeout,
+        final PersistentTasksService.WaitForPersistentTaskListener<?> listener
+    ) {
         persistentTasksService.waitForPersistentTaskCondition(persistentTaskId, predicate, timeout, listener);
     }
 
@@ -160,20 +174,29 @@ public class AllocatedPersistentTask extends CancellableTask {
                 this.failure = failure;
                 if (prevState == State.STARTED) {
                     logger.trace("sending notification for completed task [{}] with id [{}]", getAction(), getPersistentTaskId());
-                    persistentTasksService.sendCompletionRequest(getPersistentTaskId(), getAllocationId(), failure, new
-                            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                                @Override
-                                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
-                                    logger.trace("notification for task [{}] with id [{}] was successful", getAction(),
-                                            getPersistentTaskId());
-                                }
+                    persistentTasksService.sendCompletionRequest(
+                        getPersistentTaskId(),
+                        getAllocationId(),
+                        failure,
+                        new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
+                            @Override
+                            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+                                logger.trace("notification for task [{}] with id [{}] was successful", getAction(), getPersistentTaskId());
+                            }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.warn(() -> new ParameterizedMessage(
-                                        "notification for task [{}] with id [{}] failed", getAction(), getPersistentTaskId()), e);
-                                }
-                            });
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn(
+                                    () -> new ParameterizedMessage(
+                                        "notification for task [{}] with id [{}] failed",
+                                        getAction(),
+                                        getPersistentTaskId()
+                                    ),
+                                    e
+                                );
+                            }
+                        }
+                    );
                 }
             } finally {
                 taskManager.unregister(this);

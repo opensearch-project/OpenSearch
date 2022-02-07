@@ -72,8 +72,11 @@ public class TransportDecompressorTests extends OpenSearchTestCase {
 
     public void testMultiPageCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (StreamOutput deflateStream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(
-                    Streams.flushOnCloseStream(output)))) {
+            try (
+                StreamOutput deflateStream = new OutputStreamStreamOutput(
+                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))
+                )
+            ) {
                 for (int i = 0; i < 10000; ++i) {
                     deflateStream.writeInt(i);
                 }
@@ -101,8 +104,11 @@ public class TransportDecompressorTests extends OpenSearchTestCase {
 
     public void testIncrementalMultiPageCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (StreamOutput deflateStream = new OutputStreamStreamOutput(
-                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output)))) {
+            try (
+                StreamOutput deflateStream = new OutputStreamStreamOutput(
+                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))
+                )
+            ) {
                 for (int i = 0; i < 10000; ++i) {
                     deflateStream.writeInt(i);
                 }

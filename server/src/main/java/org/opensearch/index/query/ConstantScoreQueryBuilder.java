@@ -114,8 +114,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
                     query = parseInnerQueryBuilder(parser);
                     queryFound = true;
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[constant_score] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (token.isValue()) {
                 if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -123,8 +125,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[constant_score] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "]");

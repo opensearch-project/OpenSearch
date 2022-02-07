@@ -53,9 +53,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
-                Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Response extends BulkByScrollResponse>
-        extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
+    Request extends AbstractBulkIndexByScrollRequest<Request>,
+    Response extends BulkByScrollResponse> extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
     protected ScriptService scriptService;
 
@@ -117,8 +116,10 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
     }
 
     public void testSetOpTypeUnknown() throws Exception {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> applyScript((Map<String, Object> ctx) -> ctx.put("op", "unknown")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> applyScript((Map<String, Object> ctx) -> ctx.put("op", "unknown"))
+        );
         assertThat(e.getMessage(), equalTo("Operation type [unknown] not allowed, only [noop, index, delete] are allowed"));
     }
 

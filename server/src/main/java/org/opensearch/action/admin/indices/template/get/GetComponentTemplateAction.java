@@ -68,7 +68,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         @Nullable
         private String name;
 
-        public Request() { }
+        public Request() {}
 
         public Request(String name) {
             this.name = name;

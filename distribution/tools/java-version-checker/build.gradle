@@ -12,6 +12,8 @@
 apply plugin: 'opensearch.build'
 
 targetCompatibility = JavaVersion.VERSION_1_7
+// targetting very old java versions enables a warning by default on newer JDK: disable it.
+compileJava.options.compilerArgs += '-Xlint:-options'
 
 // java_version_checker do not depend on core so only JDK signatures should be checked
 tasks.named('forbiddenApisMain').configure {

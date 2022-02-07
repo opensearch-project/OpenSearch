@@ -57,8 +57,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         Settings settings = HEADER_SETTINGS;
         Actions actions = new Actions(settings, threadPool, testedActions);
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions, () -> "test", null,
-            new NamedWriteableRegistry(Collections.emptyList()));
+        client.initialize(actions, () -> "test", null, new NamedWriteableRegistry(Collections.emptyList()));
         return client;
     }
 
@@ -82,6 +81,5 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
             listener.onFailure(new InternalException(actionName));
         }
     }
-
 
 }

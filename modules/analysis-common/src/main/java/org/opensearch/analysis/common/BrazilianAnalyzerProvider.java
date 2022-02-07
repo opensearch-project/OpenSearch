@@ -50,7 +50,6 @@ public class BrazilianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Bra
             Analysis.parseStopWords(env, settings, BrazilianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override

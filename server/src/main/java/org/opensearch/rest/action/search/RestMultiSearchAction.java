@@ -68,8 +68,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiSearchAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in multi search requests is deprecated.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in multi search requests is deprecated.";
 
     private static final Set<String> RESPONSE_PARAMS;
 
@@ -88,14 +87,17 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_msearch"),
-            new Route(POST, "/_msearch"),
-            new Route(GET, "/{index}/_msearch"),
-            new Route(POST, "/{index}/_msearch"),
-            // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/_msearch"),
-            new Route(POST, "/{index}/{type}/_msearch")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_msearch"),
+                new Route(POST, "/_msearch"),
+                new Route(GET, "/{index}/_msearch"),
+                new Route(POST, "/{index}/_msearch"),
+                // Deprecated typed endpoints.
+                new Route(GET, "/{index}/{type}/_msearch"),
+                new Route(POST, "/{index}/{type}/_msearch")
+            )
+        );
     }
 
     @Override
@@ -122,9 +124,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}
      */
-    public static MultiSearchRequest parseRequest(RestRequest restRequest,
-                                                  NamedWriteableRegistry namedWriteableRegistry,
-                                                  boolean allowExplicitIndex) throws IOException {
+    public static MultiSearchRequest parseRequest(
+        RestRequest restRequest,
+        NamedWriteableRegistry namedWriteableRegistry,
+        boolean allowExplicitIndex
+    ) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);
@@ -180,8 +184,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
     /**
      * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
      */
-    public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
+    public static void parseMultiLineRequest(
+        RestRequest request,
+        IndicesOptions indicesOptions,
+        boolean allowExplicitIndex,
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer
+    ) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
@@ -192,8 +200,20 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
-        MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, types, routing,
-                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex, deprecationLogger);
+        MultiSearchRequest.readMultiLineFormat(
+            data,
+            xContent,
+            consumer,
+            indices,
+            indicesOptions,
+            types,
+            routing,
+            searchType,
+            ccsMinimizeRoundtrips,
+            request.getXContentRegistry(),
+            allowExplicitIndex,
+            deprecationLogger
+        );
     }
 
     @Override

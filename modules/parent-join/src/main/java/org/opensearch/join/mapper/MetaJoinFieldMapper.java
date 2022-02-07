@@ -149,8 +149,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-    }
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {}
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {

@@ -63,8 +63,10 @@ public interface NetworkPlugin {
      * @param threadContext a {@link ThreadContext} of the current nodes or clients {@link ThreadPool} that can be used to set additional
      *                      headers in the interceptors
      */
-    default List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
-                                                                ThreadContext threadContext) {
+    default List<TransportInterceptor> getTransportInterceptors(
+        NamedWriteableRegistry namedWriteableRegistry,
+        ThreadContext threadContext
+    ) {
         return Collections.emptyList();
     }
 
@@ -72,9 +74,14 @@ public interface NetworkPlugin {
      * Returns a map of {@link Transport} suppliers.
      * See {@link org.opensearch.common.network.NetworkModule#TRANSPORT_TYPE_KEY} to configure a specific implementation.
      */
-    default Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
-                                                           CircuitBreakerService circuitBreakerService,
-                                                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+    default Map<String, Supplier<Transport>> getTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService
+    ) {
         return Collections.emptyMap();
     }
 
@@ -82,13 +89,17 @@ public interface NetworkPlugin {
      * Returns a map of {@link HttpServerTransport} suppliers.
      * See {@link org.opensearch.common.network.NetworkModule#HTTP_TYPE_SETTING} to configure a specific implementation.
      */
-    default Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                                         PageCacheRecycler pageCacheRecycler,
-                                                                         CircuitBreakerService circuitBreakerService,
-                                                                         NamedXContentRegistry xContentRegistry,
-                                                                         NetworkService networkService,
-                                                                         HttpServerTransport.Dispatcher dispatcher,
-                                                                         ClusterSettings clusterSettings) {
+    default Map<String, Supplier<HttpServerTransport>> getHttpTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings
+    ) {
         return Collections.emptyMap();
     }
 }

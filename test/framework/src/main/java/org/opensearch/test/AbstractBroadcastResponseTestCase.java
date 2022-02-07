@@ -77,8 +77,12 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
         return createTestInstance(totalShards, successfulShards, failedShards, failures);
     }
 
-    protected abstract T createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                          List<DefaultShardOperationFailedException> failures);
+    protected abstract T createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    );
 
     @Override
     protected void assertEqualInstances(T response, T parsedResponse) {
@@ -127,7 +131,7 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytesReference = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         T parsedResponse;
-        try(XContentParser parser = createParser(xContentType.xContent(), bytesReference)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), bytesReference)) {
             parsedResponse = doParseInstance(parser);
             assertNull(parser.nextToken());
         }

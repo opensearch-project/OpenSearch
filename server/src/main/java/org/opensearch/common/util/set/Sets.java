@@ -50,8 +50,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public final class Sets {
-    private Sets() {
-    }
+    private Sets() {}
 
     public static <T> HashSet<T> newHashSet(Iterator<T> iterator) {
         Objects.requireNonNull(iterator);
@@ -64,7 +63,7 @@ public final class Sets {
 
     public static <T> HashSet<T> newHashSet(Iterable<T> iterable) {
         Objects.requireNonNull(iterable);
-        return iterable instanceof Collection ? new HashSet<>((Collection)iterable) : newHashSet(iterable.iterator());
+        return iterable instanceof Collection ? new HashSet<>((Collection) iterable) : newHashSet(iterable.iterator());
     }
 
     public static <T> HashSet<T> newHashSet(T... elements) {
@@ -140,8 +139,9 @@ public final class Sets {
             return Function.identity();
         }
 
-        static final Set<Characteristics> CHARACTERISTICS =
-                Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH));
+        static final Set<Characteristics> CHARACTERISTICS = Collections.unmodifiableSet(
+            EnumSet.of(Collector.Characteristics.IDENTITY_FINISH)
+        );
 
         @Override
         public Set<Characteristics> characteristics() {

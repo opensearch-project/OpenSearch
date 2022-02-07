@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.common.bytes.BytesReference;
@@ -100,10 +99,15 @@ public class CoordinationMetadataTests extends OpenSearchTestCase {
     public void testVotingConfigurationSerializationEqualsHashCode() {
         VotingConfiguration initialConfig = randomVotingConfig();
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialConfig,
-                (CopyFunction<VotingConfiguration>) orig -> OpenSearchTestCase.copyWriteable(orig,
-                        new NamedWriteableRegistry(Collections.emptyList()), VotingConfiguration::new),
-                cfg -> randomlyChangeVotingConfiguration(cfg));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            initialConfig,
+            (CopyFunction<VotingConfiguration>) orig -> OpenSearchTestCase.copyWriteable(
+                orig,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                VotingConfiguration::new
+            ),
+            cfg -> randomlyChangeVotingConfiguration(cfg)
+        );
     }
 
     private static VotingConfiguration randomVotingConfig() {
@@ -113,10 +117,15 @@ public class CoordinationMetadataTests extends OpenSearchTestCase {
     public void testVotingTombstoneSerializationEqualsHashCode() {
         VotingConfigExclusion tombstone = new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10));
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(tombstone,
-                (CopyFunction<VotingConfigExclusion>) orig -> OpenSearchTestCase.copyWriteable(orig,
-                        new NamedWriteableRegistry(Collections.emptyList()), VotingConfigExclusion::new),
-                orig -> randomlyChangeVotingTombstone(orig));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            tombstone,
+            (CopyFunction<VotingConfigExclusion>) orig -> OpenSearchTestCase.copyWriteable(
+                orig,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                VotingConfigExclusion::new
+            ),
+            orig -> randomlyChangeVotingTombstone(orig)
+        );
     }
 
     public void testVotingTombstoneXContent() throws IOException {
@@ -165,12 +174,20 @@ public class CoordinationMetadataTests extends OpenSearchTestCase {
     }
 
     public void testCoordinationMetadataSerializationEqualsHashCode() {
-        CoordinationMetadata initialMetadata = new CoordinationMetadata(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
-                randomVotingTombstones());
+        CoordinationMetadata initialMetadata = new CoordinationMetadata(
+            randomNonNegativeLong(),
+            randomVotingConfig(),
+            randomVotingConfig(),
+            randomVotingTombstones()
+        );
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialMetadata,
-                (CopyFunction<CoordinationMetadata>) orig -> OpenSearchTestCase.copyWriteable(orig,
-                        new NamedWriteableRegistry(Collections.emptyList()), CoordinationMetadata::new),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            initialMetadata,
+            (CopyFunction<CoordinationMetadata>) orig -> OpenSearchTestCase.copyWriteable(
+                orig,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                CoordinationMetadata::new
+            ),
             meta -> {
                 CoordinationMetadata.Builder builder = CoordinationMetadata.builder(meta);
                 switch (randomInt(3)) {
@@ -192,12 +209,17 @@ public class CoordinationMetadataTests extends OpenSearchTestCase {
                         break;
                 }
                 return builder.build();
-            });
+            }
+        );
     }
 
     public void testXContent() throws IOException {
-        CoordinationMetadata originalMeta = new CoordinationMetadata(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
-                randomVotingTombstones());
+        CoordinationMetadata originalMeta = new CoordinationMetadata(
+            randomNonNegativeLong(),
+            randomVotingConfig(),
+            randomVotingConfig(),
+            randomVotingTombstones()
+        );
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();

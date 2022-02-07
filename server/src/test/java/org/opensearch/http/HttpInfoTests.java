@@ -51,13 +51,14 @@ public class HttpInfoTests extends OpenSearchTestCase {
         assertPublishAddress(
             new HttpInfo(
                 new BoundTransportAddress(
-                    new TransportAddress[]{new TransportAddress(localhost, port)},
+                    new TransportAddress[] { new TransportAddress(localhost, port) },
                     new TransportAddress(localhost, port)
-                ), 0L
-            ), "localhost/" + NetworkAddress.format(localhost) + ':' + port
+                ),
+                0L
+            ),
+            "localhost/" + NetworkAddress.format(localhost) + ':' + port
         );
     }
-
 
     public void testCorrectDisplayPublishedIp() throws Exception {
         InetAddress localhost = InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("localhost")));
@@ -65,21 +66,24 @@ public class HttpInfoTests extends OpenSearchTestCase {
         assertPublishAddress(
             new HttpInfo(
                 new BoundTransportAddress(
-                    new TransportAddress[]{new TransportAddress(localhost, port)},
+                    new TransportAddress[] { new TransportAddress(localhost, port) },
                     new TransportAddress(localhost, port)
-                ), 0L
-            ), NetworkAddress.format(localhost) + ':' + port
+                ),
+                0L
+            ),
+            NetworkAddress.format(localhost) + ':' + port
         );
     }
 
     public void testCorrectDisplayPublishedIpv6() throws Exception {
         int port = 9200;
-        TransportAddress localhost =
-            new TransportAddress(InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("0:0:0:0:0:0:0:1"))), port);
+        TransportAddress localhost = new TransportAddress(
+            InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("0:0:0:0:0:0:0:1"))),
+            port
+        );
         assertPublishAddress(
-            new HttpInfo(
-                new BoundTransportAddress(new TransportAddress[]{localhost}, localhost), 0L
-            ), localhost.toString()
+            new HttpInfo(new BoundTransportAddress(new TransportAddress[] { localhost }, localhost), 0L),
+            localhost.toString()
         );
     }
 
@@ -91,8 +95,7 @@ public class HttpInfoTests extends OpenSearchTestCase {
         builder.endObject();
         assertEquals(
             expected,
-            ((Map<String, Object>) createParser(builder).map().get(HttpInfo.Fields.HTTP))
-                .get(HttpInfo.Fields.PUBLISH_ADDRESS)
+            ((Map<String, Object>) createParser(builder).map().get(HttpInfo.Fields.HTTP)).get(HttpInfo.Fields.PUBLISH_ADDRESS)
         );
     }
 }

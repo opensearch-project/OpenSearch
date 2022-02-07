@@ -109,8 +109,14 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     /**
      * Creates a AllocatedPersistentTask for communicating with task manager
      */
-    protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                 PersistentTask<Params> taskInProgress, Map<String, String> headers) {
+    protected AllocatedPersistentTask createTask(
+        long id,
+        String type,
+        String action,
+        TaskId parentTaskId,
+        PersistentTask<Params> taskInProgress,
+        Map<String, String> headers
+    ) {
         return new AllocatedPersistentTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
     }
 

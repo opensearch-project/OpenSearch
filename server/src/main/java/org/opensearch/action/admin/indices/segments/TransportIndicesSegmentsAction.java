@@ -53,17 +53,30 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportIndicesSegmentsAction
-        extends TransportBroadcastByNodeAction<IndicesSegmentsRequest, IndicesSegmentResponse, ShardSegments> {
+public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeAction<
+    IndicesSegmentsRequest,
+    IndicesSegmentResponse,
+    ShardSegments> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesSegmentsAction(ClusterService clusterService, TransportService transportService,
-                                          IndicesService indicesService, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(IndicesSegmentsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                IndicesSegmentsRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportIndicesSegmentsAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            IndicesSegmentsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            IndicesSegmentsRequest::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.indicesService = indicesService;
     }
 
@@ -91,11 +104,22 @@ public class TransportIndicesSegmentsAction
     }
 
     @Override
-    protected IndicesSegmentResponse newResponse(IndicesSegmentsRequest request, int totalShards, int successfulShards, int failedShards,
-                                                 List<ShardSegments> results, List<DefaultShardOperationFailedException> shardFailures,
-                                                 ClusterState clusterState) {
-        return new IndicesSegmentResponse(results.toArray(new ShardSegments[results.size()]), totalShards, successfulShards, failedShards,
-            shardFailures);
+    protected IndicesSegmentResponse newResponse(
+        IndicesSegmentsRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<ShardSegments> results,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
+        return new IndicesSegmentResponse(
+            results.toArray(new ShardSegments[results.size()]),
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override

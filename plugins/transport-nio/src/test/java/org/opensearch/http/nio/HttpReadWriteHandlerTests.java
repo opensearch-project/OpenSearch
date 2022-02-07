@@ -267,8 +267,6 @@ public class HttpReadWriteHandlerTests extends OpenSearchTestCase {
         return httpResponse;
     }
 
-
-
     private void prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
         HttpMethod method = randomBoolean() ? HttpMethod.GET : HttpMethod.HEAD;
         HttpVersion version = randomBoolean() ? HttpVersion.HTTP_1_0 : HttpVersion.HTTP_1_1;

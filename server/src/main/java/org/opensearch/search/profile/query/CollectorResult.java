@@ -180,7 +180,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
         String name = null, reason = null;
         long time = -1;
         List<CollectorResult> children = new ArrayList<>();
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {

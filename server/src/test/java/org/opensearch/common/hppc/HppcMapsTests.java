@@ -108,5 +108,4 @@ public class HppcMapsTests extends OpenSearchTestCase {
         return list;
     }
 
-
 }

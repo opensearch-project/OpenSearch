@@ -39,8 +39,10 @@ import org.opensearch.client.OpenSearchClient;
 /**
  * Delete snapshot request builder
  */
-public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteSnapshotRequest,
-        AcknowledgedResponse, DeleteSnapshotRequestBuilder> {
+public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
+    DeleteSnapshotRequest,
+    AcknowledgedResponse,
+    DeleteSnapshotRequestBuilder> {
 
     /**
      * Constructs delete snapshot request builder

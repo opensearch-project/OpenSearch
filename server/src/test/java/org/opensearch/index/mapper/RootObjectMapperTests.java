@@ -53,172 +53,161 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
 
     public void testNumericDetection() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("type")
-                        .field("numeric_detection", false)
-                    .endObject()
-                .endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("type").field("numeric_detection", false).endObject().endObject()
+        );
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // update with a different explicit value
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                    .field("numeric_detection", true)
-                .endObject()
-            .endObject());
+        String mapping2 = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("type").field("numeric_detection", true).endObject().endObject()
+        );
         mapper = mapperService.merge("type", new CompressedXContent(mapping2), reason);
         assertEquals(mapping2, mapper.mappingSource().toString());
 
         // update with an implicit value: no change
-        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .endObject()
-            .endObject());
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping3), reason);
         assertEquals(mapping2, mapper.mappingSource().toString());
     }
 
     public void testDateDetection() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("type")
-                        .field("date_detection", true)
-                    .endObject()
-                .endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("type").field("date_detection", true).endObject().endObject()
+        );
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // update with a different explicit value
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                    .field("date_detection", false)
-                .endObject()
-            .endObject());
+        String mapping2 = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("type").field("date_detection", false).endObject().endObject()
+        );
         mapper = mapperService.merge("type", new CompressedXContent(mapping2), reason);
         assertEquals(mapping2, mapper.mappingSource().toString());
 
         // update with an implicit value: no change
-        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .endObject()
-            .endObject());
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping3), reason);
         assertEquals(mapping2, mapper.mappingSource().toString());
     }
 
     public void testDateFormatters() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("type")
-                        .field("dynamic_date_formats", Arrays.asList("yyyy-MM-dd"))
-                    .endObject()
-                .endObject());
+                .startObject("type")
+                .field("dynamic_date_formats", Arrays.asList("yyyy-MM-dd"))
+                .endObject()
+                .endObject()
+        );
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // no update if formatters are not set explicitly
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .endObject()
-            .endObject());
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping2), reason);
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping3 = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
-                    .field("dynamic_date_formats", Arrays.asList())
+                .field("dynamic_date_formats", Arrays.asList())
                 .endObject()
-            .endObject());
+                .endObject()
+        );
         mapper = mapperService.merge("type", new CompressedXContent(mapping3), reason);
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
     public void testDynamicTemplates() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("type")
-                        .startArray("dynamic_templates")
-                            .startObject()
-                                .startObject("my_template")
-                                    .field("match_mapping_type", "string")
-                                    .startObject("mapping")
-                                        .field("type", "keyword")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endArray()
-                    .endObject()
-                .endObject());
+                .startObject("type")
+                .startArray("dynamic_templates")
+                .startObject()
+                .startObject("my_template")
+                .field("match_mapping_type", "string")
+                .startObject("mapping")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+        );
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // no update if templates are not set explicitly
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .endObject()
-            .endObject());
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping3 = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
-                    .field("dynamic_templates", Arrays.asList())
+                .field("dynamic_templates", Arrays.asList())
                 .endObject()
-            .endObject());
+                .endObject()
+        );
         mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
     public void testDynamicTemplatesForIndexTemplate() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startArray("dynamic_templates")
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("first_template")
-                        .field("path_match", "first")
-                        .startObject("mapping")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
+                .startArray("dynamic_templates")
+                .startObject()
+                .startObject("first_template")
+                .field("path_match", "first")
+                .startObject("mapping")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
                 .endObject()
                 .startObject()
-                    .startObject("second_template")
-                        .field("path_match", "second")
-                        .startObject("mapping")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
+                .startObject("second_template")
+                .field("path_match", "second")
+                .startObject("mapping")
+                .field("type", "keyword")
                 .endObject()
-            .endArray()
-        .endObject());
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         MapperService mapperService = createIndex("test").mapperService();
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
 
         // There should be no update if templates are not set.
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
+        mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
                 .startObject("field")
-                    .field("type", "integer")
+                .field("type", "integer")
                 .endObject()
-            .endObject()
-        .endObject());
-        DocumentMapper mapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+                .endObject()
+                .endObject()
+        );
+        DocumentMapper mapper = mapperService.merge(
+            MapperService.SINGLE_MAPPING_NAME,
+            new CompressedXContent(mapping),
+            MergeReason.INDEX_TEMPLATE
+        );
 
         DynamicTemplate[] templates = mapper.root().dynamicTemplates();
         assertEquals(2, templates.length);
@@ -228,26 +217,29 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         assertEquals("second", templates[1].pathMatch());
 
         // Dynamic templates should be appended and deduplicated.
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startArray("dynamic_templates")
+        mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("third_template")
-                        .field("path_match", "third")
-                        .startObject("mapping")
-                            .field("type", "integer")
-                        .endObject()
-                    .endObject()
+                .startArray("dynamic_templates")
+                .startObject()
+                .startObject("third_template")
+                .field("path_match", "third")
+                .startObject("mapping")
+                .field("type", "integer")
+                .endObject()
+                .endObject()
                 .endObject()
                 .startObject()
-                    .startObject("second_template")
-                        .field("path_match", "second_updated")
-                        .startObject("mapping")
-                            .field("type", "double")
-                        .endObject()
-                    .endObject()
+                .startObject("second_template")
+                .field("path_match", "second_updated")
+                .startObject("mapping")
+                .field("type", "double")
                 .endObject()
-            .endArray()
-        .endObject());
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         mapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
 
         templates = mapper.root().dynamicTemplates();
@@ -261,43 +253,54 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIllegalFormatField() throws Exception {
-        String dynamicMapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
+        String dynamicMapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startObject("type")
-                    .startArray("dynamic_date_formats")
-                        .startArray().value("test_format").endArray()
-                    .endArray()
+                .startArray("dynamic_date_formats")
+                .startArray()
+                .value("test_format")
+                .endArray()
+                .endArray()
                 .endObject()
-            .endObject());
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
+                .endObject()
+        );
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startObject("type")
-                    .startArray("date_formats")
-                        .startArray().value("test_format").endArray()
-                    .endArray()
+                .startArray("date_formats")
+                .startArray()
+                .value("test_format")
+                .endArray()
+                .endArray()
                 .endObject()
-            .endObject());
+                .endObject()
+        );
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         for (String m : Arrays.asList(mapping, dynamicMapping)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> parser.parse("type", new CompressedXContent(m)));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(m))
+            );
             assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
         }
     }
 
     public void testIllegalDynamicTemplates() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
-                    .startObject("dynamic_templates")
-                    .endObject()
+                .startObject("dynamic_templates")
                 .endObject()
-            .endObject());
+                .endObject()
+                .endObject()
+        );
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> parser.parse("type", new CompressedXContent(mapping)));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
         assertEquals("Dynamic template syntax error. An array of named objects is expected.", e.getMessage());
     }
 
@@ -324,8 +327,10 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
         assertThat(mapper.mappingSource().toString(), containsString("\"type\":\"string\""));
-        assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":" +
-            "\"string\"}}], caused by [No mapper found for type [string]]");
+        assertWarnings(
+            "dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":"
+                + "\"string\"}}], caused by [No mapper found for type [string]]"
+        );
     }
 
     public void testIllegalDynamicTemplateUnknownAttribute() throws Exception {
@@ -352,9 +357,11 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
         assertThat(mapper.mappingSource().toString(), containsString("\"foo\":\"bar\""));
-        assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
-            "\"foo\":\"bar\",\"type\":\"keyword\"}}], " +
-            "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [keyword]]");
+        assertWarnings(
+            "dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{"
+                + "\"foo\":\"bar\",\"type\":\"keyword\"}}], "
+                + "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [keyword]]"
+        );
     }
 
     public void testIllegalDynamicTemplateInvalidAttribute() throws Exception {
@@ -381,8 +388,10 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
         assertThat(mapper.mappingSource().toString(), containsString("\"analyzer\":\"foobar\""));
-        assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
-            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] has not been configured in mappings]");
+        assertWarnings(
+            "dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{"
+                + "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] has not been configured in mappings]"
+        );
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {
@@ -414,8 +423,11 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
             }
             mapping.endObject();
             mapperService = createIndex("test").mapperService();
-            DocumentMapper mapper =
-                mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
+            DocumentMapper mapper = mapperService.merge(
+                "type",
+                new CompressedXContent(Strings.toString(mapping)),
+                MergeReason.MAPPING_UPDATE
+            );
             assertThat(mapper.mappingSource().toString(), containsString("\"index_phrases\":true"));
         }
         {
@@ -445,17 +457,24 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
             }
             mapping.endObject();
 
-            DocumentMapper mapper =
-                mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
+            DocumentMapper mapper = mapperService.merge(
+                "type",
+                new CompressedXContent(Strings.toString(mapping)),
+                MergeReason.MAPPING_UPDATE
+            );
             assertThat(mapper.mappingSource().toString(), containsString("\"foo\":\"bar\""));
             if (useMatchMappingType) {
-                assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"*\",\"mapping\":{" +
-                    "\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], " +
-                    "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]]");
+                assertWarnings(
+                    "dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"*\",\"mapping\":{"
+                        + "\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], "
+                        + "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]]"
+                );
             } else {
-                assertWarnings("dynamic template [my_template] has invalid content [{\"match\":\"string_*\",\"mapping\":{" +
-                    "\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], " +
-                    "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]]");
+                assertWarnings(
+                    "dynamic template [my_template] has invalid content [{\"match\":\"string_*\",\"mapping\":{"
+                        + "\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], "
+                        + "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]]"
+                );
             }
         }
     }
@@ -486,9 +505,7 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         }
         mapping.endObject();
         Version createdVersion = randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_6_0);
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
-            .build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion).build();
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
         assertThat(mapper.mappingSource().toString(), containsString("\"type\":\"string\""));

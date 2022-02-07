@@ -160,19 +160,8 @@ public class OpenSearchJavaPlugin implements Plugin<Project> {
         project.afterEvaluate(p -> {
             project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
                 CompileOptions compileOptions = compileTask.getOptions();
-                /*
-                 * -path because gradle will send in paths that don't always exist.
-                 * -missing because we have tons of missing @returns and @param.
-                 * -serial because we don't use java serialization.
-                 */
-                // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                // fail on all javac warnings.
                 // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
                 List<String> compilerArgs = compileOptions.getCompilerArgs();
-                compilerArgs.add("-Werror");
-                compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try");
-                compilerArgs.add("-Xdoclint:all");
-                compilerArgs.add("-Xdoclint:-missing");
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly
                 // defined
                 if (compilerArgs.contains("-processor") == false) {

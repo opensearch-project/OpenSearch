@@ -35,12 +35,12 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<CleanupRepositoryRequest,
-                                                                                       CleanupRepositoryResponse,
-                                                                                       CleanupRepositoryRequestBuilder> {
+public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<
+    CleanupRepositoryRequest,
+    CleanupRepositoryResponse,
+    CleanupRepositoryRequestBuilder> {
 
-    public CleanupRepositoryRequestBuilder(OpenSearchClient client, ActionType<CleanupRepositoryResponse> action,
-                                           String repository) {
+    public CleanupRepositoryRequestBuilder(OpenSearchClient client, ActionType<CleanupRepositoryResponse> action, String repository) {
         super(client, action, new CleanupRepositoryRequest(repository));
     }
 

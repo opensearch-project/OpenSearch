@@ -47,8 +47,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class UkrainianAnalysisTests extends OpenSearchTestCase {
 
     public void testDefaultsUkranianAnalysis() throws IOException {
-        final TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY,
-                new AnalysisUkrainianPlugin());
+        final TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisUkrainianPlugin());
 
         Analyzer analyzer = analysis.indexAnalyzers.get("ukrainian").analyzer();
         MatcherAssert.assertThat(analyzer, instanceOf(UkrainianMorfologikAnalyzer.class));

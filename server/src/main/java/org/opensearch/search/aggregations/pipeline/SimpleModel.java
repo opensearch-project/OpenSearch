@@ -49,14 +49,12 @@ import java.util.Map;
 public class SimpleModel extends MovAvgModel {
     public static final String NAME = "simple";
 
-    public SimpleModel() {
-    }
+    public SimpleModel() {}
 
     /**
      * Read from a stream.
      */
-    public SimpleModel(StreamInput in) throws IOException {
-    }
+    public SimpleModel(StreamInput in) throws IOException {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

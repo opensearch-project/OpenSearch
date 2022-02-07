@@ -174,8 +174,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         }
     }
 
-    private void ensureMSearchWasCancelled(ActionFuture<MultiSearchResponse> mSearchResponse,
-        Set<Integer> expectedFailedChildRequests) {
+    private void ensureMSearchWasCancelled(ActionFuture<MultiSearchResponse> mSearchResponse, Set<Integer> expectedFailedChildRequests) {
         MultiSearchResponse response = mSearchResponse.actionGet();
         Set<Integer> actualFailedChildRequests = new HashSet<>();
         for (int i = 0; i < response.getResponses().length; ++i) {
@@ -184,7 +183,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             if (sResponse == null) {
                 Exception ex = response.getResponses()[i].getFailure();
                 assertTrue(ex instanceof SearchPhaseExecutionException);
-                verifyCancellationException(((SearchPhaseExecutionException)ex).shardFailures());
+                verifyCancellationException(((SearchPhaseExecutionException) ex).shardFailures());
                 actualFailedChildRequests.add(i);
 
             } else if (sResponse.getShardFailures().length > 0) {
@@ -192,8 +191,11 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
                 actualFailedChildRequests.add(i);
             }
         }
-        assertEquals("Actual child request with cancellation failure is different that expected", expectedFailedChildRequests,
-            actualFailedChildRequests);
+        assertEquals(
+            "Actual child request with cancellation failure is different that expected",
+            expectedFailedChildRequests,
+            actualFailedChildRequests
+        );
     }
 
     private void verifyCancellationException(ShardSearchFailure[] failures) {
@@ -201,8 +203,10 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             // failure may happen while executing the search or while sending shard request for next phase.
             // Below assertion is handling both the cases
             final Throwable topFailureCause = searchFailure.getCause();
-            assertTrue(searchFailure.toString(), topFailureCause instanceof TransportException ||
-                topFailureCause instanceof TaskCancelledException);
+            assertTrue(
+                searchFailure.toString(),
+                topFailureCause instanceof TransportException || topFailureCause instanceof TaskCancelledException
+            );
             if (topFailureCause instanceof TransportException) {
                 assertTrue(topFailureCause.getCause() instanceof TaskCancelledException);
             }
@@ -214,9 +218,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test").setQuery(
-            scriptQuery(new Script(
-                ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -234,9 +237,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setCancelAfterTimeInterval(cancellationTimeout)
             .setAllowPartialSearchResults(randomBoolean())
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
             .execute();
         awaitForBlock(plugins);
         // sleep for cancellation timeout to ensure scheduled cancellation task is actually executed
@@ -251,14 +252,14 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         indexTestData();
 
         TimeValue cancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout)
-            .build()).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout).build())
+            .get();
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setAllowPartialSearchResults(randomBoolean())
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
             .execute();
         awaitForBlock(plugins);
         // sleep for cluster cancellation timeout to ensure scheduled cancellation task is actually executed
@@ -274,9 +275,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
 
         logger.info("Executing search");
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .addScriptField("test_field",
-                new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())
-            ).execute();
+            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap()))
+            .execute();
 
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
@@ -291,9 +291,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         TimeValue cancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setCancelAfterTimeInterval(cancellationTimeout)
-            .addScriptField("test_field",
-                new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())
-            ).execute();
+            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap()))
+            .execute();
         awaitForBlock(plugins);
         // sleep for request cancellation timeout to ensure scheduled cancellation task is actually executed
         Thread.sleep(cancellationTimeout.getMillis());
@@ -310,9 +309,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setScroll(TimeValue.timeValueSeconds(10))
             .setSize(5)
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -334,9 +331,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .setScroll(TimeValue.timeValueSeconds(10))
             .setCancelAfterTimeInterval(cancellationTimeout)
             .setSize(5)
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -363,9 +358,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
             .setScroll(keepAlive)
             .setSize(2)
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .get();
 
         assertNotNull(searchResponse.getScrollId());
@@ -379,7 +372,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         String scrollId = searchResponse.getScrollId();
         logger.info("Executing scroll with id {}", scrollId);
         ActionFuture<SearchResponse> scrollResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-            .setScroll(keepAlive).execute();
+            .setScroll(keepAlive)
+            .execute();
 
         awaitForBlock(plugins);
         cancelSearch(SearchScrollAction.NAME);
@@ -406,9 +400,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .setScroll(keepAlive)
             .setCancelAfterTimeInterval(cancellationTimeout)
             .setSize(2)
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
             .get();
 
         assertNotNull(searchResponse.getScrollId());
@@ -422,7 +414,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
 
         String scrollId = searchResponse.getScrollId();
         ActionFuture<SearchResponse> scrollResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-            .setScroll(keepAlive).execute();
+            .setScroll(keepAlive)
+            .execute();
 
         awaitForBlock(plugins);
         // sleep for cancellation timeout to ensure there is no scheduled task for cancellation
@@ -440,15 +433,15 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
         TimeValue cancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout)
-            .build()).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout).build())
+            .get();
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setAllowPartialSearchResults(randomBoolean())
             .setCancelAfterTimeInterval(NO_TIMEOUT)
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
             .execute();
         awaitForBlock(plugins);
         // sleep for cancellation timeout to ensure there is no scheduled task for cancellation
@@ -463,14 +456,14 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
         TimeValue cancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, NO_TIMEOUT)
-            .build()).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, NO_TIMEOUT).build())
+            .get();
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setAllowPartialSearchResults(randomBoolean())
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
             .execute();
         awaitForBlock(plugins);
         // sleep for cancellation timeout to ensure there is no scheduled task for cancellation
@@ -484,8 +477,11 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
     public void testCancelMultiSearch() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
-        ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch().add(client().prepareSearch("test")
-            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+        ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch()
+            .add(
+                client().prepareSearch("test")
+                    .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap()))
+            )
             .execute();
         awaitForBlock(plugins);
         cancelSearch(MultiSearchAction.NAME);
@@ -506,16 +502,28 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
         TimeValue cancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout)
-            .build()).get();
-        ActionFuture<MultiSearchResponse> mSearchResponse = client().prepareMultiSearch().setMaxConcurrentSearchRequests(2)
-            .add(client().prepareSearch("test").setAllowPartialSearchResults(randomBoolean())
-                .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME,
-                    Collections.emptyMap()))))
-            .add(client().prepareSearch("test").setAllowPartialSearchResults(randomBoolean()).setRequestCache(false)
-                .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME,
-                    Collections.emptyMap()))))
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, cancellationTimeout).build())
+            .get();
+        ActionFuture<MultiSearchResponse> mSearchResponse = client().prepareMultiSearch()
+            .setMaxConcurrentSearchRequests(2)
+            .add(
+                client().prepareSearch("test")
+                    .setAllowPartialSearchResults(randomBoolean())
+                    .setQuery(
+                        scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))
+                    )
+            )
+            .add(
+                client().prepareSearch("test")
+                    .setAllowPartialSearchResults(randomBoolean())
+                    .setRequestCache(false)
+                    .setQuery(
+                        scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))
+                    )
+            )
             .execute();
         awaitForBlock(plugins);
         // sleep for cluster cancellation timeout to ensure scheduled cancellation task is actually executed
@@ -538,21 +546,39 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         indexTestData();
         TimeValue reqCancellationTimeout = new TimeValue(2, TimeUnit.SECONDS);
         TimeValue clusterCancellationTimeout = new TimeValue(3, TimeUnit.SECONDS);
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, clusterCancellationTimeout)
-            .build()).get();
-        ActionFuture<MultiSearchResponse> mSearchResponse = client().prepareMultiSearch().setMaxConcurrentSearchRequests(3)
-            .add(client().prepareSearch("test").setAllowPartialSearchResults(randomBoolean())
-                .setCancelAfterTimeInterval(reqCancellationTimeout)
-                .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME,
-                    Collections.emptyMap()))))
-            .add(client().prepareSearch("test").setAllowPartialSearchResults(randomBoolean())
-                .setCancelAfterTimeInterval(NO_TIMEOUT)
-                .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME,
-                    Collections.emptyMap()))))
-            .add(client().prepareSearch("test").setAllowPartialSearchResults(randomBoolean()).setRequestCache(false)
-                .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME,
-                    Collections.emptyMap()))))
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder().put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, clusterCancellationTimeout).build()
+            )
+            .get();
+        ActionFuture<MultiSearchResponse> mSearchResponse = client().prepareMultiSearch()
+            .setMaxConcurrentSearchRequests(3)
+            .add(
+                client().prepareSearch("test")
+                    .setAllowPartialSearchResults(randomBoolean())
+                    .setCancelAfterTimeInterval(reqCancellationTimeout)
+                    .setQuery(
+                        scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))
+                    )
+            )
+            .add(
+                client().prepareSearch("test")
+                    .setAllowPartialSearchResults(randomBoolean())
+                    .setCancelAfterTimeInterval(NO_TIMEOUT)
+                    .setQuery(
+                        scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))
+                    )
+            )
+            .add(
+                client().prepareSearch("test")
+                    .setAllowPartialSearchResults(randomBoolean())
+                    .setRequestCache(false)
+                    .setQuery(
+                        scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))
+                    )
+            )
             .execute();
         awaitForBlock(plugins);
         // sleep for cluster cancellation timeout to ensure scheduled cancellation task is actually executed

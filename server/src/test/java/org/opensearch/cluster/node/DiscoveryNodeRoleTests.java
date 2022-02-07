@@ -35,8 +35,6 @@ package org.opensearch.cluster.node;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodeRole;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -48,47 +46,45 @@ public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
 
     public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNames() {
         final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> DiscoveryNode.setAdditionalRoles(new HashSet<>(Arrays.asList(
-                        new DiscoveryNodeRole("foo", "f") {
+            IllegalStateException.class,
+            () -> DiscoveryNode.setAdditionalRoles(new HashSet<>(Arrays.asList(new DiscoveryNodeRole("foo", "f") {
 
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
+                @Override
+                public Setting<Boolean> legacySetting() {
+                    return null;
+                }
 
-                        },
-                        new DiscoveryNodeRole("foo", "f") {
+            }, new DiscoveryNodeRole("foo", "f") {
 
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
+                @Override
+                public Setting<Boolean> legacySetting() {
+                    return null;
+                }
 
-                        }))));
+            })))
+        );
         assertThat(e, hasToString(containsString("Duplicate key")));
     }
 
     public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNameAbbreviations() {
         final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> DiscoveryNode.setAdditionalRoles(new HashSet<>(Arrays.asList(
-                        new DiscoveryNodeRole("foo_1", "f") {
+            IllegalStateException.class,
+            () -> DiscoveryNode.setAdditionalRoles(new HashSet<>(Arrays.asList(new DiscoveryNodeRole("foo_1", "f") {
 
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
+                @Override
+                public Setting<Boolean> legacySetting() {
+                    return null;
+                }
 
-                        },
-                        new DiscoveryNodeRole("foo_2", "f") {
+            }, new DiscoveryNodeRole("foo_2", "f") {
 
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
+                @Override
+                public Setting<Boolean> legacySetting() {
+                    return null;
+                }
 
-                        }))));
+            })))
+        );
         assertThat(e, hasToString(containsString("Duplicate key")));
     }
 
@@ -100,22 +96,24 @@ public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
                 final int value = randomIntBetween(0, 2);
                 switch (value) {
                     case 0:
-                    return new DiscoveryNodeRole.UnknownRole(
-                        randomAlphaOfLength(21 - r.roleName().length()),
-                        r.roleNameAbbreviation(),
-                        r.canContainData()
-                    );
+                        return new DiscoveryNodeRole.UnknownRole(
+                            randomAlphaOfLength(21 - r.roleName().length()),
+                            r.roleNameAbbreviation(),
+                            r.canContainData()
+                        );
                     case 1:
-                    return new DiscoveryNodeRole.UnknownRole(
-                        r.roleName(),
-                        randomAlphaOfLength(3 - r.roleNameAbbreviation().length()),
-                        r.canContainData());
+                        return new DiscoveryNodeRole.UnknownRole(
+                            r.roleName(),
+                            randomAlphaOfLength(3 - r.roleNameAbbreviation().length()),
+                            r.canContainData()
+                        );
                     case 2:
                         return new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData() == false);
                     default:
                         throw new AssertionError("unexpected value [" + value + "] not between 0 and 2");
                 }
-            });
+            }
+        );
 
     }
 

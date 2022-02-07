@@ -51,7 +51,6 @@ public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         this.fieldType = fieldType;
     }
 
-
     @Override
     public Shape prepareForIndexing(ShapeBuilder<?, ?, ?> shapeBuilder) {
         return shapeBuilder.buildS4J();
@@ -63,21 +62,26 @@ public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
     }
 
     @Override
-    public List<IndexableField>  indexShape(ParseContext context, Shape shape) {
+    public List<IndexableField> indexShape(ParseContext context, Shape shape) {
         if (fieldType.pointsOnly()) {
             // index configured for pointsOnly
             if (shape instanceof XShapeCollection && XShapeCollection.class.cast(shape).pointsOnly()) {
                 // MULTIPOINT data: index each point separately
-                @SuppressWarnings("unchecked") List<Shape> shapes = ((XShapeCollection) shape).getShapes();
+                @SuppressWarnings("unchecked")
+                List<Shape> shapes = ((XShapeCollection) shape).getShapes();
                 List<IndexableField> fields = new ArrayList<>();
                 for (Shape s : shapes) {
                     fields.addAll(Arrays.asList(fieldType.defaultPrefixTreeStrategy().createIndexableFields(s)));
                 }
                 return fields;
             } else if (shape instanceof Point == false) {
-                throw new MapperParsingException("[{" + fieldType.name() + "}] is configured for points only but a "
-                    + ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass())
-                    + " was found");
+                throw new MapperParsingException(
+                    "[{"
+                        + fieldType.name()
+                        + "}] is configured for points only but a "
+                        + ((shape instanceof JtsGeometry) ? ((JtsGeometry) shape).getGeom().getGeometryType() : shape.getClass())
+                        + " was found"
+                );
             }
         }
         return Arrays.asList(fieldType.defaultPrefixTreeStrategy().createIndexableFields(shape));

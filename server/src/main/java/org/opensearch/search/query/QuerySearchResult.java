@@ -187,8 +187,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
             int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
             if (numFields != sortValueFormats.length) {
-                throw new IllegalArgumentException("The number of sort fields does not match: "
-                        + numFields + " != " + sortValueFormats.length);
+                throw new IllegalArgumentException(
+                    "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length
+                );
             }
         }
         this.sortValueFormats = sortValueFormats;
@@ -324,7 +325,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns <code>true</code> if this result has any suggest score docs
      */
     public boolean hasSuggestHits() {
-      return (suggest != null && suggest.hasScoreDocs());
+        return (suggest != null && suggest.hasScoreDocs());
     }
 
     public boolean hasSearchContext() {

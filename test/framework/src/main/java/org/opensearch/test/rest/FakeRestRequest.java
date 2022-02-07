@@ -52,12 +52,20 @@ import java.util.Map;
 public class FakeRestRequest extends RestRequest {
 
     public FakeRestRequest() {
-        this(NamedXContentRegistry.EMPTY, new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()), new HashMap<>(),
-            new FakeHttpChannel(null));
+        this(
+            NamedXContentRegistry.EMPTY,
+            new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
+            new HashMap<>(),
+            new FakeHttpChannel(null)
+        );
     }
 
-    private FakeRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, Map<String, String> params,
-                            HttpChannel httpChannel) {
+    private FakeRestRequest(
+        NamedXContentRegistry xContentRegistry,
+        HttpRequest httpRequest,
+        Map<String, String> params,
+        HttpChannel httpChannel
+    ) {
         super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
     }
 
@@ -73,8 +81,13 @@ public class FakeRestRequest extends RestRequest {
             this(method, uri, content, headers, null);
         }
 
-        private FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers,
-                                Exception inboundException) {
+        private FakeHttpRequest(
+            Method method,
+            String uri,
+            BytesReference content,
+            Map<String, List<String>> headers,
+            Exception inboundException
+        ) {
             this.method = method;
             this.uri = uri;
             this.content = content;
@@ -135,8 +148,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
-        public void release() {
-        }
+        public void release() {}
 
         @Override
         public HttpRequest releaseAndCopy() {

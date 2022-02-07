@@ -65,7 +65,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         @Nullable
         private PutComposableIndexTemplateAction.Request indexTemplateRequest;
 
-        public Request() { }
+        public Request() {}
 
         public Request(String templateName) {
             if (templateName == null) {
@@ -101,9 +101,10 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
                 validationException = indexTemplateRequest.validateIndexTemplate(validationException);
             }
             if (templateName == null && indexTemplateRequest == null) {
-                validationException =
-                    ValidateActions.addValidationError("either index name or index template body must be specified for simulation",
-                        validationException);
+                validationException = ValidateActions.addValidationError(
+                    "either index name or index template body must be specified for simulation",
+                    validationException
+                );
             }
             return validationException;
         }
@@ -137,8 +138,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
                 return false;
             }
             Request that = (Request) o;
-            return templateName.equals(that.templateName) &&
-                Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
+            return templateName.equals(that.templateName) && Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
         }
 
         @Override

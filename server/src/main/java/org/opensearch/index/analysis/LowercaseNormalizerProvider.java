@@ -25,7 +25,6 @@
  * under the License.
  */
 
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
@@ -37,9 +36,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 
-
 /**
- * Builds an analyzer for normalization that lowercases terms.  
+ * Builds an analyzer for normalization that lowercases terms.
  */
 public class LowercaseNormalizerProvider extends AbstractIndexAnalyzerProvider<LowercaseNormalizer> {
 

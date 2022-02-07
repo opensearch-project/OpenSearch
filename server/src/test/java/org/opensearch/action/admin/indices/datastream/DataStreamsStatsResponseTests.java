@@ -37,7 +37,6 @@ import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -67,20 +66,33 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
             long storeSize = randomLongBetween(250, 1000000000);
             totalStoreSize += storeSize;
             long maximumTimestamp = randomRecentTimestamp();
-            dataStreamStats.add(new DataStreamsStatsAction.DataStreamStats(dataStreamName, backingIndices,
-                new ByteSizeValue(storeSize), maximumTimestamp));
+            dataStreamStats.add(
+                new DataStreamsStatsAction.DataStreamStats(dataStreamName, backingIndices, new ByteSizeValue(storeSize), maximumTimestamp)
+            );
         }
         int totalShards = randomIntBetween(backingIndicesTotal, backingIndicesTotal * 3);
         int successfulShards = randomInt(totalShards);
         int failedShards = totalShards - successfulShards;
         List<DefaultShardOperationFailedException> exceptions = new ArrayList<>();
         for (int i = 0; i < failedShards; i++) {
-            exceptions.add(new DefaultShardOperationFailedException(randomAlphaOfLength(8).toLowerCase(Locale.getDefault()),
-                randomInt(totalShards), new OpenSearchException("boom")));
+            exceptions.add(
+                new DefaultShardOperationFailedException(
+                    randomAlphaOfLength(8).toLowerCase(Locale.getDefault()),
+                    randomInt(totalShards),
+                    new OpenSearchException("boom")
+                )
+            );
         }
-        return new DataStreamsStatsAction.Response(totalShards, successfulShards, failedShards, exceptions,
-            dataStreamCount, backingIndicesTotal, new ByteSizeValue(totalStoreSize),
-            dataStreamStats.toArray(new DataStreamsStatsAction.DataStreamStats[0]));
+        return new DataStreamsStatsAction.Response(
+            totalShards,
+            successfulShards,
+            failedShards,
+            exceptions,
+            dataStreamCount,
+            backingIndicesTotal,
+            new ByteSizeValue(totalStoreSize),
+            dataStreamStats.toArray(new DataStreamsStatsAction.DataStreamStats[0])
+        );
     }
 
     private static long randomRecentTimestamp() {

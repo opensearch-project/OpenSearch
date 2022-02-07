@@ -358,10 +358,16 @@ public final class TermVectorsFields extends Fields {
 
                 @Override
                 public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
-                    final TermVectorPostingsEnum retVal = (reuse instanceof TermVectorPostingsEnum ? (TermVectorPostingsEnum) reuse
-                            : new TermVectorPostingsEnum());
-                    return retVal.reset(hasPositions ? positions : null, hasOffsets ? startOffsets : null, hasOffsets ? endOffsets
-                            : null, hasPayloads ? payloads : null, freq);
+                    final TermVectorPostingsEnum retVal = (reuse instanceof TermVectorPostingsEnum
+                        ? (TermVectorPostingsEnum) reuse
+                        : new TermVectorPostingsEnum());
+                    return retVal.reset(
+                        hasPositions ? positions : null,
+                        hasOffsets ? startOffsets : null,
+                        hasOffsets ? endOffsets : null,
+                        hasPayloads ? payloads : null,
+                        freq
+                    );
                 }
 
                 @Override

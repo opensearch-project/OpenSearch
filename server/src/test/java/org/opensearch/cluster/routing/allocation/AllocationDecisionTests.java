@@ -33,8 +33,6 @@
 package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.opensearch.cluster.routing.allocation.AbstractAllocationDecision;
-import org.opensearch.cluster.routing.allocation.AllocationDecision;
 import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
@@ -88,8 +86,9 @@ public class AllocationDecisionTests extends OpenSearchTestCase {
     public void testFromDecisionType() {
         Type type = randomFrom(Type.values());
         AllocationDecision allocationDecision = AllocationDecision.fromDecisionType(type);
-        AllocationDecision expected = type == Type.NO ? AllocationDecision.NO :
-                                          type == Type.THROTTLE ? AllocationDecision.THROTTLED : AllocationDecision.YES;
+        AllocationDecision expected = type == Type.NO ? AllocationDecision.NO
+            : type == Type.THROTTLE ? AllocationDecision.THROTTLED
+            : AllocationDecision.YES;
         assertEquals(expected, allocationDecision);
     }
 

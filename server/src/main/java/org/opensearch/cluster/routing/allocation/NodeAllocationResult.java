@@ -54,10 +54,9 @@ import static org.opensearch.cluster.routing.allocation.AbstractAllocationDecisi
  */
 public class NodeAllocationResult implements ToXContentObject, Writeable, Comparable<NodeAllocationResult> {
 
-    private static final Comparator<NodeAllocationResult> nodeResultComparator =
-        Comparator.comparing(NodeAllocationResult::getNodeDecision)
-            .thenComparingInt(NodeAllocationResult::getWeightRanking)
-            .thenComparing(r -> r.getNode().getId());
+    private static final Comparator<NodeAllocationResult> nodeResultComparator = Comparator.comparing(NodeAllocationResult::getNodeDecision)
+        .thenComparingInt(NodeAllocationResult::getWeightRanking)
+        .thenComparing(r -> r.getNode().getId());
 
     private final DiscoveryNode node;
     @Nullable

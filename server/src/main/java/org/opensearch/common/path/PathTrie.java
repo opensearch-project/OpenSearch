@@ -67,8 +67,10 @@ public class PathTrie<T> {
         WILDCARD_NODES_ALLOWED
     }
 
-    private static final EnumSet<TrieMatchingMode> EXPLICIT_OR_ROOT_WILDCARD =
-            EnumSet.of(TrieMatchingMode.EXPLICIT_NODES_ONLY, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
+    private static final EnumSet<TrieMatchingMode> EXPLICIT_OR_ROOT_WILDCARD = EnumSet.of(
+        TrieMatchingMode.EXPLICIT_NODES_ONLY,
+        TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED
+    );
 
     public interface Decoder {
         String decode(String value);
@@ -111,8 +113,9 @@ public class PathTrie<T> {
             this.key = key;
             String newNamedWildcard = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
             if (namedWildcard != null && newNamedWildcard.equals(namedWildcard) == false) {
-                throw new IllegalArgumentException("Trying to use conflicting wildcard names for same path: "
-                    + namedWildcard + " and " + newNamedWildcard);
+                throw new IllegalArgumentException(
+                    "Trying to use conflicting wildcard names for same path: " + namedWildcard + " and " + newNamedWildcard
+                );
             }
             namedWildcard = newNamedWildcard;
         }
@@ -124,8 +127,7 @@ public class PathTrie<T> {
         }
 
         private synchronized void insert(String[] path, int index, T value) {
-            if (index >= path.length)
-                return;
+            if (index >= path.length) return;
 
             String token = path[index];
             String key = token;
@@ -147,8 +149,9 @@ public class PathTrie<T> {
                  */
                 if (index == (path.length - 1)) {
                     if (node.value != null) {
-                        throw new IllegalArgumentException("Path [" + String.join("/", path)+ "] already has a value ["
-                                + node.value + "]");
+                        throw new IllegalArgumentException(
+                            "Path [" + String.join("/", path) + "] already has a value [" + node.value + "]"
+                        );
                     } else {
                         node.value = value;
                     }
@@ -159,8 +162,7 @@ public class PathTrie<T> {
         }
 
         private synchronized void insertOrUpdate(String[] path, int index, T value, BiFunction<T, T, T> updater) {
-            if (index >= path.length)
-                return;
+            if (index >= path.length) return;
 
             String token = path[index];
             String key = token;
@@ -205,8 +207,7 @@ public class PathTrie<T> {
         }
 
         public T retrieve(String[] path, int index, Map<String, String> params, TrieMatchingMode trieMatchingMode) {
-            if (index >= path.length)
-                return null;
+            if (index >= path.length) return null;
 
             String token = path[index];
             TrieNode node = children.get(token);
@@ -241,25 +242,29 @@ public class PathTrie<T> {
                     return null;
                 }
             } else {
-                if (index + 1 == path.length && node.value == null && children.get(wildcard) != null
-                        && EXPLICIT_OR_ROOT_WILDCARD.contains(trieMatchingMode) == false) {
+                if (index + 1 == path.length
+                    && node.value == null
+                    && children.get(wildcard) != null
+                    && EXPLICIT_OR_ROOT_WILDCARD.contains(trieMatchingMode) == false) {
                     /*
                      * If we are at the end of the path, the current node does not have a value but
                      * there is a child wildcard node, use the child wildcard node.
                      */
                     node = children.get(wildcard);
                     usedWildcard = true;
-                } else if (index == 1 && node.value == null && children.get(wildcard) != null
-                        && trieMatchingMode == TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED) {
-                    /*
-                     * If we are at the root, and root wildcards are allowed, use the child wildcard
-                     * node.
-                     */
-                    node = children.get(wildcard);
-                    usedWildcard = true;
-                } else {
-                    usedWildcard = token.equals(wildcard);
-                }
+                } else if (index == 1
+                    && node.value == null
+                    && children.get(wildcard) != null
+                    && trieMatchingMode == TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED) {
+                        /*
+                         * If we are at the root, and root wildcards are allowed, use the child wildcard
+                         * node.
+                         */
+                        node = children.get(wildcard);
+                        usedWildcard = true;
+                    } else {
+                        usedWildcard = token.equals(wildcard);
+                    }
             }
 
             put(params, node, token);

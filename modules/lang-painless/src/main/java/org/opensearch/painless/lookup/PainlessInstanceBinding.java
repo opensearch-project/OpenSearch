@@ -62,12 +62,12 @@ public class PainlessInstanceBinding {
             return false;
         }
 
-        PainlessInstanceBinding that = (PainlessInstanceBinding)object;
+        PainlessInstanceBinding that = (PainlessInstanceBinding) object;
 
-        return targetInstance == that.targetInstance &&
-                Objects.equals(javaMethod, that.javaMethod) &&
-                Objects.equals(returnType, that.returnType) &&
-                Objects.equals(typeParameters, that.typeParameters);
+        return targetInstance == that.targetInstance
+            && Objects.equals(javaMethod, that.javaMethod)
+            && Objects.equals(returnType, that.returnType)
+            && Objects.equals(typeParameters, that.typeParameters);
     }
 
     @Override

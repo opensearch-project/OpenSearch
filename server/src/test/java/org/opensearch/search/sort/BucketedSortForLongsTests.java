@@ -37,8 +37,13 @@ import org.opensearch.search.DocValueFormat;
 
 public class BucketedSortForLongsTests extends BucketedSortTestCase<BucketedSort.ForLongs> {
     @Override
-    public BucketedSort.ForLongs build(SortOrder sortOrder, DocValueFormat format, int bucketSize,
-            BucketedSort.ExtraData extra, double[] values) {
+    public BucketedSort.ForLongs build(
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra,
+        double[] values
+    ) {
         return new BucketedSort.ForLongs(bigArrays(), sortOrder, format, bucketSize, extra) {
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) {
@@ -68,6 +73,6 @@ public class BucketedSortForLongsTests extends BucketedSortTestCase<BucketedSort
     @Override
     protected double randomValue() {
         // 2L^50 fits in the mantisa of a double which the test sort of needs.
-        return randomLongBetween(-2L^50, 2L^50);
+        return randomLongBetween(-2L ^ 50, 2L ^ 50);
     }
 }

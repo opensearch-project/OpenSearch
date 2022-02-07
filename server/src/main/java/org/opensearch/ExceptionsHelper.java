@@ -192,8 +192,11 @@ public final class ExceptionsHelper {
         return first;
     }
 
-    private static final List<Class<? extends IOException>> CORRUPTION_EXCEPTIONS =
-        Arrays.asList(CorruptIndexException.class, IndexFormatTooOldException.class, IndexFormatTooNewException.class);
+    private static final List<Class<? extends IOException>> CORRUPTION_EXCEPTIONS = Arrays.asList(
+        CorruptIndexException.class,
+        IndexFormatTooOldException.class,
+        IndexFormatTooNewException.class
+    );
 
     /**
      * Looks at the given Throwable's and its cause(s) as well as any suppressed exceptions on the Throwable as well as its causes
@@ -294,26 +297,25 @@ public final class ExceptionsHelper {
      * @param throwable the throwable to possibly throw on another thread
      */
     public static void maybeDieOnAnotherThread(final Throwable throwable) {
-        ExceptionsHelper.maybeError(throwable).ifPresent(error -> {
-            /*
-             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, sometimes the stack
-             * contains statements that catch any throwable (e.g., Netty, and the JDK futures framework). This means that a rethrow here
-             * will not bubble up to where we want it to. So, we fork a thread and throw the exception from there where we are sure the
-             * stack does not contain statements that catch any throwable. We do not wrap the exception so as to not lose the original cause
-             * during exit.
-             */
-            try {
-                // try to log the current stack trace
-                final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
-                logger.error("fatal error\n{}", formatted);
-            } finally {
-                new Thread(
-                        () -> {
-                            throw error;
-                        })
-                        .start();
-            }
-        });
+        ExceptionsHelper.maybeError(throwable)
+            .ifPresent(
+                error -> {
+                    /*
+                     * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, sometimes the stack
+                     * contains statements that catch any throwable (e.g., Netty, and the JDK futures framework). This means that a rethrow here
+                     * will not bubble up to where we want it to. So, we fork a thread and throw the exception from there where we are sure the
+                     * stack does not contain statements that catch any throwable. We do not wrap the exception so as to not lose the original cause
+                     * during exit.
+                     */
+                    try {
+                        // try to log the current stack trace
+                        final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
+                        logger.error("fatal error\n{}", formatted);
+                    } finally {
+                        new Thread(() -> { throw error; }).start();
+                    }
+                }
+            );
     }
 
     /**
@@ -339,9 +341,9 @@ public final class ExceptionsHelper {
 
         GroupBy(ShardOperationFailedException failure) {
             Throwable cause = failure.getCause();
-            //the index name from the failure contains the cluster alias when using CCS. Ideally failures should be grouped by
-            //index name and cluster alias. That's why the failure index name has the precedence over the one coming from the cause,
-            //which does not include the cluster alias.
+            // the index name from the failure contains the cluster alias when using CCS. Ideally failures should be grouped by
+            // index name and cluster alias. That's why the failure index name has the precedence over the one coming from the cause,
+            // which does not include the cluster alias.
             String indexName = failure.index();
             if (indexName == null) {
                 if (cause instanceof OpenSearchException) {
@@ -365,9 +367,9 @@ public final class ExceptionsHelper {
                 return false;
             }
             GroupBy groupBy = (GroupBy) o;
-            return Objects.equals(reason, groupBy.reason) &&
-                Objects.equals(index, groupBy.index) &&
-                Objects.equals(causeType, groupBy.causeType);
+            return Objects.equals(reason, groupBy.reason)
+                && Objects.equals(index, groupBy.index)
+                && Objects.equals(causeType, groupBy.causeType);
         }
 
         @Override

@@ -49,7 +49,7 @@ public class NodeClosedException extends OpenSearchException {
         super("node closed " + node);
     }
 
-    public NodeClosedException(StreamInput in) throws IOException{
+    public NodeClosedException(StreamInput in) throws IOException {
         super(in);
     }
 }

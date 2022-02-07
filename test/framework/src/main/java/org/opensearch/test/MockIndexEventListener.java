@@ -74,6 +74,7 @@ public final class MockIndexEventListener {
          * For tests to pass in to fail on listener invocation
          */
         public static final Setting<Boolean> INDEX_FAIL = Setting.boolSetting("index.fail", false, Property.IndexScope);
+
         @Override
         public List<Setting<?>> getSettings() {
             return Arrays.asList(INDEX_FAIL);
@@ -91,10 +92,12 @@ public final class MockIndexEventListener {
     }
 
     public static class TestEventListener implements IndexEventListener {
-        private volatile IndexEventListener delegate = new IndexEventListener() {};
+        private volatile IndexEventListener delegate = new IndexEventListener() {
+        };
 
         public void setNewDelegate(IndexEventListener listener) {
-            delegate = listener == null ? new IndexEventListener() {} : listener;
+            delegate = listener == null ? new IndexEventListener() {
+            } : listener;
         }
 
         @Override
@@ -123,8 +126,12 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
-                IndexShardState currentState, @Nullable String reason) {
+        public void indexShardStateChanged(
+            IndexShard indexShard,
+            @Nullable IndexShardState previousState,
+            IndexShardState currentState,
+            @Nullable String reason
+        ) {
             delegate.indexShardStateChanged(indexShard, previousState, currentState, reason);
         }
 

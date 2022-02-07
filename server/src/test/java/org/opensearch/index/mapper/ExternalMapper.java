@@ -105,11 +105,22 @@ public class ExternalMapper extends ParametrizedFieldMapper {
             AbstractShapeGeometryFieldMapper<?, ?> shapeMapper = (context.indexCreatedVersion().before(LegacyESVersion.V_6_6_0))
                 ? legacyShapeBuilder.build(context)
                 : shapeBuilder.build(context);
-            FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
+            FieldMapper stringMapper = (FieldMapper) stringBuilder.build(context);
             context.path().remove();
 
-            return new ExternalMapper(name, buildFullName(context), generatedValue, mapperName, binMapper, boolMapper,
-                pointMapper, shapeMapper, stringMapper, multiFieldsBuilder.build(this, context), copyTo.build());
+            return new ExternalMapper(
+                name,
+                buildFullName(context),
+                generatedValue,
+                mapperName,
+                binMapper,
+                boolMapper,
+                pointMapper,
+                shapeMapper,
+                stringMapper,
+                multiFieldsBuilder.build(this, context),
+                copyTo.build()
+            );
         }
     }
 
@@ -143,11 +154,19 @@ public class ExternalMapper extends ParametrizedFieldMapper {
     private final AbstractShapeGeometryFieldMapper<?, ?> shapeMapper;
     private final FieldMapper stringMapper;
 
-    public ExternalMapper(String simpleName, String contextName,
-                          String generatedValue, String mapperName,
-                          BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          AbstractShapeGeometryFieldMapper<?, ?> shapeMapper, FieldMapper stringMapper,
-                          MultiFields multiFields, CopyTo copyTo) {
+    public ExternalMapper(
+        String simpleName,
+        String contextName,
+        String generatedValue,
+        String mapperName,
+        BinaryFieldMapper binMapper,
+        BooleanFieldMapper boolMapper,
+        GeoPointFieldMapper pointMapper,
+        AbstractShapeGeometryFieldMapper<?, ?> shapeMapper,
+        FieldMapper stringMapper,
+        MultiFields multiFields,
+        CopyTo copyTo
+    ) {
         super(simpleName, new ExternalFieldType(contextName, true, true, false), multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;

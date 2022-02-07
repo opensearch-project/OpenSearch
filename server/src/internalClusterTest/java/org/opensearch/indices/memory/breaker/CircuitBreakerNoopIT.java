@@ -48,18 +48,18 @@ import static org.opensearch.search.aggregations.AggregationBuilders.cardinality
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /** Tests for the noop breakers, which are non-dynamic settings */
-@OpenSearchIntegTestCase.ClusterScope(scope= OpenSearchIntegTestCase.Scope.SUITE, numDataNodes=0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class CircuitBreakerNoopIT extends OpenSearchIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "noop")
-                // This is set low, because if the "noop" is not a noop, it will break
-                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
-                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "noop")
-                // This is set low, because if the "noop" is not a noop, it will break
-                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
-                .build();
+            .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "noop")
+            // This is set low, because if the "noop" is not a noop, it will break
+            .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "noop")
+            // This is set low, because if the "noop" is not a noop, it will break
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
+            .build();
     }
 
     public void testNoopRequestBreaker() throws Exception {

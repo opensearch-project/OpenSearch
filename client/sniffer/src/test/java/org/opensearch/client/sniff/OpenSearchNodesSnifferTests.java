@@ -102,7 +102,7 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
         try {
             new OpenSearchNodesSniffer(null, 1, OpenSearchNodesSniffer.Scheme.HTTP);
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("restClient cannot be null", e.getMessage());
         }
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
@@ -114,8 +114,11 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
                 assertEquals(e.getMessage(), "scheme cannot be null");
             }
             try {
-                new OpenSearchNodesSniffer(restClient, RandomNumbers.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0),
-                        OpenSearchNodesSniffer.Scheme.HTTP);
+                new OpenSearchNodesSniffer(
+                    restClient,
+                    RandomNumbers.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0),
+                    OpenSearchNodesSniffer.Scheme.HTTP
+                );
                 fail("should have failed");
             } catch (IllegalArgumentException e) {
                 assertEquals(e.getMessage(), "sniffRequestTimeoutMillis must be greater than 0");
@@ -133,17 +136,22 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
                     fail("sniffNodes should have failed");
                 }
                 assertEquals(sniffResponse.result, sniffedNodes);
-            } catch(ResponseException e) {
+            } catch (ResponseException e) {
                 Response response = e.getResponse();
                 if (sniffResponse.isFailure) {
-                    final String errorPrefix = "method [GET], host [" + httpHost + "], URI [/_nodes/http?timeout=" + sniffRequestTimeout
+                    final String errorPrefix = "method [GET], host ["
+                        + httpHost
+                        + "], URI [/_nodes/http?timeout="
+                        + sniffRequestTimeout
                         + "ms], status line [HTTP/1.1";
                     assertThat(e.getMessage(), startsWith(errorPrefix));
                     assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
                     assertThat(response.getHost(), equalTo(httpHost));
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
-                    assertThat(response.getRequestLine().toString(),
-                            equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1"));
+                    assertThat(
+                        response.getRequestLine().toString(),
+                        equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1")
+                    );
                 } else {
                     fail("sniffNodes should have succeeded: " + response.getStatusLine());
                 }
@@ -235,10 +243,14 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
                 nodeRoles.add("ingest");
             }
 
-            Node node = new Node(publishHost, boundHosts, randomAsciiAlphanumOfLength(5),
-                    randomAsciiAlphanumOfLength(5),
-                    new Node.Roles(nodeRoles),
-                    attributes);
+            Node node = new Node(
+                publishHost,
+                boundHosts,
+                randomAsciiAlphanumOfLength(5),
+                randomAsciiAlphanumOfLength(5),
+                new Node.Roles(nodeRoles),
+                attributes
+            );
 
             generator.writeObjectFieldStart(nodeId);
             if (getRandom().nextBoolean()) {
@@ -271,7 +283,7 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
                 generator.writeEndObject();
             }
 
-            List<String> roles = Arrays.asList(new String[] {"master", "data", "ingest"});
+            List<String> roles = Arrays.asList(new String[] { "master", "data", "ingest" });
             Collections.shuffle(roles, getRandom());
             generator.writeArrayFieldStart("roles");
             for (String role : roles) {

@@ -65,8 +65,11 @@ public class DocumentFieldTests extends OpenSearchTestCase {
     }
 
     public void testEqualsAndHashcode() {
-        checkEqualsAndHashCode(randomDocumentField(XContentType.JSON).v1(), DocumentFieldTests::copyDocumentField,
-                DocumentFieldTests::mutateDocumentField);
+        checkEqualsAndHashCode(
+            randomDocumentField(XContentType.JSON).v1(),
+            DocumentFieldTests::copyDocumentField,
+            DocumentFieldTests::mutateDocumentField
+        );
     }
 
     public void testToAndFromXContent() throws Exception {
@@ -76,10 +79,10 @@ public class DocumentFieldTests extends OpenSearchTestCase {
         DocumentField expectedDocumentField = tuple.v2();
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(documentField, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        //test that we can parse what we print out
+        // test that we can parse what we print out
         DocumentField parsedDocumentField;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            //we need to move to the next token, the start object one that we manually added is not expected
+            // we need to move to the next token, the start object one that we manually added is not expected
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             parsedDocumentField = DocumentField.fromXContent(parser);
@@ -116,11 +119,13 @@ public class DocumentFieldTests extends OpenSearchTestCase {
         return randomDocumentField(xContentType, randomBoolean(), fieldName -> false);  // don't exclude any meta-fields
     }
 
-    public static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xContentType, boolean isMetafield,
-            Predicate<String> excludeMetaFieldFilter) {
+    public static Tuple<DocumentField, DocumentField> randomDocumentField(
+        XContentType xContentType,
+        boolean isMetafield,
+        Predicate<String> excludeMetaFieldFilter
+    ) {
         if (isMetafield) {
-            String metaField = randomValueOtherThanMany(excludeMetaFieldFilter,
-                () -> randomFrom(IndicesModule.getBuiltInMetadataFields()));
+            String metaField = randomValueOtherThanMany(excludeMetaFieldFilter, () -> randomFrom(IndicesModule.getBuiltInMetadataFields()));
             DocumentField documentField;
             if (metaField.equals(IgnoredFieldMapper.NAME)) {
                 int numValues = randomIntBetween(1, 3);
@@ -130,7 +135,7 @@ public class DocumentFieldTests extends OpenSearchTestCase {
                 }
                 documentField = new DocumentField(metaField, ignoredFields);
             } else {
-                //meta fields are single value only, besides _ignored
+                // meta fields are single value only, besides _ignored
                 documentField = new DocumentField(metaField, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
             }
             return Tuple.tuple(documentField, documentField);
@@ -147,10 +152,18 @@ public class DocumentFieldTests extends OpenSearchTestCase {
                     DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
                     return Tuple.tuple(listField, listField);
                 case 2:
-                    List<Object> objectValues = randomList(1, 5, () ->
-                        Map.of(randomAlphaOfLength(5), randomInt(),
-                            randomAlphaOfLength(5), randomBoolean(),
-                            randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                    List<Object> objectValues = randomList(
+                        1,
+                        5,
+                        () -> Map.of(
+                            randomAlphaOfLength(5),
+                            randomInt(),
+                            randomAlphaOfLength(5),
+                            randomBoolean(),
+                            randomAlphaOfLength(5),
+                            randomAlphaOfLength(10)
+                        )
+                    );
                     DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
                     return Tuple.tuple(objectField, objectField);
                 default:

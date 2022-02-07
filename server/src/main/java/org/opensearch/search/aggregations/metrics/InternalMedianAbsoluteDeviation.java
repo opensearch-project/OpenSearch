@@ -100,9 +100,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final boolean anyResults = valuesSketch.size() > 0;
-        final Double mad = anyResults
-            ? getMedianAbsoluteDeviation()
-            : null;
+        final Double mad = anyResults ? getMedianAbsoluteDeviation() : null;
 
         builder.field(CommonFields.VALUE.getPreferredName(), mad);
         if (format != DocValueFormat.RAW && anyResults) {

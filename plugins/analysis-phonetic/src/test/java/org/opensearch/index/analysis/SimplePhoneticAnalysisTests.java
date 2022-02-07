@@ -57,9 +57,10 @@ public class SimplePhoneticAnalysisTests extends OpenSearchTestCase {
     @Before
     public void setup() throws IOException {
         String yaml = "/org/opensearch/index/analysis/phonetic-1.yml";
-        Settings settings = Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build();
+        Settings settings = Settings.builder()
+            .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build();
         this.analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisPhoneticPlugin());
     }
 
@@ -72,9 +73,35 @@ public class SimplePhoneticAnalysisTests extends OpenSearchTestCase {
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("beidermorsefilter");
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("ABADIAS"));
-        String[] expected = new String[] { "abYdias", "abYdios", "abadia", "abadiaS", "abadias", "abadio", "abadioS", "abadios", "abodia",
-                "abodiaS", "abodias", "abodio", "abodioS", "abodios", "avadias", "avadios", "avodias", "avodios", "obadia", "obadiaS",
-                "obadias", "obadio", "obadioS", "obadios", "obodia", "obodiaS", "obodias", "obodioS" };
+        String[] expected = new String[] {
+            "abYdias",
+            "abYdios",
+            "abadia",
+            "abadiaS",
+            "abadias",
+            "abadio",
+            "abadioS",
+            "abadios",
+            "abodia",
+            "abodiaS",
+            "abodias",
+            "abodio",
+            "abodioS",
+            "abodios",
+            "avadias",
+            "avadios",
+            "avodias",
+            "avodios",
+            "obadia",
+            "obadiaS",
+            "obadias",
+            "obadio",
+            "obadioS",
+            "obadios",
+            "obodia",
+            "obodiaS",
+            "obodias",
+            "obodioS" };
         BaseTokenStreamTestCase.assertTokenStreamContents(filterFactory.create(tokenizer), expected);
     }
 
@@ -82,8 +109,23 @@ public class SimplePhoneticAnalysisTests extends OpenSearchTestCase {
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("beidermorsefilterfrench");
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("Rimbault"));
-        String[] expected = new String[] { "rimbD", "rimbDlt", "rimba", "rimbalt", "rimbo", "rimbolt", "rimbu", "rimbult", "rmbD", "rmbDlt",
-                "rmba", "rmbalt", "rmbo", "rmbolt", "rmbu", "rmbult" };
+        String[] expected = new String[] {
+            "rimbD",
+            "rimbDlt",
+            "rimba",
+            "rimbalt",
+            "rimbo",
+            "rimbolt",
+            "rimbu",
+            "rimbult",
+            "rmbD",
+            "rmbDlt",
+            "rmba",
+            "rmbalt",
+            "rmbo",
+            "rmbolt",
+            "rmbu",
+            "rmbult" };
         BaseTokenStreamTestCase.assertTokenStreamContents(filterFactory.create(tokenizer), expected);
     }
 

@@ -153,7 +153,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             DataStream dataStream;
             ClusterHealthStatus dataStreamStatus;
-            @Nullable String indexTemplate;
+            @Nullable
+            String indexTemplate;
 
             public DataStreamInfo(DataStream dataStream, ClusterHealthStatus dataStreamStatus, @Nullable String indexTemplate) {
                 this.dataStream = dataStream;
@@ -177,7 +178,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public String getIndexTemplate() {
                 return indexTemplate;
             }
-
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
@@ -206,9 +206,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 DataStreamInfo that = (DataStreamInfo) o;
-                return dataStream.equals(that.dataStream) &&
-                    dataStreamStatus == that.dataStreamStatus &&
-                    Objects.equals(indexTemplate, that.indexTemplate);
+                return dataStream.equals(that.dataStream)
+                    && dataStreamStatus == that.dataStreamStatus
+                    && Objects.equals(indexTemplate, that.indexTemplate);
             }
 
             @Override
@@ -267,8 +267,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         private static final Logger logger = LogManager.getLogger(TransportAction.class);
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
         }
 
@@ -283,8 +288,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state,
-                                       ActionListener<Response> listener) throws Exception {
+        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
             List<Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
             for (DataStream dataStream : dataStreams) {
@@ -294,11 +298,16 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
                     ilmPolicyName = settings.get("index.lifecycle.name");
                 } else {
-                    logger.warn("couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)" +
-                        "from a snapshot?", dataStream.getName());
+                    logger.warn(
+                        "couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)"
+                            + "from a snapshot?",
+                        dataStream.getName()
+                    );
                 }
-                ClusterStateHealth streamHealth = new ClusterStateHealth(state,
-                    dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new));
+                ClusterStateHealth streamHealth = new ClusterStateHealth(
+                    state,
+                    dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new)
+                );
                 dataStreamInfos.add(new Response.DataStreamInfo(dataStream, streamHealth.getStatus(), indexTemplate));
             }
             listener.onResponse(new Response(dataStreamInfos));
@@ -308,10 +317,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             List<String> results = iner.dataStreamNames(clusterState, request.indicesOptions(), request.names);
             Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
 
-            return results.stream()
-                .map(dataStreams::get)
-                .sorted(Comparator.comparing(DataStream::getName))
-                .collect(Collectors.toList());
+            return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).collect(Collectors.toList());
         }
 
         @Override
