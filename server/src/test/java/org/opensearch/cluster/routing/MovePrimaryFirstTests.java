@@ -100,8 +100,9 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
                     }
                 }
                 if (!Stream.concat(initz2n1.stream(), initz2n2.stream()).anyMatch(s -> s.primary())) {
-                    // All primaries are relocated before 60% of overall shards are started on new nodes
-                    if (primaryShardCount <= startedCount && startedCount <= 6 * primaryShardCount / 5) {
+                    // All primaries are relocated before 60% of total shards are started on new nodes
+                    final int totalShardCount = primaryShardCount * 2;
+                    if (primaryShardCount <= startedCount && startedCount <= 3 * totalShardCount / 5) {
                         primaryMoveLatch.countDown();
                     }
                 }
