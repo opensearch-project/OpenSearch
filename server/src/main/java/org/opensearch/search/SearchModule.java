@@ -1256,6 +1256,11 @@ public class SearchModule {
                 ),
                 new NamedWriteableRegistry.Entry(
                     IntervalsSourceProvider.class,
+                    IntervalsSourceProvider.Regexp.NAME,
+                    IntervalsSourceProvider.Regexp::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    IntervalsSourceProvider.class,
                     IntervalsSourceProvider.Fuzzy.NAME,
                     IntervalsSourceProvider.Fuzzy::new
                 )
