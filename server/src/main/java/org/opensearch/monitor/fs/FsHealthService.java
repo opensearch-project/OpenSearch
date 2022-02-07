@@ -95,7 +95,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     );
     public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "monitor.fs.health.refresh_interval",
-        TimeValue.timeValueSeconds(120),
+        TimeValue.timeValueSeconds(60),
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope
     );
@@ -113,7 +113,6 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
 
     public FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv) {
         this.threadPool = threadPool;
@@ -161,17 +160,17 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
         } else if (brokenLock) {
             statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
-        } else if (checkInProgress.get() && currentTimeMillisSupplier.getAsLong() -
-            lastRunStartTimeMillis.get() > healthyTimeoutThreshold.millis()) {
-            statusInfo = new StatusInfo(UNHEALTHY, "healthy threshold breached");
-        } else if (unhealthyPaths == null) {
-            statusInfo = new StatusInfo(HEALTHY, "health check passed");
-        } else {
-            String info = "health check failed on ["
-                + unhealthyPaths.stream().map(k -> k.toString()).collect(Collectors.joining(","))
-                + "]";
-            statusInfo = new StatusInfo(UNHEALTHY, info);
-        }
+        } else if (checkInProgress.get()
+            && currentTimeMillisSupplier.getAsLong() - lastRunStartTimeMillis.get() > healthyTimeoutThreshold.millis()) {
+                statusInfo = new StatusInfo(UNHEALTHY, "healthy threshold breached");
+            } else if (unhealthyPaths == null) {
+                statusInfo = new StatusInfo(HEALTHY, "health check passed");
+            } else {
+                String info = "health check failed on ["
+                    + unhealthyPaths.stream().map(k -> k.toString()).collect(Collectors.joining(","))
+                    + "]";
+                statusInfo = new StatusInfo(UNHEALTHY, info);
+            }
         return statusInfo;
     }
 
@@ -237,8 +236,12 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                             );
                         }
                         if (elapsedTime > healthyTimeoutThreshold.millis()) {
-                            logger.error("health check of [{}] failed, took [{}ms] which is above the healthy threshold of [{}]",
-                                path, elapsedTime, healthyTimeoutThreshold);
+                            logger.error(
+                                "health check of [{}] failed, took [{}ms] which is above the healthy threshold of [{}]",
+                                path,
+                                elapsedTime,
+                                healthyTimeoutThreshold
+                            );
                             if (currentUnhealthyPaths == null) {
                                 currentUnhealthyPaths = new HashSet<>(1);
                             }

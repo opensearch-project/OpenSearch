@@ -193,7 +193,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             .put(FsHealthService.HEALTHY_TIMEOUT_SETTING.getKey(), healthyTimeoutThreshold + "ms")
             .put(FsHealthService.REFRESH_INTERVAL_SETTING.getKey(), refreshInterval + "ms")
             .put(FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING.getKey(), slowLogThreshold + "ms")
-            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)//we need to verify exact time
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)// we need to verify exact time
             .build();
         FileSystem fileSystem = PathUtils.getDefaultFileSystem();
         TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
