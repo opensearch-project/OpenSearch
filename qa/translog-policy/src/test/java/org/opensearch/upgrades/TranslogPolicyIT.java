@@ -141,7 +141,7 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
             if (randomBoolean()) {
                 flush(index, randomBoolean());
             } else if (randomBoolean()) {
-                performSyncedFlush(index, randomBoolean());
+                syncedFlush(index, randomBoolean());
             }
         }
         ensureGreen(index);

@@ -32,11 +32,10 @@
 
 package org.opensearch.index.translog;
 
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.internal.io.IOUtils;
@@ -261,15 +260,14 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
             );
             writer = Mockito.spy(writer);
             Mockito.doReturn(now - (numberOfReaders - gen + 1) * 1000).when(writer).getLastModifiedTime();
-            byte[] bytes = new byte[4];
-            ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+            BytesStreamOutput out = new BytesStreamOutput(4);
 
             final long startSeqNo = (gen - 1) * TOTAL_OPS_IN_GEN;
             final long endSeqNo = startSeqNo + TOTAL_OPS_IN_GEN - 1;
             for (long ops = endSeqNo; ops >= startSeqNo; ops--) {
-                out.reset(bytes);
+                out.reset();
                 out.writeInt((int) ops);
-                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), ops);
+                writer.add(ReleasableBytesReference.wrap(out.bytes()), ops);
             }
         }
         return new Tuple<>(readers, writer);

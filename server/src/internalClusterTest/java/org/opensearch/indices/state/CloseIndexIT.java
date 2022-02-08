@@ -484,11 +484,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
                 .collect(toList())
         );
         ensureGreen(indexName);
-        if (randomBoolean()) {
-            client().admin().indices().prepareFlush(indexName).get();
-        } else {
-            client().admin().indices().prepareSyncedFlush(indexName).get();
-        }
+        client().admin().indices().prepareFlush(indexName).get();
         // index more documents while one shard copy is offline
         internalCluster().restartNode(dataNodes.get(1), new InternalTestCluster.RestartCallback() {
             @Override

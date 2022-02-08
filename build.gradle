@@ -274,6 +274,14 @@ allprojects {
     javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
   }
 
+  // support for reproducible builds
+  tasks.withType(AbstractArchiveTask).configureEach {
+    // ignore file timestamps
+    // be consistent in archive file order
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+  }
+
   project.afterEvaluate {
     // Handle javadoc dependencies across projects. Order matters: the linksOffline for
     // org.opensearch:opensearch must be the last one or all the links for the

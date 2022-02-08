@@ -40,7 +40,6 @@ import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
@@ -926,53 +925,6 @@ public final class IndicesClient {
             IndicesRequestConverters::flush,
             options,
             FlushResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Initiate a synced flush manually using the synced flush API.
-     *
-     * @param syncedFlushRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     * @deprecated synced flush is deprecated and will be removed in 8.0.
-     * Use {@link #flush(FlushRequest, RequestOptions)} instead.
-     */
-    @Deprecated
-    public SyncedFlushResponse flushSynced(SyncedFlushRequest syncedFlushRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            syncedFlushRequest,
-            IndicesRequestConverters::flushSynced,
-            options,
-            SyncedFlushResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously initiate a synced flush manually using the synced flush API.
-     *
-     * @param syncedFlushRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     * @deprecated synced flush is deprecated and will be removed in 8.0.
-     * Use {@link #flushAsync(FlushRequest, RequestOptions, ActionListener)} instead.
-     */
-    @Deprecated
-    public Cancellable flushSyncedAsync(
-        SyncedFlushRequest syncedFlushRequest,
-        RequestOptions options,
-        ActionListener<SyncedFlushResponse> listener
-    ) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(
-            syncedFlushRequest,
-            IndicesRequestConverters::flushSynced,
-            options,
-            SyncedFlushResponse::fromXContent,
             listener,
             emptySet()
         );
@@ -1915,7 +1867,6 @@ public final class IndicesClient {
 
     /**
      * Validate a potentially expensive query without executing it.
-     * <p>
      *
      * @param validateQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1934,7 +1885,6 @@ public final class IndicesClient {
 
     /**
      * Asynchronously validate a potentially expensive query without executing it.
-     * <p>
      *
      * @param validateQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

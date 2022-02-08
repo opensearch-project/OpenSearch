@@ -719,6 +719,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
              * or not we have one. */
             shouldHaveTranslog = randomBoolean();
 
+            Settings.Builder settings = Settings.builder();
+            if (minimumNodeVersion().before(Version.V_2_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            createIndex(index, settings.build());
+
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
 
             // make sure all recoveries are done
@@ -731,7 +737,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertOK(client().performRequest(flushRequest));
 
             if (randomBoolean()) {
-                performSyncedFlush(index, randomBoolean());
+                syncedFlush(index, randomBoolean());
             }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
@@ -1423,7 +1429,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (randomBoolean()) {
                 flush(index, randomBoolean());
             } else if (randomBoolean()) {
-                performSyncedFlush(index, randomBoolean());
+                syncedFlush(index, randomBoolean());
             }
             saveInfoDocument("doc_count", Integer.toString(numDocs));
         }

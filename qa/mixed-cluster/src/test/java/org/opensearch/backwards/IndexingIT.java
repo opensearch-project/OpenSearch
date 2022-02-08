@@ -35,13 +35,17 @@ import org.apache.http.HttpHost;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.seqno.SeqNoStats;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.document.RestGetAction;
 import org.opensearch.rest.action.document.RestIndexAction;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
@@ -49,11 +53,13 @@ import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingIT extends OpenSearchRestTestCase {
@@ -293,6 +299,59 @@ public class IndexingIT extends OpenSearchRestTestCase {
         request = new Request("PUT", "/_snapshot/repo/mixed-snapshot");
         request.addParameter("wait_for_completion", "true");
         request.setJsonEntity("{\"indices\": \"" + index + "\"}");
+    }
+
+    public void testSyncedFlushTransition() throws Exception {
+        Nodes nodes = buildNodeAndVersions();
+        assumeTrue("bwc version is on 1.x or Legacy 7.x", nodes.getBWCVersion().before(Version.V_2_0_0));
+        assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
+        assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
+        // Allocate shards to new nodes then verify synced flush requests processed by old nodes/new nodes
+        String newNodes = nodes.getNewNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
+        int numShards = randomIntBetween(1, 10);
+        int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);
+        int totalShards = numShards * (numOfReplicas + 1);
+        final String index = "test_synced_flush";
+        createIndex(index, Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+            .put("index.routing.allocation.include._name", newNodes).build());
+        ensureGreen(index);
+        indexDocs(index, randomIntBetween(0, 100), between(1, 100));
+        try (RestClient oldNodeClient = buildClient(restClientSettings(),
+            nodes.getBWCNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+            Request request = new Request("POST", index + "/_flush/synced");
+            assertBusy(() -> {
+                ResponseException responseException = expectThrows(ResponseException.class, () -> oldNodeClient.performRequest(request));
+                assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
+                assertThat(responseException.getResponse().getWarnings(),
+                    contains("Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."));
+                Map<String, Object> result = ObjectPath.createFromResponse(responseException.getResponse()).evaluate("_shards");
+                assertThat(result.get("total"), equalTo(totalShards));
+                assertThat(result.get("successful"), equalTo(0));
+                assertThat(result.get("failed"), equalTo(totalShards));
+            });
+            Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        }
+        indexDocs(index, randomIntBetween(0, 100), between(1, 100));
+        try (RestClient newNodeClient = buildClient(restClientSettings(),
+            nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+            Request request = new Request("POST", index + "/_flush/synced");
+            List<String> warningMsg = Arrays.asList("Synced flush was removed and a normal flush was performed instead. " +
+                "This transition will be removed in a future version.");
+            RequestOptions.Builder requestOptionsBuilder = RequestOptions.DEFAULT.toBuilder();
+            requestOptionsBuilder.setWarningsHandler(warnings -> warnings.equals(warningMsg) == false);
+            request.setOptions(requestOptionsBuilder);
+            assertBusy(() -> {
+                Map<String, Object> result = ObjectPath.createFromResponse(newNodeClient.performRequest(request)).evaluate("_shards");
+                assertThat(result.get("total"), equalTo(totalShards));
+                assertThat(result.get("successful"), equalTo(totalShards));
+                assertThat(result.get("failed"), equalTo(0));
+            });
+            Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        }
     }
 
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {

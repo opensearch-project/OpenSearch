@@ -35,8 +35,8 @@ package org.opensearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ValueFetcher;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
 
@@ -53,7 +53,7 @@ import java.util.Set;
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldFetcher {
-    public static FieldFetcher create(MapperService mapperService, SearchLookup searchLookup, Collection<FieldAndFormat> fieldAndFormats) {
+    public static FieldFetcher create(QueryShardContext context, SearchLookup searchLookup, Collection<FieldAndFormat> fieldAndFormats) {
 
         List<FieldContext> fieldContexts = new ArrayList<>();
 
@@ -61,13 +61,13 @@ public class FieldFetcher {
             String fieldPattern = fieldAndFormat.field;
             String format = fieldAndFormat.format;
 
-            Collection<String> concreteFields = mapperService.simpleMatchToFullName(fieldPattern);
+            Collection<String> concreteFields = context.simpleMatchToIndexNames(fieldPattern);
             for (String field : concreteFields) {
-                MappedFieldType ft = mapperService.fieldType(field);
-                if (ft == null || mapperService.isMetadataField(field)) {
+                MappedFieldType ft = context.getFieldType(field);
+                if (ft == null || context.isMetadataField(field)) {
                     continue;
                 }
-                ValueFetcher valueFetcher = ft.valueFetcher(mapperService, searchLookup, format);
+                ValueFetcher valueFetcher = ft.valueFetcher(context, searchLookup, format);
                 fieldContexts.add(new FieldContext(field, valueFetcher));
             }
         }

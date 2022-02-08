@@ -39,7 +39,9 @@ import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.NamedWriteable;
@@ -100,12 +102,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return Prefix.fromXContent(parser);
             case "wildcard":
                 return Wildcard.fromXContent(parser);
+            case "regexp":
+                return Regexp.fromXContent(parser);
             case "fuzzy":
                 return Fuzzy.fromXContent(parser);
         }
         throw new ParsingException(
             parser.getTokenLocation(),
-            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of, prefix, wildcard]"
+            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of, prefix, wildcard, regexp]"
         );
     }
 
@@ -630,6 +634,155 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    public static class Regexp extends IntervalsSourceProvider {
+
+        public static final String NAME = "regexp";
+        public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
+
+        private final String pattern;
+        private final int flags;
+        private final String useField;
+        private final Integer maxExpansions;
+
+        public Regexp(String pattern, int flags, String useField, Integer maxExpansions) {
+            this.pattern = pattern;
+            this.flags = flags;
+            this.useField = useField;
+            this.maxExpansions = (maxExpansions != null && maxExpansions > 0) ? maxExpansions : null;
+        }
+
+        public Regexp(StreamInput in) throws IOException {
+            this.pattern = in.readString();
+            this.flags = in.readVInt();
+            this.useField = in.readOptionalString();
+            this.maxExpansions = in.readOptionalVInt();
+        }
+
+        @Override
+        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
+            final org.apache.lucene.util.automaton.RegExp regexp = new org.apache.lucene.util.automaton.RegExp(pattern, flags);
+            final CompiledAutomaton automaton = new CompiledAutomaton(regexp.toAutomaton());
+
+            if (useField != null) {
+                fieldType = context.fieldMapper(useField);
+                assert fieldType != null;
+                checkPositions(fieldType);
+
+                IntervalsSource regexpSource = maxExpansions == null
+                    ? Intervals.multiterm(automaton, regexp.toString())
+                    : Intervals.multiterm(automaton, maxExpansions, regexp.toString());
+                return Intervals.fixField(useField, regexpSource);
+            } else {
+                checkPositions(fieldType);
+                return maxExpansions == null
+                    ? Intervals.multiterm(automaton, regexp.toString())
+                    : Intervals.multiterm(automaton, maxExpansions, regexp.toString());
+            }
+        }
+
+        private void checkPositions(MappedFieldType type) {
+            if (type.getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
+            }
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Regexp regexp = (Regexp) o;
+            return Objects.equals(pattern, regexp.pattern)
+                && Objects.equals(flags, regexp.flags)
+                && Objects.equals(useField, regexp.useField)
+                && Objects.equals(maxExpansions, regexp.maxExpansions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pattern, flags, useField, maxExpansions);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(pattern);
+            out.writeVInt(flags);
+            out.writeOptionalString(useField);
+            out.writeOptionalVInt(maxExpansions);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.field("pattern", pattern);
+            if (flags != DEFAULT_FLAGS_VALUE) {
+                builder.field("flags_value", flags);
+            }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
+            if (maxExpansions != null) {
+                builder.field("max_expansions", maxExpansions);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        private static final ConstructingObjectParser<Regexp, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            String pattern = (String) args[0];
+            String flags = (String) args[1];
+            Integer flagsValue = (Integer) args[2];
+            String useField = (String) args[3];
+            Integer maxExpansions = (Integer) args[4];
+
+            if (flagsValue != null) {
+                return new Regexp(pattern, flagsValue, useField, maxExpansions);
+            } else if (flags != null) {
+                return new Regexp(pattern, RegexpFlag.resolveValue(flags), useField, maxExpansions);
+            } else {
+                return new Regexp(pattern, DEFAULT_FLAGS_VALUE, useField, maxExpansions);
+            }
+        });
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("pattern"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("flags"));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField("flags_value"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField("max_expansions"));
+        }
+
+        public static Regexp fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        String getPattern() {
+            return pattern;
+        }
+
+        int getFlags() {
+            return flags;
+        }
+
+        String getUseField() {
+            return useField;
+        }
+
+        Integer getMaxExpansions() {
+            return maxExpansions;
+        }
+    }
+
     public static class Wildcard extends IntervalsSourceProvider {
 
         public static final String NAME = "wildcard";
@@ -637,17 +790,24 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private final String pattern;
         private final String analyzer;
         private final String useField;
+        private final Integer maxExpansions;
 
-        public Wildcard(String pattern, String analyzer, String useField) {
+        public Wildcard(String pattern, String analyzer, String useField, Integer maxExpansions) {
             this.pattern = pattern;
             this.analyzer = analyzer;
             this.useField = useField;
+            this.maxExpansions = (maxExpansions != null && maxExpansions > 0) ? maxExpansions : null;
         }
 
         public Wildcard(StreamInput in) throws IOException {
             this.pattern = in.readString();
             this.analyzer = in.readOptionalString();
             this.useField = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+                this.maxExpansions = in.readOptionalVInt();
+            } else {
+                this.maxExpansions = null;
+            }
         }
 
         @Override
@@ -665,11 +825,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                     analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
                 }
                 BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
-                source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm));
+                IntervalsSource wildcardSource = maxExpansions == null
+                    ? Intervals.wildcard(normalizedTerm)
+                    : Intervals.wildcard(normalizedTerm, maxExpansions);
+                source = Intervals.fixField(useField, wildcardSource);
             } else {
                 checkPositions(fieldType);
                 BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
-                source = Intervals.wildcard(normalizedTerm);
+                source = maxExpansions == null ? Intervals.wildcard(normalizedTerm) : Intervals.wildcard(normalizedTerm, maxExpansions);
             }
             return source;
         }
@@ -694,12 +857,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             Wildcard wildcard = (Wildcard) o;
             return Objects.equals(pattern, wildcard.pattern)
                 && Objects.equals(analyzer, wildcard.analyzer)
-                && Objects.equals(useField, wildcard.useField);
+                && Objects.equals(useField, wildcard.useField)
+                && Objects.equals(maxExpansions, wildcard.maxExpansions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pattern, analyzer, useField);
+            return Objects.hash(pattern, analyzer, useField, maxExpansions);
         }
 
         @Override
@@ -712,6 +876,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeString(pattern);
             out.writeOptionalString(analyzer);
             out.writeOptionalString(useField);
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+                out.writeOptionalVInt(maxExpansions);
+            }
         }
 
         @Override
@@ -724,6 +891,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 builder.field("use_field", useField);
             }
+            if (maxExpansions != null) {
+                builder.field("max_expansions", maxExpansions);
+            }
             builder.endObject();
             return builder;
         }
@@ -732,12 +902,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             String term = (String) args[0];
             String analyzer = (String) args[1];
             String useField = (String) args[2];
-            return new Wildcard(term, analyzer, useField);
+            Integer maxExpansions = (Integer) args[3];
+            return new Wildcard(term, analyzer, useField, maxExpansions);
         });
         static {
             PARSER.declareString(constructorArg(), new ParseField("pattern"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField("max_expansions"));
         }
 
         public static Wildcard fromXContent(XContentParser parser) throws IOException {
@@ -754,6 +926,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         String getUseField() {
             return useField;
+        }
+
+        Integer getMaxExpansions() {
+            return maxExpansions;
         }
     }
 

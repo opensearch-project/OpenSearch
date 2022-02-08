@@ -1,6 +1,6 @@
 name: Backport
 on:
-  pull_request:
+  pull_request_target:
     types:
       - closed
       - labeled
@@ -14,6 +14,7 @@ jobs:
     name: Backport
     steps:
       - name: Backport
-        uses: tibdex/backport@v1
+        uses: VachaShah/backport@v1.1.4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch_name: backport/backport-${{ github.event.number }}

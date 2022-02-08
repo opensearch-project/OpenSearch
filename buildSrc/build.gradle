@@ -111,12 +111,12 @@ dependencies {
   api 'org.apache.rat:apache-rat:0.13'
   api 'commons-io:commons-io:2.7'
   api "net.java.dev.jna:jna:5.5.0"
-  api 'com.github.jengelman.gradle.plugins:shadow:6.0.0'
+  api 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
   api 'de.thetaphi:forbiddenapis:3.0'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.12'
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
-  api 'com.fasterxml.jackson.core:jackson-databind:2.12.5'
+  api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson')}"
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
@@ -158,8 +158,8 @@ if (project != rootProject) {
   apply plugin: 'opensearch.publish'
 
   allprojects {
-    targetCompatibility = 10
-    sourceCompatibility = 10
+    targetCompatibility = 11
+    sourceCompatibility = 11
   }
 
   // groovydoc succeeds, but has some weird internal exception...

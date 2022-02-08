@@ -421,9 +421,11 @@ Unit tests are the preferred way to test some functionality: most of the time th
 
 The reason why `OpenSearchSingleNodeTestCase` exists is that all our components used to be very hard to set up in isolation, which had led us to having a number of integration tests but close to no unit tests. `OpenSearchSingleNodeTestCase` is a workaround for this issue which provides an easy way to spin up a node and get access to components that are hard to instantiate like `IndicesService`. Whenever practical, you should prefer unit tests.
 
-Many tests extend `OpenSearchIntegTestCase`, mostly because this is how most tests used to work in the early days of Elasticsearch. However, the complexity of these tests tends to make them hard to debug. Whenever the functionality that is being tested isn’t intimately dependent on how OpenSearch behaves as a cluster, it is recommended to write unit tests or REST tests instead.
+Finally, if the the functionality under test needs to be run in a cluster, there are two test classes to consider:
+  * `OpenSearchRestTestCase` will connect to an external cluster. This is a good option if the tests cases don't rely on a specific configuration of the test cluster. A test cluster is set up as part of the Gradle task running integration tests, and test cases using this class can connect to it. The configuration of the cluster is provided in the Gradle files.
+  * `OpenSearchIntegTestCase` will create a local cluster as part of each test case. The configuration of the cluster is controlled by the test class. This is a good option if different tests cases depend on different cluster configurations, as it would be impractical (and limit parallelization) to keep re-configuring (and re-starting) the external cluster for each test case. A good example of when this class might come in handy is for testing security features, where different cluster configurations are needed to fully test each one.
 
-In short, most new functionality should come with unit tests, and optionally REST tests to test integration.
+In short, most new functionality should come with unit tests, and optionally integration tests using either an external cluster or a local one if there's a need for more specific cluster configurations, as those are more costly and harder to maintain/debug.
 
 ### Refactor code to make it easier to test
 

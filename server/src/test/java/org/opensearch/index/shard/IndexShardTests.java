@@ -70,7 +70,6 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -88,7 +87,6 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
@@ -103,8 +101,6 @@ import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
-import org.opensearch.index.engine.Segment;
-import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -202,7 +198,6 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -3258,42 +3253,37 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexDoc(indexShard, "_doc", id);
             }
             // Need to update and sync the global checkpoint and the retention leases for the soft-deletes retention MergePolicy.
-            if (indexShard.indexSettings.isSoftDeleteEnabled()) {
-                final long newGlobalCheckpoint = indexShard.getLocalCheckpoint();
-                if (indexShard.routingEntry().primary()) {
-                    indexShard.updateLocalCheckpointForShard(
-                        indexShard.routingEntry().allocationId().getId(),
-                        indexShard.getLocalCheckpoint()
-                    );
-                    indexShard.updateGlobalCheckpointForShard(
-                        indexShard.routingEntry().allocationId().getId(),
-                        indexShard.getLocalCheckpoint()
-                    );
-                    indexShard.syncRetentionLeases();
-                } else {
-                    indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
+            final long newGlobalCheckpoint = indexShard.getLocalCheckpoint();
+            if (indexShard.routingEntry().primary()) {
+                indexShard.updateLocalCheckpointForShard(indexShard.routingEntry().allocationId().getId(), indexShard.getLocalCheckpoint());
+                indexShard.updateGlobalCheckpointForShard(
+                    indexShard.routingEntry().allocationId().getId(),
+                    indexShard.getLocalCheckpoint()
+                );
+                indexShard.syncRetentionLeases();
+            } else {
+                indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
 
-                    final RetentionLeases retentionLeases = indexShard.getRetentionLeases();
-                    indexShard.updateRetentionLeasesOnReplica(
-                        new RetentionLeases(
-                            retentionLeases.primaryTerm(),
-                            retentionLeases.version() + 1,
-                            retentionLeases.leases()
-                                .stream()
-                                .map(
-                                    lease -> new RetentionLease(
-                                        lease.id(),
-                                        newGlobalCheckpoint + 1,
-                                        lease.timestamp(),
-                                        ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE
-                                    )
+                final RetentionLeases retentionLeases = indexShard.getRetentionLeases();
+                indexShard.updateRetentionLeasesOnReplica(
+                    new RetentionLeases(
+                        retentionLeases.primaryTerm(),
+                        retentionLeases.version() + 1,
+                        retentionLeases.leases()
+                            .stream()
+                            .map(
+                                lease -> new RetentionLease(
+                                    lease.id(),
+                                    newGlobalCheckpoint + 1,
+                                    lease.timestamp(),
+                                    ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE
                                 )
-                                .collect(Collectors.toList())
-                        )
-                    );
-                }
-                indexShard.sync();
+                            )
+                            .collect(Collectors.toList())
+                    )
+                );
             }
+            indexShard.sync();
             // flush the buffered deletes
             final FlushRequest flushRequest = new FlushRequest();
             flushRequest.force(false);
@@ -3876,7 +3866,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         assertFalse(primary.scheduledRefresh());
         assertTrue(primary.isSearchIdle());
-        primary.checkIdle(0);
+        primary.flushOnIdle(0);
         assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
@@ -3919,260 +3909,6 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
         latch1.await();
-        closeShards(primary);
-    }
-
-    public void testSegmentMemoryTrackedInBreaker() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
-        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
-        recoverShardFromStore(primary);
-        indexDoc(primary, "_doc", "0", "{\"foo\" : \"foo\"}");
-        primary.refresh("forced refresh");
-
-        SegmentsStats ss = primary.segmentStats(randomBoolean(), randomBoolean());
-        CircuitBreaker breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        assertThat(ss.getMemoryInBytes(), equalTo(breaker.getUsed()));
-        final long preRefreshBytes = ss.getMemoryInBytes();
-
-        indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
-        indexDoc(primary, "_doc", "2", "{\"foo\" : \"baz\"}");
-        indexDoc(primary, "_doc", "3", "{\"foo\" : \"eggplant\"}");
-
-        ss = primary.segmentStats(randomBoolean(), randomBoolean());
-        breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        assertThat(preRefreshBytes, equalTo(breaker.getUsed()));
-
-        primary.refresh("refresh");
-
-        ss = primary.segmentStats(randomBoolean(), randomBoolean());
-        breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        assertThat(breaker.getUsed(), equalTo(ss.getMemoryInBytes()));
-        assertThat(breaker.getUsed(), greaterThan(preRefreshBytes));
-
-        indexDoc(primary, "_doc", "4", "{\"foo\": \"potato\"}");
-        indexDoc(primary, "_doc", "5", "{\"foo\": \"potato\"}");
-        // Forces a refresh with the INTERNAL scope
-        ((InternalEngine) primary.getEngine()).writeIndexingBuffer();
-
-        ss = primary.segmentStats(randomBoolean(), randomBoolean());
-        breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        assertThat(breaker.getUsed(), equalTo(ss.getMemoryInBytes()));
-        assertThat(breaker.getUsed(), greaterThan(preRefreshBytes));
-        final long postRefreshBytes = ss.getMemoryInBytes();
-
-        // Deleting a doc causes its memory to be freed from the breaker
-        deleteDoc(primary, "_doc", "0");
-        // Here we are testing that a fully deleted segment should be dropped and its memory usage is freed.
-        // In order to instruct the merge policy not to keep a fully deleted segment,
-        // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            primary.updateGlobalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.getLastSyncedGlobalCheckpoint());
-            primary.syncRetentionLeases();
-            primary.sync();
-            flushShard(primary);
-        }
-        primary.refresh("force refresh");
-
-        ss = primary.segmentStats(randomBoolean(), randomBoolean());
-        breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        assertThat(breaker.getUsed(), lessThan(postRefreshBytes));
-
-        closeShards(primary);
-
-        breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    public void testSegmentMemoryTrackedWithRandomSearchers() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
-        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
-        recoverShardFromStore(primary);
-
-        int threadCount = randomIntBetween(2, 4);
-        List<Thread> threads = new ArrayList<>(threadCount);
-        int iterations = randomIntBetween(10, 20);
-        List<Engine.Searcher> searchers = Collections.synchronizedList(new ArrayList<>());
-
-        logger.info("--> running with {} threads and {} iterations each", threadCount, iterations);
-        for (int threadId = 0; threadId < threadCount; threadId++) {
-            final String threadName = "thread-" + threadId;
-            Runnable r = () -> {
-                for (int i = 0; i < iterations; i++) {
-                    try {
-                        if (randomBoolean()) {
-                            String id = "id-" + threadName + "-" + i;
-                            logger.debug("--> {} indexing {}", threadName, id);
-                            indexDoc(primary, "_doc", id, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
-                        }
-
-                        if (randomBoolean() && i > 10) {
-                            String id = "id-" + threadName + "-" + randomIntBetween(0, i - 1);
-                            logger.debug("--> {}, deleting {}", threadName, id);
-                            deleteDoc(primary, "_doc", id);
-                        }
-
-                        if (randomBoolean()) {
-                            logger.debug("--> {} refreshing", threadName);
-                            primary.refresh("forced refresh");
-                        }
-
-                        if (randomBoolean()) {
-                            String searcherName = "searcher-" + threadName + "-" + i;
-                            logger.debug("--> {} acquiring new searcher {}", threadName, searcherName);
-                            // Acquire a new searcher, adding it to the list
-                            searchers.add(primary.acquireSearcher(searcherName));
-                        }
-
-                        if (randomBoolean() && searchers.size() > 1) {
-                            // Close one of the readers at random
-                            synchronized (searchers) {
-                                // re-check because it could have decremented after the check
-                                if (searchers.size() > 1) {
-                                    Engine.Searcher searcher = searchers.remove(0);
-                                    logger.debug("--> {} closing searcher {}", threadName, searcher.source());
-                                    IOUtils.close(searcher);
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        logger.warn("--> got exception: ", e);
-                        fail("got an exception we didn't expect");
-                    }
-                }
-
-            };
-            threads.add(new Thread(r, threadName));
-        }
-        threads.stream().forEach(t -> t.start());
-
-        for (Thread t : threads) {
-            t.join();
-        }
-
-        // We need to wait for all ongoing merges to complete. The reason is that during a merge the
-        // IndexWriter holds the core cache key open and causes the memory to be registered in the breaker
-        primary.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
-
-        // Close remaining searchers
-        IOUtils.close(searchers);
-        primary.refresh("test");
-
-        SegmentsStats ss = primary.segmentStats(randomBoolean(), randomBoolean());
-        CircuitBreaker breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        long segmentMem = ss.getMemoryInBytes();
-        long breakerMem = breaker.getUsed();
-        logger.info("--> comparing segmentMem: {} - breaker: {} => {}", segmentMem, breakerMem, segmentMem == breakerMem);
-        assertThat(segmentMem, equalTo(breakerMem));
-
-        // Close shard
-        closeShards(primary);
-
-        // Check that the breaker was successfully reset to 0, meaning that all the accounting was correctly applied
-        breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    public void testFlushOnInactive() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            new ShardId(metadata.getIndex(), 0),
-            "n1",
-            true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
-        final ShardId shardId = shardRouting.shardId();
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        AtomicBoolean markedInactive = new AtomicBoolean();
-        AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
-        IndexShard primary = newShard(
-            shardRouting,
-            shardPath,
-            metadata,
-            null,
-            null,
-            new InternalEngineFactory(),
-            new EngineConfigFactory(new IndexSettings(metadata, settings)),
-            () -> {},
-            RetentionLeaseSyncer.EMPTY,
-            new IndexEventListener() {
-                @Override
-                public void onShardInactive(IndexShard indexShard) {
-                    markedInactive.set(true);
-                    primaryRef.get().flush(new FlushRequest());
-                }
-            }
-        );
-        primaryRef.set(primary);
-        recoverShardFromStore(primary);
-        for (int i = 0; i < 3; i++) {
-            indexDoc(primary, "_doc", "" + i, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
-            primary.refresh("test"); // produce segments
-        }
-        List<Segment> segments = primary.segments(false);
-        Set<String> names = new HashSet<>();
-        for (Segment segment : segments) {
-            assertFalse(segment.committed);
-            assertTrue(segment.search);
-            names.add(segment.getName());
-        }
-        assertEquals(3, segments.size());
-        primary.flush(new FlushRequest());
-        primary.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
-        primary.refresh("test");
-        segments = primary.segments(false);
-        for (Segment segment : segments) {
-            if (names.contains(segment.getName())) {
-                assertTrue(segment.committed);
-                assertFalse(segment.search);
-            } else {
-                assertFalse(segment.committed);
-                assertTrue(segment.search);
-            }
-        }
-        assertEquals(4, segments.size());
-
-        assertFalse(markedInactive.get());
-        assertBusy(() -> {
-            primary.checkIdle(0);
-            assertFalse(primary.isActive());
-        });
-
-        assertTrue(markedInactive.get());
-        segments = primary.segments(false);
-        assertEquals(1, segments.size());
-        for (Segment segment : segments) {
-            assertTrue(segment.committed);
-            assertTrue(segment.search);
-        }
         closeShards(primary);
     }
 

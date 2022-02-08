@@ -273,7 +273,7 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
             return LONG.decodeRanges(bytes);
         }
 
@@ -375,7 +375,7 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
             return BinaryRangeUtil.decodeFloatRanges(bytes);
         }
 
@@ -486,7 +486,7 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
             return BinaryRangeUtil.decodeDoubleRanges(bytes);
         }
 
@@ -600,7 +600,7 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
             return LONG.decodeRanges(bytes);
         }
 
@@ -692,7 +692,7 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
             return BinaryRangeUtil.decodeLongRanges(bytes);
         }
 
@@ -946,7 +946,7 @@ public enum RangeType {
     // rounded up via parseFrom and parseTo methods.
     public abstract BytesRef encodeRanges(Set<RangeFieldMapper.Range> ranges) throws IOException;
 
-    public abstract List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes);
+    public abstract List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException;
 
     /**
      * Given the Range.to or Range.from Object value from a Range instance, converts that value into a Double.  Before converting, it

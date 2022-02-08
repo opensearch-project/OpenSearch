@@ -40,8 +40,8 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
-import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,12 +55,12 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     @Override
     protected List<Object> loadFieldValues(
         CustomUnifiedHighlighter highlighter,
+        QueryShardContext context,
         MappedFieldType fieldType,
-        Field field,
         HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        List<Object> fieldValues = super.loadFieldValues(highlighter, fieldType, field, hitContext, forceSource);
+        List<Object> fieldValues = super.loadFieldValues(highlighter, context, fieldType, hitContext, forceSource);
 
         List<Object> strings = new ArrayList<>(fieldValues.size());
         AnnotatedText[] annotations = new AnnotatedText[fieldValues.size()];

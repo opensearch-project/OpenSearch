@@ -32,13 +32,17 @@
 
 package org.opensearch.search.fetch.subphase;
 
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -428,20 +432,20 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    private Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
+    private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
         throws IOException {
 
         List<FieldAndFormat> fields = org.opensearch.common.collect.List.of(new FieldAndFormat(fieldPattern, null));
         return fetchFields(mapperService, source, fields);
     }
 
-    private Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
+    private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
         throws IOException {
 
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(mapperService, null, fields);
+        FieldFetcher fieldFetcher = FieldFetcher.create(createQueryShardContext(mapperService), null, fields);
         return fieldFetcher.fetch(sourceLookup, org.opensearch.common.collect.Set.of());
     }
 
@@ -479,5 +483,35 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
 
         IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
         return indexService.mapperService();
+    }
+
+    private static QueryShardContext createQueryShardContext(MapperService mapperService) {
+        Settings settings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        return new QueryShardContext(
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            mapperService,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 }

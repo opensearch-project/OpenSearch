@@ -53,6 +53,7 @@ public class OpenSearchLoggingHandlerIT extends OpenSearchNetty4IntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         appender = MockLogAppender.createForLoggers(
+            "^[^\n]+$", /* Only consider single line log statements */
             LogManager.getLogger(OpenSearchLoggingHandler.class),
             LogManager.getLogger(TransportLogger.class),
             LogManager.getLogger(TcpTransport.class)
