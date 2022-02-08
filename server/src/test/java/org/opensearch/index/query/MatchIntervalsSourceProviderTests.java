@@ -54,10 +54,11 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
         String query = instance.getQuery();
         int maxGaps = instance.getMaxGaps();
         boolean isOrdered = instance.isOrdered();
+        boolean isOverlap = instance.isOverlap();
         String analyzer = instance.getAnalyzer();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         String useField = instance.getUseField();
-        switch (between(0, 5)) {
+        switch (between(0, 6)) {
             case 0:
                 query = randomAlphaOfLength(query.length() + 3);
                 break;
@@ -78,10 +79,13 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
             case 5:
                 useField = useField == null ? randomAlphaOfLength(5) : (useField + "foo");
                 break;
+            case 6:
+                isOverlap = !isOverlap;
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new Match(query, maxGaps, isOrdered, analyzer, filter, useField);
+        return new Match(query, maxGaps, isOrdered, isOverlap, analyzer, filter, useField);
     }
 
     @Override

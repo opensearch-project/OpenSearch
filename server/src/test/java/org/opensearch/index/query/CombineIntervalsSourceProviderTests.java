@@ -54,9 +54,10 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
     protected Combine mutateInstance(Combine instance) throws IOException {
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
         boolean ordered = instance.isOrdered();
+        boolean overlap = instance.isOverlap();
         int maxGaps = instance.getMaxGaps();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0:
                 subSources = subSources == null
                     ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1)
@@ -73,10 +74,13 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
                     ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
                     : FilterIntervalsSourceProviderTests.mutateFilter(filter);
                 break;
+            case 4:
+                overlap = !overlap;
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new Combine(subSources, ordered, maxGaps, filter);
+        return new Combine(subSources, ordered, overlap, maxGaps, filter);
     }
 
     @Override

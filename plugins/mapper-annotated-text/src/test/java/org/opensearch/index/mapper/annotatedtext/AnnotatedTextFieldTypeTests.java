@@ -51,7 +51,7 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
     public void testIntervals() throws IOException {
         MappedFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
         NamedAnalyzer a = new NamedAnalyzer("name", AnalyzerScope.INDEX, new StandardAnalyzer());
-        IntervalsSource source = ft.intervals("Donald Trump", 0, true, a, false);
+        IntervalsSource source = ft.intervals("Donald Trump", 0, true, false, a, false);
         assertEquals(Intervals.phrase(Intervals.term("donald"), Intervals.term("trump")), source);
     }
 

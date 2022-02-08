@@ -131,14 +131,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private final String query;
         private final int maxGaps;
         private final boolean ordered;
+        private final boolean overlap;
         private final String analyzer;
         private final IntervalFilter filter;
         private final String useField;
 
-        public Match(String query, int maxGaps, boolean ordered, String analyzer, IntervalFilter filter, String useField) {
+        public Match(String query, int maxGaps, boolean ordered, boolean overlap, String analyzer, IntervalFilter filter, String useField) {
             this.query = query;
             this.maxGaps = maxGaps;
             this.ordered = ordered;
+            this.overlap = overlap;
             this.analyzer = analyzer;
             this.filter = filter;
             this.useField = useField;
@@ -148,6 +150,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.query = in.readString();
             this.maxGaps = in.readVInt();
             this.ordered = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+                this.overlap = in.readBoolean();
+            } else {
+                this.overlap = true;
+            }
             this.analyzer = in.readOptionalString();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
             if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
@@ -167,9 +174,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
                 assert fieldType != null;
-                source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, analyzer, false));
+                source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, overlap, analyzer, false));
             } else {
-                source = fieldType.intervals(query, maxGaps, ordered, analyzer, false);
+                source = fieldType.intervals(query, maxGaps, ordered, overlap, analyzer, false);
             }
             if (filter != null) {
                 return filter.filter(source, context, fieldType);
@@ -191,6 +198,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             Match match = (Match) o;
             return maxGaps == match.maxGaps
                 && ordered == match.ordered
+                && overlap == match.overlap
                 && Objects.equals(query, match.query)
                 && Objects.equals(filter, match.filter)
                 && Objects.equals(useField, match.useField)
@@ -199,7 +207,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public int hashCode() {
-            return Objects.hash(query, maxGaps, ordered, analyzer, filter, useField);
+            return Objects.hash(query, maxGaps, ordered, overlap, analyzer, filter, useField);
         }
 
         @Override
@@ -212,6 +220,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeString(query);
             out.writeVInt(maxGaps);
             out.writeBoolean(ordered);
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+                out.writeBoolean(overlap);
+            }
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(filter);
             if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
@@ -226,6 +237,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             builder.field("query", query);
             builder.field("max_gaps", maxGaps);
             builder.field("ordered", ordered);
+            builder.field("overlap", overlap);
             if (analyzer != null) {
                 builder.field("analyzer", analyzer);
             }
@@ -242,15 +254,17 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             String query = (String) args[0];
             int max_gaps = (args[1] == null ? -1 : (Integer) args[1]);
             boolean ordered = (args[2] != null && (boolean) args[2]);
-            String analyzer = (String) args[3];
-            IntervalFilter filter = (IntervalFilter) args[4];
-            String useField = (String) args[5];
-            return new Match(query, max_gaps, ordered, analyzer, filter, useField);
+            boolean overlap = args[3] == null || (boolean) args[3];
+            String analyzer = (String) args[4];
+            IntervalFilter filter = (IntervalFilter) args[5];
+            String useField = (String) args[6];
+            return new Match(query, max_gaps, ordered, overlap, analyzer, filter, useField);
         });
         static {
             PARSER.declareString(constructorArg(), new ParseField("query"));
             PARSER.declareInt(optionalConstructorArg(), new ParseField("max_gaps"));
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("ordered"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("overlap"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> IntervalFilter.fromXContent(p), new ParseField("filter"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
@@ -270,6 +284,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         boolean isOrdered() {
             return ordered;
+        }
+
+        boolean isOverlap() {
+            return overlap;
         }
 
         String getAnalyzer() {
@@ -396,18 +414,25 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         private final List<IntervalsSourceProvider> subSources;
         private final boolean ordered;
+        private final boolean overlap;
         private final int maxGaps;
         private final IntervalFilter filter;
 
-        public Combine(List<IntervalsSourceProvider> subSources, boolean ordered, int maxGaps, IntervalFilter filter) {
+        public Combine(List<IntervalsSourceProvider> subSources, boolean ordered, boolean overlap, int maxGaps, IntervalFilter filter) {
             this.subSources = subSources;
             this.ordered = ordered;
+            this.overlap = overlap;
             this.maxGaps = maxGaps;
             this.filter = filter;
         }
 
         public Combine(StreamInput in) throws IOException {
             this.ordered = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+                this.overlap = in.readBoolean();
+            } else {
+                this.overlap = true;
+            }
             this.subSources = in.readNamedWriteableList(IntervalsSourceProvider.class);
             this.maxGaps = in.readInt();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
@@ -419,7 +444,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             for (IntervalsSourceProvider provider : subSources) {
                 ss.add(provider.getSource(ctx, fieldType));
             }
-            IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, ordered);
+            IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, ordered, overlap);
             if (filter != null) {
                 return filter.filter(source, ctx, fieldType);
             }
@@ -440,13 +465,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             Combine combine = (Combine) o;
             return Objects.equals(subSources, combine.subSources)
                 && ordered == combine.ordered
+                && overlap == combine.overlap
                 && maxGaps == combine.maxGaps
                 && Objects.equals(filter, combine.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subSources, ordered, maxGaps, filter);
+            return Objects.hash(subSources, ordered, overlap, maxGaps, filter);
         }
 
         @Override
@@ -457,6 +483,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(ordered);
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+                out.writeBoolean(overlap);
+            }
             out.writeNamedWriteableList(subSources);
             out.writeInt(maxGaps);
             out.writeOptionalWriteable(filter);
@@ -466,6 +495,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
             builder.field("ordered", ordered);
+            builder.field("overlap", overlap);
             builder.field("max_gaps", maxGaps);
             builder.startArray("intervals");
             for (IntervalsSourceProvider provider : subSources) {
@@ -483,13 +513,15 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Combine, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
             boolean ordered = (args[0] != null && (boolean) args[0]);
-            List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>) args[1];
-            Integer maxGaps = (args[2] == null ? -1 : (Integer) args[2]);
-            IntervalFilter filter = (IntervalFilter) args[3];
-            return new Combine(subSources, ordered, maxGaps, filter);
+            boolean overlap = args[1] == null || (boolean) args[1];
+            List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>) args[2];
+            Integer maxGaps = (args[3] == null ? -1 : (Integer) args[3]);
+            IntervalFilter filter = (IntervalFilter) args[4];
+            return new Combine(subSources, ordered, overlap, maxGaps, filter);
         });
         static {
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("ordered"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("overlap"));
             PARSER.declareObjectArray(
                 constructorArg(),
                 (p, c) -> IntervalsSourceProvider.parseInnerIntervals(p),
@@ -509,6 +541,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         boolean isOrdered() {
             return ordered;
+        }
+
+        boolean isOverlap() {
+            return overlap;
         }
 
         int getMaxGaps() {
@@ -550,9 +586,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
                 assert fieldType != null;
-                source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, false, analyzer, true));
+                source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, false, true, analyzer, true));
             } else {
-                source = fieldType.intervals(prefix, 0, false, analyzer, true);
+                source = fieldType.intervals(prefix, 0, false, true, analyzer, true);
             }
             return source;
         }

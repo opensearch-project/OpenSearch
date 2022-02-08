@@ -69,12 +69,20 @@ public class IntervalBuilder {
     }
 
     public IntervalsSource analyzeText(String query, int maxGaps, boolean ordered) throws IOException {
+        return analyzeText(query, maxGaps, ordered, true);
+    }
+
+    public IntervalsSource analyzeText(String query, int maxGaps, boolean ordered, boolean overlap) throws IOException {
         try (TokenStream ts = analyzer.tokenStream(field, query); CachingTokenFilter stream = new CachingTokenFilter(ts)) {
-            return analyzeText(stream, maxGaps, ordered);
+            return analyzeText(stream, maxGaps, ordered, overlap);
         }
     }
 
     protected IntervalsSource analyzeText(CachingTokenFilter stream, int maxGaps, boolean ordered) throws IOException {
+        return analyzeText(stream, maxGaps, ordered, true);
+    }
+
+    protected IntervalsSource analyzeText(CachingTokenFilter stream, int maxGaps, boolean ordered, boolean overlap) throws IOException {
 
         TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
         PositionIncrementAttribute posIncAtt = stream.addAttribute(PositionIncrementAttribute.class);
@@ -114,15 +122,15 @@ public class IntervalBuilder {
             return analyzeTerm(stream);
         } else if (isGraph) {
             // graph
-            return combineSources(analyzeGraph(stream), maxGaps, ordered);
+            return combineSources(analyzeGraph(stream), maxGaps, ordered, overlap);
         } else {
             // phrase
             if (hasSynonyms) {
                 // phrase with single-term synonyms
-                return analyzeSynonyms(stream, maxGaps, ordered);
+                return analyzeSynonyms(stream, maxGaps, ordered, overlap);
             } else {
                 // simple phrase
-                return combineSources(analyzeTerms(stream), maxGaps, ordered);
+                return combineSources(analyzeTerms(stream), maxGaps, ordered, overlap);
             }
         }
 
@@ -135,7 +143,7 @@ public class IntervalBuilder {
         return Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
     }
 
-    protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered) {
+    protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered, boolean overlap) {
         if (sources.size() == 0) {
             return NO_INTERVALS;
         }
@@ -146,7 +154,22 @@ public class IntervalBuilder {
         if (maxGaps == 0 && ordered) {
             return Intervals.phrase(sourcesArray);
         }
-        IntervalsSource inner = ordered ? Intervals.ordered(sourcesArray) : Intervals.unordered(sourcesArray);
+        IntervalsSource inner;
+        if (ordered) {
+            inner = Intervals.ordered(sourcesArray);
+        } else {
+            if (overlap) {
+                inner = Intervals.unordered(sourcesArray);
+            } else {
+                inner = Intervals.unorderedNoOverlaps(sourcesArray[0], sourcesArray[1]);
+                for (int sourceIdx = 2; sourceIdx < sourcesArray.length; sourceIdx++) {
+                    inner = Intervals.unorderedNoOverlaps(
+                        maxGaps == -1 ? inner : Intervals.maxgaps(maxGaps, inner),
+                        sourcesArray[sourceIdx]
+                    );
+                }
+            }
+        }
         if (maxGaps == -1) {
             return inner;
         }
@@ -174,7 +197,7 @@ public class IntervalBuilder {
         return Intervals.extend(source, precedingSpaces, 0);
     }
 
-    protected IntervalsSource analyzeSynonyms(TokenStream ts, int maxGaps, boolean ordered) throws IOException {
+    protected IntervalsSource analyzeSynonyms(TokenStream ts, int maxGaps, boolean ordered, boolean overlap) throws IOException {
         List<IntervalsSource> terms = new ArrayList<>();
         List<IntervalsSource> synonyms = new ArrayList<>();
         TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
@@ -199,7 +222,7 @@ public class IntervalBuilder {
         } else {
             terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
         }
-        return combineSources(terms, maxGaps, ordered);
+        return combineSources(terms, maxGaps, ordered, overlap);
     }
 
     protected List<IntervalsSource> analyzeGraph(TokenStream source) throws IOException {
@@ -222,7 +245,7 @@ public class IntervalBuilder {
                 Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                 while (it.hasNext()) {
                     TokenStream ts = it.next();
-                    IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, true);
+                    IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, true, false);
                     if (paths.size() >= maxClauseCount) {
                         throw new BooleanQuery.TooManyClauses();
                     }

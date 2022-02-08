@@ -138,9 +138,10 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         int count = randomInt(5) + 1;
         List<IntervalsSourceProvider> subSources = createRandomSourceList(depth, useScripts, count);
         boolean ordered = randomBoolean();
+        boolean overlap = randomBoolean();
         int maxGaps = randomInt(5) - 1;
         IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1, useScripts);
-        return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
+        return new IntervalsSourceProvider.Combine(subSources, ordered, overlap, maxGaps, filter);
     }
 
     static List<IntervalsSourceProvider> createRandomSourceList(int depth, boolean useScripts, int count) {
@@ -174,9 +175,18 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         }
         String text = String.join(" ", words);
         boolean mOrdered = randomBoolean();
+        boolean mOverlap = randomBoolean();
         int maxMGaps = randomInt(5) - 1;
         String analyzer = randomFrom("simple", "keyword", "whitespace");
-        return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(depth + 1, useScripts), useField);
+        return new IntervalsSourceProvider.Match(
+            text,
+            maxMGaps,
+            mOrdered,
+            mOverlap,
+            analyzer,
+            createRandomFilter(depth + 1, useScripts),
+            useField
+        );
     }
 
     @Override
@@ -190,7 +200,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         IntervalsSourceProvider.IntervalFilter scriptFilter = new IntervalsSourceProvider.IntervalFilter(
             new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap())
         );
-        IntervalsSourceProvider source = new IntervalsSourceProvider.Match("text", 0, true, "simple", scriptFilter, null);
+        IntervalsSourceProvider source = new IntervalsSourceProvider.Match("text", 0, true, true, "simple", scriptFilter, null);
         queryBuilder = new IntervalQueryBuilder(TEXT_FIELD_NAME, source);
         rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
@@ -250,6 +260,95 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new BoostQuery(
             new IntervalQuery(TEXT_FIELD_NAME, Intervals.ordered(Intervals.term("hello"), Intervals.term("world"))),
             2
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : "
+            + "{ \""
+            + TEXT_FIELD_NAME
+            + "\" : { "
+            + "       \"match\" : { "
+            + "           \"query\" : \"Hello world\","
+            + "           \"ordered\" : false,"
+            + "           \"overlap\" : false },"
+            + "       \"boost\" : 2 } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(TEXT_FIELD_NAME, Intervals.unorderedNoOverlaps(Intervals.term("hello"), Intervals.term("world"))),
+            2
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : "
+            + "{ \""
+            + TEXT_FIELD_NAME
+            + "\" : { "
+            + "       \"match\" : { "
+            + "           \"query\" : \"Hello world\","
+            + "           \"ordered\" : false,"
+            + "           \"overlap\" : false,"
+            + "           \"max_gaps\" : 11 },"
+            + "       \"boost\" : 2 } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.maxgaps(11, Intervals.unorderedNoOverlaps(Intervals.term("hello"), Intervals.term("world")))
+            ),
+            2
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : "
+            + "{ \""
+            + TEXT_FIELD_NAME
+            + "\" : { "
+            + "       \"match\" : { "
+            + "           \"query\" : \"Hello Open Search\","
+            + "           \"ordered\" : false,"
+            + "           \"overlap\" : false },"
+            + "       \"boost\" : 3 } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.unorderedNoOverlaps(
+                    Intervals.unorderedNoOverlaps(Intervals.term("hello"), Intervals.term("open")),
+                    Intervals.term("search")
+                )
+            ),
+            3
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : "
+            + "{ \""
+            + TEXT_FIELD_NAME
+            + "\" : { "
+            + "       \"match\" : { "
+            + "           \"query\" : \"Hello Open Search\","
+            + "           \"ordered\" : false,"
+            + "           \"overlap\" : false,"
+            + ""
+            + "           \"max_gaps\": 12 },"
+            + "       \"boost\" : 3 } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.maxgaps(
+                    12,
+                    Intervals.unorderedNoOverlaps(
+                        Intervals.maxgaps(12, Intervals.unorderedNoOverlaps(Intervals.term("hello"), Intervals.term("open"))),
+                        Intervals.term("search")
+                    )
+                )
+            ),
+            3
         );
         assertEquals(expected, builder.toQuery(createShardContext()));
 
@@ -381,6 +480,54 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createShardContext()));
 
+        json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": {"
+            + "       \"all_of\" : {"
+            + "           \"ordered\" : false,"
+            + "           \"overlap\" : false,"
+            + "           \"intervals\" : ["
+            + "               { \"match\" : { \"query\" : \"one\" } },"
+            + "               { \"match\" : { \"query\" : \"two\" } } ],"
+            + "           \"max_gaps\" : 30 },"
+            + "       \"boost\" : 1.5 } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.maxgaps(30, Intervals.unorderedNoOverlaps(Intervals.term("one"), Intervals.term("two")))
+            ),
+            1.5f
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": {"
+            + "       \"all_of\" : {"
+            + "           \"ordered\" : false,"
+            + "           \"overlap\" : false,"
+            + "           \"intervals\" : ["
+            + "               { \"match\" : { \"query\" : \"one\" } },"
+            + "               { \"match\" : { \"query\" : \"two\" } },"
+            + "               { \"match\" : { \"query\" : \"three\" } } ],"
+            + "           \"max_gaps\" : 3 },"
+            + "       \"boost\" : 3.5 } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.maxgaps(
+                    3,
+                    Intervals.unorderedNoOverlaps(
+                        Intervals.maxgaps(3, Intervals.unorderedNoOverlaps(Intervals.term("one"), Intervals.term("two"))),
+                        Intervals.term("three")
+                    )
+                )
+            ),
+            3.5f
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
     }
 
     public void testCombineDisjunctionInterval() throws IOException {
@@ -416,7 +563,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testNonIndexedFields() throws IOException {
-        IntervalsSourceProvider provider = new IntervalsSourceProvider.Match("test", 0, true, null, null, null);
+        IntervalsSourceProvider provider = new IntervalsSourceProvider.Match("test", 0, true, true, null, null, null);
         IntervalQueryBuilder b = new IntervalQueryBuilder("no_such_field", provider);
         assertThat(b.toQuery(createShardContext()), equalTo(new MatchNoDocsQuery()));
 

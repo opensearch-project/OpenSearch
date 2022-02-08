@@ -17,13 +17,17 @@ setup:
           refresh: true
           body:
             - '{"index": {"_index": "test", "_id": "1"}}'
-            - '{"text" : "Some like it hot, some like it cold"}'
+            - '{"text" : "Some like hot and dry, some like it cold and wet"}'
             - '{"index": {"_index": "test", "_id": "2"}}'
             - '{"text" : "Its cold outside, theres no kind of atmosphere"}'
             - '{"index": {"_index": "test", "_id": "3"}}'
             - '{"text" : "Baby its cold there outside"}'
             - '{"index": {"_index": "test", "_id": "4"}}'
             - '{"text" : "Outside it is cold and wet"}'
+            - '{"index": {"_index": "test", "_id": "5"}}'
+            - '{"text" : "cold rain makes it wet"}'
+            - '{"index": {"_index": "test", "_id": "6"}}'
+            - '{"text" : "that is some cold cold rain"}'
 
 ---
 "Test ordered matching":
@@ -65,6 +69,35 @@ setup:
                   query: "cold outside"
                   ordered: false
   - match: { hits.total.value: 3 }
+
+---
+"Test unordered with overlap in match":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold wet it"
+                  ordered: false
+  - match: { hits.total.value: 3 }
+
+---
+"Test unordered with no overlap in match":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold wet it"
+                  ordered: false
+                  overlap: false
+  - match: { hits.total.value: 2 }
 
 ---
 "Test phrase matching":
@@ -189,6 +222,92 @@ setup:
   - match: { hits.total.value: 2 }
 
 ---
+"Test unordered combination with overlap":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "wet"
+                    - match:
+                        query: "it"
+                  ordered: false
+  - match: { hits.total.value: 3 }
+
+---
+"Test unordered combination no overlap":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "wet"
+                    - match:
+                        query: "it"
+                  ordered: false
+                  overlap: false
+  - match: { hits.total.value: 2 }
+
+---
+"Test nested unordered combination with overlap":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "hot"
+                    - match:
+                        query: "cold"
+                  ordered: false
+  - match: { hits.total.value: 6 }
+
+---
+"Test nested unordered combination no overlap":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "hot"
+                    - match:
+                        query: "cold"
+                  ordered: false
+                  overlap: false
+  - match: { hits.total.value: 2 }
+
+---
 "Test block combination":
   - do:
       search:
@@ -294,7 +413,7 @@ setup:
                               query: "cold"
                           - match:
                               query: "outside"
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 2 }
 
 ---
 "Test not_overlapping":

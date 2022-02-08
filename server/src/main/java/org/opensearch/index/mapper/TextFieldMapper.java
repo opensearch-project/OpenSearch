@@ -789,7 +789,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IntervalsSource intervals(String text, int maxGaps, boolean ordered, NamedAnalyzer analyzer, boolean prefix)
+        public IntervalsSource intervals(String text, int maxGaps, boolean ordered, boolean overlap, NamedAnalyzer analyzer, boolean prefix)
             throws IOException {
             if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
@@ -805,7 +805,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 return Intervals.prefix(normalizedTerm);
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? getTextSearchInfo().getSearchAnalyzer() : analyzer);
-            return builder.analyzeText(text, maxGaps, ordered);
+            return builder.analyzeText(text, maxGaps, ordered, overlap);
         }
 
         @Override
