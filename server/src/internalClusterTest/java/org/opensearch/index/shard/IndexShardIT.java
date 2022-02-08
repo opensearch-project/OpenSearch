@@ -36,8 +36,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.node.stats.NodeStats;
-import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -57,7 +55,6 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
@@ -76,7 +73,6 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.NoOpEngine;
-import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -86,10 +82,8 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
-import org.opensearch.indices.breaker.CircuitBreakerStats;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -122,7 +116,6 @@ import java.util.stream.Stream;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -135,13 +128,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexShardIT extends OpenSearchSingleNodeTestCase {
 
@@ -641,86 +632,6 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         } finally {
             newShard.close("just do it", randomBoolean());
         }
-    }
-
-    /** Check that the accounting breaker correctly matches the segments API for memory usage */
-    private void checkAccountingBreaker() {
-        CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class);
-        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        long usedMem = acctBreaker.getUsed();
-        assertThat(usedMem, greaterThan(0L));
-        NodesStatsResponse response = client().admin().cluster().prepareNodesStats().setIndices(true).addMetric(BREAKER.metricName()).get();
-        NodeStats stats = response.getNodes().get(0);
-        assertNotNull(stats);
-        SegmentsStats segmentsStats = stats.getIndices().getSegments();
-        CircuitBreakerStats breakerStats = stats.getBreaker().getStats(CircuitBreaker.ACCOUNTING);
-        assertEquals(usedMem, segmentsStats.getMemoryInBytes());
-        assertEquals(usedMem, breakerStats.getEstimated());
-    }
-
-    public void testCircuitBreakerIncrementedByIndexShard() throws Exception {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("network.breaker.inflight_requests.overhead", 0.0))
-            .get();
-
-        // Generate a couple of segments
-        client().prepareIndex("test", "_doc", "1")
-            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        // Use routing so 2 documents are guaranteed to be on the same shard
-        String routing = randomAlphaOfLength(5);
-        client().prepareIndex("test", "_doc", "2")
-            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .setRouting(routing)
-            .get();
-        client().prepareIndex("test", "_doc", "3")
-            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .setRouting(routing)
-            .get();
-
-        checkAccountingBreaker();
-        // Test that force merging causes the breaker to be correctly adjusted
-        logger.info("--> force merging to a single segment");
-        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).setFlush(randomBoolean()).get();
-        client().admin().indices().prepareRefresh().get();
-        checkAccountingBreaker();
-
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("indices.breaker.total.limit", "1kb"))
-            .get();
-
-        // Test that we're now above the parent limit due to the segments
-        Exception e = expectThrows(
-            Exception.class,
-            () -> client().prepareSearch("test").addAggregation(AggregationBuilders.terms("foo_terms").field("foo.keyword")).get()
-        );
-        logger.info("--> got an expected exception", e);
-        assertThat(e.getCause(), notNullValue());
-        assertThat(e.getCause().getMessage(), containsString("[parent] Data too large, data for [<agg [foo_terms]>]"));
-
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().putNull("indices.breaker.total.limit").putNull("network.breaker.inflight_requests.overhead")
-            )
-            .get();
-
-        // Test that deleting the index causes the breaker to correctly be decremented
-        logger.info("--> deleting index");
-        client().admin().indices().prepareDelete("test").get();
-
-        // Accounting breaker should now be 0
-        CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class);
-        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        assertThat(acctBreaker.getUsed(), equalTo(0L));
     }
 
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {

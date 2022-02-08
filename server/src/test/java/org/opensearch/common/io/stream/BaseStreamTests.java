@@ -70,7 +70,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StreamTests extends OpenSearchTestCase {
+public abstract class BaseStreamTests extends OpenSearchTestCase {
+
+    protected abstract StreamInput getStreamInput(BytesReference bytesReference) throws IOException;
 
     public void testBooleanSerialization() throws IOException {
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -85,7 +87,7 @@ public class StreamTests extends OpenSearchTestCase {
         assertThat(bytes[0], equalTo((byte) 0));
         assertThat(bytes[1], equalTo((byte) 1));
 
-        final StreamInput input = bytesReference.streamInput();
+        final StreamInput input = getStreamInput(bytesReference);
         assertFalse(input.readBoolean());
         assertTrue(input.readBoolean());
 
@@ -114,7 +116,7 @@ public class StreamTests extends OpenSearchTestCase {
         assertThat(bytes[1], equalTo((byte) 1));
         assertThat(bytes[2], equalTo((byte) 2));
 
-        final StreamInput input = bytesReference.streamInput();
+        final StreamInput input = getStreamInput(bytesReference);
         final Boolean maybeFalse = input.readOptionalBoolean();
         assertNotNull(maybeFalse);
         assertFalse(maybeFalse);
@@ -139,7 +141,7 @@ public class StreamTests extends OpenSearchTestCase {
             long write = randomLong();
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeZLong(write);
-            long read = out.bytes().streamInput().readZLong();
+            long read = getStreamInput(out.bytes()).readZLong();
             assertEquals(write, read);
         }
     }
@@ -184,7 +186,7 @@ public class StreamTests extends OpenSearchTestCase {
         }
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeGenericValue(write);
-        LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>) out.bytes().streamInput().readGenericValue();
+        LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>) getStreamInput(out.bytes()).readGenericValue();
         assertEquals(size, read.size());
         int index = 0;
         for (Map.Entry<String, Integer> entry : read.entrySet()) {
@@ -251,10 +253,10 @@ public class StreamTests extends OpenSearchTestCase {
                 sourceArray = null;
             }
             out.writeOptionalArray(sourceArray);
-            targetArray = out.bytes().streamInput().readOptionalArray(WriteableString::new, WriteableString[]::new);
+            targetArray = getStreamInput(out.bytes()).readOptionalArray(WriteableString::new, WriteableString[]::new);
         } else {
             out.writeArray(sourceArray);
-            targetArray = out.bytes().streamInput().readArray(WriteableString::new, WriteableString[]::new);
+            targetArray = getStreamInput(out.bytes()).readArray(WriteableString::new, WriteableString[]::new);
         }
 
         assertThat(targetArray, equalTo(sourceArray));
@@ -273,11 +275,11 @@ public class StreamTests extends OpenSearchTestCase {
                 strings = generateRandomStringArray(10, 10, false, true);
             }
             out.writeOptionalArray(writer, strings);
-            deserialized = out.bytes().streamInput().readOptionalArray(reader, String[]::new);
+            deserialized = getStreamInput(out.bytes()).readOptionalArray(reader, String[]::new);
         } else {
             strings = generateRandomStringArray(10, 10, false, true);
             out.writeArray(writer, strings);
-            deserialized = out.bytes().streamInput().readArray(reader, String[]::new);
+            deserialized = getStreamInput(out.bytes()).readArray(reader, String[]::new);
         }
         assertThat(deserialized, equalTo(strings));
     }
@@ -342,7 +344,7 @@ public class StreamTests extends OpenSearchTestCase {
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             writer.accept(out, collection);
-            try (StreamInput in = out.bytes().streamInput()) {
+            try (StreamInput in = getStreamInput(out.bytes())) {
                 assertThat(collection, equalTo(reader.apply(in)));
             }
         }
@@ -359,7 +361,7 @@ public class StreamTests extends OpenSearchTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         out.writeCollection(sourceSet, StreamOutput::writeLong);
 
-        final Set<Long> targetSet = out.bytes().streamInput().readSet(StreamInput::readLong);
+        final Set<Long> targetSet = getStreamInput(out.bytes()).readSet(StreamInput::readLong);
         assertThat(targetSet, equalTo(sourceSet));
     }
 
@@ -367,7 +369,7 @@ public class StreamTests extends OpenSearchTestCase {
         final Instant instant = Instant.now();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeInstant(instant);
-            try (StreamInput in = out.bytes().streamInput()) {
+            try (StreamInput in = getStreamInput(out.bytes())) {
                 final Instant serialized = in.readInstant();
                 assertEquals(instant, serialized);
             }
@@ -378,7 +380,7 @@ public class StreamTests extends OpenSearchTestCase {
         final Instant instant = Instant.now();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeOptionalInstant(instant);
-            try (StreamInput in = out.bytes().streamInput()) {
+            try (StreamInput in = getStreamInput(out.bytes())) {
                 final Instant serialized = in.readOptionalInstant();
                 assertEquals(instant, serialized);
             }
@@ -387,7 +389,7 @@ public class StreamTests extends OpenSearchTestCase {
         final Instant missing = null;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeOptionalInstant(missing);
-            try (StreamInput in = out.bytes().streamInput()) {
+            try (StreamInput in = getStreamInput(out.bytes())) {
                 final Instant serialized = in.readOptionalInstant();
                 assertEquals(missing, serialized);
             }
@@ -437,7 +439,8 @@ public class StreamTests extends OpenSearchTestCase {
             output.writeSecureString(secureString);
 
             final BytesReference bytesReference = output.bytes();
-            final StreamInput input = bytesReference.streamInput();
+            final StreamInput input = getStreamInput(bytesReference);
+            ;
 
             assertThat(secureString, is(equalTo(input.readSecureString())));
         }
@@ -447,7 +450,8 @@ public class StreamTests extends OpenSearchTestCase {
             output.writeOptionalSecureString(secureString);
 
             final BytesReference bytesReference = output.bytes();
-            final StreamInput input = bytesReference.streamInput();
+            final StreamInput input = getStreamInput(bytesReference);
+            ;
 
             if (secureString != null) {
                 assertThat(input.readOptionalSecureString(), is(equalTo(secureString)));
@@ -507,7 +511,8 @@ public class StreamTests extends OpenSearchTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             outputAssertions.accept(output);
             final BytesReference bytesReference = output.bytes();
-            final StreamInput input = bytesReference.streamInput();
+            final StreamInput input = getStreamInput(bytesReference);
+            ;
             inputAssertions.accept(input);
         }
     }

@@ -293,7 +293,6 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously creates a snapshot.
-     * <p>
      *
      * @return cancellable that may be used to cancel the request
      */
@@ -327,7 +326,6 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously clones a snapshot.
-     * <p>
      *
      * @return cancellable that may be used to cancel the request
      */
