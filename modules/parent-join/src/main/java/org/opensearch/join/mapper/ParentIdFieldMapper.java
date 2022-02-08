@@ -48,11 +48,11 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.StringFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.mapper.ValueFetcher;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -132,7 +132,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 

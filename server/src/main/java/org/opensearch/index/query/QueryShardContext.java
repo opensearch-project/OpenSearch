@@ -295,12 +295,33 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.simpleMatchToFullName(pattern);
     }
 
+    /**
+     * Returns the {@link MappedFieldType} for the provided field name.
+     * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
+     * In case unmapped fields are allowed, null is returned when the field is not mapped.
+     * In case unmapped fields are not allowed, either an exception is thrown or the field is automatically mapped as a text field.
+     * @throws QueryShardException if unmapped fields are not allowed and automatically mapping unmapped fields as text is disabled.
+     * @see QueryShardContext#setAllowUnmappedFields(boolean)
+     * @see QueryShardContext#setMapUnmappedFieldAsString(boolean)
+     */
+    public MappedFieldType getFieldType(String name) {
+        return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
+    }
+
     public MappedFieldType fieldMapper(String name) {
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }
 
     public ObjectMapper getObjectMapper(String name) {
         return mapperService.getObjectMapper(name);
+    }
+
+    public boolean isMetadataField(String field) {
+        return mapperService.isMetadataField(field);
+    }
+
+    public Set<String> sourcePath(String fullName) {
+        return mapperService.sourcePath(fullName);
     }
 
     /**

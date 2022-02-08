@@ -39,6 +39,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -84,7 +85,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 

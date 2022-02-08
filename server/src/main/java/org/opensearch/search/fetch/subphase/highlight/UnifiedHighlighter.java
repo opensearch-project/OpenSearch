@@ -51,6 +51,7 @@ import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
 
@@ -88,7 +89,13 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
 
         CheckedSupplier<String, IOException> loadFieldValues = () -> {
-            List<Object> fieldValues = loadFieldValues(highlighter, fieldType, field, hitContext, fieldContext.forceSource);
+            List<Object> fieldValues = loadFieldValues(
+                highlighter,
+                fieldContext.context.getQueryShardContext(),
+                fieldType,
+                hitContext,
+                fieldContext.forceSource
+            );
             if (fieldValues.size() == 0) {
                 return null;
             }
@@ -186,12 +193,12 @@ public class UnifiedHighlighter implements Highlighter {
 
     protected List<Object> loadFieldValues(
         CustomUnifiedHighlighter highlighter,
+        QueryShardContext context,
         MappedFieldType fieldType,
-        SearchHighlightContext.Field field,
         FetchSubPhase.HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, hitContext, forceSource);
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, context, hitContext, forceSource);
         fieldValues = fieldValues.stream().map((s) -> convertFieldValue(fieldType, s)).collect(Collectors.toList());
         return fieldValues;
     }
