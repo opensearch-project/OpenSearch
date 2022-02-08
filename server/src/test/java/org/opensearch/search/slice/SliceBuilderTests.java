@@ -66,7 +66,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.mapper.ValueFetcher;
 import org.opensearch.index.query.QueryShardContext;
@@ -164,7 +163,7 @@ public class SliceBuilderTests extends OpenSearchTestCase {
         ) {
 
             @Override
-            public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
                 throw new UnsupportedOperationException();
             }
 
