@@ -869,6 +869,14 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             public void runPostReplicationActions(ActionListener<Void> listener) {
                 listener.onResponse(null);
             }
+
+            /**
+             * Default implementation
+             */
+            @Override
+            public boolean shouldForward() {
+                return true;
+            }
         }
 
     }

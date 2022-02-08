@@ -558,12 +558,18 @@ public abstract class TransportReplicationAction<
         protected final ReplicaRequest replicaRequest;
         public final Response finalResponseIfSuccessful;
         public final Exception finalFailure;
+        public final boolean shouldForward;
 
         /**
          * Result of executing a primary operation
          * expects <code>finalResponseIfSuccessful</code> or <code>finalFailure</code> to be not-null
          */
-        public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponseIfSuccessful, Exception finalFailure) {
+        public PrimaryResult(
+            ReplicaRequest replicaRequest,
+            Response finalResponseIfSuccessful,
+            Exception finalFailure,
+            boolean shouldForward
+        ) {
             assert finalFailure != null ^ finalResponseIfSuccessful != null : "either a response or a failure has to be not null, "
                 + "found ["
                 + finalFailure
@@ -573,6 +579,11 @@ public abstract class TransportReplicationAction<
             this.replicaRequest = replicaRequest;
             this.finalResponseIfSuccessful = finalResponseIfSuccessful;
             this.finalFailure = finalFailure;
+            this.shouldForward = shouldForward;
+        }
+
+        public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponseIfSuccessful, Exception finalFailure) {
+            this(replicaRequest, finalResponseIfSuccessful, finalFailure, true);
         }
 
         public PrimaryResult(ReplicaRequest replicaRequest, Response replicationResponse) {
@@ -598,6 +609,11 @@ public abstract class TransportReplicationAction<
             } else {
                 listener.onResponse(null);
             }
+        }
+
+        @Override
+        public boolean shouldForward() {
+            return shouldForward;
         }
     }
 

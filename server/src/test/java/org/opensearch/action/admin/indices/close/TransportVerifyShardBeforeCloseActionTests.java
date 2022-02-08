@@ -415,6 +415,14 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
             listener.onResponse(null);
         }
 
+        /**
+         * Default implementation.
+         */
+        @Override
+        public boolean shouldForward() {
+            return true;
+        }
+
         public ReplicationResponse.ShardInfo getShardInfo() {
             return shardInfo.get();
         }

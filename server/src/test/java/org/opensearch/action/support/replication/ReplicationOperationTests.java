@@ -669,6 +669,14 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
                 listener.onResponse(null);
             }
 
+            /**
+             * Default implementation.
+             */
+            @Override
+            public boolean shouldForward() {
+                return true;
+            }
+
             public ShardInfo getShardInfo() {
                 return shardInfo;
             }

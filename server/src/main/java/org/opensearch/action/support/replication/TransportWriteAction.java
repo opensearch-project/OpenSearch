@@ -279,9 +279,10 @@ public abstract class TransportWriteAction<
             @Nullable Location location,
             @Nullable Exception operationFailure,
             IndexShard primary,
+            boolean shouldForward,
             Logger logger
         ) {
-            super(request, finalResponse, operationFailure);
+            super(request, finalResponse, operationFailure, shouldForward);
             this.location = location;
             this.primary = primary;
             this.logger = logger;
@@ -291,6 +292,17 @@ public abstract class TransportWriteAction<
                 + "] translog location and ["
                 + operationFailure
                 + "] failure";
+        }
+
+        public WritePrimaryResult(
+            ReplicaRequest request,
+            @Nullable Response finalResponse,
+            @Nullable Location location,
+            @Nullable Exception operationFailure,
+            IndexShard primary,
+            Logger logger
+        ) {
+            this(request, finalResponse, location, operationFailure, primary, true, logger);
         }
 
         @Override

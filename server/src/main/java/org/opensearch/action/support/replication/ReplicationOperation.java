@@ -151,7 +151,7 @@ public class ReplicationOperation<
     private void handlePrimaryResult(final PrimaryResultT primaryResult) {
         this.primaryResult = primaryResult;
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
-        if (replicaRequest != null) {
+        if (replicaRequest != null && primaryResult.shouldForward()) {
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
             }
@@ -621,5 +621,7 @@ public class ReplicationOperation<
          * @param listener calllback that is invoked after post replication actions have completed
          * */
         void runPostReplicationActions(ActionListener<Void> listener);
+
+        boolean shouldForward();
     }
 }

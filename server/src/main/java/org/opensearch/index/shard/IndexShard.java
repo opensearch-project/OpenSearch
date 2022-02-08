@@ -835,8 +835,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean isRetry,
         SourceToParse sourceToParse
     ) throws IOException {
-        Boolean isSegRepEnabled = indexSettings.getValue(IndexSettings.INDEX_SEGMENT_REPLICATION_SETTING);
-        if (isSegRepEnabled != null && isSegRepEnabled) {
+        if (isSegmentReplicationEnabled()) {
             Engine.Index index;
             try {
                 index = parseSourceAndPrepareIndex(
@@ -4095,5 +4094,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     RetentionLeaseSyncer getRetentionLeaseSyncer() {
         return retentionLeaseSyncer;
+    }
+
+    /**
+     * Controls whether requests should be forwarded from the
+     * primary to the replica.
+     */
+    public boolean shouldForward() {
+        // Eventually this will also incorporate the presence of pluggable translog
+        return !isSegmentReplicationEnabled();
+    }
+
+    private boolean isSegmentReplicationEnabled() {
+        return indexSettings.getValue(IndexSettings.INDEX_SEGMENT_REPLICATION_SETTING);
     }
 }
