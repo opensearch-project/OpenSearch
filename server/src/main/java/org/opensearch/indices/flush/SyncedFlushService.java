@@ -164,6 +164,9 @@ public class SyncedFlushService implements IndexEventListener {
     }
 
     private void performNormalFlushOnInactive(IndexShard shard) {
+        if (shard.routingEntry().primary() == false) {
+            return;
+        }
         logger.debug("flushing shard {} on inactive", shard.routingEntry());
         shard.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
             @Override

@@ -249,6 +249,9 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    public void updateCurrentInfos(byte[] infosBytes, long gen) throws IOException {};
+
+
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
@@ -1196,6 +1199,10 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException;
 
+    public SegmentInfosRef getLatestSegmentInfosSafe() { return null; };
+
+    public SegmentInfos getLatestSegmentInfos() { return null; };
+
     /**
      * Snapshots the most recent safe index commit from the engine.
      */
@@ -1996,6 +2003,28 @@ public abstract class Engine implements Closeable {
 
         public IndexCommit getIndexCommit() {
             return indexCommit;
+        }
+    }
+
+    public static class SegmentInfosRef implements Closeable {
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private final CheckedRunnable<IOException> onClose;
+        private final SegmentInfos segmentInfos;
+
+        public SegmentInfosRef(SegmentInfos segmentInfos, CheckedRunnable<IOException> onClose) {
+            this.segmentInfos = segmentInfos;
+            this.onClose = onClose;
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (closed.compareAndSet(false, true)) {
+                onClose.run();
+            }
+        }
+
+        public SegmentInfos getSegmentInfos() {
+            return segmentInfos;
         }
     }
 

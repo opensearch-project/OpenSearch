@@ -112,7 +112,8 @@ public class EngineConfigFactory {
         LongSupplier globalCheckpointSupplier,
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
-        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier
+        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
+        Boolean isPrimary
     ) {
 
         return new EngineConfig(
@@ -137,6 +138,7 @@ public class EngineConfigFactory {
             circuitBreakerService,
             globalCheckpointSupplier,
             retentionLeasesSupplier,
+            isPrimary,
             primaryTermSupplier,
             tombstoneDocSupplier
         );

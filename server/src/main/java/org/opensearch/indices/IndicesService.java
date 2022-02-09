@@ -137,6 +137,9 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.SegmentReplicationService;
+import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
+import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
@@ -737,8 +740,8 @@ public class IndicesService extends AbstractLifecycleComponent
             indicesFieldDataCache,
             namedWriteableRegistry,
             this::isIdFieldDataEnabled,
-            valuesSourceRegistry
-        );
+            valuesSourceRegistry,
+            new TransportCheckpointPublisher(client));
     }
 
     private EngineConfigFactory getEngineConfigFactory(final IndexSettings idxSettings) {
@@ -833,6 +836,9 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     public IndexShard createShard(
         final ShardRouting shardRouting,
+        final SegmentReplicationService replicaService,
+        final SegmentReplicationService.ReplicationListener replicationListener,
+        final PrimaryShardReplicationSource replicationSource,
         final PeerRecoveryTargetService recoveryTargetService,
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
         final RepositoriesService repositoriesService,
@@ -849,7 +855,7 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
-        indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, (type, mapping) -> {
+        indexShard.startRecovery(recoveryState, replicaService, replicationListener, replicationSource, recoveryTargetService, recoveryListener, repositoriesService, (type, mapping) -> {
             assert recoveryState.getRecoverySource()
                 .getType() == RecoverySource.Type.LOCAL_SHARDS : "mapping update consumer only required by local shards recovery";
             client.admin()

@@ -508,7 +508,7 @@ public final class IndexSettings {
      */
     public static final Setting<Boolean> INDEX_SEGMENT_REPLICATION_SETTING = Setting.boolSetting(
         "index.replication.segment_replication",
-        false,
+        true,
         Property.IndexScope,
         Property.Final
     );

@@ -33,9 +33,17 @@
 package org.opensearch.index.engine;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiConsumer;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
 
 import org.apache.lucene.search.SearcherManager;
@@ -52,7 +60,11 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
  */
 @SuppressForbidden(reason = "reference counting is required here")
 class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
+    protected static Logger logger = LogManager.getLogger(OpenSearchReaderManager.class);
+
     private final BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener;
+
+    private volatile SegmentInfos currentInfos;
 
     /**
      * Creates and returns a new OpenSearchReaderManager from the given
@@ -78,11 +90,40 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader
 
     @Override
     protected OpenSearchDirectoryReader refreshIfNeeded(OpenSearchDirectoryReader referenceToRefresh) throws IOException {
-        final OpenSearchDirectoryReader reader = (OpenSearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
+        // This is directly from Lucene's SegmentInfosSearcherManager...
+        List<LeafReader> subs;
+        if (referenceToRefresh == null) {
+            subs = null;
+        } else {
+            subs = new ArrayList<>();
+            for (LeafReaderContext ctx : referenceToRefresh.getDelegate().leaves()) {
+                subs.add(ctx.reader());
+            }
+        }
+
+        final OpenSearchDirectoryReader reader;
+        // If not using NRT repl.
+        if (currentInfos == null) {
+            reader = (OpenSearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
+        } else {
+            // Open a new reader, sharing any common segment readers with the old one:
+            DirectoryReader innerReader = StandardDirectoryReader.open(referenceToRefresh.directory(), currentInfos, subs, null);
+            reader = OpenSearchDirectoryReader.wrap(innerReader, referenceToRefresh.shardId());
+            logger.trace("updated to SegmentInfosVersion=" + currentInfos.getVersion() + " reader=" + innerReader);
+        }
         if (reader != null) {
             refreshListener.accept(reader, referenceToRefresh);
         }
         return reader;
+    }
+
+    /**
+     * Switch to new segments, refreshing if necessary. Note that it's the caller job to ensure
+     * there's a held refCount for the incoming infos, so all files exist.
+     */
+    public synchronized void setCurrentInfos(SegmentInfos infos) throws IOException {
+        currentInfos = infos;
+        maybeRefresh();
     }
 
     @Override

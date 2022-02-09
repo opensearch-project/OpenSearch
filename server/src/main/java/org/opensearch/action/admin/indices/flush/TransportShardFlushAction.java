@@ -98,7 +98,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     @Override
     protected void shardOperationOnReplica(ShardFlushRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
-            replica.flush(request.getRequest());
+//            replica.flush(request.getRequest());
             logger.trace("{} flush request executed on replica", replica.shardId());
             return new ReplicaResult();
         });
