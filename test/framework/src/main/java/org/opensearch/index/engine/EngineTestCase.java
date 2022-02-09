@@ -1350,13 +1350,9 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     /**
      * Reads all engine operations that have been processed by the engine from Lucene index/Translog based on source.
      */
-    public static List<Translog.Operation> readAllOperationsBasedOnSource(
-        Engine engine,
-        Engine.HistorySource historySource,
-        MapperService mapper
-    ) throws IOException {
+    public static List<Translog.Operation> readAllOperationsBasedOnSource(Engine engine, MapperService mapper) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", historySource, mapper, 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapper, 0, Long.MAX_VALUE, false)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);
