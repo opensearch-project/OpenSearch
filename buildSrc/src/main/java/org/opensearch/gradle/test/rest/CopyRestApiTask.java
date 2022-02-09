@@ -43,6 +43,7 @@ import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
@@ -112,6 +113,7 @@ public class CopyRestApiTask extends DefaultTask {
         return skipHasRestTestCheck;
     }
 
+    @IgnoreEmptyDirectories
     @SkipWhenEmpty
     @InputFiles
     public FileTree getInputDir() {

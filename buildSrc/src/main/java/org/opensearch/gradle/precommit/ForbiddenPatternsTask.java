@@ -37,6 +37,7 @@ import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
@@ -100,6 +101,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
 
     @InputFiles
     @SkipWhenEmpty
+    @IgnoreEmptyDirectories
     public FileCollection getFiles() {
         return getProject().getConvention()
             .getPlugin(JavaPluginConvention.class)

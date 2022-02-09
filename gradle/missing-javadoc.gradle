@@ -178,6 +178,7 @@ configure([
 class MissingJavadocTask extends DefaultTask {
   @InputFiles
   @SkipWhenEmpty
+  @IgnoreEmptyDirectories
   SourceDirectorySet srcDirSet;
 
   @OutputDirectory
