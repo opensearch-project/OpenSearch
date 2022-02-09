@@ -123,9 +123,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
-            Request indexDoc = new Request("PUT", index + "/test/" + id);
+            Request indexDoc = new Request("PUT", index + "/_doc/" + id);
             indexDoc.setJsonEntity("{\"test\": \"test_" + randomAsciiOfLength(2) + "\"}");
-            indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             client().performRequest(indexDoc);
         }
         return numDocs;
@@ -659,7 +658,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             final int times = randomIntBetween(0, 2);
             for (int i = 0; i < times; i++) {
                 long value = randomNonNegativeLong();
-                Request update = new Request("POST", index + "/test/" + docId + "/_update");
+                Request update = new Request("POST", index + "/_update/" + docId);
                 update.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
                 update.setJsonEntity("{\"doc\": {\"updated_field\": " + value + "}}");
                 client().performRequest(update);
@@ -668,7 +667,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
         client().performRequest(new Request("POST", index + "/_refresh"));
         for (int docId : updates.keySet()) {
-            Request get = new Request("GET", index + "/test/" + docId);
+            Request get = new Request("GET", index + "/_doc/" + docId);
             get.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
             Map<String, Object> doc = entityAsMap(client().performRequest(get));
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
