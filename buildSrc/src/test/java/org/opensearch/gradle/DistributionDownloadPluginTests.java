@@ -79,6 +79,27 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         assertEquals(distro.getVersion(), VersionProperties.getOpenSearch());
     }
 
+    public void testCustomDistributionUrlForNull() {
+        Project project = createProject(null, false);
+        assertNull(project.findProperty("customDistributionUrl"));
+    }
+
+    public void testCustomDistributionUrlWithUrl() {
+        Project project = createProject(null, false);
+        String customUrl = "https://artifacts.opensearch.org";
+        project.getExtensions().getExtraProperties().set("customDistributionUrl", customUrl);
+        DistributionDownloadPlugin plugin = project.getPlugins().getPlugin(DistributionDownloadPlugin.class);
+        plugin.setupDistributions(project);
+        assertEquals(project.property("testCustomDistributionUrlProperty").toString(), customUrl);
+    }
+
+    public void testCustomDistributionUrlWithoutUrl() {
+        Project project = createProject(null, false);
+        DistributionDownloadPlugin plugin = project.getPlugins().getPlugin(DistributionDownloadPlugin.class);
+        plugin.setupDistributions(project);
+        assertFalse(project.hasProperty("testCustomDistributionUrlProperty"));
+    }
+
     public void testBadVersionFormat() {
         assertDistroError(
             createProject(null, false),
