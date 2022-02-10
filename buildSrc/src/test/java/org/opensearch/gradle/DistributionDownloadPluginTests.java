@@ -41,7 +41,6 @@ import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 
 import java.io.File;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.TreeSet;
 
@@ -78,27 +77,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     public void testVersionDefault() {
         OpenSearchDistribution distro = checkDistro(createProject(null, false), "testdistro", null, Type.ARCHIVE, Platform.LINUX, true);
         assertEquals(distro.getVersion(), VersionProperties.getOpenSearch());
-    }
-
-    public void testCustomDistributionUrlForNull() {
-        Project project = createProject(null, false);
-        assertNull(project.findProperty("customDistributionUrl"));
-    }
-
-    public void testCustomDistributionUrlWithUrl() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-        Project project = createProject(null, false);
-        String customUrl = "https://artifacts.opensearch.org";
-        project.getExtensions().getExtraProperties().set("customDistributionUrl", customUrl);
-        DistributionDownloadPlugin plugin = project.getPlugins().getPlugin(DistributionDownloadPlugin.class);
-        plugin.setupDistributions(project);
-        assertEquals(project.property("testCustomDistributionUrlProperty").toString(), "https://artifacts.opensearch.org");
-    }
-
-    public void testCustomDistributionUrlWithoutUrl(){
-        Project project = createProject(null, false);
-        DistributionDownloadPlugin plugin = project.getPlugins().getPlugin(DistributionDownloadPlugin.class);
-        plugin.setupDistributions(project);
-        assertFalse(project.hasProperty("testCustomDistributionUrlProperty"));
     }
 
     public void testBadVersionFormat() {
