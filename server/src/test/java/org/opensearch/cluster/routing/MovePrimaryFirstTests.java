@@ -20,7 +20,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
 
