@@ -176,10 +176,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             exclusiveContentRepository.filter(config -> config.includeGroup(group));
             exclusiveContentRepository.forRepositories(repos.toArray(new IvyArtifactRepository[repos.size()]));
         });
-        // set testCustomDistributionUrlProperty with url passed as parameter
-        if (project.findProperty("customDistributionUrl") != null) {
-            project.getExtensions().getExtraProperties().set("testCustomDistributionUrlProperty", url);
-        }
     }
 
     private static void addIvyRepo2(Project project, String name, String url, String group) {
