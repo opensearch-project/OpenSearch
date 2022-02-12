@@ -36,17 +36,23 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.SecureSetting;
+import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.Proxy;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -114,6 +120,54 @@ public class GoogleCloudStorageClientSettings {
         key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope, Setting.Property.Deprecated)
     );
 
+    /** Proxy type */
+    static final Setting.AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.type",
+        (key) -> new Setting<Proxy.Type>(
+            key,
+            Proxy.Type.DIRECT.name(),
+            s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)),
+            Setting.Property.NodeScope
+        )
+    );
+
+    /** The host of a proxy to connect */
+    static final Setting.AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.host",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope),
+        () -> PROXY_TYPE_SETTING
+    );
+
+    /** The port of a proxy to connect */
+    static final Setting.AffixSetting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.port",
+        key -> Setting.intSetting(key, 0, 0, (1 << 16) - 1, Setting.Property.NodeScope),
+        () -> PROXY_TYPE_SETTING,
+        () -> PROXY_HOST_SETTING
+    );
+
+    /** The username of a proxy to connect */
+    static final Setting.AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.username",
+        key -> SecureSetting.secureString(key, null),
+        () -> PROXY_TYPE_SETTING,
+        () -> PROXY_HOST_SETTING
+    );
+
+    /** The password of a proxy to connect */
+    static final Setting.AffixSetting<SecureString> PROXY_PASSWORD_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.password",
+        key -> SecureSetting.secureString(key, null),
+        () -> PROXY_TYPE_SETTING,
+        () -> PROXY_HOST_SETTING,
+        () -> PROXY_USERNAME_SETTING
+    );
+
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
@@ -135,6 +189,9 @@ public class GoogleCloudStorageClientSettings {
     /** The token server URI. This leases access tokens in the oauth flow. */
     private final URI tokenUri;
 
+    /** The GCS SDK Proxy settings. */
+    private final ProxySettings proxySettings;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -142,7 +199,8 @@ public class GoogleCloudStorageClientSettings {
         final TimeValue connectTimeout,
         final TimeValue readTimeout,
         final String applicationName,
-        final URI tokenUri
+        final URI tokenUri,
+        final ProxySettings proxySettings
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -151,6 +209,7 @@ public class GoogleCloudStorageClientSettings {
         this.readTimeout = readTimeout;
         this.applicationName = applicationName;
         this.tokenUri = tokenUri;
+        this.proxySettings = proxySettings;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -181,6 +240,10 @@ public class GoogleCloudStorageClientSettings {
         return tokenUri;
     }
 
+    public ProxySettings getProxySettings() {
+        return proxySettings;
+    }
+
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
         final Map<String, GoogleCloudStorageClientSettings> clients = new HashMap<>();
         for (final String clientName : settings.getGroups(PREFIX).keySet()) {
@@ -202,8 +265,37 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, READ_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
-            getConfigValue(settings, clientName, TOKEN_URI_SETTING)
+            getConfigValue(settings, clientName, TOKEN_URI_SETTING),
+            validateAndCreateProxySettings(settings, clientName)
         );
+    }
+
+    static ProxySettings validateAndCreateProxySettings(final Settings settings, final String clientName) {
+        final Proxy.Type proxyType = getConfigValue(settings, clientName, PROXY_TYPE_SETTING);
+        final String proxyHost = getConfigValue(settings, clientName, PROXY_HOST_SETTING);
+        final int proxyPort = getConfigValue(settings, clientName, PROXY_PORT_SETTING);
+        final SecureString proxyUserName = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
+        final SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING);
+        // Validate proxy settings
+        if (proxyType == Proxy.Type.DIRECT
+            && (proxyPort != 0 || Strings.hasText(proxyHost) || Strings.hasText(proxyUserName) || Strings.hasText(proxyPassword))) {
+            throw new SettingsException(
+                "Google Cloud Storage proxy port or host or username or password have been set but proxy type is not defined."
+            );
+        }
+        if (proxyType != Proxy.Type.DIRECT && (proxyPort == 0 || Strings.isEmpty(proxyHost))) {
+            throw new SettingsException("Google Cloud Storage proxy type has been set but proxy host or port is not defined.");
+        }
+        if (proxyType == Proxy.Type.DIRECT) {
+            return ProxySettings.NO_PROXY_SETTINGS;
+        }
+
+        try {
+            final InetAddress proxyHostAddress = InetAddress.getByName(proxyHost);
+            return new ProxySettings(proxyType, proxyHostAddress, proxyPort, proxyUserName.toString(), proxyPassword.toString());
+        } catch (final UnknownHostException e) {
+            throw new SettingsException("Google Cloud Storage proxy host is unknown.", e);
+        }
     }
 
     /**
