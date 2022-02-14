@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assume.assumeThat;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -295,6 +296,7 @@ public class OsProbeTests extends OpenSearchTestCase {
             }
         };
 
+        assumeThat("CGroups are not available", noCpuStatsOsProbe.areCgroupStatsAvailable(), is(true));
         noCpuStatsOsProbe.osStats();
         // no nr_throttled and throttled_time
         verify(logger, times(2)).warn(anyString());
