@@ -186,7 +186,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
             return;
         }
-        context.doc().add(new Field(fieldType().name(), context.sourceToParse().type(), fieldType));
+        context.doc().add(new Field(fieldType().name(), MapperService.SINGLE_MAPPING_NAME, fieldType));
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(MapperService.SINGLE_MAPPING_NAME)));
         }

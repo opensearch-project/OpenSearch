@@ -48,7 +48,7 @@ public class ResyncReplicationRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         final byte[] bytes = "{}".getBytes(Charset.forName("UTF-8"));
-        final Translog.Index index = new Translog.Index("type", "id", 0, randomNonNegativeLong(), randomNonNegativeLong(), bytes, null, -1);
+        final Translog.Index index = new Translog.Index("id", 0, randomNonNegativeLong(), randomNonNegativeLong(), bytes, null, -1);
         final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
         final ResyncReplicationRequest before = new ResyncReplicationRequest(shardId, 42L, 100, new Translog.Operation[] { index });
 

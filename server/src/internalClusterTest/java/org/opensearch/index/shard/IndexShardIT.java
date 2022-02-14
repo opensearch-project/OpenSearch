@@ -375,7 +375,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         shard.applyIndexOperationOnPrimary(
             Versions.MATCH_ANY,
             VersionType.INTERNAL,
-            new SourceToParse("test", "_doc", "1", new BytesArray("{}"), XContentType.JSON),
+            new SourceToParse("test", "1", new BytesArray("{}"), XContentType.JSON),
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             0,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -460,7 +460,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
-                new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse("test", "1", new BytesArray("{}"), XContentType.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 0,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
