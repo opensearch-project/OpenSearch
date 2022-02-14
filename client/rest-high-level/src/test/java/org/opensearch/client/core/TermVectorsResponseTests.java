@@ -59,7 +59,6 @@ public class TermVectorsResponseTests extends OpenSearchTestCase {
     static void toXContent(TermVectorsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("_index", response.getIndex());
-        builder.field("_type", response.getType());
         if (response.getId() != null) {
             builder.field("_id", response.getId());
         }
@@ -130,7 +129,6 @@ public class TermVectorsResponseTests extends OpenSearchTestCase {
 
     static TermVectorsResponse createTestInstance() {
         String index = randomAlphaOfLength(5);
-        String type = randomAlphaOfLength(5);
         String id = String.valueOf(randomIntBetween(1, 100));
         long version = randomNonNegativeLong();
         long tookInMillis = randomNonNegativeLong();
@@ -154,7 +152,7 @@ public class TermVectorsResponseTests extends OpenSearchTestCase {
                 );
             }
         }
-        TermVectorsResponse tvresponse = new TermVectorsResponse(index, type, id, version, found, tookInMillis, tvList);
+        TermVectorsResponse tvresponse = new TermVectorsResponse(index, id, version, found, tookInMillis, tvList);
         return tvresponse;
     }
 
