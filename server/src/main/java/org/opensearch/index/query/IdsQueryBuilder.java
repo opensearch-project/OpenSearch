@@ -32,7 +32,6 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.Version;
 import org.opensearch.common.ParseField;
@@ -166,12 +165,9 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
-        if (idField == null) {
-            return new MatchNoDocsQuery("No mappings");
-        }
-        if (this.ids.isEmpty()) {
-            return new MatchNoDocsQuery("Missing ids in \"" + this.getName() + "\" query.");
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
+        if (idField == null || ids.isEmpty()) {
+            throw new IllegalStateException("Rewrite first");
         }
         return idField.termsQuery(new ArrayList<>(ids), context);
     }

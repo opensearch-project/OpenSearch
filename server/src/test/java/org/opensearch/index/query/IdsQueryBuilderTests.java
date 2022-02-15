@@ -104,6 +104,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     public void testMustRewrite() throws IOException {
+        super.testMustRewrite();
         QueryShardContext context = createShardContextWithNoType();
         context.setAllowUnmappedFields(true);
         IdsQueryBuilder queryBuilder = createTestQueryBuilder();
