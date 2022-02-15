@@ -104,6 +104,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -206,6 +207,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public Directory directory() {
         ensureOpen();
         return directory;
+    }
+
+    /**
+     * Forces an fsync on the directory - to be called by replicas after receiving a new commit point.
+     * @throws IOException if we are unable to list current directory contents.
+     */
+    public void syncDirectory() throws IOException {
+        this.directory.sync(Arrays.asList(this.directory.listAll()));
     }
 
     /**
@@ -784,11 +793,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // FilterDirectory.getPendingDeletions does not delegate, working around it here.
             // to be removed once fixed in FilterDirectory.
             return unwrap(this).getPendingDeletions();
-        }
-
-        @Override
-        public void sync(Collection<String> names) throws IOException {
-            // Do nothing.
         }
     }
 
