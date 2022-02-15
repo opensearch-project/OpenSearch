@@ -95,7 +95,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         client().prepareIndex("test", "type1", "666").setSource("field", "foo bar").execute().actionGet();
         refresh();
         for (int i = 0; i < 20; i++) {
-            ActionFuture<TermVectorsResponse> termVector = client().termVectors(new TermVectorsRequest(indexOrAlias(), "type1", "" + i));
+            ActionFuture<TermVectorsResponse> termVector = client().termVectors(new TermVectorsRequest(indexOrAlias(), "" + i));
             TermVectorsResponse actionGet = termVector.actionGet();
             assertThat(actionGet, notNullValue());
             assertThat(actionGet.getIndex(), equalTo("test"));
@@ -122,7 +122,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         client().prepareIndex("test", "type1", "0").setSource("existingfield", "?").execute().actionGet();
         refresh();
         ActionFuture<TermVectorsResponse> termVector = client().termVectors(
-            new TermVectorsRequest(indexOrAlias(), "type1", "0").selectedFields(new String[] { "existingfield" })
+            new TermVectorsRequest(indexOrAlias(), "0").selectedFields(new String[] { "existingfield" })
         );
 
         // lets see if the null term vectors are caught...
@@ -150,7 +150,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         client().prepareIndex("test", "type1", "0").setSource("anotherexistingfield", 1).execute().actionGet();
         refresh();
         ActionFuture<TermVectorsResponse> termVectors = client().termVectors(
-            new TermVectorsRequest(indexOrAlias(), "type1", "0").selectedFields(randomBoolean() ? new String[] { "existingfield" } : null)
+            new TermVectorsRequest(indexOrAlias(), "0").selectedFields(randomBoolean() ? new String[] { "existingfield" } : null)
                 .termStatistics(true)
                 .fieldStatistics(true)
         );
@@ -191,9 +191,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         indexRandom(true, indexBuilders);
 
         for (int i = 0; i < 4; i++) {
-            TermVectorsResponse resp = client().prepareTermVectors(indexOrAlias(), "type1", String.valueOf(i))
-                .setSelectedFields("field" + i)
-                .get();
+            TermVectorsResponse resp = client().prepareTermVectors(indexOrAlias(), String.valueOf(i)).setSelectedFields("field" + i).get();
             assertThat(resp, notNullValue());
             assertThat(resp.isExists(), equalTo(true));
             assertThat(resp.getIndex(), equalTo("test"));
@@ -201,9 +199,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         }
 
         for (int i = 4; i < 6; i++) {
-            TermVectorsResponse resp = client().prepareTermVectors(indexOrAlias(), "type1", String.valueOf(i))
-                .setSelectedFields("field" + i)
-                .get();
+            TermVectorsResponse resp = client().prepareTermVectors(indexOrAlias(), String.valueOf(i)).setSelectedFields("field" + i).get();
             assertThat(resp.getIndex(), equalTo("test"));
             assertThat("field" + i + " :", resp.getFields().terms("field" + i), notNullValue());
         }
@@ -245,7 +241,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             refresh();
         }
         for (int i = 0; i < 10; i++) {
-            TermVectorsRequestBuilder resp = client().prepareTermVectors(indexOrAlias(), "type1", Integer.toString(i))
+            TermVectorsRequestBuilder resp = client().prepareTermVectors(indexOrAlias(), Integer.toString(i))
                 .setPayloads(true)
                 .setOffsets(true)
                 .setPositions(true)
@@ -362,7 +358,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         boolean isPositionsRequested = randomBoolean();
         String infoString = createInfoString(isPositionsRequested, isOffsetRequested, optionString);
         for (int i = 0; i < 10; i++) {
-            TermVectorsRequestBuilder resp = client().prepareTermVectors("test", "_doc", Integer.toString(i))
+            TermVectorsRequestBuilder resp = client().prepareTermVectors("test", Integer.toString(i))
                 .setOffsets(isOffsetRequested)
                 .setPositions(isPositionsRequested)
                 .setSelectedFields();
@@ -501,7 +497,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         }
 
         for (int i = 0; i < 10; i++) {
-            TermVectorsResponse response = client().prepareTermVectors("test", "type1", Integer.toString(i))
+            TermVectorsResponse response = client().prepareTermVectors("test", Integer.toString(i))
                 .setPayloads(true)
                 .setOffsets(true)
                 .setPositions(true)
@@ -590,7 +586,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         for (int id = 0; id < content.length; id++) {
             Fields[] fields = new Fields[2];
             for (int j = 0; j < indexNames.length; j++) {
-                TermVectorsResponse resp = client().prepareTermVectors(indexNames[j], "type1", String.valueOf(id))
+                TermVectorsResponse resp = client().prepareTermVectors(indexNames[j], String.valueOf(id))
                     .setOffsets(true)
                     .setPositions(true)
                     .setSelectedFields("field1")
@@ -661,7 +657,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         client().prepareIndex("test", "type1", "0").setSource(source).get();
         refresh();
 
-        TermVectorsResponse response = client().prepareTermVectors(indexOrAlias(), "type1", "0").setSelectedFields("field*").get();
+        TermVectorsResponse response = client().prepareTermVectors(indexOrAlias(), "0").setSelectedFields("field*").get();
         assertThat("Doc doesn't exists but should", response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat("All term vectors should have been generated", response.getFields().size(), equalTo(numFields));
@@ -692,7 +688,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
         for (int i = 0; i < content.length; i++) {
             // request tvs from existing document
-            TermVectorsResponse respExisting = client().prepareTermVectors("test", "type1", String.valueOf(i))
+            TermVectorsResponse respExisting = client().prepareTermVectors("test", String.valueOf(i))
                 .setOffsets(true)
                 .setPositions(true)
                 .setFieldStatistics(true)
@@ -703,7 +699,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             // request tvs from artificial document
             TermVectorsResponse respArtificial = client().prepareTermVectors()
                 .setIndex("test")
-                .setType("type1")
                 .setRouting(String.valueOf(i)) // ensure we get the stats from the same shard as existing doc
                 .setDoc(jsonBuilder().startObject().field("field1", content[i]).endObject())
                 .setOffsets(true)
@@ -728,7 +723,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         String text = "the quick brown fox jumps over the lazy dog";
         TermVectorsResponse resp = client().prepareTermVectors()
             .setIndex("test")
-            .setType("type1")
             .setDoc(jsonBuilder().startObject().field("field1", text).endObject())
             .setOffsets(true)
             .setPositions(true)
@@ -798,15 +792,13 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         }
 
         // selected fields not specified
-        TermVectorsResponse response = client().prepareTermVectors(indexOrAlias(), "type1", "0")
-            .setPerFieldAnalyzer(perFieldAnalyzer)
-            .get();
+        TermVectorsResponse response = client().prepareTermVectors(indexOrAlias(), "0").setPerFieldAnalyzer(perFieldAnalyzer).get();
 
         // should return all fields that have terms vectors, some with overridden analyzer
         checkAnalyzedFields(response.getFields(), withTermVectors, perFieldAnalyzer);
 
         // selected fields specified including some not in the mapping
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "0")
+        response = client().prepareTermVectors(indexOrAlias(), "0")
             .setSelectedFields(selectedFields.toArray(Strings.EMPTY_ARRAY))
             .setPerFieldAnalyzer(perFieldAnalyzer)
             .get();
@@ -848,7 +840,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
-        TermVectorsResponse response = client().prepareTermVectors("test", "type1", "1").get();
+        TermVectorsResponse response = client().prepareTermVectors("test", "1").get();
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
@@ -857,12 +849,12 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         // From translog:
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
+        response = client().prepareTermVectors(indexOrAlias(), "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getVersion(), equalTo(1L));
 
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(1).get();
+        response = client().prepareTermVectors(indexOrAlias(), "1").setVersion(1).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getVersion(), equalTo(1L));
@@ -878,13 +870,13 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         refresh();
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
+        response = client().prepareTermVectors(indexOrAlias(), "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(1L));
 
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
+        response = client().prepareTermVectors(indexOrAlias(), "1").setVersion(1).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -903,7 +895,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         // From translog:
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
+        response = client().prepareTermVectors(indexOrAlias(), "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -916,7 +908,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             // all good
         }
 
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(2).get();
+        response = client().prepareTermVectors(indexOrAlias(), "1").setVersion(2).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -926,7 +918,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         refresh();
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
+        response = client().prepareTermVectors(indexOrAlias(), "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -939,7 +931,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             // all good
         }
 
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
+        response = client().prepareTermVectors(indexOrAlias(), "1").setVersion(2).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -969,7 +961,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         TermVectorsResponse response;
         for (int i = 0; i < numTerms; i++) {
             filterSettings.minWordLength = numTerms - i;
-            response = client().prepareTermVectors("test", "type1", "1")
+            response = client().prepareTermVectors("test", "1")
                 .setSelectedFields("tags")
                 .setFieldStatistics(true)
                 .setTermStatistics(true)
@@ -1004,7 +996,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         TermVectorsResponse response;
         for (int i = 0; i < numTerms; i++) {
             filterSettings.maxNumTerms = i + 1;
-            response = client().prepareTermVectors("test", "type1", "1")
+            response = client().prepareTermVectors("test", "1")
                 .setSelectedFields("tags")
                 .setFieldStatistics(true)
                 .setTermStatistics(true)
@@ -1037,7 +1029,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         TermVectorsResponse response;
         for (int i = 0; i < numDocs; i++) {
             filterSettings.maxNumTerms = i + 1;
-            response = client().prepareTermVectors("test", "type1", (numDocs - 1) + "")
+            response = client().prepareTermVectors("test", (numDocs - 1) + "")
                 .setSelectedFields("tags")
                 .setFieldStatistics(true)
                 .setTermStatistics(true)
@@ -1068,7 +1060,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         for (Integer shardId : shardIds) {
             TermVectorsResponse tvResponse = client().prepareTermVectors()
                 .setIndex("test")
-                .setType("type1")
                 .setPreference("_shards:" + shardId)
                 .setDoc(jsonBuilder().startObject().field("field1", "random permutation").endObject())
                 .setFieldStatistics(true)
@@ -1132,7 +1123,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         for (int id = 0; id < content.length; id++) {
             Fields[] fields = new Fields[2];
             for (int j = 0; j < indexNames.length; j++) {
-                TermVectorsResponse resp = client().prepareTermVectors(indexNames[j], "type1", String.valueOf(id))
+                TermVectorsResponse resp = client().prepareTermVectors(indexNames[j], String.valueOf(id))
                     .setOffsets(true)
                     .setPositions(true)
                     .setSelectedFields("field1", "field2")

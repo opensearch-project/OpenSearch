@@ -360,7 +360,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         String termVectorShardAction = TermVectorsAction.NAME + "[s]";
         interceptTransportActions(termVectorShardAction);
 
-        TermVectorsRequest termVectorsRequest = new TermVectorsRequest(randomIndexOrAlias(), "type", "id");
+        TermVectorsRequest termVectorsRequest = new TermVectorsRequest(randomIndexOrAlias(), "id");
         internalCluster().coordOnlyNodeClient().termVectors(termVectorsRequest).actionGet();
 
         clearInterceptedActions();
@@ -376,7 +376,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         int numDocs = iterations(1, 30);
         for (int i = 0; i < numDocs; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            multiTermVectorsRequest.add(indexOrAlias, "type", Integer.toString(i));
+            multiTermVectorsRequest.add(indexOrAlias, Integer.toString(i));
             indices.add(indexOrAlias);
         }
         internalCluster().coordOnlyNodeClient().multiTermVectors(multiTermVectorsRequest).actionGet();
