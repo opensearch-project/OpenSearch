@@ -179,7 +179,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(createIndexRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(createIndexRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(createIndexRequest, expectedParams);
         RequestConvertersTests.setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
 
         Request request = IndicesRequestConverters.createIndex(createIndexRequest);
@@ -195,7 +195,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(createIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(createIndexRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(createIndexRequest, expectedParams);
         RequestConvertersTests.setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
         expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
@@ -218,7 +218,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(indicesAliasesRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(indicesAliasesRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(indicesAliasesRequest, expectedParams);
 
         Request request = IndicesRequestConverters.updateAliases(indicesAliasesRequest);
         Assert.assertEquals("/_aliases", request.getEndpoint());
@@ -232,7 +232,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(putMappingRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(putMappingRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(
             putMappingRequest::indicesOptions,
             putMappingRequest::indicesOptions,
@@ -267,7 +267,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         Map<String, String> expectedParams = new HashMap<>();
 
         RequestConvertersTests.setRandomTimeout(putMappingRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(putMappingRequest, expectedParams);
         expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         Request request = IndicesRequestConverters.putMapping(putMappingRequest);
@@ -302,7 +302,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             getMappingRequest::indicesOptions,
             expectedParams
         );
-        RequestConvertersTests.setRandomMasterTimeout(getMappingRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(getMappingRequest, expectedParams);
         RequestConvertersTests.setRandomLocal(getMappingRequest::local, expectedParams);
 
         Request request = IndicesRequestConverters.getMappings(getMappingRequest);
@@ -345,7 +345,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             getMappingRequest::indicesOptions,
             expectedParams
         );
-        RequestConvertersTests.setRandomMasterTimeout(getMappingRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(getMappingRequest, expectedParams);
         RequestConvertersTests.setRandomLocal(getMappingRequest::local, expectedParams);
         expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
@@ -504,7 +504,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(deleteIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(deleteIndexRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(deleteIndexRequest, expectedParams);
 
         RequestConvertersTests.setRandomIndicesOptions(
             deleteIndexRequest::indicesOptions,
@@ -525,7 +525,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indicesUnderTest);
 
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(getSettingsRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(getSettingsRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(
             getSettingsRequest::indicesOptions,
             getSettingsRequest::indicesOptions,
@@ -576,7 +576,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         GetIndexRequest getIndexRequest = new GetIndexRequest(indicesUnderTest);
 
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(getIndexRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(getIndexRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
         RequestConvertersTests.setRandomLocal(getIndexRequest::local, expectedParams);
         RequestConvertersTests.setRandomHumanReadable(getIndexRequest::humanReadable, expectedParams);
@@ -610,7 +610,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             new org.opensearch.action.admin.indices.get.GetIndexRequest().indices(indicesUnderTest);
 
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(getIndexRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(getIndexRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
         RequestConvertersTests.setRandomLocal(getIndexRequest::local, expectedParams);
         RequestConvertersTests.setRandomHumanReadable(getIndexRequest::humanReadable, expectedParams);
@@ -651,7 +651,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(openIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(openIndexRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(openIndexRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(openIndexRequest::indicesOptions, openIndexRequest::indicesOptions, expectedParams);
         RequestConvertersTests.setRandomWaitForActiveShards(openIndexRequest::waitForActiveShards, expectedParams);
 
@@ -679,7 +679,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
             expectedParams
         );
-        RequestConvertersTests.setRandomMasterTimeout(closeIndexRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(closeIndexRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(
             closeIndexRequest::indicesOptions,
             closeIndexRequest::indicesOptions,
@@ -906,7 +906,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         String[] indices = RequestConvertersTests.randomIndicesNames(2, 2);
         ResizeRequest resizeRequest = new ResizeRequest(indices[0], indices[1]);
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(resizeRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(resizeRequest, expectedParams);
         RequestConvertersTests.setRandomTimeout(
             s -> resizeRequest.setTimeout(TimeValue.parseTimeValue(s, "timeout")),
             resizeRequest.timeout(),
@@ -949,7 +949,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         );
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(rolloverRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(rolloverRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(rolloverRequest, expectedParams);
         if (OpenSearchTestCase.randomBoolean()) {
             rolloverRequest.dryRun(OpenSearchTestCase.randomBoolean());
             if (rolloverRequest.isDryRun()) {
@@ -992,7 +992,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             );
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(rolloverRequest::timeout, rolloverRequest.timeout(), expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(rolloverRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(rolloverRequest, expectedParams);
         if (OpenSearchTestCase.randomBoolean()) {
             rolloverRequest.dryRun(OpenSearchTestCase.randomBoolean());
             if (rolloverRequest.isDryRun()) {
@@ -1067,7 +1067,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 2);
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(updateSettingsRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(updateSettingsRequest, expectedParams);
         RequestConvertersTests.setRandomTimeout(updateSettingsRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(
             updateSettingsRequest::indicesOptions,
@@ -1136,7 +1136,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             putTemplateRequest.cause(cause);
             expectedParams.put("cause", cause);
         }
-        RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(putTemplateRequest, expectedParams);
 
         Request request = IndicesRequestConverters.putTemplate(putTemplateRequest);
         Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));
@@ -1188,7 +1188,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             putTemplateRequest.cause(cause);
             expectedParams.put("cause", cause);
         }
-        RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(putTemplateRequest, expectedParams);
 
         Request request = IndicesRequestConverters.putTemplate(putTemplateRequest);
         Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));
@@ -1244,7 +1244,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         List<String> names = OpenSearchTestCase.randomSubsetOf(1, encodes.keySet());
         GetIndexTemplatesRequest getTemplatesRequest = new GetIndexTemplatesRequest(names);
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(getTemplatesRequest::setMasterNodeTimeout, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(getTemplatesRequest::setMasterNodeTimeout, expectedParams);
         RequestConvertersTests.setRandomLocal(getTemplatesRequest::setLocal, expectedParams);
 
         Request request = IndicesRequestConverters.getTemplatesWithDocumentTypes(getTemplatesRequest);
@@ -1274,7 +1274,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         );
         final Map<String, String> expectedParams = new HashMap<>();
         final IndexTemplatesExistRequest indexTemplatesExistRequest = new IndexTemplatesExistRequest(names);
-        RequestConvertersTests.setRandomMasterTimeout(indexTemplatesExistRequest::setMasterNodeTimeout, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(indexTemplatesExistRequest::setMasterNodeTimeout, expectedParams);
         RequestConvertersTests.setRandomLocal(indexTemplatesExistRequest::setLocal, expectedParams);
         assertThat(indexTemplatesExistRequest.names(), equalTo(names));
 
@@ -1301,7 +1301,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         encodes.put("foo^bar", "foo%5Ebar");
         DeleteIndexTemplateRequest deleteTemplateRequest = new DeleteIndexTemplateRequest().name(randomFrom(encodes.keySet()));
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(deleteTemplateRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(deleteTemplateRequest, expectedParams);
         Request request = IndicesRequestConverters.deleteTemplate(deleteTemplateRequest);
         Assert.assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
         Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + encodes.get(deleteTemplateRequest.name())));
@@ -1313,7 +1313,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         DeleteAliasRequest deleteAliasRequest = new DeleteAliasRequest(randomAlphaOfLength(4), randomAlphaOfLength(4));
 
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(deleteAliasRequest, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(deleteAliasRequest, expectedParams);
         RequestConvertersTests.setRandomTimeout(deleteAliasRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         Request request = IndicesRequestConverters.deleteAlias(deleteAliasRequest);

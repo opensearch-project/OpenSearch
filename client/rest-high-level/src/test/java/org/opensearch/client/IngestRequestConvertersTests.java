@@ -62,7 +62,7 @@ public class IngestRequestConvertersTests extends OpenSearchTestCase {
             XContentType.JSON
         );
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(request, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(request, expectedParams);
         RequestConvertersTests.setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         Request expectedRequest = IngestRequestConverters.putPipeline(request);
@@ -78,7 +78,7 @@ public class IngestRequestConvertersTests extends OpenSearchTestCase {
         String pipelineId = "some_pipeline_id";
         Map<String, String> expectedParams = new HashMap<>();
         GetPipelineRequest request = new GetPipelineRequest("some_pipeline_id");
-        RequestConvertersTests.setRandomMasterTimeout(request, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(request, expectedParams);
         Request expectedRequest = IngestRequestConverters.getPipeline(request);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         endpoint.add("_ingest/pipeline");
@@ -92,7 +92,7 @@ public class IngestRequestConvertersTests extends OpenSearchTestCase {
         String pipelineId = "some_pipeline_id";
         Map<String, String> expectedParams = new HashMap<>();
         DeletePipelineRequest request = new DeletePipelineRequest(pipelineId);
-        RequestConvertersTests.setRandomMasterTimeout(request, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(request, expectedParams);
         RequestConvertersTests.setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         Request expectedRequest = IngestRequestConverters.deletePipeline(request);
         StringJoiner endpoint = new StringJoiner("/", "/", "");

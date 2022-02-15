@@ -61,7 +61,7 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
     public void testClusterPutSettings() throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(request, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(request, expectedParams);
         RequestConvertersTests.setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         Request expectedRequest = ClusterRequestConverters.clusterPutSettings(request);
@@ -73,7 +73,7 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
     public void testClusterGetSettings() throws IOException {
         ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(request, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(request, expectedParams);
         request.includeDefaults(OpenSearchTestCase.randomBoolean());
         if (request.includeDefaults()) {
             expectedParams.put("include_defaults", String.valueOf(true));
@@ -91,18 +91,18 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
         RequestConvertersTests.setRandomLocal(healthRequest::local, expectedParams);
         String timeoutType = OpenSearchTestCase.randomFrom("timeout", "masterTimeout", "both", "none");
         String timeout = OpenSearchTestCase.randomTimeValue();
-        String masterTimeout = OpenSearchTestCase.randomTimeValue();
+        String clusterManagerTimeout = OpenSearchTestCase.randomTimeValue();
         switch (timeoutType) {
             case "timeout":
                 healthRequest.timeout(timeout);
                 expectedParams.put("timeout", timeout);
-                // If Master Timeout wasn't set it uses the same value as Timeout
+                // If ClusterManager Timeout wasn't set it uses the same value as Timeout
                 expectedParams.put("master_timeout", timeout);
                 break;
             case "masterTimeout":
                 expectedParams.put("timeout", "30s");
-                healthRequest.masterNodeTimeout(masterTimeout);
-                expectedParams.put("master_timeout", masterTimeout);
+                healthRequest.masterNodeTimeout(clusterManagerTimeout);
+                expectedParams.put("master_timeout", clusterManagerTimeout);
                 break;
             case "both":
                 healthRequest.timeout(timeout);

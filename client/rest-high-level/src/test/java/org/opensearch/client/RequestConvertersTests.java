@@ -1827,7 +1827,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         }
 
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(putStoredScriptRequest, expectedParams);
+        setRandomClusterManagerTimeout(putStoredScriptRequest, expectedParams);
         setRandomTimeout(putStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         if (randomBoolean()) {
@@ -1858,7 +1858,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
     public void testGetScriptRequest() {
         GetStoredScriptRequest getStoredScriptRequest = new GetStoredScriptRequest("x-script");
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(getStoredScriptRequest, expectedParams);
+        setRandomClusterManagerTimeout(getStoredScriptRequest, expectedParams);
 
         Request request = RequestConverters.getScript(getStoredScriptRequest);
         assertThat(request.getEndpoint(), equalTo("/_scripts/" + getStoredScriptRequest.id()));
@@ -1872,7 +1872,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         setRandomTimeout(deleteStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        setRandomMasterTimeout(deleteStoredScriptRequest, expectedParams);
+        setRandomClusterManagerTimeout(deleteStoredScriptRequest, expectedParams);
 
         Request request = RequestConverters.deleteScript(deleteStoredScriptRequest);
         assertThat(request.getEndpoint(), equalTo("/_scripts/" + deleteStoredScriptRequest.id()));
@@ -2269,18 +2269,18 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         }
     }
 
-    static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
-        setRandomMasterTimeout(request::masterNodeTimeout, expectedParams);
+    static void setRandomClusterManagerTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
+        setRandomClusterManagerTimeout(request::masterNodeTimeout, expectedParams);
     }
 
-    static void setRandomMasterTimeout(TimedRequest request, Map<String, String> expectedParams) {
-        setRandomMasterTimeout(
+    static void setRandomClusterManagerTimeout(TimedRequest request, Map<String, String> expectedParams) {
+        setRandomClusterManagerTimeout(
             s -> request.setMasterTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".masterNodeTimeout")),
             expectedParams
         );
     }
 
-    static void setRandomMasterTimeout(Consumer<String> setter, Map<String, String> expectedParams) {
+    static void setRandomClusterManagerTimeout(Consumer<String> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String masterTimeout = randomTimeValue();
             setter.accept(masterTimeout);
@@ -2290,7 +2290,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         }
     }
 
-    static void setRandomMasterTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+    static void setRandomClusterManagerTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             TimeValue masterTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_master_timeout");
             setter.accept(masterTimeout);
