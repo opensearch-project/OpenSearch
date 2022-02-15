@@ -719,7 +719,7 @@ final class RequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params();
         params.withTimeout(putStoredScriptRequest.timeout());
-        params.withMasterTimeout(putStoredScriptRequest.masterNodeTimeout());
+        params.withClusterManagerTimeout(putStoredScriptRequest.masterNodeTimeout());
         if (Strings.hasText(putStoredScriptRequest.context())) {
             params.putParam("context", putStoredScriptRequest.context());
         }
@@ -774,7 +774,7 @@ final class RequestConverters {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new Params();
-        params.withMasterTimeout(getStoredScriptRequest.masterNodeTimeout());
+        params.withClusterManagerTimeout(getStoredScriptRequest.masterNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }
@@ -784,7 +784,7 @@ final class RequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         Params params = new Params();
         params.withTimeout(deleteStoredScriptRequest.timeout());
-        params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
+        params.withClusterManagerTimeout(deleteStoredScriptRequest.masterNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }
@@ -900,8 +900,8 @@ final class RequestConverters {
             return this;
         }
 
-        Params withMasterTimeout(TimeValue masterTimeout) {
-            return putParam("master_timeout", masterTimeout);
+        Params withClusterManagerTimeout(TimeValue clusterManagerTimeout) {
+            return putParam("master_timeout", clusterManagerTimeout);
         }
 
         Params withPipeline(String pipeline) {
