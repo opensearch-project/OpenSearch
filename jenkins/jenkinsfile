@@ -1,0 +1,21 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('gradle-check') {
+            steps {
+                sh('./search/jenkins/gradle-check-assemble.sh')
+            }
+            
+        }
+    }
+
+    post {
+        success {
+            sh('./search/jenkins/post-build-task1.sh')
+        }
+        failure {
+            sh('./search/jenkins/post-build-task2.sh')
+        }
+    }
+}
