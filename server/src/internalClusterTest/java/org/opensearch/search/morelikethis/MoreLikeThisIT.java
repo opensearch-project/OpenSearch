@@ -740,6 +740,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertHitCount(response, 1);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2107")
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text,analyzer=whitespace", "date", "type=date"));
