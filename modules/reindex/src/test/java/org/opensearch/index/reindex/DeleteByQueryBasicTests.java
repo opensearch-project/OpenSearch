@@ -83,25 +83,25 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             client().prepareIndex("test", "test", "7").setSource("foo", "f")
         );
 
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 7);
 
         // Deletes two docs that matches "foo:a"
         assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).get(), matcher().deleted(2));
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 5);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 5);
 
         // Deletes the two first docs with limit by size
         DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).size(2).refresh(true);
         request.source().addSort("foo.keyword", SortOrder.ASC);
         assertThat(request.get(), matcher().deleted(2));
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 3);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 3);
 
         // Deletes but match no docs
         assertThat(deleteByQuery().source("test").filter(termQuery("foo", "no_match")).refresh(true).get(), matcher().deleted(0));
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 3);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 3);
 
         // Deletes all remaining docs
         assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(), matcher().deleted(3));
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 0);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
     }
 
     public void testDeleteByQueryWithOneIndex() throws Exception {
@@ -319,7 +319,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             client().prepareIndex("test", "test", "6").setSource("foo", "e"),
             client().prepareIndex("test", "test", "7").setSource("foo", "f")
         );
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 7);
 
         int slices = randomSlices();
         int expectedSlices = expectedSliceStatuses(slices, "test");
@@ -329,14 +329,14 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(slices).get(),
             matcher().deleted(2).slices(hasSize(expectedSlices))
         );
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 5);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 5);
 
         // Delete remaining docs
         assertThat(
             deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).setSlices(slices).get(),
             matcher().deleted(5).slices(hasSize(expectedSlices))
         );
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 0);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
     }
 
     public void testMultipleSources() throws Exception {
@@ -369,7 +369,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         );
 
         for (String index : docs.keySet()) {
-            assertHitCount(client().prepareSearch(index).setTypes("test").setSize(0).get(), 0);
+            assertHitCount(client().prepareSearch(index).setSize(0).get(), 0);
         }
 
     }

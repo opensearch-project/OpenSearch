@@ -44,7 +44,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.search.Queries;
@@ -76,9 +75,6 @@ import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,21 +101,12 @@ public class QueryShardContext extends QueryRewriteContext {
     private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
     private final IndexSearcher searcher;
-    private String[] types = Strings.EMPTY_ARRAY;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
 
     private final Index fullyQualifiedIndex;
     private final Predicate<String> indexNameMatcher;
     private final BooleanSupplier allowExpensiveQueries;
-
-    public void setTypes(String... types) {
-        this.types = types;
-    }
-
-    public String[] getTypes() {
-        return types;
-    }
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private boolean allowUnmappedFields;
@@ -377,18 +364,6 @@ public class QueryShardContext extends QueryRewriteContext {
         }
     }
 
-    /**
-     * Returns the narrowed down explicit types, or, if not set, all types.
-     */
-    public Collection<String> queryTypes() {
-        String[] types = getTypes();
-        if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
-            DocumentMapper mapper = getMapperService().documentMapper();
-            return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
-        }
-        return Arrays.asList(types);
-    }
-
     private SearchLookup lookup = null;
 
     /**
@@ -398,8 +373,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
                 getMapperService(),
-                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
-                types
+                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
             );
         }
         return this.lookup;
@@ -415,8 +389,7 @@ public class QueryShardContext extends QueryRewriteContext {
          */
         return new SearchLookup(
             getMapperService(),
-            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
-            types
+            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
         );
     }
 

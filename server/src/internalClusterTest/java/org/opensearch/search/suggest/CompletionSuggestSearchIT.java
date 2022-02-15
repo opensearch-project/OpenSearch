@@ -1031,7 +1031,7 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(INDEX).setTypes(TYPE).addSort(new FieldSortBuilder(FIELD)).get()
+            () -> client().prepareSearch(INDEX).addSort(new FieldSortBuilder(FIELD)).get()
         );
         assertThat(e.status().getStatus(), is(400));
         assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));

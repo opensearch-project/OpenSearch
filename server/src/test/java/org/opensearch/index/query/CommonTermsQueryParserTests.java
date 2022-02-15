@@ -45,7 +45,7 @@ public class CommonTermsQueryParserTests extends OpenSearchSingleNodeTestCase {
         CommonTermsQueryBuilder commonTermsQueryBuilder = new CommonTermsQueryBuilder("name", "the").queryName("query-name");
 
         // the named query parses to null; we are testing this does not cause a NullPointerException
-        SearchResponse response = client().prepareSearch(index).setTypes(type).setQuery(commonTermsQueryBuilder).execute().actionGet();
+        SearchResponse response = client().prepareSearch(index).setQuery(commonTermsQueryBuilder).execute().actionGet();
 
         assertNotNull(response);
         assertEquals(response.getHits().getHits().length, 0);

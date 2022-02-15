@@ -432,7 +432,7 @@ final class RequestConverters {
      *    for standard searches
      */
     static Request search(SearchRequest searchRequest, String searchEndpoint) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), searchEndpoint));
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchEndpoint));
 
         Params params = new Params();
         addSearchRequestParams(params, searchRequest);
@@ -502,7 +502,7 @@ final class RequestConverters {
             request = new Request(HttpGet.METHOD_NAME, "_render/template");
         } else {
             SearchRequest searchRequest = searchTemplateRequest.getRequest();
-            String endpoint = endpoint(searchRequest.indices(), searchRequest.types(), "_search/template");
+            String endpoint = endpoint(searchRequest.indices(), "_search/template");
             request = new Request(HttpGet.METHOD_NAME, endpoint);
 
             Params params = new Params();
@@ -633,7 +633,7 @@ final class RequestConverters {
 
     private static Request prepareDeleteByQueryRequest(DeleteByQueryRequest deleteByQueryRequest, boolean waitForCompletion)
         throws IOException {
-        String endpoint = endpoint(deleteByQueryRequest.indices(), deleteByQueryRequest.getDocTypes(), "_delete_by_query");
+        String endpoint = endpoint(deleteByQueryRequest.indices(), "_delete_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params().withRouting(deleteByQueryRequest.getRouting())
             .withRefresh(deleteByQueryRequest.isRefresh())
@@ -661,7 +661,7 @@ final class RequestConverters {
     }
 
     static Request prepareUpdateByQueryRequest(UpdateByQueryRequest updateByQueryRequest, boolean waitForCompletion) throws IOException {
-        String endpoint = endpoint(updateByQueryRequest.indices(), updateByQueryRequest.getDocTypes(), "_update_by_query");
+        String endpoint = endpoint(updateByQueryRequest.indices(), "_update_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params().withRouting(updateByQueryRequest.getRouting())
             .withPipeline(updateByQueryRequest.getPipeline())
@@ -799,10 +799,12 @@ final class RequestConverters {
         return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
+    @Deprecated
     static String endpoint(String index, String type, String id) {
         return new EndpointBuilder().addPathPart(index, type, id).build();
     }
 
+    @Deprecated
     static String endpoint(String index, String type, String id, String endpoint) {
         return new EndpointBuilder().addPathPart(index, type, id).addPathPartAsIs(endpoint).build();
     }
@@ -815,6 +817,7 @@ final class RequestConverters {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).build();
     }
 
+    @Deprecated
     static String endpoint(String[] indices, String[] types, String endpoint) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices)
             .addCommaSeparatedPathParts(types)
@@ -829,6 +832,7 @@ final class RequestConverters {
             .build();
     }
 
+    @Deprecated
     static String endpoint(String[] indices, String endpoint, String type) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).addPathPart(type).build();
     }

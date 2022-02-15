@@ -241,7 +241,6 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
 
     public void testBasicDiff() {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(
                 histogram("histo").field(INTERVAL_FIELD)
                     .interval(interval)
@@ -286,7 +285,6 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
     public void testInvalidLagSize() {
         try {
             client().prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                     histogram("histo").field(INTERVAL_FIELD)
                         .interval(interval)

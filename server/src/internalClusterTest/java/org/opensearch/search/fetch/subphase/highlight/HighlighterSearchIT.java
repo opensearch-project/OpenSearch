@@ -2171,7 +2171,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         index("test", "type1", "2", "text", new String[] { "", text2 });
         refresh();
 
-        IdsQueryBuilder idsQueryBuilder = QueryBuilders.idsQuery("type1").addIds("2");
+        IdsQueryBuilder idsQueryBuilder = QueryBuilders.idsQuery().addIds("2");
         field.highlighterType("plain");
         response = client().prepareSearch("test").setQuery(idsQueryBuilder).highlighter(new HighlightBuilder().field(field)).get();
         assertNotHighlighted(response, 0, "text");
@@ -2188,7 +2188,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // But if the field was actually empty then you should get no highlighting field
         index("test", "type1", "3", "text", new String[] {});
         refresh();
-        idsQueryBuilder = QueryBuilders.idsQuery("type1").addIds("3");
+        idsQueryBuilder = QueryBuilders.idsQuery().addIds("3");
         field.highlighterType("plain");
         response = client().prepareSearch("test").setQuery(idsQueryBuilder).highlighter(new HighlightBuilder().field(field)).get();
         assertNotHighlighted(response, 0, "text");
@@ -2205,7 +2205,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         index("test", "type1", "4");
         refresh();
 
-        idsQueryBuilder = QueryBuilders.idsQuery("type1").addIds("4");
+        idsQueryBuilder = QueryBuilders.idsQuery().addIds("4");
         field.highlighterType("plain");
         response = client().prepareSearch("test").setQuery(idsQueryBuilder).highlighter(new HighlightBuilder().field(field)).get();
         assertNotHighlighted(response, 0, "text");
@@ -3042,7 +3042,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         for (String highlighter : ALL_TYPES) {
             SearchResponse response = client().prepareSearch("test")
-                .setTypes("typename")
                 .setQuery(matchQuery("foo", "test"))
                 .highlighter(new HighlightBuilder().field("foo").highlighterType(highlighter).requireFieldMatch(false))
                 .get();
@@ -3071,7 +3070,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         for (String highlighter : ALL_TYPES) {
             SearchResponse response = client().prepareSearch("filtered_alias")
-                .setTypes("typename")
                 .setQuery(matchQuery("foo", "test"))
                 .highlighter(new HighlightBuilder().field("foo").highlighterType(highlighter).requireFieldMatch(false))
                 .get();

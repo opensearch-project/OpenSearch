@@ -1788,7 +1788,6 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     private void assertMultiSortResponse(int[] expectedDays, BucketOrder... order) {
         ZonedDateTime[] expectedKeys = Arrays.stream(expectedDays).mapToObj(d -> date(1, d)).toArray(ZonedDateTime[]::new);
         SearchResponse response = client().prepareSearch("sort_idx")
-            .setTypes("type")
             .addAggregation(
                 dateHistogram("histo").field("date")
                     .dateHistogramInterval(DateHistogramInterval.DAY)

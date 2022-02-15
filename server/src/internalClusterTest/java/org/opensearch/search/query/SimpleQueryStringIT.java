@@ -264,7 +264,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
 
-        searchResponse = client().prepareSearch().setTypes("type1").setQuery(simpleQueryStringQuery("foo bar baz").field("body")).get();
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body")).get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
 
@@ -272,7 +272,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
 
-        searchResponse = client().prepareSearch().setTypes("type1").setQuery(simpleQueryStringQuery("foo bar baz").field("body.sub")).get();
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body.sub")).get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
     }
