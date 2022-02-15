@@ -268,9 +268,9 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
              * attributes.
              */
             boolean clientAttribute = v2RoleAttributeValue(realAttributes, "client", false);
-            Boolean masterAttribute = v2RoleAttributeValue(realAttributes, "master", null);
+            Boolean clusterManagerAttribute = v2RoleAttributeValue(realAttributes, "master", null);
             Boolean dataAttribute = v2RoleAttributeValue(realAttributes, "data", null);
-            if ((masterAttribute == null && false == clientAttribute) || masterAttribute) {
+            if ((clusterManagerAttribute == null && false == clientAttribute) || clusterManagerAttribute) {
                 roles.add("master");
             }
             if ((dataAttribute == null && false == clientAttribute) || dataAttribute) {

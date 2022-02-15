@@ -210,7 +210,7 @@ public class Node {
         }
 
         /**
-         * Teturns whether or not the node <strong>could</strong> be elected master.
+         * Teturns whether or not the node <strong>could</strong> be elected clustermanager.
          */
         public boolean isMasterEligible() {
             return roles.contains("master");

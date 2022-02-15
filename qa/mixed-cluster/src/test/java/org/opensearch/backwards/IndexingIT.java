@@ -438,17 +438,17 @@ public class IndexingIT extends OpenSearchRestTestCase {
 
     final class Nodes extends HashMap<String, Node> {
 
-        private String masterNodeId = null;
+        private String clusterManagerNodeId = null;
 
         public Node getMaster() {
-            return get(masterNodeId);
+            return get(clusterManagerNodeId);
         }
 
         public void setMasterNodeId(String id) {
             if (get(id) == null) {
                 throw new IllegalArgumentException("node with id [" + id + "] not found. got:" + toString());
             }
-            masterNodeId = id;
+            clusterManagerNodeId = id;
         }
 
         public void add(Node node) {
@@ -483,7 +483,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
         @Override
         public String toString() {
             return "Nodes{" +
-                "masterNodeId='" + masterNodeId + "'\n" +
+                "masterNodeId='" + clusterManagerNodeId + "'\n" +
                 values().stream().map(Node::toString).collect(Collectors.joining("\n")) +
                 '}';
         }

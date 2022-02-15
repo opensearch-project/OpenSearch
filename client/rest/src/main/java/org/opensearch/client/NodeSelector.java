@@ -36,7 +36,7 @@ import java.util.Iterator;
 
 /**
  * Selects nodes that can receive requests. Used to keep requests away
- * from master nodes or to send them to nodes with a particular attribute.
+ * from clustermanager nodes or to send them to nodes with a particular attribute.
  * Use with {@link RestClientBuilder#setNodeSelector(NodeSelector)}.
  */
 public interface NodeSelector {
