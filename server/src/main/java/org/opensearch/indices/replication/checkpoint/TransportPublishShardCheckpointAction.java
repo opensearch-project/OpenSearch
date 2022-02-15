@@ -83,7 +83,11 @@ public class TransportPublishShardCheckpointAction extends TransportReplicationA
         ActionListener.completeWith(listener, () -> {
             PublishCheckpointRequest request = shardRequest.getRequest();
             logger.trace("Checkpoint received on replica {}", request);
-            replica.onNewCheckpoint(request, source, replicationService);
+            if (request.getCheckpoint().getShardId().equals(replica.shardId())) {
+                replica.onNewCheckpoint(request, source, replicationService);
+            }
+            // TODO: Segrep - These requests are getting routed to all shards across all indices.
+            //  We should only publish to replicas of the updated index.
             return new ReplicaResult();
         });
     }
