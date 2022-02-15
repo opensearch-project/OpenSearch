@@ -226,10 +226,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             index = in.readOptionalString();
             if (in.getVersion().before(Version.V_2_0_0)) {
                 // types no longer supported so ignore
-                String type = in.readOptionalString();
-                if (type != null) {
-                    throw new IllegalStateException("types are no longer supported but found [" + type + "]");
-                }
+                in.readOptionalString();
             }
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();

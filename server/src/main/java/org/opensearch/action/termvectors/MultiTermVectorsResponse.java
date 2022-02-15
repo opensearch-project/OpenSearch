@@ -65,10 +65,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
             index = in.readString();
             if (in.getVersion().before(Version.V_2_0_0)) {
                 // ignore removed type from pre-2.0.0 versions
-                String type = in.readOptionalString();
-                if (type != null) {
-                    throw new IllegalStateException("types are no longer supported but found [" + type + "]");
-                }
+                in.readOptionalString();
             }
             id = in.readString();
             cause = in.readException();
