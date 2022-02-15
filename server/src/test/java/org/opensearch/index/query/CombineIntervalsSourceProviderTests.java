@@ -53,18 +53,23 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
     @Override
     protected Combine mutateInstance(Combine instance) throws IOException {
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
-        boolean ordered = instance.isOrdered();
-        boolean overlap = instance.isOverlap();
+        IntervalMode mode = instance.getMode();
         int maxGaps = instance.getMaxGaps();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
-        switch (between(0, 4)) {
+        switch (between(0, 3)) {
             case 0:
                 subSources = subSources == null
                     ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1)
                     : null;
                 break;
             case 1:
-                ordered = !ordered;
+                if (mode == IntervalMode.ORDERED) {
+                    mode = randomBoolean() ? IntervalMode.UNORDERED : IntervalMode.UNORDERED_NO_OVERLAP;
+                } else if (mode == IntervalMode.UNORDERED) {
+                    mode = randomBoolean() ? IntervalMode.ORDERED : IntervalMode.UNORDERED_NO_OVERLAP;
+                } else {
+                    mode = randomBoolean() ? IntervalMode.UNORDERED : IntervalMode.ORDERED;
+                }
                 break;
             case 2:
                 maxGaps++;
@@ -74,13 +79,10 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
                     ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
                     : FilterIntervalsSourceProviderTests.mutateFilter(filter);
                 break;
-            case 4:
-                overlap = !overlap;
-                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new Combine(subSources, ordered, overlap, maxGaps, filter);
+        return new Combine(subSources, mode, maxGaps, filter);
     }
 
     @Override

@@ -82,7 +82,7 @@ public class IntervalBuilderTests extends OpenSearchTestCase {
 
         CannedTokenStream ts = new CannedTokenStream(new Token("term1", 1, 2), new Token("term2", 3, 4), new Token("term3", 5, 6));
 
-        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), -1, false, false);
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), -1, IntervalMode.UNORDERED_NO_OVERLAP);
         IntervalsSource expected = Intervals.unorderedNoOverlaps(
             Intervals.unorderedNoOverlaps(Intervals.term("term1"), Intervals.term("term2")),
             Intervals.term("term3")

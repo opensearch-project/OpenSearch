@@ -137,11 +137,24 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     static IntervalsSourceProvider.Combine createRandomCombine(int depth, boolean useScripts) {
         int count = randomInt(5) + 1;
         List<IntervalsSourceProvider> subSources = createRandomSourceList(depth, useScripts, count);
-        boolean ordered = randomBoolean();
-        boolean overlap = randomBoolean();
+        IntervalMode mode;
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                mode = IntervalMode.ORDERED;
+                break;
+            case 1:
+                mode = IntervalMode.UNORDERED;
+                break;
+            case 2:
+                mode = IntervalMode.UNORDERED_NO_OVERLAP;
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+        }
+
         int maxGaps = randomInt(5) - 1;
         IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1, useScripts);
-        return new IntervalsSourceProvider.Combine(subSources, ordered, overlap, maxGaps, filter);
+        return new IntervalsSourceProvider.Combine(subSources, mode, maxGaps, filter);
     }
 
     static List<IntervalsSourceProvider> createRandomSourceList(int depth, boolean useScripts, int count) {
@@ -174,19 +187,23 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             words.add(randomRealisticUnicodeOfLengthBetween(4, 20));
         }
         String text = String.join(" ", words);
-        boolean mOrdered = randomBoolean();
-        boolean mOverlap = randomBoolean();
+        IntervalMode mMode;
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                mMode = IntervalMode.ORDERED;
+                break;
+            case 1:
+                mMode = IntervalMode.UNORDERED;
+                break;
+            case 2:
+                mMode = IntervalMode.UNORDERED_NO_OVERLAP;
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+        }
         int maxMGaps = randomInt(5) - 1;
         String analyzer = randomFrom("simple", "keyword", "whitespace");
-        return new IntervalsSourceProvider.Match(
-            text,
-            maxMGaps,
-            mOrdered,
-            mOverlap,
-            analyzer,
-            createRandomFilter(depth + 1, useScripts),
-            useField
-        );
+        return new IntervalsSourceProvider.Match(text, maxMGaps, mMode, analyzer, createRandomFilter(depth + 1, useScripts), useField);
     }
 
     @Override
@@ -200,7 +217,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         IntervalsSourceProvider.IntervalFilter scriptFilter = new IntervalsSourceProvider.IntervalFilter(
             new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap())
         );
-        IntervalsSourceProvider source = new IntervalsSourceProvider.Match("text", 0, true, true, "simple", scriptFilter, null);
+        IntervalsSourceProvider source = new IntervalsSourceProvider.Match("text", 0, IntervalMode.ORDERED, "simple", scriptFilter, null);
         queryBuilder = new IntervalQueryBuilder(TEXT_FIELD_NAME, source);
         rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
@@ -253,7 +270,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\" : { "
             + "       \"match\" : { "
             + "           \"query\" : \"Hello world\","
-            + "           \"ordered\" : true },"
+            + "           \"mode\" : \"ordered\" },"
             + "       \"boost\" : 2 } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(json);
@@ -269,8 +286,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\" : { "
             + "       \"match\" : { "
             + "           \"query\" : \"Hello world\","
-            + "           \"ordered\" : false,"
-            + "           \"overlap\" : false },"
+            + "           \"mode\" : \"unordered_no_overlap\" },"
             + "       \"boost\" : 2 } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(json);
@@ -286,8 +302,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\" : { "
             + "       \"match\" : { "
             + "           \"query\" : \"Hello world\","
-            + "           \"ordered\" : false,"
-            + "           \"overlap\" : false,"
+            + "           \"mode\" : \"unordered_no_overlap\","
             + "           \"max_gaps\" : 11 },"
             + "       \"boost\" : 2 } } }";
 
@@ -307,8 +322,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\" : { "
             + "       \"match\" : { "
             + "           \"query\" : \"Hello Open Search\","
-            + "           \"ordered\" : false,"
-            + "           \"overlap\" : false },"
+            + "           \"mode\" : \"unordered_no_overlap\" },"
             + "       \"boost\" : 3 } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(json);
@@ -330,9 +344,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\" : { "
             + "       \"match\" : { "
             + "           \"query\" : \"Hello Open Search\","
-            + "           \"ordered\" : false,"
-            + "           \"overlap\" : false,"
-            + ""
+            + "           \"mode\" : \"unordered_no_overlap\","
             + "           \"max_gaps\": 12 },"
             + "       \"boost\" : 3 } } }";
 
@@ -360,7 +372,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "           \"query\" : \"Hello world\","
             + "           \"max_gaps\" : 10,"
             + "           \"analyzer\" : \"whitespace\","
-            + "           \"ordered\" : true } } } }";
+            + "           \"mode\" : \"ordered\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
@@ -380,7 +392,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "           \"use_field\" : \""
             + MASKED_FIELD
             + "\","
-            + "           \"ordered\" : true } } } }";
+            + "           \"mode\" : \"ordered\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
@@ -397,7 +409,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "           \"query\" : \"Hello world\","
             + "           \"max_gaps\" : 10,"
             + "           \"analyzer\" : \"whitespace\","
-            + "           \"ordered\" : true,"
+            + "           \"mode\" : \"ordered\","
             + "           \"filter\" : {"
             + "               \"containing\" : {"
             + "                   \"match\" : { \"query\" : \"blah\" } } } } } } }";
@@ -449,11 +461,11 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + TEXT_FIELD_NAME
             + "\": {"
             + "       \"all_of\" : {"
-            + "           \"ordered\" : true,"
+            + "           \"mode\" : \"ordered\","
             + "           \"intervals\" : ["
             + "               { \"match\" : { \"query\" : \"one\" } },"
             + "               { \"all_of\" : { "
-            + "                   \"ordered\" : false,"
+            + "                   \"mode\" : \"unordered\","
             + "                   \"intervals\" : ["
             + "                       { \"match\" : { \"query\" : \"two\" } },"
             + "                       { \"match\" : { \"query\" : \"three\" } } ] } } ],"
@@ -484,8 +496,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + TEXT_FIELD_NAME
             + "\": {"
             + "       \"all_of\" : {"
-            + "           \"ordered\" : false,"
-            + "           \"overlap\" : false,"
+            + "           \"mode\" : \"unordered_no_overlap\","
             + "           \"intervals\" : ["
             + "               { \"match\" : { \"query\" : \"one\" } },"
             + "               { \"match\" : { \"query\" : \"two\" } } ],"
@@ -505,8 +516,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + TEXT_FIELD_NAME
             + "\": {"
             + "       \"all_of\" : {"
-            + "           \"ordered\" : false,"
-            + "           \"overlap\" : false,"
+            + "           \"mode\" : \"unordered_no_overlap\","
             + "           \"intervals\" : ["
             + "               { \"match\" : { \"query\" : \"one\" } },"
             + "               { \"match\" : { \"query\" : \"two\" } },"
@@ -536,7 +546,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + TEXT_FIELD_NAME
             + "\": { "
             + "       \"all_of\" : {"
-            + "           \"ordered\" : true,"
+            + "           \"mode\" : \"ordered\","
             + "           \"intervals\" : ["
             + "               { \"match\" : { \"query\" : \"atmosphere\" } },"
             + "               { \"any_of\" : {"
@@ -563,7 +573,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testNonIndexedFields() throws IOException {
-        IntervalsSourceProvider provider = new IntervalsSourceProvider.Match("test", 0, true, true, null, null, null);
+        IntervalsSourceProvider provider = new IntervalsSourceProvider.Match("test", 0, IntervalMode.ORDERED, null, null, null);
         IntervalQueryBuilder b = new IntervalQueryBuilder("no_such_field", provider);
         assertThat(b.toQuery(createShardContext()), equalTo(new MatchNoDocsQuery()));
 
@@ -593,7 +603,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "           \"use_field\" : \""
             + NO_POSITIONS_FIELD
             + "\","
-            + "           \"ordered\" : true } } } }";
+            + "           \"mode\" : \"ordered\" } } } }";
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);

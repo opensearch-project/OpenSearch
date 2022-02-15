@@ -53,12 +53,11 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
     protected Match mutateInstance(Match instance) throws IOException {
         String query = instance.getQuery();
         int maxGaps = instance.getMaxGaps();
-        boolean isOrdered = instance.isOrdered();
-        boolean isOverlap = instance.isOverlap();
+        IntervalMode mode = instance.getMode();
         String analyzer = instance.getAnalyzer();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         String useField = instance.getUseField();
-        switch (between(0, 6)) {
+        switch (between(0, 5)) {
             case 0:
                 query = randomAlphaOfLength(query.length() + 3);
                 break;
@@ -66,7 +65,13 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
                 maxGaps++;
                 break;
             case 2:
-                isOrdered = !isOrdered;
+                if (mode == IntervalMode.ORDERED) {
+                    mode = randomBoolean() ? IntervalMode.UNORDERED : IntervalMode.UNORDERED_NO_OVERLAP;
+                } else if (mode == IntervalMode.UNORDERED) {
+                    mode = randomBoolean() ? IntervalMode.ORDERED : IntervalMode.UNORDERED_NO_OVERLAP;
+                } else {
+                    mode = randomBoolean() ? IntervalMode.UNORDERED : IntervalMode.ORDERED;
+                }
                 break;
             case 3:
                 analyzer = analyzer == null ? randomAlphaOfLength(5) : null;
@@ -79,13 +84,10 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
             case 5:
                 useField = useField == null ? randomAlphaOfLength(5) : (useField + "foo");
                 break;
-            case 6:
-                isOverlap = !isOverlap;
-                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new Match(query, maxGaps, isOrdered, isOverlap, analyzer, filter, useField);
+        return new Match(query, maxGaps, mode, analyzer, filter, useField);
     }
 
     @Override
