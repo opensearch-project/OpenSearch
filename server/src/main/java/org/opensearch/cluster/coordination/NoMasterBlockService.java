@@ -74,19 +74,19 @@ public class NoMasterBlockService {
     public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>(
         "cluster.no_master_block",
         "write",
-        NoMasterBlockService::parseNoMasterBlock,
+        NoMasterBlockService::parseNoClusterManagerBlock,
         Property.Dynamic,
         Property.NodeScope
     );
 
-    private volatile ClusterBlock noMasterBlock;
+    private volatile ClusterBlock noClusterManagerBlock;
 
     public NoMasterBlockService(Settings settings, ClusterSettings clusterSettings) {
-        this.noMasterBlock = NO_MASTER_BLOCK_SETTING.get(settings);
+        this.noClusterManagerBlock = NO_MASTER_BLOCK_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(NO_MASTER_BLOCK_SETTING, this::setNoMasterBlock);
     }
 
-    private static ClusterBlock parseNoMasterBlock(String value) {
+    private static ClusterBlock parseNoClusterManagerBlock(String value) {
         switch (value) {
             case "all":
                 return NO_MASTER_BLOCK_ALL;
@@ -100,10 +100,10 @@ public class NoMasterBlockService {
     }
 
     public ClusterBlock getNoMasterBlock() {
-        return noMasterBlock;
+        return noClusterManagerBlock;
     }
 
-    private void setNoMasterBlock(ClusterBlock noMasterBlock) {
-        this.noMasterBlock = noMasterBlock;
+    private void setNoMasterBlock(ClusterBlock noClusterManagerBlock) {
+        this.noClusterManagerBlock = noClusterManagerBlock;
     }
 }
