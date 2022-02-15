@@ -70,9 +70,8 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
         // Enable cluster level setting for moving primaries first and keep new
         // zone nodes excluded to prevent any shard relocation
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
-        settingsRequest.persistentSettings(Settings.builder()
-            .put("cluster.routing.allocation.move.primary_first", true)
-            .put("cluster.routing.allocation.exclude.zone", z2)
+        settingsRequest.persistentSettings(
+            Settings.builder().put("cluster.routing.allocation.move.primary_first", true).put("cluster.routing.allocation.exclude.zone", z2)
         );
         client().admin().cluster().updateSettings(settingsRequest).actionGet();
 
@@ -109,7 +108,7 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
                 .put("cluster.routing.allocation.exclude.zone", z1)
                 // Total shards per node constraint is added to pause the relocation after primary shards
                 // have relocated to allow time for node shutdown and validate yellow cluster
-                .put("cluster.routing.allocation.total_shards_per_node", primaryShardCount/2)
+                .put("cluster.routing.allocation.total_shards_per_node", primaryShardCount / 2)
         );
         client().admin().cluster().updateSettings(settingsRequest);
         primaryMoveLatch.await();
