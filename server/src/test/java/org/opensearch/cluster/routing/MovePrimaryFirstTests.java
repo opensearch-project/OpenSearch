@@ -49,15 +49,17 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Creates two nodes each in two zones and shuts down nodes in one zone
-     * after relocating half the number of shards. Since, primaries are relocated
-     * first, cluster should stay green as primary should have relocated
+     * Creates two nodes each in two zones and shuts down nodes in zone1 after
+     * relocating half the number of shards. Shards per node constraint ensures
+     * that exactly 50% of shards relocate to nodes in zone2 giving time to shut down
+     * nodes in zone1. Since primaries are relocated first as movePrimaryFirst is
+     * enabled, cluster should not become red and zone2 nodes have all the primaries
      */
     public void testClusterGreenAfterPartialRelocation() throws InterruptedException {
         internalCluster().startMasterOnlyNodes(1);
         final String z1 = "zone-1", z2 = "zone-2";
-        // Primary shard count should be even for equal distribution across two nodes
         final int primaryShardCount = 6;
+        assertTrue("Primary shard count must be even for equal distribution across two nodes", primaryShardCount % 2 == 0);
         final String z1n1 = startDataOnlyNode(z1);
         ensureGreen();
         createAndIndex("foo", 1, primaryShardCount);
