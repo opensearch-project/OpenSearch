@@ -44,7 +44,7 @@ public class GetComposableIndexTemplateRequest implements Validatable {
 
     private final String name;
 
-    private TimeValue masterNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+    private TimeValue clusterManagerNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
     private boolean local = false;
 
     /**
@@ -68,15 +68,15 @@ public class GetComposableIndexTemplateRequest implements Validatable {
      * @return the timeout for waiting for the master node to respond
      */
     public TimeValue getMasterNodeTimeout() {
-        return masterNodeTimeout;
+        return clusterManagerNodeTimeout;
     }
 
     public void setMasterNodeTimeout(@Nullable TimeValue masterNodeTimeout) {
-        this.masterNodeTimeout = masterNodeTimeout;
+        this.clusterManagerNodeTimeout = masterNodeTimeout;
     }
 
-    public void setMasterNodeTimeout(String masterNodeTimeout) {
-        final TimeValue timeValue = TimeValue.parseTimeValue(masterNodeTimeout, getClass().getSimpleName() + ".masterNodeTimeout");
+    public void setMasterNodeTimeout(String clusterManagerNodeTimeout) {
+        final TimeValue timeValue = TimeValue.parseTimeValue(clusterManagerNodeTimeout, getClass().getSimpleName() + ".masterNodeTimeout");
         setMasterNodeTimeout(timeValue);
     }
 

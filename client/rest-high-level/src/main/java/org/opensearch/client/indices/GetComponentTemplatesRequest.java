@@ -44,7 +44,7 @@ public class GetComponentTemplatesRequest implements Validatable {
 
     private final String name;
 
-    private TimeValue masterNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+    private TimeValue clusterManagerNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
     private boolean local = false;
 
     /**
@@ -68,11 +68,11 @@ public class GetComponentTemplatesRequest implements Validatable {
      * @return the timeout for waiting for the master node to respond
      */
     public TimeValue getMasterNodeTimeout() {
-        return masterNodeTimeout;
+        return clusterManagerNodeTimeout;
     }
 
-    public void setMasterNodeTimeout(@Nullable TimeValue masterNodeTimeout) {
-        this.masterNodeTimeout = masterNodeTimeout;
+    public void setMasterNodeTimeout(@Nullable TimeValue clusterManagerNodeTimeout) {
+        this.clusterManagerNodeTimeout = clusterManagerNodeTimeout;
     }
 
     public void setMasterNodeTimeout(String masterNodeTimeout) {
