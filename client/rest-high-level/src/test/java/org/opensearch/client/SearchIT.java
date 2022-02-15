@@ -64,7 +64,6 @@ import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.join.aggregations.Children;
 import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.rest.action.document.RestIndexAction;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
@@ -125,24 +124,19 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     @Before
     public void indexDocuments() throws IOException {
         {
-            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/type/1");
-            doc1.setOptions(expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
             doc1.setJsonEntity("{\"type\":\"type1\", \"id\":1, \"num\":10, \"num2\":50}");
             client().performRequest(doc1);
-            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/type/2");
-            doc2.setOptions(expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/_doc/2");
             doc2.setJsonEntity("{\"type\":\"type1\", \"id\":2, \"num\":20, \"num2\":40}");
             client().performRequest(doc2);
-            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/type/3");
-            doc3.setOptions(expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/_doc/3");
             doc3.setJsonEntity("{\"type\":\"type1\", \"id\":3, \"num\":50, \"num2\":35}");
             client().performRequest(doc3);
-            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/type/4");
-            doc4.setOptions(expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/_doc/4");
             doc4.setJsonEntity("{\"type\":\"type2\", \"id\":4, \"num\":100, \"num2\":10}");
             client().performRequest(doc4);
-            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/type/5");
-            doc5.setOptions(expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/_doc/5");
             doc5.setJsonEntity("{\"type\":\"type2\", \"id\":5, \"num\":100, \"num2\":10}");
             client().performRequest(doc5);
         }
@@ -241,13 +235,11 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(5, searchResponse.getHits().getHits().length);
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
             assertEquals("index", searchHit.getIndex());
-            assertEquals("type", searchHit.getType());
             assertThat(Integer.valueOf(searchHit.getId()), both(greaterThan(0)).and(lessThan(6)));
             assertEquals(1.0f, searchHit.getScore(), 0);
             assertEquals(-1L, searchHit.getVersion());
             assertNotNull(searchHit.getSourceAsMap());
             assertEquals(4, searchHit.getSourceAsMap().size());
-            assertTrue(searchHit.getSourceAsMap().containsKey("type"));
             assertTrue(searchHit.getSourceAsMap().containsKey("num"));
             assertTrue(searchHit.getSourceAsMap().containsKey("num2"));
         }
@@ -266,7 +258,6 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(searchResponse.getHits().getMaxScore(), greaterThan(0f));
         SearchHit searchHit = searchResponse.getHits().getHits()[0];
         assertEquals("index", searchHit.getIndex());
-        assertEquals("type", searchHit.getType());
         assertEquals("1", searchHit.getId());
         assertThat(searchHit.getScore(), greaterThan(0f));
         assertEquals(-1L, searchHit.getVersion());

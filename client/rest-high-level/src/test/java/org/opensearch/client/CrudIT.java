@@ -70,11 +70,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.document.RestBulkAction;
-import org.opensearch.rest.action.document.RestDeleteAction;
-import org.opensearch.rest.action.document.RestGetAction;
-import org.opensearch.rest.action.document.RestIndexAction;
 import org.opensearch.rest.action.document.RestMultiGetAction;
-import org.opensearch.rest.action.document.RestUpdateAction;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -204,31 +200,6 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         }
-    }
-
-    public void testDeleteWithTypes() throws IOException {
-        String docId = "id";
-        IndexRequest indexRequest = new IndexRequest("index", "type", docId);
-        indexRequest.source(Collections.singletonMap("foo", "bar"));
-        execute(
-            indexRequest,
-            highLevelClient()::index,
-            highLevelClient()::indexAsync,
-            expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
-        );
-
-        DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
-        DeleteResponse deleteResponse = execute(
-            deleteRequest,
-            highLevelClient()::delete,
-            highLevelClient()::deleteAsync,
-            expectWarningsOnce(RestDeleteAction.TYPES_DEPRECATION_MESSAGE)
-        );
-
-        assertEquals("index", deleteResponse.getIndex());
-        assertEquals("type", deleteResponse.getType());
-        assertEquals(docId, deleteResponse.getId());
-        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
     }
 
     public void testExists() throws IOException {
@@ -414,36 +385,6 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(1, sourceAsMap.size());
             assertEquals("value1", sourceAsMap.get("field1"));
         }
-    }
-
-    public void testGetWithTypes() throws IOException {
-        String document = "{\"field\":\"value\"}";
-        IndexRequest indexRequest = new IndexRequest("index", "type", "id");
-        indexRequest.source(document, XContentType.JSON);
-        indexRequest.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        execute(
-            indexRequest,
-            highLevelClient()::index,
-            highLevelClient()::indexAsync,
-            expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
-        );
-
-        GetRequest getRequest = new GetRequest("index", "type", "id");
-        GetResponse getResponse = execute(
-            getRequest,
-            highLevelClient()::get,
-            highLevelClient()::getAsync,
-            expectWarningsOnce(RestGetAction.TYPES_DEPRECATION_MESSAGE)
-        );
-
-        assertEquals("index", getResponse.getIndex());
-        assertEquals("type", getResponse.getType());
-        assertEquals("id", getResponse.getId());
-
-        assertTrue(getResponse.isExists());
-        assertFalse(getResponse.isSourceEmpty());
-        assertEquals(1L, getResponse.getVersion());
-        assertEquals(document, getResponse.getSourceAsString());
     }
 
     public void testMultiGet() throws IOException {
@@ -739,22 +680,6 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
     }
 
-    public void testIndexWithTypes() throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
-        IndexRequest indexRequest = new IndexRequest("index", "some_type", "some_id");
-        indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("test", "test").endObject());
-        IndexResponse indexResponse = execute(
-            indexRequest,
-            highLevelClient()::index,
-            highLevelClient()::indexAsync,
-            expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
-        );
-        assertEquals(RestStatus.CREATED, indexResponse.status());
-        assertEquals("index", indexResponse.getIndex());
-        assertEquals("some_type", indexResponse.getType());
-        assertEquals("some_id", indexResponse.getId());
-    }
-
     public void testUpdate() throws IOException {
         {
             UpdateRequest updateRequest = new UpdateRequest("index", "does_not_exist");
@@ -953,29 +878,6 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 exception.getMessage()
             );
         }
-    }
-
-    public void testUpdateWithTypes() throws IOException {
-        IndexRequest indexRequest = new IndexRequest("index", "type", "id");
-        indexRequest.source(singletonMap("field", "value"));
-        IndexResponse indexResponse = execute(
-            indexRequest,
-            highLevelClient()::index,
-            highLevelClient()::indexAsync,
-            expectWarningsOnce(RestIndexAction.TYPES_DEPRECATION_MESSAGE)
-        );
-
-        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
-        updateRequest.doc(singletonMap("field", "updated"), randomFrom(XContentType.values()));
-        UpdateResponse updateResponse = execute(
-            updateRequest,
-            highLevelClient()::update,
-            highLevelClient()::updateAsync,
-            expectWarningsOnce(RestUpdateAction.TYPES_DEPRECATION_MESSAGE)
-        );
-
-        assertEquals(RestStatus.OK, updateResponse.status());
-        assertEquals(indexResponse.getVersion() + 1, updateResponse.getVersion());
     }
 
     public void testBulk() throws IOException {

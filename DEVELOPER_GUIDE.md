@@ -183,6 +183,15 @@ You can import the OpenSearch project into IntelliJ IDEA as follows.
 2. In the subsequent dialog navigate to the root `build.gradle` file
 3. In the subsequent dialog select **Open as Project**
 
+#### Remote development using JetBrains Gateway
+
+[JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/) enables development, testing and debugging on remote machines like development servers.
+
+1. On the local development machine, download and install the latest thin client from the [JetBrains Gateway page](https://www.jetbrains.com/remote-development/gateway/).
+2. Create a new connection to the remote server and install an IntelliJ server support using [these instructions](https://www.jetbrains.com/help/idea/remote-development-starting-page.html#connect_to_rd_ij).
+
+Follow the [IntelliJ IDEA instructions](#intellij-idea) post a successful connection.
+
 ### Visual Studio Code
 
 Follow links in the [Java Tutorial](https://code.visualstudio.com/docs/java/java-tutorial) to install the coding pack and extensions for Java, Gradle tasks, etc. Open the source code directory.

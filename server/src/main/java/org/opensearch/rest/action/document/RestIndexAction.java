@@ -38,9 +38,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.VersionType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestActions;
@@ -57,21 +55,10 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
-        + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
-        + "or /{index}/_create/{id}).";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(
-            asList(
-                new Route(POST, "/{index}/_doc/{id}"),
-                new Route(PUT, "/{index}/_doc/{id}"),
-                new Route(POST, "/{index}/{type}/{id}"),
-                new Route(PUT, "/{index}/{type}/{id}")
-            )
-        );
+        return unmodifiableList(asList(new Route(POST, "/{index}/_doc/{id}"), new Route(PUT, "/{index}/_doc/{id}")));
     }
 
     @Override
@@ -88,14 +75,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(
-                asList(
-                    new Route(POST, "/{index}/_create/{id}"),
-                    new Route(PUT, "/{index}/_create/{id}"),
-                    new Route(POST, "/{index}/{type}/{id}/_create"),
-                    new Route(PUT, "/{index}/{type}/{id}/_create")
-                )
-            );
+            return unmodifiableList(asList(new Route(POST, "/{index}/_create/{id}"), new Route(PUT, "/{index}/_create/{id}")));
         }
 
         @Override
@@ -127,7 +107,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(new Route(POST, "/{index}/_doc"), new Route(POST, "/{index}/{type}")));
+            return unmodifiableList(asList(new Route(POST, "/{index}/_doc")));
         }
 
         @Override
@@ -145,13 +125,8 @@ public class RestIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndexRequest indexRequest;
         final String type = request.param("type");
-        if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
-            deprecationLogger.deprecate("index_with_types", TYPES_DEPRECATION_MESSAGE);
-            indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
-        } else {
-            indexRequest = new IndexRequest(request.param("index"));
-            indexRequest.id(request.param("id"));
-        }
+        indexRequest = new IndexRequest(request.param("index"));
+        indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.source(request.requiredContent(), request.getXContentType());
