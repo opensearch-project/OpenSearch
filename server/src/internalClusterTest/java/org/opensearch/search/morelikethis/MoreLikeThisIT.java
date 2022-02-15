@@ -760,14 +760,14 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery(new Item[] { new Item("test", malformedFieldDoc) }).minTermFreq(0)
             .minDocFreq(0)
             .minimumShouldMatch("0%");
-        SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 0);
 
         logger.info("Checking with an empty document ...");
         XContentBuilder emptyDoc = jsonBuilder().startObject().endObject();
         mltQuery = moreLikeThisQuery(null, new Item[] { new Item("test", emptyDoc) }).minTermFreq(0).minDocFreq(0).minimumShouldMatch("0%");
-        response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 0);
 
@@ -779,7 +779,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         mltQuery = moreLikeThisQuery(null, new Item[] { new Item("test", normalDoc) }).minTermFreq(0)
             .minDocFreq(0)
             .minimumShouldMatch("100%");  // strict all terms must match but date is ignored
-        response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
     }
@@ -932,7 +932,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
             Throwable cause = exception.getCause();
             assertThat(cause, instanceOf(RoutingMissingException.class));
-            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[_doc]/[2]"));
         }
     }
 }

@@ -81,6 +81,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     public void testNoSuchDoc() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type1")
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
