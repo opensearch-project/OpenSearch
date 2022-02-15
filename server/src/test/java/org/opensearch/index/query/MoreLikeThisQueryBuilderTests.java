@@ -472,11 +472,6 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, instanceOf(MoreLikeThisQueryBuilder.class));
-
-        if (!assertedWarnings.contains(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE)) {
-            assertWarnings(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE);
-            assertedWarnings.add(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE);
-        }
         return query;
     }
 

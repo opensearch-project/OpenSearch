@@ -65,9 +65,9 @@ public class TermVectorsResponse {
         "term_vectors",
         true,
         args -> {
-            // as the response comes from server, we are sure that args[6] will be a list of TermVector
+            // as the response comes from server, we are sure that args[5] will be a list of TermVector
             @SuppressWarnings("unchecked")
-            List<TermVector> termVectorList = (List<TermVector>) args[6];
+            List<TermVector> termVectorList = (List<TermVector>) args[5];
             if (termVectorList != null) {
                 Collections.sort(termVectorList, Comparator.comparing(TermVector::getFieldName));
             }

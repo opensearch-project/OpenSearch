@@ -330,7 +330,6 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
         request.add(new TermVectorsRequest(), data);
 
         checkParsedParameters(request);
-        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     void checkParsedParameters(MultiTermVectorsRequest request) {
@@ -361,7 +360,6 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
         request.add(new TermVectorsRequest(), data);
 
         checkParsedFilterParameters(request);
-        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     void checkParsedFilterParameters(MultiTermVectorsRequest multiRequest) {
