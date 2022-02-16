@@ -30,7 +30,7 @@ setup:
             - '{"text" : "that is some cold cold rain"}'
 
 ---
-"Test ordered matching":
+"Test ordered matching with via mode":
   - skip:
       version: " - 1.99.99"
       reason: "mode introduced in 2.0"
@@ -47,6 +47,24 @@ setup:
   - match: { hits.total.value: 2 }
 
 ---
+"Test ordered matching":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  ordered: true
+  - match: { hits.total.value: 2 }
+
+---
 "Test default unordered matching":
   - do:
         search:
@@ -60,7 +78,7 @@ setup:
   - match: { hits.total.value: 3 }
 
 ---
-"Test explicit unordered matching":
+"Test explicit unordered matching via mode":
   - skip:
       version: " - 1.99.99"
       reason: "mode introduced in 2.0"
@@ -74,6 +92,24 @@ setup:
                 match:
                   query: "cold outside"
                   mode: "unordered"
+  - match: { hits.total.value: 3 }
+
+---
+"Test explicit unordered matching":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  ordered: false
   - match: { hits.total.value: 3 }
 
 ---
@@ -161,7 +197,7 @@ setup:
   - match: { hits.total.value: 1 }
 
 ---
-"Test ordered combination with disjunction":
+"Test ordered combination with disjunction via mode":
   - skip:
       version: " - 1.99.99"
       reason: "mode introduced in 2.0"
@@ -183,6 +219,32 @@ setup:
                     - match:
                         query: "atmosphere"
                   mode: "ordered"
+  - match: { hits.total.value: 1 }
+
+---
+"Test ordered combination with disjunction":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+                    - match:
+                        query: "atmosphere"
+                  ordered: true
   - match: { hits.total.value: 1 }
 
 ---
@@ -229,7 +291,7 @@ setup:
   - match: { hits.total.value: 2 }
 
 ---
-"Test unordered combination":
+"Test unordered combination via mode":
   - skip:
       version: " - 1.99.99"
       reason: "mode introduced in 2.0"
@@ -248,6 +310,29 @@ setup:
                         query: "outside"
                   max_gaps: 1
                   mode: "unordered"
+  - match: { hits.total.value: 2 }
+
+---
+"Test unordered combination":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  max_gaps: 1
+                  ordered: false
   - match: { hits.total.value: 2 }
 
 ---
