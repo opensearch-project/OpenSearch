@@ -81,7 +81,7 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
 
         List<Long> longs = Stream.of(abs(randomLong()), abs(randomLong())).sorted().collect(toList());
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "type1", "0");
+        TermVectorsRequest request = new TermVectorsRequest("test", "0");
         TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request, longs.iterator()::next);
 
         assertThat(response, notNullValue());
@@ -112,7 +112,7 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
         }
         bulk.get();
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "_doc", "0").termStatistics(true);
+        TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -153,7 +153,7 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
         }
         bulk.get();
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "_doc", "0").termStatistics(true);
+        TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));

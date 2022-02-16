@@ -37,7 +37,6 @@ import org.opensearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -78,13 +77,6 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         TermVectorsRequest template = new TermVectorsRequest().index(request.param("index"));
-
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecate("mtermvectors_with_types", TYPES_DEPRECATION_MESSAGE);
-            template.type(request.param("type"));
-        } else {
-            template.type(MapperService.SINGLE_MAPPING_NAME);
-        }
 
         RestTermVectorsAction.readURIParameters(template, request);
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));

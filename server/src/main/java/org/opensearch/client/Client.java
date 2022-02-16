@@ -375,10 +375,9 @@ public interface Client extends OpenSearchClient, Releasable {
      * Builder for the term vector request.
      *
      * @param index The index to load the document from
-     * @param type  The type of the document
      * @param id    The id of the document
      */
-    TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id);
+    TermVectorsRequestBuilder prepareTermVectors(String index, String id);
 
     /**
      * Multi get term vectors.
