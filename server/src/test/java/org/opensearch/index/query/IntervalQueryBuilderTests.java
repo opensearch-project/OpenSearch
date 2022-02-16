@@ -42,6 +42,8 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
@@ -684,6 +686,114 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(wildcard_over_max_expand_json);
             builder1.toQuery(createShardContext());
         });
+    }
+
+    private static IntervalsSource buildRegexpSource(String pattern, int flags, Integer maxExpansions) {
+        final RegExp regexp = new RegExp(pattern, flags);
+        CompiledAutomaton automaton = new CompiledAutomaton(regexp.toAutomaton());
+
+        if (maxExpansions != null) {
+            return Intervals.multiterm(automaton, maxExpansions, regexp.toString());
+        } else {
+            return Intervals.multiterm(automaton, regexp.toString());
+        }
+    }
+
+    public void testRegexp() throws IOException {
+        final int DEFAULT_FLAGS = RegexpFlag.ALL.value();
+        String json = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " + "\"regexp\" : { \"pattern\" : \"te.m\" } } } }";
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, null));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String no_positions_json = "{ \"intervals\" : { \""
+            + NO_POSITIONS_FIELD
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"[Tt]erm\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
+            builder1.toQuery(createShardContext());
+        });
+
+        String fixed_field_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"use_field\" : \"masked_field\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, buildRegexpSource("te.m", DEFAULT_FLAGS, null)));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String fixed_field_json_no_positions = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"use_field\" : \""
+            + NO_POSITIONS_FIELD
+            + "\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(fixed_field_json_no_positions);
+            builder1.toQuery(createShardContext());
+        });
+
+        String flags_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"flags\" : \"NONE\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(flags_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.NONE.value(), null));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String flags_value_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"flags_value\" : \""
+            + RegexpFlag.ANYSTRING.value()
+            + "\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(flags_value_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.ANYSTRING.value(), null));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String regexp_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"max_expansions\" : 500 } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(regexp_max_expand_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, 500));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String regexp_neg_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"max_expansions\" : -20 } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(regexp_neg_max_expand_json);
+        // max expansions use default
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, null));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String regexp_over_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"max_expansions\" : "
+            + (BooleanQuery.getMaxClauseCount() + 1)
+            + " } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(regexp_over_max_expand_json);
+            builder1.toQuery(createShardContext());
+        });
+
+        String regexp_max_expand_with_flags_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"flags\": \"NONE\", \"max_expansions\" : 500 } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(regexp_max_expand_with_flags_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.NONE.value(), 500));
+        assertEquals(expected, builder.toQuery(createShardContext()));
     }
 
     private static IntervalsSource buildFuzzySource(String term, String label, int prefixLength, boolean transpositions, int editDistance) {
