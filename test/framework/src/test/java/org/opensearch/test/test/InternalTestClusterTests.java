@@ -86,7 +86,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
 
     public void testInitializiationIsConsistent() {
         long clusterSeed = randomLong();
-        boolean masterNodes = randomBoolean();
+        boolean clusterManagerNodes = randomBoolean();
         int minNumDataNodes = randomIntBetween(0, 9);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 10);
         String clusterName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
@@ -98,7 +98,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         InternalTestCluster cluster0 = new InternalTestCluster(
             clusterSeed,
             baseDir,
-            masterNodes,
+            clusterManagerNodes,
             randomBoolean(),
             minNumDataNodes,
             maxNumDataNodes,
@@ -112,7 +112,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         InternalTestCluster cluster1 = new InternalTestCluster(
             clusterSeed,
             baseDir,
-            masterNodes,
+            clusterManagerNodes,
             randomBoolean(),
             minNumDataNodes,
             maxNumDataNodes,
@@ -165,23 +165,23 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
     }
 
     public void testBeforeTest() throws Exception {
-        final boolean autoManageMinMasterNodes = randomBoolean();
+        final boolean autoManageMinClusterManagerNodes = randomBoolean();
         long clusterSeed = randomLong();
-        final boolean masterNodes;
+        final boolean clusterManagerNodes;
         final int minNumDataNodes;
         final int maxNumDataNodes;
-        final int bootstrapMasterNodeIndex;
-        if (autoManageMinMasterNodes) {
-            masterNodes = randomBoolean();
+        final int bootstrapClusterManagerNodeIndex;
+        if (autoManageMinClusterManagerNodes) {
+            clusterManagerNodes = randomBoolean();
             minNumDataNodes = randomIntBetween(0, 3);
             maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
-            bootstrapMasterNodeIndex = -1;
+            bootstrapClusterManagerNodeIndex = -1;
         } else {
-            // if we manage min master nodes, we need to lock down the number of nodes
+            // if we manage min clustermanager nodes, we need to lock down the number of nodes
             minNumDataNodes = randomIntBetween(0, 4);
             maxNumDataNodes = minNumDataNodes;
-            masterNodes = false;
-            bootstrapMasterNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
+            clusterManagerNodes = false;
+            bootstrapClusterManagerNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
         }
         final int numClientNodes = randomIntBetween(0, 2);
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
@@ -191,9 +191,9 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
                     .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
                     .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
-                if (autoManageMinMasterNodes == false) {
+                if (autoManageMinClusterManagerNodes == false) {
                     assert minNumDataNodes == maxNumDataNodes;
-                    assert masterNodes == false;
+                    assert clusterManagerNodes == false;
                 }
                 return settings.build();
             }
@@ -209,8 +209,8 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         InternalTestCluster cluster0 = new InternalTestCluster(
             clusterSeed,
             createTempDir(),
-            masterNodes,
-            autoManageMinMasterNodes,
+            clusterManagerNodes,
+            autoManageMinClusterManagerNodes,
             minNumDataNodes,
             maxNumDataNodes,
             "clustername",
@@ -220,13 +220,13 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             mockPlugins(),
             Function.identity()
         );
-        cluster0.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
+        cluster0.setBootstrapMasterNodeIndex(bootstrapClusterManagerNodeIndex);
 
         InternalTestCluster cluster1 = new InternalTestCluster(
             clusterSeed,
             createTempDir(),
-            masterNodes,
-            autoManageMinMasterNodes,
+            clusterManagerNodes,
+            autoManageMinClusterManagerNodes,
             minNumDataNodes,
             maxNumDataNodes,
             "clustername",
@@ -236,7 +236,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             mockPlugins(),
             Function.identity()
         );
-        cluster1.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
+        cluster1.setBootstrapMasterNodeIndex(bootstrapClusterManagerNodeIndex);
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
