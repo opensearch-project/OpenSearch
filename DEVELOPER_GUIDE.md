@@ -340,6 +340,15 @@ somehow. OpenSearch plugins use this configuration to include dependencies that 
 Code that is on the classpath for compiling tests that are part of this project but not production code. The canonical example
 of this is `junit`.
 
+### Gradle Plugins
+
+#### Distribution Download Plugin
+
+We can override the default distribution download url which always downloads latest version of OpenSearch, with custom distribution download url. This will help to pull artifacts from any location.
+This custom distribution download url can be passed from external plugins as an argument.
+
+Sample command: ./gradlew integTest -DcustomDistributionUrl= "custom distribution download url"
+
 ## Misc
 
 ### git-secrets

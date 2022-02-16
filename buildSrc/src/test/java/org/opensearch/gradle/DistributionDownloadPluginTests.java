@@ -115,6 +115,10 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             "https://artifacts.opensearch.org"
         );
         assertEquals(
+            ((DefaultIvyArtifactRepository) project.getRepositories().getAt("opensearch-downloads2")).getUrl().toString(),
+            "https://artifacts.opensearch.org"
+        );
+        assertEquals(
             ((DefaultIvyArtifactRepository) project.getRepositories().getAt("opensearch-snapshots")).getUrl().toString(),
             "https://artifacts.opensearch.org"
         );
