@@ -47,7 +47,6 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;
-import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;
@@ -63,7 +62,6 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
-            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -81,7 +79,6 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
             context -> null,
             DocValueFormat.RAW,
             true,
-            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -95,24 +92,13 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
-            MissingOrder.DEFAULT,
             0,
             -1
         );
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
 
         MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
-        source = new BinaryValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
-            ip,
-            context -> null,
-            DocValueFormat.RAW,
-            false,
-            MissingOrder.DEFAULT,
-            1,
-            1
-        );
+        source = new BinaryValuesSource(BigArrays.NON_RECYCLING_INSTANCE, (b) -> {}, ip, context -> null, DocValueFormat.RAW, false, 1, 1);
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
@@ -124,7 +110,6 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
-            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -135,16 +120,7 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
 
-        source = new GlobalOrdinalValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            keyword,
-            context -> null,
-            DocValueFormat.RAW,
-            true,
-            MissingOrder.DEFAULT,
-            1,
-            1
-        );
+        source = new GlobalOrdinalValuesSource(BigArrays.NON_RECYCLING_INSTANCE, keyword, context -> null, DocValueFormat.RAW, true, 1, 1);
         assertNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
@@ -155,7 +131,6 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
-            MissingOrder.DEFAULT,
             1,
             -1
         );
@@ -163,16 +138,7 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
 
         final MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
-        source = new GlobalOrdinalValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            ip,
-            context -> null,
-            DocValueFormat.RAW,
-            false,
-            MissingOrder.DEFAULT,
-            1,
-            1
-        );
+        source = new GlobalOrdinalValuesSource(BigArrays.NON_RECYCLING_INSTANCE, ip, context -> null, DocValueFormat.RAW, false, 1, 1);
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
     }
@@ -193,7 +159,6 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                     value -> value,
                     DocValueFormat.RAW,
                     false,
-                    MissingOrder.DEFAULT,
                     1,
                     1
                 );
@@ -227,7 +192,6 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                     value -> value,
                     DocValueFormat.RAW,
                     true,
-                    MissingOrder.DEFAULT,
                     1,
                     1
                 );
@@ -249,7 +213,6 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                     value -> value,
                     DocValueFormat.RAW,
                     false,
-                    MissingOrder.DEFAULT,
                     1,
                     -1
                 );
@@ -268,7 +231,6 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
                         context -> null,
                         DocValueFormat.RAW,
                         false,
-                        MissingOrder.DEFAULT,
                         1,
                         1
                     );

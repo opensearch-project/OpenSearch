@@ -63,7 +63,6 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.LeafBucketCollector;
-import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -278,7 +277,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         value -> value,
                         DocValueFormat.RAW,
                         missingBucket,
-                        MissingOrder.DEFAULT,
                         size,
                         1
                     );
@@ -289,7 +287,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
                         DocValueFormat.RAW,
                         missingBucket,
-                        MissingOrder.DEFAULT,
                         size,
                         1
                     );
@@ -303,7 +300,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
                             DocValueFormat.RAW,
                             missingBucket,
-                            MissingOrder.DEFAULT,
                             size,
                             1
                         );
@@ -315,7 +311,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             context -> FieldData.toString(DocValues.getSortedSet(context.reader(), fieldType.name())),
                             DocValueFormat.RAW,
                             missingBucket,
-                            MissingOrder.DEFAULT,
                             size,
                             1
                         );

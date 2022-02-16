@@ -39,7 +39,6 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
@@ -58,11 +57,10 @@ class GeoTileValuesSource extends LongValuesSource {
         LongUnaryOperator rounding,
         DocValueFormat format,
         boolean missingBucket,
-        MissingOrder missingOrder,
         int size,
         int reverseMul
     ) {
-        super(bigArrays, fieldType, docValuesFunc, rounding, format, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, fieldType, docValuesFunc, rounding, format, missingBucket, size, reverseMul);
     }
 
     @Override

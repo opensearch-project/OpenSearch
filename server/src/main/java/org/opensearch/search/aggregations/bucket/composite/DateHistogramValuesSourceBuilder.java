@@ -52,7 +52,6 @@ import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval
 import org.opensearch.search.aggregations.bucket.histogram.DateIntervalConsumer;
 import org.opensearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
-import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -82,7 +81,6 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
-            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -290,7 +288,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         builder.register(
             REGISTRY_KEY,
             org.opensearch.common.collect.List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, missingOrder, order) -> {
+            (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it
                 // here
@@ -306,7 +304,6 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                     docValueFormat,
                     order,
                     missingBucket,
-                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -322,7 +319,6 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                             roundingValuesSource::round,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
-                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -343,6 +339,6 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(REGISTRY_KEY, config)
-            .apply(config, rounding, name, config.script() != null, format(), missingBucket(), missingOrder(), order());
+            .apply(config, rounding, name, config.script() != null, format(), missingBucket(), order());
     }
 }

@@ -49,7 +49,6 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.geogrid.CellIdSource;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -73,7 +72,6 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
-            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -105,7 +103,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         builder.register(
             REGISTRY_KEY,
             CoreValuesSourceType.GEOPOINT,
-            (valuesSourceConfig, precision, boundingBox, name, hasScript, format, missingBucket, missingOrder, order) -> {
+            (valuesSourceConfig, precision, boundingBox, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
                 // is specified in the builder.
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
@@ -117,7 +115,6 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                     DocValueFormat.GEOTILE,
                     order,
                     missingBucket,
-                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -135,7 +132,6 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                             LongUnaryOperator.identity(),
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
-                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -224,7 +220,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(REGISTRY_KEY, config)
-            .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), missingOrder(), order());
+            .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), order());
     }
 
 }
