@@ -33,6 +33,8 @@
       - [runtimeOnly](#runtimeonly)
       - [compileOnly](#compileonly)
       - [testImplementation](#testimplementation)
+    - [Gradle Plugins](#gradle-plugins)
+      - [Distribution Download Plugin](#distribution-download-plugin)
   - [Misc](#misc)
     - [git-secrets](#git-secrets)
       - [Installation](#installation)
@@ -344,10 +346,10 @@ of this is `junit`.
 
 #### Distribution Download Plugin
 
-We can override the default distribution download url which always downloads latest version of OpenSearch, with custom distribution download url. This will help to pull artifacts from any location.
-This custom distribution download url can be passed from external plugins as an argument.
+To override the default Distribution Download URL which always downloads latest version of OpenSearch, with custom Distribution Download URL. This allows to pull artifacts from a custom location.
+This custom Distribution Download URL can be passed from external plugins as an argument.
 
-Sample command: ./gradlew integTest -DcustomDistributionUrl= "custom distribution download url"
+`./gradlew integTest -DcustomDistributionUrl= "https://ci.opensearch.org/ci/dbc/bundle-build/1.2.0/1127/linux/x64/dist/opensearch-1.2.0-linux-x64.tar.gz"`
 
 ## Misc
 
