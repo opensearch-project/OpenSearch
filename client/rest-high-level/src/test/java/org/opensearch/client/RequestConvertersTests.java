@@ -469,9 +469,6 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             reindexRequest.setRemoteInfo(remoteInfo);
         }
         if (randomBoolean()) {
-            reindexRequest.setSourceDocTypes("doc", "tweet");
-        }
-        if (randomBoolean()) {
             reindexRequest.setSourceBatchSize(randomInt(100));
         }
         if (randomBoolean()) {
@@ -537,9 +534,6 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         updateByQueryRequest.indices(randomIndicesNames(1, 5));
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
-            updateByQueryRequest.setDocTypes(generateRandomStringArray(5, 5, false, false));
-        }
-        if (randomBoolean()) {
             int batchSize = randomInt(100);
             updateByQueryRequest.setBatchSize(batchSize);
             expectedParams.put("scroll_size", Integer.toString(batchSize));
@@ -600,9 +594,6 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         Request request = RequestConverters.updateByQuery(updateByQueryRequest);
         StringJoiner joiner = new StringJoiner("/", "/", "");
         joiner.add(String.join(",", updateByQueryRequest.indices()));
-        if (updateByQueryRequest.getDocTypes().length > 0) {
-            joiner.add(String.join(",", updateByQueryRequest.getDocTypes()));
-        }
         joiner.add("_update_by_query");
         assertEquals(joiner.toString(), request.getEndpoint());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -614,9 +605,6 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
         deleteByQueryRequest.indices(randomIndicesNames(1, 5));
         Map<String, String> expectedParams = new HashMap<>();
-        if (randomBoolean()) {
-            deleteByQueryRequest.setDocTypes(generateRandomStringArray(5, 5, false, false));
-        }
         if (randomBoolean()) {
             int batchSize = randomInt(100);
             deleteByQueryRequest.setBatchSize(batchSize);
@@ -671,9 +659,6 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         Request request = RequestConverters.deleteByQuery(deleteByQueryRequest);
         StringJoiner joiner = new StringJoiner("/", "/", "");
         joiner.add(String.join(",", deleteByQueryRequest.indices()));
-        if (deleteByQueryRequest.getDocTypes().length > 0) {
-            joiner.add(String.join(",", deleteByQueryRequest.getDocTypes()));
-        }
         joiner.add("_delete_by_query");
         assertEquals(joiner.toString(), request.getEndpoint());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -1191,10 +1176,6 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         if (Strings.hasLength(index)) {
             endpoint.add(index);
         }
-        String type = String.join(",", searchRequest.types());
-        if (Strings.hasLength(type)) {
-            endpoint.add(type);
-        }
         endpoint.add(searchEndpoint);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
@@ -1204,14 +1185,6 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
     public static SearchRequest createTestSearchRequest(String[] indices, Map<String, String> expectedParams) {
         SearchRequest searchRequest = new SearchRequest(indices);
-
-        int numTypes = randomIntBetween(0, 5);
-        String[] types = new String[numTypes];
-        for (int i = 0; i < numTypes; i++) {
-            types[i] = "type-" + randomAlphaOfLengthBetween(2, 5);
-        }
-        searchRequest.types(types);
-
         setRandomSearchParams(searchRequest, expectedParams);
         setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
 
@@ -1278,7 +1251,6 @@ public class RequestConvertersTests extends OpenSearchTestCase {
     public void testSearchNullIndicesAndTypes() {
         expectThrows(NullPointerException.class, () -> new SearchRequest((String[]) null));
         expectThrows(NullPointerException.class, () -> new SearchRequest().indices((String[]) null));
-        expectThrows(NullPointerException.class, () -> new SearchRequest().types((String[]) null));
     }
 
     public void testCountNotNullSource() throws IOException {
@@ -1293,14 +1265,6 @@ public class RequestConvertersTests extends OpenSearchTestCase {
     public void testCount() throws Exception {
         String[] indices = randomIndicesNames(0, 5);
         CountRequest countRequest = new CountRequest(indices);
-
-        int numTypes = randomIntBetween(0, 5);
-        String[] types = new String[numTypes];
-        for (int i = 0; i < numTypes; i++) {
-            types[i] = "type-" + randomAlphaOfLengthBetween(2, 5);
-        }
-        countRequest.types(types);
-
         Map<String, String> expectedParams = new HashMap<>();
         setRandomCountParams(countRequest, expectedParams);
         setRandomIndicesOptions(countRequest::indicesOptions, countRequest::indicesOptions, expectedParams);
@@ -1317,21 +1281,11 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         if (Strings.hasLength(index)) {
             endpoint.add(index);
         }
-        String type = String.join(",", types);
-        if (Strings.hasLength(type)) {
-            endpoint.add(type);
-        }
         endpoint.add("_count");
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(countRequest, request.getEntity());
-    }
-
-    public void testCountNullIndicesAndTypes() {
-        expectThrows(NullPointerException.class, () -> new CountRequest((String[]) null));
-        expectThrows(NullPointerException.class, () -> new CountRequest().indices((String[]) null));
-        expectThrows(NullPointerException.class, () -> new CountRequest().types((String[]) null));
     }
 
     private static void setRandomCountParams(CountRequest countRequest, Map<String, String> expectedParams) {
@@ -1413,7 +1367,6 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             consumer,
             null,
             multiSearchRequest.indicesOptions(),
-            null,
             null,
             null,
             null,

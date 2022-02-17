@@ -516,7 +516,6 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         SearchResponse resp = client().prepareSearch()
             .setQuery(q)
             .setIndices("test")
-            .setTypes("type1")
             .setProfile(true)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .get();

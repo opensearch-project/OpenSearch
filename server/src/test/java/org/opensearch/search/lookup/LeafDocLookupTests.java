@@ -39,7 +39,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
-import static org.opensearch.search.lookup.LeafDocLookup.TYPES_DEPRECATION_MESSAGE;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
@@ -59,14 +58,13 @@ public class LeafDocLookupTests extends OpenSearchTestCase {
         when(fieldType.valueForDisplay(any())).then(returnsFirstArg());
 
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType("_type")).thenReturn(fieldType);
         when(mapperService.fieldType("field")).thenReturn(fieldType);
         when(mapperService.fieldType("alias")).thenReturn(fieldType);
 
         docValues = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData = createFieldData(docValues);
 
-        docLookup = new LeafDocLookup(mapperService, ignored -> fieldData, new String[] { "type" }, null);
+        docLookup = new LeafDocLookup(mapperService, ignored -> fieldData, null);
     }
 
     public void testBasicLookup() {
@@ -77,12 +75,6 @@ public class LeafDocLookupTests extends OpenSearchTestCase {
     public void testFieldAliases() {
         ScriptDocValues<?> fetchedDocValues = docLookup.get("alias");
         assertEquals(docValues, fetchedDocValues);
-    }
-
-    public void testTypesDeprecation() {
-        ScriptDocValues<?> fetchedDocValues = docLookup.get("_type");
-        assertEquals(docValues, fetchedDocValues);
-        assertWarnings(TYPES_DEPRECATION_MESSAGE);
     }
 
     private IndexFieldData<?> createFieldData(ScriptDocValues scriptDocValues) {

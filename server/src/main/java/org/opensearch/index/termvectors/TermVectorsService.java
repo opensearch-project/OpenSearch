@@ -93,11 +93,7 @@ public class TermVectorsService {
 
     static TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request, LongSupplier nanoTimeSupplier) {
         final long startTime = nanoTimeSupplier.getAsLong();
-        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(
-            indexShard.shardId().getIndex().getName(),
-            request.type(),
-            request.id()
-        );
+        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(), request.id());
         final Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
 
         Fields termVectorsByField = null;
@@ -110,8 +106,9 @@ public class TermVectorsService {
 
         try (
             Engine.GetResult get = indexShard.get(
-                new Engine.Get(request.realtime(), false, request.type(), request.id(), uidTerm).version(request.version())
-                    .versionType(request.versionType())
+                new Engine.Get(request.realtime(), false, MapperService.SINGLE_MAPPING_NAME, request.id(), uidTerm).version(
+                    request.version()
+                ).versionType(request.versionType())
             );
             Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")
         ) {
@@ -238,7 +235,7 @@ public class TermVectorsService {
         /* generate term vectors from fetched document fields */
         String[] getFields = validFields.toArray(new String[validFields.size() + 1]);
         getFields[getFields.length - 1] = SourceFieldMapper.NAME;
-        GetResult getResult = indexShard.getService().get(get, request.id(), request.type(), getFields, null);
+        GetResult getResult = indexShard.getService().get(get, request.id(), MapperService.SINGLE_MAPPING_NAME, getFields, null);
         Fields generatedTermVectors = generateTermVectors(
             indexShard,
             getResult.sourceAsMap(),
@@ -329,7 +326,6 @@ public class TermVectorsService {
         ParsedDocument parsedDocument = parseDocument(
             indexShard,
             indexShard.shardId().getIndexName(),
-            request.type(),
             request.doc(),
             request.xContentType(),
             request.routing()
@@ -389,15 +385,14 @@ public class TermVectorsService {
     private static ParsedDocument parseDocument(
         IndexShard indexShard,
         String index,
-        String type,
         BytesReference doc,
         XContentType xContentType,
         String routing
     ) {
         MapperService mapperService = indexShard.mapperService();
-        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
+        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(MapperService.SINGLE_MAPPING_NAME);
         ParsedDocument parsedDocument = docMapper.getDocumentMapper()
-            .parse(new SourceToParse(index, type, "_id_for_tv_api", doc, xContentType, routing));
+            .parse(new SourceToParse(index, MapperService.SINGLE_MAPPING_NAME, "_id_for_tv_api", doc, xContentType, routing));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
         }

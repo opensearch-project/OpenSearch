@@ -85,7 +85,6 @@ public class StoredExpressionIT extends OpenSearchIntegTestCase {
                     new SearchSourceBuilder().scriptField("test1", new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
                 )
                 .setIndices("test")
-                .setTypes("scriptTest")
                 .get();
             fail("search script should have been rejected");
         } catch (Exception e) {

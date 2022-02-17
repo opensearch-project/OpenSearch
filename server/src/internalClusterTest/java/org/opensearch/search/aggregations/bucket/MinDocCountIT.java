@@ -332,7 +332,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
     private void testMinDocCountOnTerms(String field, Script script, BucketOrder order, String include, boolean retry) throws Exception {
         // all terms
         final SearchResponse allTermsResponse = client().prepareSearch("idx")
-            .setTypes("type")
             .setSize(0)
             .setQuery(QUERY)
             .addAggregation(
@@ -352,7 +351,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         for (long minDocCount = 0; minDocCount < 20; ++minDocCount) {
             final int size = randomIntBetween(1, cardinality + 2);
             final SearchRequest request = client().prepareSearch("idx")
-                .setTypes("type")
                 .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(
@@ -407,7 +405,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
     private void testMinDocCountOnHistogram(BucketOrder order) throws Exception {
         final int interval = randomIntBetween(1, 3);
         final SearchResponse allResponse = client().prepareSearch("idx")
-            .setTypes("type")
             .setSize(0)
             .setQuery(QUERY)
             .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(0))
@@ -417,7 +414,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
         for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
             final SearchResponse response = client().prepareSearch("idx")
-                .setTypes("type")
                 .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(minDocCount))
@@ -428,7 +424,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     private void testMinDocCountOnDateHistogram(BucketOrder order) throws Exception {
         final SearchResponse allResponse = client().prepareSearch("idx")
-            .setTypes("type")
             .setSize(0)
             .setQuery(QUERY)
             .addAggregation(
@@ -440,7 +435,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
         for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
             final SearchResponse response = client().prepareSearch("idx")
-                .setTypes("type")
                 .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(

@@ -17,16 +17,23 @@ setup:
           refresh: true
           body:
             - '{"index": {"_index": "test", "_id": "1"}}'
-            - '{"text" : "Some like it hot, some like it cold"}'
+            - '{"text" : "Some like hot and dry, some like it cold and wet"}'
             - '{"index": {"_index": "test", "_id": "2"}}'
             - '{"text" : "Its cold outside, theres no kind of atmosphere"}'
             - '{"index": {"_index": "test", "_id": "3"}}'
             - '{"text" : "Baby its cold there outside"}'
             - '{"index": {"_index": "test", "_id": "4"}}'
             - '{"text" : "Outside it is cold and wet"}'
+            - '{"index": {"_index": "test", "_id": "5"}}'
+            - '{"text" : "cold rain makes it wet"}'
+            - '{"index": {"_index": "test", "_id": "6"}}'
+            - '{"text" : "that is some cold cold rain"}'
 
 ---
-"Test ordered matching":
+"Test ordered matching with via mode":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
         search:
           index: test
@@ -36,7 +43,25 @@ setup:
                 text:
                   match:
                     query: "cold outside"
-                    ordered: true
+                    mode: "ordered"
+  - match: { hits.total.value: 2 }
+
+---
+"Test ordered matching":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  ordered: true
   - match: { hits.total.value: 2 }
 
 ---
@@ -53,8 +78,29 @@ setup:
   - match: { hits.total.value: 3 }
 
 ---
-"Test explicit unordered matching":
+"Test explicit unordered matching via mode":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  mode: "unordered"
+  - match: { hits.total.value: 3 }
+
+---
+"Test explicit unordered matching":
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
       search:
         index: test
         body:
@@ -67,7 +113,44 @@ setup:
   - match: { hits.total.value: 3 }
 
 ---
+"Test unordered with overlap in match":
+  - skip:
+        version: " - 1.99.99"
+        reason: "Implemented in 2.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold wet it"
+                  mode: "unordered"
+  - match: { hits.total.value: 3 }
+
+---
+"Test unordered with no overlap in match":
+  - skip:
+      version: " - 1.99.99"
+      reason: "Implemented in 2.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold wet it"
+                  mode: "unordered_no_overlap"
+  - match: { hits.total.value: 2 }
+
+---
 "Test phrase matching":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
       search:
         index: test
@@ -77,7 +160,7 @@ setup:
               text:
                 match:
                   query: "cold outside"
-                  ordered: true
+                  mode: "ordered"
                   max_gaps: 0
   - match: { hits.total.value: 1 }
 
@@ -97,6 +180,9 @@ setup:
 
 ---
 "Test ordered max_gaps matching":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
       search:
         index: test
@@ -107,12 +193,41 @@ setup:
                 match:
                   query: "cold outside"
                   max_gaps: 0
-                  ordered: true
+                  mode: "ordered"
+  - match: { hits.total.value: 1 }
+
+---
+"Test ordered combination with disjunction via mode":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "outside"
+                    - match:
+                        query: "atmosphere"
+                  mode: "ordered"
   - match: { hits.total.value: 1 }
 
 ---
 "Test ordered combination with disjunction":
+  - skip:
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
       search:
         index: test
         body:
@@ -134,6 +249,9 @@ setup:
 
 ---
 "Test ordered combination with max_gaps":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
       search:
         index: test
@@ -148,11 +266,14 @@ setup:
                     - match:
                         query: "outside"
                   max_gaps: 0
-                  ordered: true
+                  mode: "ordered"
   - match: { hits.total.value: 1 }
 
 ---
 "Test ordered combination":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
       search:
         index: test
@@ -166,12 +287,38 @@ setup:
                         query: "cold"
                     - match:
                         query: "outside"
-                  ordered: true
+                  mode: "ordered"
+  - match: { hits.total.value: 2 }
+
+---
+"Test unordered combination via mode":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "outside"
+                  max_gaps: 1
+                  mode: "unordered"
   - match: { hits.total.value: 2 }
 
 ---
 "Test unordered combination":
+  - skip:
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "Deprecated field [ordered] used, this field is unused and will be removed entirely"
       search:
         index: test
         body:
@@ -189,7 +336,106 @@ setup:
   - match: { hits.total.value: 2 }
 
 ---
+"Test unordered combination with overlap":
+  - skip:
+      version: " - 1.99.99"
+      reason: "Implemented in 2.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "wet"
+                    - match:
+                        query: "it"
+                  mode: "unordered"
+  - match: { hits.total.value: 3 }
+
+---
+"Test unordered combination no overlap":
+  - skip:
+      version: " - 1.99.99"
+      reason: "Implemented in 2.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "cold"
+                    - match:
+                        query: "wet"
+                    - match:
+                        query: "it"
+                  mode: "unordered_no_overlap"
+  - match: { hits.total.value: 2 }
+
+---
+"Test nested unordered combination with overlap":
+  - skip:
+      version: " - 1.99.99"
+      reason: "Implemented in 2.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "hot"
+                    - match:
+                        query: "cold"
+                  mode: "unordered"
+  - match: { hits.total.value: 6 }
+
+---
+"Test nested unordered combination no overlap":
+  - skip:
+      version: " - 1.99.99"
+      reason: "Implemented in 2.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "cold"
+                          - match:
+                              query: "hot"
+                    - match:
+                        query: "cold"
+                  mode: "unordered_no_overlap"
+  - match: { hits.total.value: 2 }
+
+---
 "Test block combination":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
       search:
         index: test
@@ -203,13 +449,16 @@ setup:
                         query: "cold"
                     - match:
                         query: "outside"
-                  ordered: true
+                  mode: "ordered"
                   max_gaps: 0
   - match: { hits.total.value: 1 }
 
 
 ---
 "Test containing":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
       search:
         index: test
@@ -223,7 +472,7 @@ setup:
                         query: "cold"
                     - match:
                         query: "outside"
-                  ordered: false
+                  mode: "unordered"
                   filter:
                     containing:
                       match:
@@ -233,6 +482,9 @@ setup:
 
 ---
 "Test not containing":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
       search:
         index: test
@@ -246,7 +498,7 @@ setup:
                         query: "cold"
                     - match:
                         query: "outside"
-                  ordered: false
+                  mode: "unordered"
                   filter:
                     not_containing:
                       match:
@@ -255,6 +507,9 @@ setup:
 
 ---
 "Test contained_by":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
       search:
         index: test
@@ -272,7 +527,7 @@ setup:
                               query: "cold"
                           - match:
                               query: "outside"
-                        ordered: false
+                        mode: "unordered"
   - match: { hits.total.value: 1 }
 
 ---
@@ -294,10 +549,13 @@ setup:
                               query: "cold"
                           - match:
                               query: "outside"
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 2 }
 
 ---
 "Test not_overlapping":
+  - skip:
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
       search:
         index: test
@@ -311,7 +569,7 @@ setup:
                         query: "cold"
                     - match:
                         query: "outside"
-                  ordered: true
+                  mode: "ordered"
                   filter:
                     not_overlapping:
                       all_of:
@@ -320,14 +578,14 @@ setup:
                               query: "baby"
                           - match:
                               query: "there"
-                        ordered: false
+                        mode: "unordered"
   - match: { hits.total.value: 1 }
 
 ---
 "Test overlapping":
   - skip:
-      version: " - 7.1.99"
-      reason: "Implemented in 7.2"
+      version: " - 1.99.99"
+      reason: "mode introduced in 2.0"
   - do:
       search:
         index: test
@@ -337,12 +595,12 @@ setup:
               text:
                 match:
                   query: "cold outside"
-                  ordered: true
+                  mode: "ordered"
                   filter:
                     overlapping:
                       match:
                         query: "baby there"
-                        ordered: false
+                        mode: "unordered"
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "3" }
 

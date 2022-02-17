@@ -199,10 +199,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             //
             // For this to happen we must have already copied the translog.ckp file into translog-gen.ckp so we first check if that
             // file exists. If not we don't even try to clean it up and wait until we fail creating it
-            assert Files.exists(nextTranslogFile) == false
-                || Files.size(nextTranslogFile) <= TranslogHeader.headerSizeInBytes(translogUUID) : "unexpected translog file: ["
-                    + nextTranslogFile
-                    + "]";
+            assert Files.exists(nextTranslogFile) == false || Files.size(nextTranslogFile) <= TranslogHeader.headerSizeInBytes(translogUUID)
+                : "unexpected translog file: [" + nextTranslogFile + "]";
             if (Files.exists(currentCheckpointFile) // current checkpoint is already copied
                 && Files.deleteIfExists(nextTranslogFile)) { // delete it and log a warning
                 logger.warn(
@@ -399,7 +397,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     @Override
     public void close() throws IOException {
-        assert calledFromOutsideOrViaTragedyClose() : "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
+        assert calledFromOutsideOrViaTragedyClose()
+            : "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
         if (closed.compareAndSet(false, true)) {
             try (ReleasableLock lock = writeLock.acquire()) {
                 try {
@@ -439,11 +438,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (readers.isEmpty()) {
                 return current.getGeneration();
             } else {
-                assert readers.stream()
-                    .map(TranslogReader::getGeneration)
-                    .min(Long::compareTo)
-                    .get()
-                    .equals(readers.get(0).getGeneration()) : "the first translog isn't the one with the minimum generation:" + readers;
+                assert readers.stream().map(TranslogReader::getGeneration).min(Long::compareTo).get().equals(readers.get(0).getGeneration())
+                    : "the first translog isn't the one with the minimum generation:" + readers;
                 return readers.get(0).getGeneration();
             }
         }
@@ -740,10 +736,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (snapshots.length == 0) {
             onClose = () -> {};
         } else {
-            assert Arrays.stream(snapshots)
-                .map(BaseTranslogReader::getGeneration)
-                .min(Long::compareTo)
-                .get() == snapshots[0].generation : "first reader generation of " + snapshots + " is not the smallest";
+            assert Arrays.stream(snapshots).map(BaseTranslogReader::getGeneration).min(Long::compareTo).get() == snapshots[0].generation
+                : "first reader generation of " + snapshots + " is not the smallest";
             onClose = acquireTranslogGenFromDeletionPolicy(snapshots[0].generation);
         }
         boolean success = false;
@@ -759,8 +753,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     private Stream<? extends BaseTranslogReader> readersAboveMinSeqNo(long minSeqNo) {
-        assert readLock.isHeldByCurrentThread()
-            || writeLock.isHeldByCurrentThread() : "callers of readersAboveMinSeqNo must hold a lock: readLock ["
+        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread()
+            : "callers of readersAboveMinSeqNo must hold a lock: readLock ["
                 + readLock.isHeldByCurrentThread()
                 + "], writeLock ["
                 + readLock.isHeldByCurrentThread()
@@ -1806,8 +1800,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current.sync();
                 deleteReaderFiles(reader);
             }
-            assert readers.isEmpty() == false
-                || current.generation == minReferencedGen : "all readers were cleaned but the minReferenceGen ["
+            assert readers.isEmpty() == false || current.generation == minReferencedGen
+                : "all readers were cleaned but the minReferenceGen ["
                     + minReferencedGen
                     + "] is not the current writer's gen ["
                     + current.generation

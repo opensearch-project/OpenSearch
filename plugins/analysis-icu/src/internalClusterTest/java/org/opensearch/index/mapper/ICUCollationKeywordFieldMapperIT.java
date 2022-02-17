@@ -99,7 +99,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         // searching for either of the terms should return both results since they collate to the same value
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -143,7 +142,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         // using sort mode = max, values B and C will be used for the sort
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", "a"))
@@ -159,7 +157,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         // same thing, using different sort mode that will use a for both docs
         request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", "a"))
@@ -207,7 +204,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         // searching for either of the terms should return both results since they collate to the same value
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -253,7 +249,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -300,7 +295,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -348,7 +342,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC).sort("id", SortOrder.ASC) // secondary sort
                                                                                                                       // should kick in on
@@ -391,7 +384,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC));
 
         SearchResponse response = client().search(request).actionGet();
@@ -434,7 +426,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC).sort("id", SortOrder.DESC));
 
         SearchResponse response = client().search(request).actionGet();
@@ -472,7 +463,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC));
 
         SearchResponse response = client().search(request).actionGet();
@@ -522,7 +512,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))

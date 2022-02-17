@@ -33,7 +33,6 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -53,9 +52,6 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiSearchTemplateAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
-        + " Specifying types in multi search template requests is deprecated.";
 
     private static final Set<String> RESPONSE_PARAMS;
 
@@ -95,14 +91,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
-
-        // Emit a single deprecation message if any search template contains types.
-        for (SearchTemplateRequest searchTemplateRequest : multiRequest.requests()) {
-            if (searchTemplateRequest.getRequest().types().length > 0) {
-                deprecationLogger.deprecate("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
-                break;
-            }
-        }
         return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
     }
 

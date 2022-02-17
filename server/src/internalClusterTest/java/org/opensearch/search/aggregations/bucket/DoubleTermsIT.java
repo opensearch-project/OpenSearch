@@ -938,7 +938,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     private void assertMultiSortResponse(double[] expectedKeys, BucketOrder... order) {
         SearchResponse response = client().prepareSearch("sort_idx")
-            .setTypes("multi_sort_type")
             .addAggregation(
                 terms("terms").field(SINGLE_VALUED_FIELD_NAME)
                     .collectMode(randomFrom(SubAggCollectionMode.values()))

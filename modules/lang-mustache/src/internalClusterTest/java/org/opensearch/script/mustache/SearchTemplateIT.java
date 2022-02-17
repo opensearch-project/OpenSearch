@@ -196,9 +196,11 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(
-            new SearchRequest("test").types("type")
-        ).setScript("testTemplate").setScriptType(ScriptType.STORED).setScriptParams(templateParams).get();
+        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
+            .setScript("testTemplate")
+            .setScriptType(ScriptType.STORED)
+            .setScriptParams(templateParams)
+            .get();
         assertHitCount(searchResponse.getResponse(), 4);
 
         assertAcked(client().admin().cluster().prepareDeleteStoredScript("testTemplate"));
@@ -238,14 +240,16 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(
-            new SearchRequest().indices("test").types("type")
-        ).setScript("1a").setScriptType(ScriptType.STORED).setScriptParams(templateParams).get();
+        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test"))
+            .setScript("1a")
+            .setScriptType(ScriptType.STORED)
+            .setScriptParams(templateParams)
+            .get();
         assertHitCount(searchResponse.getResponse(), 4);
 
         expectThrows(
             ResourceNotFoundException.class,
-            () -> new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test").types("type"))
+            () -> new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test"))
                 .setScript("1000")
                 .setScriptType(ScriptType.STORED)
                 .setScriptParams(templateParams)
@@ -253,7 +257,7 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         );
 
         templateParams.put("fieldParam", "bar");
-        searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test").types("type"))
+        searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
             .setScript("2")
             .setScriptType(ScriptType.STORED)
             .setScriptParams(templateParams)
@@ -304,7 +308,7 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
 
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex").types("test"))
+                () -> new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
                     .setScript("git01")
                     .setScriptType(ScriptType.STORED)
                     .setScriptParams(templateParams)
@@ -320,9 +324,11 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
                     .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(0))), XContentType.JSON)
             );
 
-            SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(
-                new SearchRequest("testindex").types("test")
-            ).setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams).get();
+            SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
+                .setScript("git01")
+                .setScriptType(ScriptType.STORED)
+                .setScriptParams(templateParams)
+                .get();
             assertHitCount(searchResponse.getResponse(), 1);
         }
     }
@@ -360,9 +366,11 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         String[] fieldParams = { "foo", "bar" };
         arrayTemplateParams.put("fieldParam", fieldParams);
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(
-            new SearchRequest("test").types("type")
-        ).setScript("4").setScriptType(ScriptType.STORED).setScriptParams(arrayTemplateParams).get();
+        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
+            .setScript("4")
+            .setScriptType(ScriptType.STORED)
+            .setScriptParams(arrayTemplateParams)
+            .get();
         assertHitCount(searchResponse.getResponse(), 5);
     }
 

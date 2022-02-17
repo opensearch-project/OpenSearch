@@ -193,7 +193,7 @@ public class GetTermVectorsTests extends OpenSearchSingleNodeTestCase {
             .execute()
             .actionGet();
         client().admin().indices().prepareRefresh().get();
-        TermVectorsRequestBuilder resp = client().prepareTermVectors("test", "type1", Integer.toString(1))
+        TermVectorsRequestBuilder resp = client().prepareTermVectors("test", Integer.toString(1))
             .setPayloads(true)
             .setOffsets(true)
             .setPositions(true)

@@ -154,18 +154,6 @@ public final class QueryBuilders {
     }
 
     /**
-     * Constructs a query that will match only specific ids within types.
-     *
-     * @param types The mapping/doc type
-     *
-     * @deprecated Types are in the process of being removed, use {@link #idsQuery()} instead.
-     */
-    @Deprecated
-    public static IdsQueryBuilder idsQuery(String... types) {
-        return new IdsQueryBuilder().types(types);
-    }
-
-    /**
      * A Query that matches documents containing a term.
      *
      * @param name  The name of the field
@@ -620,15 +608,6 @@ public final class QueryBuilders {
      */
     public static WrapperQueryBuilder wrapperQuery(byte[] source) {
         return new WrapperQueryBuilder(source);
-    }
-
-    /**
-     * A filter based on doc/mapping type.
-     * @deprecated Types are going away, prefer filtering on a field.
-     */
-    @Deprecated
-    public static TypeQueryBuilder typeQuery(String type) {
-        return new TypeQueryBuilder(type);
     }
 
     /**

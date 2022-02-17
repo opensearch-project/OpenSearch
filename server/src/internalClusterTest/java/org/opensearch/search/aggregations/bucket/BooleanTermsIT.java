@@ -99,7 +99,6 @@ public class BooleanTermsIT extends OpenSearchIntegTestCase {
 
     public void testSingleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())))
             .get();
 
@@ -132,7 +131,6 @@ public class BooleanTermsIT extends OpenSearchIntegTestCase {
 
     public void testMultiValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(terms("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())))
             .get();
 
@@ -165,7 +163,6 @@ public class BooleanTermsIT extends OpenSearchIntegTestCase {
 
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
-            .setTypes("type")
             .addAggregation(
                 terms("terms").field(SINGLE_VALUED_FIELD_NAME).size(between(1, 5)).collectMode(randomFrom(SubAggCollectionMode.values()))
             )
