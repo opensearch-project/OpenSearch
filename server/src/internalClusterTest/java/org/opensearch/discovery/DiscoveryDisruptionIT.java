@@ -65,25 +65,25 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
         String clusterManagerNode = internalCluster().startMasterOnlyNode();
-        String nonMasterNode = internalCluster().startDataOnlyNode();
+        String nonClusterManagerNode = internalCluster().startDataOnlyNode();
 
-        DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
+        DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonClusterManagerNode).state().nodes();
 
         TransportService masterTranspotService = internalCluster().getInstance(
             TransportService.class,
             discoveryNodes.getMasterNode().getName()
         );
 
-        logger.info("blocking requests from non master [{}] to master [{}]", nonMasterNode, clusterManagerNode);
+        logger.info("blocking requests from non master [{}] to master [{}]", nonClusterManagerNode, clusterManagerNode);
         MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            nonMasterNode
+            nonClusterManagerNode
         );
         nonMasterTransportService.addFailToSendNoConnectRule(masterTranspotService);
 
-        assertNoMaster(nonMasterNode);
+        assertNoMaster(nonClusterManagerNode);
 
-        logger.info("blocking cluster state publishing from master [{}] to non master [{}]", clusterManagerNode, nonMasterNode);
+        logger.info("blocking cluster state publishing from master [{}] to non master [{}]", clusterManagerNode, nonClusterManagerNode);
         MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
             clusterManagerNode
@@ -98,7 +98,11 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
             masterTransportService.addFailToSendNoConnectRule(localTransportService, PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
         }
 
-        logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, clusterManagerNode);
+        logger.info(
+            "allowing requests from non master [{}] to master [{}], waiting for two join request",
+            nonClusterManagerNode,
+            clusterManagerNode
+        );
         final CountDownLatch countDownLatch = new CountDownLatch(2);
         nonMasterTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
             if (action.equals(JoinHelper.JOIN_ACTION_NAME)) {

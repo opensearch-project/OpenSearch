@@ -439,7 +439,9 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         if (rejoinSameMaster) {
             transport.handleRemoteError(
                 capturedRequest.requestId,
-                randomBoolean() ? new ConnectTransportException(clusterManagerNode, "Fake error") : new NodeClosedException(clusterManagerNode)
+                randomBoolean()
+                    ? new ConnectTransportException(clusterManagerNode, "Fake error")
+                    : new NodeClosedException(clusterManagerNode)
             );
             assertFalse(listener.isDone());
             if (randomBoolean()) {
@@ -458,7 +460,11 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
                 // simulate master restart followed by a state recovery - this will reset the cluster state version
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
                 nodesBuilder.remove(clusterManagerNode);
-                clusterManagerNode = new DiscoveryNode(clusterManagerNode.getId(), clusterManagerNode.getAddress(), clusterManagerNode.getVersion());
+                clusterManagerNode = new DiscoveryNode(
+                    clusterManagerNode.getId(),
+                    clusterManagerNode.getAddress(),
+                    clusterManagerNode.getVersion()
+                );
                 nodesBuilder.add(clusterManagerNode);
                 nodesBuilder.masterNodeId(clusterManagerNode.getId());
                 final ClusterState.Builder builder = ClusterState.builder(clusterService.state()).nodes(nodesBuilder);
